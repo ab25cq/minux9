@@ -276,31 +276,31 @@ LOAD main.o
  .debug_line    0x00000000000009d0      0xb9c fs2.o
  .debug_line    0x000000000000156c     0x328e main.o
 
-.debug_str      0x0000000000000000      0xbc3
+.debug_str      0x0000000000000000      0xbba
  *(.debug_str)
- .debug_str     0x0000000000000000      0xbc3 entry.o
-                                         0x34 (size before relaxing)
- .debug_str     0x0000000000000bc3      0x1af start.o
- .debug_str     0x0000000000000bc3       0x33 trap.o
- .debug_str     0x0000000000000bc3      0x14b trap_c.o
- .debug_str     0x0000000000000bc3      0x116 plic.o
- .debug_str     0x0000000000000bc3      0x49e fs2.o
- .debug_str     0x0000000000000bc3      0x8b0 main.o
+ .debug_str     0x0000000000000000      0xbba entry.o
+                                         0x2b (size before relaxing)
+ .debug_str     0x0000000000000bba      0x1af start.o
+ .debug_str     0x0000000000000bba       0x2a trap.o
+ .debug_str     0x0000000000000bba      0x14b trap_c.o
+ .debug_str     0x0000000000000bba      0x116 plic.o
+ .debug_str     0x0000000000000bba      0x49e fs2.o
+ .debug_str     0x0000000000000bba      0x8b0 main.o
 
 .debug_line_str
-                0x0000000000000000       0xdc
+                0x0000000000000000       0xd3
  *(.debug_line_str)
  .debug_line_str
-                0x0000000000000000       0xdc start.o
-                                         0xba (size before relaxing)
+                0x0000000000000000       0xd3 start.o
+                                         0xa8 (size before relaxing)
  .debug_line_str
-                0x00000000000000dc       0xb7 trap_c.o
+                0x00000000000000d3       0xa5 trap_c.o
  .debug_line_str
-                0x00000000000000dc       0xb7 plic.o
+                0x00000000000000d3       0xa5 plic.o
  .debug_line_str
-                0x00000000000000dc       0xc3 fs2.o
+                0x00000000000000d3       0xb1 fs2.o
  .debug_line_str
-                0x00000000000000dc       0xec main.o
+                0x00000000000000d3       0xda main.o
 OUTPUT(kernel.elf elf64-littleriscv)
 
 .debug_aranges  0x0000000000000000      0x150
