@@ -6,6 +6,8 @@ git config --global user.name ab25cq
 
 #sh remove_all_build.sh
 
+make clean
+
 git add .
 git commit 
 git remote set-url origin git@github.com:ab25cq/minux9.git
