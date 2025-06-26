@@ -2,17 +2,38 @@
     .extern user_satp        # C のグローバルを取り込む
     .extern kernel_sp        # C のゴローバル変数を取り込む
     .extern user_sp          # C のゴローバル変数を取り込む
+    .extern gCPU             # C のゴローバル変数を取り込む
     .section ".trampoline", "ax"
     .globl trapvec
     #.section .text
     .align 2
 trapvec:
+/*
+    la t0, gCPU
+    ld t0, 0(t0)        # t0 = &gCPU
+    ld t0, 0(t0)        # t0 = gCPU->proc (現在のプロセス)
+*/
     la t0, TRAPFRAME;
-    
+
     sd ra, 0(t0)
     sd sp, 8(t0)
     sd gp, 16(t0)
     sd tp, 24(t0)
+/*    sd t0, 32(t0) */
+    sd t1, 40(t0)
+    sd t2, 48(t0)
+    sd t3, 56(t0)
+    sd t4, 64(t0)
+    sd t5, 72(t0)
+    sd t6, 80(t0)
+    sd a0, 88(t0)
+    sd a1, 96(t0)
+    sd a2, 104(t0)
+    sd a3, 112(t0)
+    sd a4, 120(t0)
+    sd a5, 128(t0)
+    sd a6, 136(t0)
+    sd a7, 144(t0)
     sd s0, 152(t0)
     sd s1, 160(t0)
     sd s2, 168(t0)
@@ -25,8 +46,9 @@ trapvec:
     sd s9, 224(t0)
     sd s10, 232(t0)
     sd s11, 240(t0)
-    csrr a3, sepc
-    sd a3, 248(t0)
+
+    csrr t1, sepc
+    sd t1, 248(t0)
     
     csrr   t1, satp
     la     t0, user_satp
@@ -121,91 +143,55 @@ external_handler:
 
     .section ".trampoline", "ax"
 handle_ecall:
-    la t0, TRAPFRAME2;
-    
-    sd ra, 0(t0)
-    sd sp, 8(t0)
-    sd gp, 16(t0)
-    sd tp, 24(t0)
-/*
-    sd t0, 32(t0)
-    sd t1, 40(t0)
-    sd t2, 48(t0)
-    sd t3, 56(t0)
-    sd t4, 64(t0)
-    sd t5, 72(t0)
-    sd t6, 80(t0)
-    sd a0, 88(t0)
-    sd a1, 96(t0)
-    sd a2, 104(t0)
-    sd a3, 112(t0)
-    sd a4, 120(t0)
-    sd a5, 128(t0)
-    sd a6, 136(t0)
-    sd a7, 144(t0)
-*/
-    sd s0, 152(t0)
-    sd s1, 160(t0)
-    sd s2, 168(t0)
-    sd s3, 176(t0)
-    sd s4, 184(t0)
-    sd s5, 192(t0)
-    sd s6, 200(t0)
-    sd s7, 208(t0)
-    sd s8, 216(t0)
-    sd s9, 224(t0)
-    sd s10, 232(t0)
-    sd s11, 240(t0)
-    csrr a3, sepc
-    sd a3, 248(t0)
-    sd a0, 256(t0)
-    
-/*    csrr t0, sscratch */
-    
     call   syscall_handler
     
-    la t1, TRAPFRAME2;
+    la t0, TRAPFRAME
     
-    ld ra, 0(t1)
-    ld sp, 8(t1)
-    ld gp, 16(t1)
-    ld tp, 24(t1)
 /*
-    sd t0, 32(t1)
-    sd t1, 40(t1)
-    sd t2, 48(t1)
-    sd t3, 56(t1)
-    sd t4, 64(t1)
-    sd t5, 72(t1)
-    sd t6, 80(t1)
+    la t0, gCPU
+    ld t0, 0(t0)        # t0 = &gCPU
+    ld t0, 0(t0)        # t0 = gCPU->proc (現在のプロセス)
 */
-    sd a0, 88(t1)
-    sd a1, 96(t1)
-    sd a2, 104(t1)
-    sd a3, 112(t1)
-    sd a4, 120(t1)
-    sd a5, 128(t0)
-    sd a6, 136(t0)
-    sd a7, 144(t0)
-    ld s0, 152(t1)
-    ld s1, 160(t1)
-    ld s2, 168(t1)
-    ld s3, 176(t1)
-    ld s4, 184(t1)
-    ld s5, 192(t1)
-    ld s6, 200(t1)
-    ld s7, 208(t1)
-    ld s8, 216(t1)
-    ld s9, 224(t1)
-    ld s10, 232(t1)
-    ld s11, 240(t1)
-#    ld a2, 248(t1)
-#    csrw sepc, a2
-    ld a0, 256(t1)
 
+    ld ra, 0(t0)
+    ld sp, 8(t0)
+    ld gp, 16(t0)
+    ld tp, 24(t0)
+/*    sd t0, 32(t0) */
+    ld t1, 40(t0)
+    ld t2, 48(t0)
+    ld t3, 56(t0)
+    ld t4, 64(t0)
+    ld t5, 72(t0)
+    ld t6, 80(t0)
+    ld a0, 88(t0) 
+    ld a1, 96(t0)
+    ld a2, 104(t0)
+    ld a3, 112(t0)
+    ld a4, 120(t0)
+    ld a5, 128(t0)
+    ld a6, 136(t0)
+    ld a7, 144(t0)
+    ld s0, 152(t0)
+    ld s1, 160(t0)
+    ld s2, 168(t0)
+    ld s3, 176(t0)
+    ld s4, 184(t0)
+    ld s5, 192(t0)
+    ld s6, 200(t0)
+    ld s7, 208(t0)
+    ld s8, 216(t0)
+    ld s9, 224(t0)
+    ld s10, 232(t0)
+    ld s11, 240(t0)
+    ld t0, 248(t0)
+
+    csrw   sepc, t0
+/*
     csrr   t0, sepc
     addi   t0, t0, 4
     csrw   sepc, t0
+*/
 
     j      trap_return
 
@@ -224,16 +210,16 @@ trap_return:
     ld sp, 0(t0)
 
     # 1) Supervisor タイマー割り込み許可 (STIE=bit5)
-    li    t1, STIE_BIT
-    csrs  sie, t1
+    li    t0, STIE_BIT
+    csrs  sie, t0
 
     # 2) sret 復帰時の sstatus 設定:
     #    - UPIE=1,SPIE=1 をセット
     #    - SPP=0 (U-modeに戻る) をクリア
-    li    t1, SPIE_UPIE
-    csrs  sstatus, t1
-    li    t1, SPP_BIT
-    csrc  sstatus, t1
+    li    t0, SPIE_UPIE
+    csrs  sstatus, t0
+    li    t0, SPP_BIT
+    csrc  sstatus, t0
 
     # 3) 戻る
     sret
@@ -241,62 +227,41 @@ trap_return:
     .extern user_satp      # C のグローバルを取り込む
 .global swtch
 swtch:
-    la t1, TRAPFRAME;
+    ld ra, 0(a0)
+    ld sp, 8(a0)
+    ld gp, 16(a0)
+    ld tp, 24(a0)
+    sd t0, 32(a0)
+    ld t1, 40(a0)
+    ld t2, 48(a0)
+    ld t3, 56(a0)
+    ld t4, 64(a0)
+    ld t5, 72(a0)
+    ld t6, 80(a0)
+/*    ld a0, 88(a0) */
+    ld a1, 96(a0)
+    ld a2, 104(a0)
+    ld a3, 112(a0)
+    ld a4, 120(a0)
+    ld a5, 128(a0)
+    ld a6, 136(a0)
+    ld a7, 144(a0)
+    ld s0, 152(a0)
+    ld s1, 160(a0)
+    ld s2, 168(a0)
+    ld s3, 176(a0)
+    ld s4, 184(a0)
+    ld s5, 192(a0)
+    ld s6, 200(a0)
+    ld s7, 208(a0)
+    ld s8, 216(a0)
+    ld s9, 224(a0)
+    ld s10, 232(a0)
+    ld s11, 240(a0)
+    ld a0, 248(a0)
+    csrw sepc, a0
     
-    ld ra, 0(t1)
-    ld sp, 8(t1)
-    ld gp, 16(t1)
-    ld tp, 24(t1)
-    ld s0, 152(t1)
-    ld s1, 160(t1)
-    ld s2, 168(t1)
-    ld s3, 176(t1)
-    ld s4, 184(t1)
-    ld s5, 192(t1)
-    ld s6, 200(t1)
-    ld s7, 208(t1)
-    ld s8, 216(t1)
-    ld s9, 224(t1)
-    ld s10, 232(t1)
-    ld s11, 240(t1)
-    ld t2, 248(t1)
-    
-    sd ra, 0(a0)
-    sd sp, 8(a0)
-    sd gp, 16(a0)
-    sd tp, 24(a0)
-    sd s0, 152(a0)
-    sd s1, 160(a0)
-    sd s2, 168(a0)
-    sd s3, 176(a0)
-    sd s4, 184(a0)
-    sd s5, 192(a0)
-    sd s6, 200(a0)
-    sd s7, 208(a0)
-    sd s8, 216(a0)
-    sd s9, 224(a0)
-    sd s10, 232(a0)
-    sd s11, 240(a0)
-    sd t2, 248(a0)
-
-    ld ra, 0(a1)
-    ld sp, 8(a1)
-    ld gp, 16(a1)
-    ld tp, 24(a1)
-    ld s0, 152(a1)
-    ld s1, 160(a1)
-    ld s2, 168(a1)
-    ld s3, 176(a1)
-    ld s4, 184(a1)
-    ld s5, 192(a1)
-    ld s6, 200(a1)
-    ld s7, 208(a1)
-    ld s8, 216(a1)
-    ld s9, 224(a1)
-    ld s10, 232(a1)
-    ld s11, 240(a1)
-    ld t2, 248(a1)
-    csrw sepc, t2
+    csrr a0, sscratch
     
     # 1) SATP をユーザー用ページテーブルにセット
     ld t0, user_satp

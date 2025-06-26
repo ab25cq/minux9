@@ -114,7 +114,6 @@ struct context {
     uint64_t s10;
     uint64_t s11;
     uint64_t mepc;
-    uint64_t func_result_a0;
 };
 
 struct cpu {
@@ -126,8 +125,7 @@ struct cpu {
 
 struct cpu gCPU;
 
-struct cpu* mycpu()
-{
+struct cpu* mycpu() {
     return &gCPU;
 }
 
@@ -141,6 +139,8 @@ pagetable_t kernel_pagetable;
 uint64_t make_satp(pagetable_t pagetable);
 
 struct proc {
+    struct context trapframe;
+    
     struct context context;      // swtch() here to run process
     struct proc *parent;         // Parent process
     char* stack;
@@ -735,7 +735,7 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t max)
 
 // ↑main.c の先頭あたりに追加
 
-void setting_user_pagetable(pagetable_t pagetable)
+void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
 {
     mappages(pagetable, (uint64_t)TRAMPOLINE, PGSIZE, (uint64_t)TRAMPOLINE, PTE_R | PTE_W | PTE_V | PTE_X);
     mappages(pagetable, (uint64_t)TRAPFRAME, PGSIZE, (uint64_t)TRAPFRAME, PTE_R | PTE_W | PTE_V | PTE_U | PTE_X);
@@ -757,7 +757,7 @@ void alloc_prog(char* hello_elf) {
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
     
-    setting_user_pagetable(pagetable);
+    setting_user_pagetable(result, pagetable);
     
     result->pagetable = pagetable;
     
@@ -928,7 +928,7 @@ void disable_timer_interrupts(void) {
     w_sie(r_sie() & ~SIE_STIE);
 }
 
-extern void swtch(struct context *old, struct context *new);
+extern void swtch(struct context *new);
 
 void timer_reset() {
     uint64_t next = r_time() + TIMER_INTERVAL;
@@ -954,7 +954,11 @@ void timer_handler() {
     if (new_ != old) {
         user_sp = new_->context.sp;
         user_satp = MAKE_SATP(new_->pagetable);
-        swtch(&old->context, &new_->context);
+        //old->context = *(struct context*)TRAPFRAME;
+        //gCPU.proc = new_;
+        uint64_t a0 = new_->context.a0;
+        asm volatile("csrw sscratch, %0" : "=r" (a0));
+        swtch(&new_->context);
     }
 }
 
@@ -978,22 +982,24 @@ void puts(const char *s) {
     release(&console_lock);
 }
 
-uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
-    uintptr_t a3, uintptr_t a4, uintptr_t a5,
-    uintptr_t a6, uintptr_t syscall_no)
+uintptr_t syscall_handler()
 {
-    uintptr_t arg0 = a0;
-    uintptr_t arg1 = a1;
-    uintptr_t arg2 = a2;
-    uintptr_t arg3 = a3;
-    uintptr_t arg4 = a4;
-    uintptr_t arg5 = a5;
-    uintptr_t arg6 = a6;
-    uintptr_t arg_syscall_no = syscall_no;
-    
     disable_timer_interrupts();
     
-    switch(syscall_no) {
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    uint64_t result = 0;
+    
+    switch(arg_syscall_no) {
         case SYS_write: {
             char kernel_buf[256];
             uint64_t user_va = arg1;
@@ -1008,8 +1014,11 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             if(arg0 == 1) {
                 puts((char*)kernel_buf);
             }
-            return 0;
-        }
+            
+            result = 0;
+            }
+            break;
+            
         case SYS_open: {
             char kernel_buf[256];
             uint64_t user_va = arg0;
@@ -1023,10 +1032,9 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             
             int fd = fs_open(kernel_buf);
             
-            struct context* context = (struct context*)TRAPFRAME2;
-            context->func_result_a0 = fd;
+            result = fd;
             }
-            return 0;
+            break;
 
         case SYS_read: {
             int fd   = arg0;
@@ -1036,9 +1044,7 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             char kernel_buf[256];
             int ret = fs_read(fd, kernel_buf, n);
             if (ret < 0) {
-                /* エラーならユーザに -1 返却 */
-                struct context* tf = (struct context*)TRAPFRAME2;
-                tf->func_result_a0 = -1;
+                trapframe->a0 = ret;
                 return 0;
             }
             
@@ -1048,12 +1054,10 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
                 panic("read: copyout failed");
             }
-        
-            /* 成功したバイト数を返す */
-            struct context* tf = (struct context*)TRAPFRAME2;
-            tf->func_result_a0 = ret;
-            return 0;
-        }
+            
+            result = ret;
+            }
+            break;
 /*
         case SYS_read: {
             int fd = arg0;
@@ -1064,7 +1068,7 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             
             if(ret < 0) {
                 struct context* context = (struct context*)TRAPFRAME2;
-                context->func_result_a0 = ret;
+                context->a0 = ret;
                 return 0;
             }
             
@@ -1083,7 +1087,7 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             }
             
             struct context* context = (struct context*)TRAPFRAME2;
-            context->func_result_a0 = ret;
+            context->a0 = ret;
             return 0;
         }
 */
@@ -1092,38 +1096,45 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             
             int ret = fs_close(fd);
             
-            struct context* context = (struct context*)TRAPFRAME2;
-            context->func_result_a0 = ret;
-            return 0;
-        }
+            result = ret;
+            }
+            break;
+            
         case SYS_fork: {
+puts("AAA");
             struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
             
             alloc_prog((char*)p->program);
             
+printf("gNumProc %d\n", gNumProc);
             struct proc* child = gProc[gNumProc-1];
             
             uint64_t sp = child->context.sp;
             
-            struct context* context = (struct context*)TRAPFRAME2;
-//printf("p->mepc %x\n", p->context.mepc);
-//printf("context->mepc %x\n", context->mepc);
+            struct context* trapframe = (struct context*)TRAPFRAME;
             
-            child->context = *context;
-            child->context.mepc = (uint64_t)context->mepc + 4;
-            child->context.sp = sp;
-            child->context.func_result_a0 = 0;
+            child->context = *trapframe;
+            child->context.mepc = (uint64_t)trapframe->ra;
+            child->context.sp = sp + 16;
+            child->context.a0 = 0;
             
-//printf("child->mepc %x p->mepc %x child.sp %x p->sp %x\n", child->context.mepc, p->context.mepc, child->context.sp, p->context.sp);
-//while(1);
+            trapframe->mepc = trapframe->ra;
+            trapframe->sp = trapframe->sp + 16;
             
-            struct context* context2 = (struct context*)TRAPFRAME2;
-            context2->func_result_a0 = gNumProc-1;
-            return 0;
-        }
+printf("child->context.mepc %x\n", child->context.mepc);
+printf("trapframe->mepc %x\n", trapframe->mepc);
+            
+            result = gNumProc-1;
+            }
+            break;
+            
         default:
             panic("invalid syscall");
     }
+    
+    trapframe->a0 = result;
+    
+    return result;
 }
 
 
@@ -1985,6 +1996,8 @@ int main()
     uintptr_t entry = p->context.mepc;
     
     w_stimecmp(r_time() + 100000);
+    
+    gCPU.proc = p;
     
     kernel_sp = read_s_sp();
     enter_user(entry, usersp, usersatp, TIMER_INTERVAL);
