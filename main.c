@@ -18,6 +18,7 @@ static char* heap_end = 0;
 static char* heap_limit = (char*)0x88000000;
 
 void* memset(void *dst, int c, unsigned int n);
+void* memmove(void *dst, const void *src, unsigned int n);
 void* memcpy(void *dst, const void *src, unsigned int n);
 int strlen(const char *s);
 int printf(const char* fmt, ...);
@@ -76,6 +77,7 @@ void perror(char* str) {
 
 void panic(char* str)
 {
+    puts(str);
     puts("panic!");
 }
 
@@ -660,6 +662,69 @@ int copyout(pagetable_t pagetable, uint64_t dstva, void *src, uint64_t len) {
     return 0;
 }
 
+int copyin(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t len)
+{
+  uint64_t n, va0, pa0;
+
+  while(len > 0){
+    va0 = PGROUNDDOWN(srcva);
+    pa0 = (uint64_t)walkaddr(pagetable, va0);
+    if(pa0 == 0)
+      return -1;
+    n = PGSIZE - (srcva - va0);
+    if(n > len)
+      n = len;
+    memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+
+    len -= n;
+    dst += n;
+    srcva = va0 + PGSIZE;
+  }
+  return 0;
+}
+
+// Copy a null-terminated string from user to kernel.
+// Copy bytes to dst from virtual address srcva in a given page table,
+// until a '\0', or max.
+// Return 0 on success, -1 on error.
+int copyinstr(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t max)
+{
+  uint64_t n, va0, pa0;
+  int got_null = 0;
+
+  while(got_null == 0 && max > 0){
+    va0 = PGROUNDDOWN(srcva);
+    pa0 = (uint64_t)walkaddr(pagetable, va0);
+    if(pa0 == 0)
+      return -1;
+    n = PGSIZE - (srcva - va0);
+    if(n > max)
+      n = max;
+
+    char *p = (char *) (pa0 + (srcva - va0));
+    while(n > 0){
+      if(*p == '\0'){
+        *dst = '\0';
+        got_null = 1;
+        break;
+      } else {
+        *dst = *p;
+      }
+      --n;
+      --max;
+      p++;
+      dst++;
+    }
+
+    srcva = va0 + PGSIZE;
+  }
+  if(got_null){
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
 
 
 
@@ -934,19 +999,11 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             uint64_t user_va = arg1;
             
             struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-            int i = 0;
-            for (i = 0; i < sizeof(kernel_buf) - 1; ++i) {
-                char* user_char_pa = walkaddr(p->pagetable, user_va + i);
-                if (user_char_pa == 0) {
-                    panic("walkaddr");
-                }
-                
-                kernel_buf[i] = *user_char_pa;
-                if (kernel_buf[i] == '\0') {
-                    break; // 文字列終端
-                }
+            int ret = copyinstr(p->pagetable, kernel_buf, user_va, 256);
+            
+            if(ret < 0) {
+                panic("copyinstr1");
             }
-            kernel_buf[i] = '\0';
             
             if(arg0 == 1) {
                 puts((char*)kernel_buf);
@@ -958,19 +1015,11 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             uint64_t user_va = arg0;
             
             struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-            int i = 0;
-            for (i = 0; i < sizeof(kernel_buf) - 1; ++i) {
-                char* user_char_pa = walkaddr(p->pagetable, user_va + i);
-                if (user_char_pa == 0) {
-                    panic("walkaddr");
-                }
-                
-                kernel_buf[i] = *user_char_pa;
-                if (kernel_buf[i] == '\0') {
-                    break; // 文字列終端
-                }
+            int ret = copyinstr(p->pagetable, kernel_buf, user_va, 256);
+            
+            if(ret < 0) {
+                panic("copyinstr2");
             }
-            kernel_buf[i] = '\0';
             
             int fd = fs_open(kernel_buf);
             
@@ -978,6 +1027,34 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             context->func_result_a0 = fd;
             }
             return 0;
+
+        case SYS_read: {
+            int fd   = arg0;
+            uint64_t destva = arg1;
+            size_t   n     = arg2;
+        
+            char kernel_buf[256];
+            int ret = fs_read(fd, kernel_buf, n);
+            if (ret < 0) {
+                /* エラーならユーザに -1 返却 */
+                struct context* tf = (struct context*)TRAPFRAME2;
+                tf->func_result_a0 = -1;
+                return 0;
+            }
+            
+            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+        
+            /* copyout を使ってまとめてコピー */
+            if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
+                panic("read: copyout failed");
+            }
+        
+            /* 成功したバイト数を返す */
+            struct context* tf = (struct context*)TRAPFRAME2;
+            tf->func_result_a0 = ret;
+            return 0;
+        }
+/*
         case SYS_read: {
             int fd = arg0;
             long size = arg2;
@@ -1009,6 +1086,7 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             context->func_result_a0 = ret;
             return 0;
         }
+*/
         case SYS_close: {
             int fd = arg0;
             
@@ -1022,7 +1100,6 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
             
             alloc_prog((char*)p->program);
-            
             
             struct proc* child = gProc[gNumProc-1];
             

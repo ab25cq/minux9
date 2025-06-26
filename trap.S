@@ -160,6 +160,8 @@ handle_ecall:
     sd a3, 248(t0)
     sd a0, 256(t0)
     
+/*    csrr t0, sscratch */
+    
     call   syscall_handler
     
     la t1, TRAPFRAME2;
@@ -168,6 +170,7 @@ handle_ecall:
     ld sp, 8(t1)
     ld gp, 16(t1)
     ld tp, 24(t1)
+/*
     sd t0, 32(t1)
     sd t1, 40(t1)
     sd t2, 48(t1)
@@ -175,6 +178,7 @@ handle_ecall:
     sd t4, 64(t1)
     sd t5, 72(t1)
     sd t6, 80(t1)
+*/
     sd a0, 88(t1)
     sd a1, 96(t1)
     sd a2, 104(t1)
