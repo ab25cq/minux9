@@ -91,7 +91,7 @@ struct context {
     uint64_t t4;
     uint64_t t5;
     uint64_t t6;
-    uint64_t fakea0;
+    uint64_t a0;
     uint64_t a1;
     uint64_t a2;
     uint64_t a3;
@@ -112,7 +112,7 @@ struct context {
     uint64_t s10;
     uint64_t s11;
     uint64_t mepc;
-    uint64_t a0;
+    uint64_t func_result_a0;
 };
 
 struct cpu {
@@ -143,6 +143,7 @@ struct proc {
     struct proc *parent;         // Parent process
     char* stack;
     char* program;
+    uint64_t vaddr;
     
     pagetable_t pagetable;
 };
@@ -683,8 +684,10 @@ void setting_user_pagetable(pagetable_t pagetable)
     asm volatile("sfence.vma zero, zero"); 
 }
 
-void alloc_prog() {
+void alloc_prog(char* hello_elf) {
     struct proc* result = calloc(1, sizeof(struct proc));
+    
+    result->program = hello_elf;
     
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
@@ -702,6 +705,8 @@ void alloc_prog() {
     struct proghdr *ph = (struct proghdr *)(hello_elf + eh->phoff);
     
     uint64_t size = ph->filesz;
+    
+    result->vaddr = PGROUNDDOWN(ph->vaddr);
     
     uint64_t va = 0;
     for (int i = 0; i < eh->phnum; i++, ph++) {
@@ -723,66 +728,45 @@ void alloc_prog() {
         }
         asm volatile("sfence.vma zero, zero"); 
     }
-    
-    /// stack ///
-    char *pa = kalloc();
-    if (!pa) panic("kalloc");
-    memset(pa, 0, PGSIZE);
-    
-    mappages(result->pagetable, va, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
-    asm volatile("sfence.vma zero, zero"); 
-    
-    result->stack = (char*)va + PGSIZE;
-    result->context.sp = va + PGSIZE;
-    
-    /// USER PROGRAM
-    result->context.mepc = eh->entry;
-    
-    uint64_t satp_val = MAKE_SATP(result->pagetable);
-    
-    gProc[gNumProc++] = result;
-}
 
-void alloc_prog2() {
-    struct proc* result = calloc(1, sizeof(struct proc));
+/*
+    // セクションヘッダテーブル先頭と文字列テーブルを得る
+    Elf64_Shdr *shdrs = (Elf64_Shdr*)(hello_elf + eh->shoff);
+    const char *shstrtab = hello_elf + shdrs[eh->shstrndx].sh_offset;
+
+    // 2) セクションヘッダで SHF_ALLOC が付いているすべてをマッピング＆コピー
+    for (int i = 0; i < eh->shnum; i++) {
+      Elf64_Shdr *sh = &shdrs[i];
+      // ファイルに載っていて、実行時に必要な領域
+      if (!(sh->sh_flags & SHF_ALLOC)) 
+        continue;
     
-    pagetable_t pagetable = (pagetable_t)kalloc();
-    memset(pagetable, 0, PGSIZE);
+      uint64_t sec_start = PGROUNDDOWN(sh->sh_addr);
+      uint64_t sec_end   = PGROUNDUP(sh->sh_addr + sh->sh_size);
     
-    setting_user_pagetable(pagetable);
+      // ページごとに物理ページを割り当ててマッピング
+      for (uint64_t va = sec_start; va < sec_end; va += PGSIZE) {
+        void *pa = kalloc();
+        if (!pa) panic("kalloc");
+        memset(pa, 0, PGSIZE);
+        mappages(result->pagetable,
+                 va, PGSIZE, (uint64_t)pa,
+                 PTE_U|PTE_R|PTE_W|PTE_X|PTE_V);
+        asm volatile("sfence.vma zero, zero");
+      }
     
-    result->pagetable = pagetable;
-    
-    struct elfhdr *eh = (struct elfhdr *)hello2_elf;
-    
-    if (eh->magic != ELF_MAGIC) {
-        while(1) puts("panic");
+      // SHT_NOBITS ＝ .bss の場合はファイルにデータなし → ゼロのまま
+      if (sh->sh_type != SHT_NOBITS) {
+        // ファイルオフセットから sh_size バイトだけコピー
+        if (copyout(result->pagetable,
+                    sh->sh_addr,
+                    hello_elf + sh->sh_offset,
+                    sh->sh_size) < 0)
+          panic("copyout sec");
+        asm volatile("sfence.vma zero, zero");
+      }
     }
-        
-    struct proghdr *ph = (struct proghdr *)(hello2_elf + eh->phoff);
-    
-    uint64_t size = ph->filesz;
-    
-    uint64_t va;
-    for (int i = 0; i < eh->phnum; i++, ph++) {
-        if (ph->type != ELF_PROG_LOAD)
-            continue;
-    
-        for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
-            void *pa = kalloc();
-            if (!pa) panic("kalloc");
-            memset(pa, 0, PGSIZE);
-            mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
-                     PTE_U | PTE_R | PTE_W | PTE_X | PTE_V);
-            asm volatile("sfence.vma zero, zero");
-        }
-        
-        if (copyout(result->pagetable, ph->vaddr, hello2_elf + ph->off, ph->filesz) < 0) {
-            panic("copyout");
-        }
-        asm volatile("sfence.vma zero, zero"); 
-    }
-    asm volatile("sfence.vma zero, zero"); 
+*/
     
     /// stack ///
     char *pa = kalloc();
@@ -991,7 +975,7 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             int fd = fs_open(kernel_buf);
             
             struct context* context = (struct context*)TRAPFRAME2;
-            context->a0 = fd;
+            context->func_result_a0 = fd;
             }
             return 0;
         case SYS_read: {
@@ -1003,7 +987,7 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             
             if(ret < 0) {
                 struct context* context = (struct context*)TRAPFRAME2;
-                context->a0 = ret;
+                context->func_result_a0 = ret;
                 return 0;
             }
             
@@ -1022,7 +1006,7 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             }
             
             struct context* context = (struct context*)TRAPFRAME2;
-            context->a0 = ret;
+            context->func_result_a0 = ret;
             return 0;
         }
         case SYS_close: {
@@ -1031,7 +1015,33 @@ uintptr_t syscall_handler(uintptr_t a0, uintptr_t a1, uintptr_t a2,
             int ret = fs_close(fd);
             
             struct context* context = (struct context*)TRAPFRAME2;
-            context->a0 = ret;
+            context->func_result_a0 = ret;
+            return 0;
+        }
+        case SYS_fork: {
+            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+            
+            alloc_prog((char*)p->program);
+            
+            
+            struct proc* child = gProc[gNumProc-1];
+            
+            uint64_t sp = child->context.sp;
+            
+            struct context* context = (struct context*)TRAPFRAME2;
+//printf("p->mepc %x\n", p->context.mepc);
+//printf("context->mepc %x\n", context->mepc);
+            
+            child->context = *context;
+            child->context.mepc = (uint64_t)context->mepc + 4;
+            child->context.sp = sp;
+            child->context.func_result_a0 = 0;
+            
+//printf("child->mepc %x p->mepc %x child.sp %x p->sp %x\n", child->context.mepc, p->context.mepc, child->context.sp, p->context.sp);
+//while(1);
+            
+            struct context* context2 = (struct context*)TRAPFRAME2;
+            context2->func_result_a0 = gNumProc-1;
             return 0;
         }
         default:
@@ -1881,8 +1891,8 @@ int main()
     
     w_stimecmp(r_time() + 10000000);
 
-    alloc_prog();
-    alloc_prog2();
+    alloc_prog((char*)hello_elf);
+    alloc_prog((char*)hello2_elf);
 
     /// カーネルページからユーザープロセスをアクセス可能にする
     asm volatile("csrs sstatus, %0" : : "r"(SSTATUS_SUM));

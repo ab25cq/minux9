@@ -1,4 +1,10 @@
 OUTPUT_ARCH( "riscv" )
+
+PHDRS {
+   text PT_LOAD FLAGS (r_x);
+   data PT_LOAD FLAGS (rw_);
+}
+
 ENTRY(entry)
 SECTIONS
 {
@@ -10,12 +16,12 @@ SECTIONS
 #  . += 4096;
   
   . = 0x80000000;
-  .text : { *(.text*) }
+  .text : { *(.text*) } :text
 #  .text : { *(.text) }
-  .rodata : { *(.rodata*) }
-  .data : { *(.data*) }
-  .sdata : { *(.sdata*) }
-  .bss : { *(.bss) *(.bss.*) *(.sbss) *(.sbss.*) }
+  .rodata : { *(.rodata*) } :text
+  .data : { *(.data*) } :data
+  .sdata : { *(.sdata*) } :data
+  .bss : { *(.bss) *(.bss.*) *(.sbss) *(.sbss.*) } :data
   PROVIDE(_code_end = .);
   . += 0x64000;
   PROVIDE(stack_top = .);

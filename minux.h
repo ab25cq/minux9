@@ -5,6 +5,7 @@
 #define SYS_read 65
 #define SYS_open 66
 #define SYS_close 67
+#define SYS_fork 68
 
 // user-space 側
 static inline int write(long fd, const char *s, long size) {
@@ -56,6 +57,17 @@ static inline int close(long fd) {
         :
         : "r"(fd), "i"(SYS_close)
         : "a0", "a7", "memory"
+    );
+}
+
+// user-space 側
+static inline int fork() {
+    asm volatile(
+        "li a7, %0\n"
+        "ecall\n"
+        :
+        : "i"(SYS_fork)
+        : "a7", "memory"
     );
 }
 
