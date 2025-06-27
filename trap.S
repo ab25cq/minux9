@@ -130,7 +130,7 @@ external_handler:
 
     .section ".trampoline", "ax"
 .Lhandle_uart:
-#    call uart_rx_handler
+    call uart_rx_handler
     j    .Lcomplete
 
     .section ".trampoline", "ax"
@@ -187,11 +187,9 @@ handle_ecall:
     ld t0, 248(t0)
 
     csrw   sepc, t0
-/*
     csrr   t0, sepc
     addi   t0, t0, 4
     csrw   sepc, t0
-*/
 
     j      trap_return
 

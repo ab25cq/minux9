@@ -23,27 +23,16 @@ static char* heap_limit = (char*)0x88000000;
 #define UART_LSR     (*(volatile uint8_t*)(UART0 + 0x05))  // Line Status Register
 #define UART_LSR_THRE 0x20                                // THR Empty ビット
 
-// 1文字送信（空になるまでポーリング）
-void putc(char c) {
-    while (!(UART_LSR & UART_LSR_THRE)) {
-        /* 何もせず待つ */
-    }
-    UART_THR = c;
-}
-void putchar(char c) {
-    while (!(UART_LSR & UART_LSR_THRE)) {
-        /* 何もせず待つ */
-    }
-    UART_THR = c;
-}
+void putc(char c);
+void puts(const char *s);
 
-// 文字列送信
+/*
 void puts(const char *s) {
     while (*s) {
         putc(*s++);
     }
 }
-
+*/
 
 void* memset(void *dst, int c, unsigned int n);
 void* memmove(void *dst, const void *src, unsigned int n);
@@ -434,8 +423,10 @@ void * kalloc(void) {
 }
 
 pte_t * walk(pagetable_t pagetable, uint64_t va, int alloc) {
+/*
     if(va >= MAXVA)
         puts("walk");
+*/
 
     for(int level = 2; level > 0; level--) {
         pte_t *pte = &pagetable[PX(level, va)];
@@ -579,9 +570,8 @@ uint64_t user_satp __attribute__((section(".common")));
 #define SIE_SEIE   (1UL << 9)  // Supervisor External Interrupt Enable
 #define SSTATUS_SIE (1UL << 1) // Sstatus.SIE
 
-/*
 // PLIC 側で UART IRQ を Supervisor にルーティングする
-//extern void plic_enable(int irq);
+extern void plic_enable(int irq);
 #define UART_PLIC_IRQ 10
 
 volatile char last_key = 0;
@@ -591,7 +581,6 @@ void uart_rx_handler(void) {
     last_key = *(UART_RXDATA);
 }
 
-/*
 // Supervisor モードでの初期化
 void uart_init(void) {
     // 1) UART デバイス側の RX 割り込みを有効化
@@ -606,9 +595,7 @@ void uart_init(void) {
     // 4) Supervisor モード全体の割り込みを有効化
     asm volatile("csrs sstatus, %0" :: "r"(SSTATUS_SIE));
 }
-*/
 
-/*
 // 1 文字送信 (FIFO 空きを待ってから)
 void putc(char c) {
     while (!(*UART_LSR & UART_LSR_THRE)) ;
@@ -617,18 +604,6 @@ void putc(char c) {
 void putchar(char c) {
     putc(c);
 }
-*/
-
-// 割り込みなしでダイレクトに送る場合
-/*
-void putc_direct(char c) {
-    *(volatile char*)UART0 = c;
-}
-void puts_direct(const char* s) {
-    while (*s) putc_direct(*s++);
-}
-*/
-
 
 void mmu_init() {
     kernel_pagetable = (pagetable_t)kalloc();
@@ -756,6 +731,7 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t max)
     srcva = va0 + PGSIZE;
   }
   if(got_null){
+    dst2[got_null] = '\0';
     return got_null;
   } else {
     return -1;
@@ -984,14 +960,13 @@ void exec_prog(char* hello_elf) {
 
 void reset_watchdog();
 
-//void plic_init();
-//void trap_init();
+void plic_init();
+void trap_init();
 void uart_rx_init();
-void puts_direct(const char* s);
 
 #define UART_IRQ 10
 
-//void plic_enable(int irq);
+void plic_enable(int irq);
 
 static inline void w_mstatus(uint64_t x) {
   asm volatile("csrw mstatus, %0" : : "r" (x));
@@ -1075,7 +1050,6 @@ void timer_handler() {
     timer_reset(); 
 
     struct proc *old = gProc[gActiveProc];
-//printf("old gActiveProc %d gNumProc %d\n", gActiveProc, gNumProc);
     gActiveProc++;
     if(gActiveProc >= gNumProc) {
         gActiveProc = 0;
@@ -1101,9 +1075,10 @@ void console_init(void) {
     initlock(&console_lock, "console");
 }
 
-/*
 // コンソール用スピンロック
 static struct spinlock console_lock;
+
+extern void putchar(char c);
 
 // カーネル側の puts (UART 等に文字列を出力)
 void puts(const char *s) {
@@ -1113,7 +1088,6 @@ void puts(const char *s) {
     }
     release(&console_lock);
 }
-*/
 
 int Sys_write()
 {
@@ -1137,16 +1111,37 @@ int Sys_write()
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
     int ret = copyinstr(p->pagetable, kernel_buf, user_va, 256);
     
-    kernel_buf[ret] = 0;
-    
     if(ret < 0) {
         panic("copyinstr1");
     }
     
-    printf("%s", kernel_buf);
-//    puts((char*)kernel_buf);
+    puts((char*)kernel_buf);
     
     return 0;
+}
+
+int Sys_open()
+{
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    char kernel_buf[256];
+    uint64_t user_va = arg0;
+    
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+    copyinstr(p->pagetable, kernel_buf, user_va, 256);
+            
+    int result = fs_open(kernel_buf);
+    
+    return result;
 }
 
 int Sys_fork()
@@ -1201,6 +1196,8 @@ uintptr_t syscall_handler()
     
     uint64_t result = 0;
     
+//printf("ARG SYSCALL %d\n", arg_syscall_no);
+    
     switch(arg_syscall_no) {
         case SYS_write: {
             result = Sys_write();
@@ -1208,44 +1205,42 @@ uintptr_t syscall_handler()
             break;
             
         case SYS_open: {
-            char kernel_buf[256];
-            uint64_t user_va = arg0;
-            
-            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-            int ret = copyinstr(p->pagetable, kernel_buf, user_va, 256);
-            
-            if(ret < 0) {
-                panic("copyinstr2");
-            }
-            
-            int fd = fs_open(kernel_buf);
-            
-            result = fd;
+puts("LLL");
+            result = Sys_open();
+puts("LLL2");
             }
             break;
 
         case SYS_read: {
             int fd   = arg0;
-            uint64_t destva = arg1;
+            uint64_t user_va = arg1;
             size_t   n     = arg2;
         
-            char kernel_buf[256];
-            int ret = fs_read(fd, kernel_buf, n);
+            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+            uint64_t pa = (uint64_t)walkaddr(p->pagetable, user_va);
+            
+puts("LLL");
+            int ret = fs_read(fd, (char*)pa, n);
+printf("ret %d\n", ret);
             if (ret < 0) {
                 trapframe->a0 = ret;
                 return 0;
             }
+            ((char*)pa)[ret] = '\0';
             
+            
+/*
             struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
         
-            /* copyout を使ってまとめてコピー */
             if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
                 panic("read: copyout failed");
             }
+*/
             
             result = ret;
             }
             break;
+            
         case SYS_close: {
             int fd = arg0;
             
@@ -1307,6 +1302,7 @@ uintptr_t syscall_handler()
             
             result = gNumProc-1;
             }
+            break;
             
         default:
             panic("invalid syscall");
@@ -1948,8 +1944,6 @@ int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     return p - out;
 }
 
-// putcharは環境依存で外部定義
-extern void putchar(char c);
 
 void printint(int val_, int base, int sign) {
     char buf[33];  
@@ -2142,13 +2136,13 @@ int printf(const char* fmt, ...) {
 int main()
 {
     timerinit();
-    //trap_init();          
-    //plic_init();
-    //plic_enable(UART_IRQ);
+    trap_init();          
+    plic_init();
+    plic_enable(UART_IRQ);
     
     w_stimecmp(r_time() + 10000000);
     
-//    uart_init();
+    uart_init();
     kinit();
     console_init();
     mmu_init();
