@@ -6,6 +6,7 @@
 #define SYS_open 66
 #define SYS_close 67
 #define SYS_fork 68
+#define SYS_execv 69
 
 // user-space 側
 static inline int write(long fd, const char *s, long size) {
@@ -68,6 +69,20 @@ static inline int fork() {
         :
         : "i"(SYS_fork)
         : "a7", "memory"
+    );
+}
+
+// user-space 側
+static inline int execv(char* path, char** argv, int argc) {
+    asm volatile(
+        "mv a0, %0\n"
+        "mv a1, %1\n"
+        "mv a2, %2\n"
+        "li a7, %3\n"
+        "ecall\n"
+        :
+        : "r"(path), "r"(argv), "r"(argc), "i"(SYS_execv)
+        : "a0", "a1", "a2", "a7", "memory"
     );
 }
 

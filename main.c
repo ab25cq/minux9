@@ -24,6 +24,7 @@ int strlen(const char *s);
 int printf(const char* fmt, ...);
 void *calloc(size_t nmemb, size_t size);
 extern void puts(const char* s);
+char* strdup(const char* s1);
 
 // machine-mode cycle counter
 static inline uint64_t r_time()
@@ -852,6 +853,99 @@ void alloc_prog(char* hello_elf) {
     gProc[gNumProc++] = result;
 }
 
+/// 解放用ユーティリティ：Sv39 ページテーブルを再帰的に破棄
+static void free_pagetable(pagetable_t pagetable, int level) {
+    for(int i = 0; i < 512; i++) {
+        pte_t pte = pagetable[i];
+        if(!(pte & PTE_V))
+            continue;
+        uint64_t pa = PTE2PA(pte);
+        // リーフかどうか (R/W/X フラグがあるならファイルデータページ)
+        if(pte & (PTE_R | PTE_W | PTE_X)) {
+            kfree((void*)pa);
+        } else if(level > 0) {
+            // 中間ノード
+            pagetable_t child = (pagetable_t)pa;
+            free_pagetable(child, level - 1);
+            kfree(child);
+        }
+    }
+}
+
+/// プロセスのユーザー空間を完全に解放
+void free_proc(struct proc *p) {
+    free_pagetable(p->pagetable, 2);
+    kfree(p->pagetable);
+}
+
+void exec_prog(char* hello_elf) {
+    struct proc* result = gProc[gActiveProc];
+    free_proc(result);
+
+    memset(result, 0, sizeof(struct proc));
+    
+    result->program = hello_elf;
+    
+    pagetable_t pagetable = (pagetable_t)kalloc();
+    memset(pagetable, 0, PGSIZE);
+    
+    setting_user_pagetable(result, pagetable);
+    
+    result->pagetable = pagetable;
+    
+    struct elfhdr *eh = (struct elfhdr *)hello_elf;
+    
+    if (eh->magic != ELF_MAGIC) {
+        while(1) puts("panic");
+    }
+        
+    struct proghdr *ph = (struct proghdr *)(hello_elf + eh->phoff);
+    
+    uint64_t size = ph->filesz;
+    
+    result->vaddr = PGROUNDDOWN(ph->vaddr);
+    
+    uint64_t va = 0;
+    for (int i = 0; i < eh->phnum; i++, ph++) {
+        if (ph->type != ELF_PROG_LOAD)
+            continue;
+    
+        for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
+            void *pa = kalloc();
+            if (!pa) panic("kalloc");
+            memset(pa, 0, PGSIZE);
+            mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
+                     PTE_U | PTE_R | PTE_W | PTE_X | PTE_V);
+            asm volatile("sfence.vma zero, zero");
+        }
+        
+        
+        if (copyout(result->pagetable, ph->vaddr, hello_elf + ph->off, ph->filesz) < 0) {
+            panic("copyout");
+        }
+        asm volatile("sfence.vma zero, zero"); 
+    }
+
+    
+    /// stack ///
+    char *pa = kalloc();
+    if (!pa) panic("kalloc");
+    memset(pa, 0, PGSIZE);
+    
+    mappages(result->pagetable, va, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
+    asm volatile("sfence.vma zero, zero"); 
+    
+    result->stack = (char*)va + PGSIZE;
+    result->context.sp = va + PGSIZE;
+    
+    /// USER PROGRAM
+    result->context.mepc = eh->entry;
+    
+    uint64_t satp_val = MAKE_SATP(result->pagetable);
+    
+    gProc[gNumProc++] = result;
+}
+
 void reset_watchdog();
 
 void plic_init();
@@ -1058,39 +1152,6 @@ uintptr_t syscall_handler()
             result = ret;
             }
             break;
-/*
-        case SYS_read: {
-            int fd = arg0;
-            long size = arg2;
-            
-            char kernel_buf[256];
-            int ret = fs_read(fd, kernel_buf, size);
-            
-            if(ret < 0) {
-                struct context* context = (struct context*)TRAPFRAME2;
-                context->a0 = ret;
-                return 0;
-            }
-            
-            char user_buf[256];
-            uint64_t user_va = arg1;
-            
-            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-            int i = 0;
-            for (i = 0; i < size; ++i) {
-                char* user_char_pa = walkaddr(p->pagetable, user_va + i);
-                if (user_char_pa == 0) {
-                    panic("walkaddr");
-                }
-                
-                *user_char_pa = kernel_buf[i];
-            }
-            
-            struct context* context = (struct context*)TRAPFRAME2;
-            context->a0 = ret;
-            return 0;
-        }
-*/
         case SYS_close: {
             int fd = arg0;
             
@@ -1101,12 +1162,10 @@ uintptr_t syscall_handler()
             break;
             
         case SYS_fork: {
-puts("AAA");
             struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
             
             alloc_prog((char*)p->program);
             
-printf("gNumProc %d\n", gNumProc);
             struct proc* child = gProc[gNumProc-1];
             
             uint64_t sp = child->context.sp;
@@ -1121,12 +1180,57 @@ printf("gNumProc %d\n", gNumProc);
             trapframe->mepc = trapframe->ra;
             trapframe->sp = trapframe->sp + 16;
             
-printf("child->context.mepc %x\n", child->context.mepc);
-printf("trapframe->mepc %x\n", trapframe->mepc);
-            
             result = gNumProc-1;
             }
             break;
+            
+        case SYS_execv: {
+            int argc = arg2;
+            
+            /// path ///
+            char kernel_buf[256];
+            uint64_t user_va = arg0;
+            
+            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+            int ret = copyinstr(p->pagetable, kernel_buf, user_va, 256);
+            
+            if(ret < 0) {
+                panic("copyinstr2");
+            }
+            
+            char* path = kernel_buf;
+            
+            /// argv ////
+            uintptr_t user_argv_ptr = arg1;
+            /* ユーザー sepc＋レジスタ a1 とかで渡ってくる argv のアドレス */;
+            
+            char* kargv[128];
+            
+            if (copyin(p->pagetable, (char*)kargv, user_argv_ptr, sizeof(uintptr_t) * (argc+1)) < 0) {
+                return -1;  // EFAULT 等
+            }
+                    
+            for (int i = 0; i < argc; i++) {
+                char buf[128];
+                if (copyinstr(p->pagetable, buf, (uint64_t)kargv[i], sizeof(buf)) < 0) {
+                    return -1;
+                }
+                kargv[i] = strdup(buf);
+            }
+            kargv[argc] = NULL;
+            
+            char hello_elf[2048];
+            int fd = fs_open(kargv[0]);
+            ret = fs_read(fd, hello_elf, 2048);
+            if (ret < 0) {
+                trapframe->a0 = -1;
+                return 0;
+            }
+            
+            exec_prog(hello_elf);
+            
+            result = gNumProc-1;
+            }
             
         default:
             panic("invalid syscall");
@@ -1270,14 +1374,6 @@ void free(void *ptr) {
     free_list = block;
 }
 
-char* strdup(const char* s) {
-    char* s2 = s;
-    size_t len = strlen(s2) + 1;
-    char* p = malloc(len);
-    if (p)
-        memcpy(p, s2, len);
-    return p;
-}
 
 int strcmp(const char* s1, const char* s2) {
     while (*s1 && (*s1 == *s2)) {
@@ -1285,6 +1381,12 @@ int strcmp(const char* s1, const char* s2) {
         s2++;
     }
     return (unsigned char)*s1 - (unsigned char)*s2;
+}
+
+char* strdup(const char* s1) {
+    char* result = calloc(1, strlen(s1)+1);
+    memcpy(result, s1, strlen(s1)+1);
+    return result;
 }
                             
 char* strstr(const char* haystack, const char* needle) {
