@@ -61,16 +61,18 @@ static inline int close(long fd) {
     );
 }
 
-// user-space 側
-static inline int fork() {
-    asm volatile(
-        "li a7, %0\n"
-        "ecall\n"
-        :
-        : "i"(SYS_fork)
-        : "a7", "memory"
-    );
-}
+// 戻り値を取るバージョン
+#define fork()                                        \
+    ({                                                    \
+         register long _num asm("a7") = SYS_fork;          \
+        register long _ret asm("a0");                     \
+        asm volatile("ecall"                              \
+                     : "=r"(_ret)                         \
+                     : "r"(_num)                          \
+                     : "memory");                         \
+        _ret;                                             \
+    })
+
 
 // user-space 側
 static inline int execv(char* path, char** argv, int argc) {

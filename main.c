@@ -17,13 +17,40 @@ extern char _end[];   // heap start
 static char* heap_end = 0;
 static char* heap_limit = (char*)0x88000000;
 
+// MMIO アドレス定義
+#define UART0        0x10000000UL
+#define UART_THR     (*(volatile uint8_t*)(UART0 + 0x00))  // Transmit Holding Register
+#define UART_LSR     (*(volatile uint8_t*)(UART0 + 0x05))  // Line Status Register
+#define UART_LSR_THRE 0x20                                // THR Empty ビット
+
+// 1文字送信（空になるまでポーリング）
+void putc(char c) {
+    while (!(UART_LSR & UART_LSR_THRE)) {
+        /* 何もせず待つ */
+    }
+    UART_THR = c;
+}
+void putchar(char c) {
+    while (!(UART_LSR & UART_LSR_THRE)) {
+        /* 何もせず待つ */
+    }
+    UART_THR = c;
+}
+
+// 文字列送信
+void puts(const char *s) {
+    while (*s) {
+        putc(*s++);
+    }
+}
+
+
 void* memset(void *dst, int c, unsigned int n);
 void* memmove(void *dst, const void *src, unsigned int n);
 void* memcpy(void *dst, const void *src, unsigned int n);
 int strlen(const char *s);
 int printf(const char* fmt, ...);
 void *calloc(size_t nmemb, size_t size);
-extern void puts(const char* s);
 char* strdup(const char* s1);
 
 // machine-mode cycle counter
@@ -552,8 +579,9 @@ uint64_t user_satp __attribute__((section(".common")));
 #define SIE_SEIE   (1UL << 9)  // Supervisor External Interrupt Enable
 #define SSTATUS_SIE (1UL << 1) // Sstatus.SIE
 
+/*
 // PLIC 側で UART IRQ を Supervisor にルーティングする
-extern void plic_enable(int irq);
+//extern void plic_enable(int irq);
 #define UART_PLIC_IRQ 10
 
 volatile char last_key = 0;
@@ -563,6 +591,7 @@ void uart_rx_handler(void) {
     last_key = *(UART_RXDATA);
 }
 
+/*
 // Supervisor モードでの初期化
 void uart_init(void) {
     // 1) UART デバイス側の RX 割り込みを有効化
@@ -577,7 +606,9 @@ void uart_init(void) {
     // 4) Supervisor モード全体の割り込みを有効化
     asm volatile("csrs sstatus, %0" :: "r"(SSTATUS_SIE));
 }
+*/
 
+/*
 // 1 文字送信 (FIFO 空きを待ってから)
 void putc(char c) {
     while (!(*UART_LSR & UART_LSR_THRE)) ;
@@ -586,14 +617,17 @@ void putc(char c) {
 void putchar(char c) {
     putc(c);
 }
+*/
 
 // 割り込みなしでダイレクトに送る場合
+/*
 void putc_direct(char c) {
     *(volatile char*)UART0 = c;
 }
 void puts_direct(const char* s) {
     while (*s) putc_direct(*s++);
 }
+*/
 
 
 void mmu_init() {
@@ -692,6 +726,8 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t max)
 {
   uint64_t n, va0, pa0;
   int got_null = 0;
+  
+  char* dst2 = dst;
 
   while(got_null == 0 && max > 0){
     va0 = PGROUNDDOWN(srcva);
@@ -705,22 +741,22 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t max)
     char *p = (char *) (pa0 + (srcva - va0));
     while(n > 0){
       if(*p == '\0'){
-        *dst = '\0';
-        got_null = 1;
+        *dst2 = '\0';
+        got_null = dst2 - dst;
         break;
       } else {
-        *dst = *p;
+        *dst2 = *p;
       }
       --n;
       --max;
       p++;
-      dst++;
+      dst2++;
     }
 
     srcva = va0 + PGSIZE;
   }
   if(got_null){
-    return 0;
+    return got_null;
   } else {
     return -1;
   }
@@ -948,14 +984,14 @@ void exec_prog(char* hello_elf) {
 
 void reset_watchdog();
 
-void plic_init();
-void trap_init();
+//void plic_init();
+//void trap_init();
 void uart_rx_init();
 void puts_direct(const char* s);
 
 #define UART_IRQ 10
 
-void plic_enable(int irq);
+//void plic_enable(int irq);
 
 static inline void w_mstatus(uint64_t x) {
   asm volatile("csrw mstatus, %0" : : "r" (x));
@@ -1039,6 +1075,7 @@ void timer_handler() {
     timer_reset(); 
 
     struct proc *old = gProc[gActiveProc];
+//printf("old gActiveProc %d gNumProc %d\n", gActiveProc, gNumProc);
     gActiveProc++;
     if(gActiveProc >= gNumProc) {
         gActiveProc = 0;
@@ -1064,6 +1101,7 @@ void console_init(void) {
     initlock(&console_lock, "console");
 }
 
+/*
 // コンソール用スピンロック
 static struct spinlock console_lock;
 
@@ -1074,6 +1112,76 @@ void puts(const char *s) {
         putchar(*s++);
     }
     release(&console_lock);
+}
+*/
+
+int Sys_write()
+{
+//puts("SYS_WRITE");
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    char kernel_buf[256];
+    uint64_t user_va = arg1;
+    
+    memset(kernel_buf, 0, 256);
+    
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+    int ret = copyinstr(p->pagetable, kernel_buf, user_va, 256);
+    
+    kernel_buf[ret] = 0;
+    
+    if(ret < 0) {
+        panic("copyinstr1");
+    }
+    
+    printf("%s", kernel_buf);
+//    puts((char*)kernel_buf);
+    
+    return 0;
+}
+
+int Sys_fork()
+{
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+    
+    alloc_prog((char*)p->program);
+    
+    struct proc* child = gProc[gNumProc-1];
+    
+    uint64_t sp = child->context.sp;
+    
+    struct context* trapframe2 = (struct context*)TRAPFRAME;
+    
+    child->context = *trapframe2;
+    child->context.mepc = child->context.mepc + 4; //(uint64_t)trapframe2->ra + 4;
+    child->context.sp = sp;
+    child->context.a0 = 0;
+    
+    trapframe2->mepc = trapframe2->mepc + 4;
+//    trapframe2->sp = trapframe2->sp + 16;
+    
+    int result = gNumProc-1;
+    
+    return result;
 }
 
 uintptr_t syscall_handler()
@@ -1095,21 +1203,7 @@ uintptr_t syscall_handler()
     
     switch(arg_syscall_no) {
         case SYS_write: {
-            char kernel_buf[256];
-            uint64_t user_va = arg1;
-            
-            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-            int ret = copyinstr(p->pagetable, kernel_buf, user_va, 256);
-            
-            if(ret < 0) {
-                panic("copyinstr1");
-            }
-            
-            if(arg0 == 1) {
-                puts((char*)kernel_buf);
-            }
-            
-            result = 0;
+            result = Sys_write();
             }
             break;
             
@@ -1162,25 +1256,7 @@ uintptr_t syscall_handler()
             break;
             
         case SYS_fork: {
-            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-            
-            alloc_prog((char*)p->program);
-            
-            struct proc* child = gProc[gNumProc-1];
-            
-            uint64_t sp = child->context.sp;
-            
-            struct context* trapframe = (struct context*)TRAPFRAME;
-            
-            child->context = *trapframe;
-            child->context.mepc = (uint64_t)trapframe->ra;
-            child->context.sp = sp + 16;
-            child->context.a0 = 0;
-            
-            trapframe->mepc = trapframe->ra;
-            trapframe->sp = trapframe->sp + 16;
-            
-            result = gNumProc-1;
+            result = Sys_fork();
             }
             break;
             
@@ -2066,13 +2142,13 @@ int printf(const char* fmt, ...) {
 int main()
 {
     timerinit();
-    trap_init();          
-    plic_init();
-    plic_enable(UART_IRQ);
+    //trap_init();          
+    //plic_init();
+    //plic_enable(UART_IRQ);
     
     w_stimecmp(r_time() + 10000000);
     
-    uart_init();
+//    uart_init();
     kinit();
     console_init();
     mmu_init();

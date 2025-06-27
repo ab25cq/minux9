@@ -10,14 +10,14 @@ kernel.elf:
 	$(CCPREFIX)as -g $(CFLAGS) -o userret.o userret.S
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o start.o start.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs2.o fs2.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o trap_c.o trap.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o plic.o plic.c
+#	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o trap_c.o trap.c
+#	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o plic.o plic.c
 
-	riscv64-unknown-elf-gcc -O0 -nostdlib -static -o hello.elf hello.c -mcmodel=medany
+	riscv64-unknown-elf-gcc -O0 -nostdlib -static -o hello.elf -g hello.c -mcmodel=medany
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello.elf hello.c
 	xxd -i hello.elf > userprog.h  
 
-	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o hello2.elf hello2.c -mcmodel=medany
+	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o hello2.elf -g hello2.c -mcmodel=medany
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello2.elf hello2.c
 	xxd -i hello2.elf > userprog2.h  
 
@@ -29,7 +29,7 @@ kernel.elf:
 
 #	comelang -S -bare main.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -o main.o main.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -g -O0 -T link.ld -Wl,-Map=map.txt  -mcmodel=medany -o kernel.elf entry.o start.o userret.o trap.o trap_c.o plic.o fs2.o main.o 
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -g -O0 -T link.ld -Wl,-Map=map.txt  -mcmodel=medany -o kernel.elf entry.o start.o userret.o trap.o fs2.o main.o 
 
 	$(CCPREFIX)objcopy -O binary kernel.elf kernel.bin
 

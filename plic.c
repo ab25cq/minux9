@@ -1,3 +1,5 @@
+/*
+
 // === plic.c ===
 #include <stdint.h>
 
@@ -43,3 +45,4 @@ void plic_complete(int irq) {
     *PLIC_MCOMPLETE(HART_ID) = irq;
 }
 
+*/

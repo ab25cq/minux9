@@ -130,7 +130,7 @@ external_handler:
 
     .section ".trampoline", "ax"
 .Lhandle_uart:
-    call uart_rx_handler
+#    call uart_rx_handler
     j    .Lcomplete
 
     .section ".trampoline", "ax"
@@ -220,6 +220,25 @@ trap_return:
     csrs  sstatus, t0
     li    t0, SPP_BIT
     csrc  sstatus, t0
+    
+/*
+    # 1) Supervisor タイマー割り込みを有効化 (Sie の STIE=bit5)
+    li   t0, (1<<5)
+    csrs sie, t0
+
+    # 2) sret 復帰時に割り込み許可状態を保持 (UPIE=1, SPIE=1)
+    li   t0, ((1<<4)|(1<<5))
+    csrs sstatus, t0
+
+    # 3) SPP=0 にしてユーザーモードへ
+    li   t0, (1<<8)
+    csrc sstatus, t0
+*/
+
+    # 4) ユーザーモード復帰
+    sret
+
+    
 
     # 3) 戻る
     sret
