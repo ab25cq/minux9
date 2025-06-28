@@ -501,7 +501,6 @@ void vmprint_rec(pagetable_t pagetable, uint64_t va, int level) {
             for (int j = 0; j < level; j++)
                 puts("\n.. ");
             printf("VA %p -> PA %p  (pte[%d]) (level %d)\n", child_va, pa, i, level);
-  //dump_physical_memory(pa, 8);
 
             if ((pte & (PTE_R | PTE_W | PTE_X)) != 0) {
                 printf(" [leaf]");
@@ -1091,7 +1090,6 @@ void puts(const char *s) {
 
 int Sys_write()
 {
-//puts("SYS_WRITE");
     struct context* trapframe = (struct context*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
@@ -1164,15 +1162,13 @@ int Sys_fork()
     
     uint64_t sp = child->context.sp;
     
-    struct context* trapframe2 = (struct context*)TRAPFRAME;
-    
-    child->context = *trapframe2;
-    child->context.mepc = child->context.mepc + 4; //(uint64_t)trapframe2->ra + 4;
+    child->context = *trapframe;
+    child->context.mepc = child->context.mepc + 4; //(uint64_t)trapframe->ra + 4;
     child->context.sp = sp;
     child->context.a0 = 0;
     
-    trapframe2->mepc = trapframe2->mepc + 4;
-//    trapframe2->sp = trapframe2->sp + 16;
+//    trapframe->mepc = trapframe->mepc + 4;
+//    trapframe2->sp = trapframe->sp + 16;
     
     int result = gNumProc-1;
     
@@ -1205,12 +1201,35 @@ uintptr_t syscall_handler()
             break;
             
         case SYS_open: {
-puts("LLL");
             result = Sys_open();
-puts("LLL2");
+            }
+            break;
+            
+        case SYS_read: {
+            int fd   = arg0;
+            uint64_t destva = arg1;
+            size_t   n     = arg2;
+        
+            char kernel_buf[256];
+            int ret = fs_read(fd, kernel_buf, n);
+            if (ret < 0) {
+                trapframe->a0 = ret;
+                return 0;
+            }
+            kernel_buf[ret] = '\0';
+            
+            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+        
+            /* copyout を使ってまとめてコピー */
+            if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
+                panic("read: copyout failed");
+            }
+            
+            result = ret;
             }
             break;
 
+/*
         case SYS_read: {
             int fd   = arg0;
             uint64_t user_va = arg1;
@@ -1219,27 +1238,17 @@ puts("LLL2");
             struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
             uint64_t pa = (uint64_t)walkaddr(p->pagetable, user_va);
             
-puts("LLL");
             int ret = fs_read(fd, (char*)pa, n);
-printf("ret %d\n", ret);
             if (ret < 0) {
                 trapframe->a0 = ret;
                 return 0;
             }
             ((char*)pa)[ret] = '\0';
             
-            
-/*
-            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-        
-            if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
-                panic("read: copyout failed");
-            }
-*/
-            
             result = ret;
             }
             break;
+*/
             
         case SYS_close: {
             int fd = arg0;
