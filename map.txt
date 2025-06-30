@@ -126,7 +126,7 @@ LOAD main.o
  *fill*         0x00000000800053b2        0x6 
  .rodata        0x00000000800053b8      0x374 main.o
 
-.data           0x0000000080005730      0xe48
+.data           0x0000000080005730      0xfc0
  *(.data*)
  .data          0x0000000080005730        0x0 entry.o
  .data          0x0000000080005730        0x0 start.o
@@ -135,41 +135,41 @@ LOAD main.o
  .data          0x0000000080005730        0x0 fs2.o
  .data          0x0000000080005730        0x0 plic.o
  .data          0x0000000080005730        0x0 trap_c.o
- .data          0x0000000080005730      0xe48 main.o
+ .data          0x0000000080005730      0xfc0 main.o
                 0x0000000080005730                hello_elf
-                0x0000000080005f10                hello2_elf
+                0x0000000080005f40                hello2_elf
 
-.sdata          0x0000000080006578       0x10
+.sdata          0x00000000800066f0       0x10
  *(.sdata*)
- .sdata         0x0000000080006578       0x10 main.o
-                0x0000000080006578                hello_elf_len
-                0x000000008000657c                hello2_elf_len
+ .sdata         0x00000000800066f0       0x10 main.o
+                0x00000000800066f0                hello_elf_len
+                0x00000000800066f4                hello2_elf_len
 
-.bss            0x0000000080006600     0x10a8
+.bss            0x0000000080006800     0x10a8
  *(.bss)
- .bss           0x0000000080006600        0x0 entry.o
- .bss           0x0000000080006600        0x0 start.o
- .bss           0x0000000080006600        0x0 userret.o
- .bss           0x0000000080006600        0x0 trap.o
- .bss           0x0000000080006600      0xb30 fs2.o
- .bss           0x0000000080007130        0x0 plic.o
- .bss           0x0000000080007130        0x0 trap_c.o
- .bss           0x0000000080007130      0x558 main.o
-                0x0000000080007130                gCPU
-                0x0000000080007240                gProc
-                0x0000000080007640                kmem
+ .bss           0x0000000080006800        0x0 entry.o
+ .bss           0x0000000080006800        0x0 start.o
+ .bss           0x0000000080006800        0x0 userret.o
+ .bss           0x0000000080006800        0x0 trap.o
+ .bss           0x0000000080006800      0xb30 fs2.o
+ .bss           0x0000000080007330        0x0 plic.o
+ .bss           0x0000000080007330        0x0 trap_c.o
+ .bss           0x0000000080007330      0x558 main.o
+                0x0000000080007330                gCPU
+                0x0000000080007440                gProc
+                0x0000000080007840                kmem
  *(.bss.*)
  *(.sbss)
- .sbss          0x0000000080007688       0x20 main.o
-                0x0000000080007688                kernel_pagetable
-                0x0000000080007690                gActiveProc
-                0x0000000080007694                gNumProc
-                0x0000000080007698                last_key
-                0x00000000800076a0                free_list
+ .sbss          0x0000000080007888       0x20 main.o
+                0x0000000080007888                kernel_pagetable
+                0x0000000080007890                gActiveProc
+                0x0000000080007894                gNumProc
+                0x0000000080007898                last_key
+                0x00000000800078a0                free_list
  *(.sbss.*)
                 [!provide]                        PROVIDE (_code_end = .)
-                0x000000008006b6a8                . = (. + 0x64000)
-                0x000000008006b6a8                PROVIDE (stack_top = .)
+                0x000000008006b8a8                . = (. + 0x64000)
+                0x000000008006b8a8                PROVIDE (stack_top = .)
                 0x000000008006c000                . = ALIGN (0x1000)
                 0x000000008006c000                TRAPFRAME = .
                 0x000000008006d000                . = (. + 0x1000)
