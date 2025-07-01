@@ -706,8 +706,9 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t max)
   while(got_null == 0 && max > 0){
     va0 = PGROUNDDOWN(srcva);
     pa0 = (uint64_t)walkaddr(pagetable, va0);
-    if(pa0 == 0)
+    if(pa0 == 0) {
       return -1;
+    }
     n = PGSIZE - (srcva - va0);
     if(n > max)
       n = max;
@@ -873,7 +874,9 @@ static void free_pagetable(pagetable_t pagetable, int level) {
         uint64_t pa = PTE2PA(pte);
         // リーフかどうか (R/W/X フラグがあるならファイルデータページ)
         if(pte & (PTE_R | PTE_W | PTE_X)) {
-            kfree((void*)pa);
+            if(level > 0) {
+                kfree((void*)pa);
+            }
         } else if(level > 0) {
             // 中間ノード
             pagetable_t child = (pagetable_t)pa;
@@ -954,7 +957,21 @@ void exec_prog(char* hello_elf) {
     
     uint64_t satp_val = MAKE_SATP(result->pagetable);
     
-    gProc[gNumProc++] = result;
+    //gProc[gNumProc++] = result;
+    
+/*
+    struct proc* child = gProc[gActiveProc];
+    
+    uint64_t sp = child->context.sp;
+    
+    child->context = *trapframe;
+    child->context.mepc = eh->entry -4;
+    child->context.sp = sp;
+    child->context.a0 = 0;
+*/
+    
+//    trapframe->mepc = trapframe->mepc + 4;
+//    trapframe2->sp = trapframe->sp + 16;
 }
 
 void reset_watchdog();
@@ -1175,6 +1192,74 @@ int Sys_fork()
     return result;
 }
 
+
+int Sys_execv()
+{
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    int argc = arg2;
+    
+    /// path ///
+    char kernel_buf[256];
+    uint64_t user_va = arg0;
+    
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+    copyinstr(p->pagetable, kernel_buf, user_va, 256);
+    
+    char* path = kernel_buf;
+    
+/*
+    /// argv ////
+    uintptr_t user_argv_ptr = arg1;
+    // ユーザー sepc＋レジスタ a1 とかで渡ってくる argv のアドレス
+    
+    char* kargv[128];
+    
+    if (copyin(p->pagetable, (char*)kargv, user_argv_ptr, sizeof(uintptr_t) * (argc+1)) < 0) {
+        return -1;  // EFAULT 等
+    }
+            
+    for (int i = 0; i < argc; i++) {
+        char buf[128];
+        if (copyinstr(p->pagetable, buf, (uint64_t)kargv[i], sizeof(buf)) < 0) {
+            return -1;
+        }
+        kargv[i] = strdup(buf);
+    }
+    kargv[argc] = NULL;
+*/
+    
+    char hello_elf[PGSIZE];
+    
+    int fd = fs_open(path);
+    int ret = fs_read(fd, hello_elf, PGSIZE);
+    if (ret < 0) {
+        trapframe->a0 = -1;
+        return 0;
+    }
+    
+    exec_prog(hello_elf);
+    
+    struct proc* result = gProc[gActiveProc];
+    
+    trapframe->mepc = result->context.mepc + 4;
+    trapframe->sp = result->context.sp;
+    
+//    user_sp = result->context.sp;
+//    user_satp = MAKE_SATP(result->pagetable);
+    
+    return 0;
+}
+
 uintptr_t syscall_handler()
 {
     disable_timer_interrupts();
@@ -1265,51 +1350,7 @@ uintptr_t syscall_handler()
             break;
             
         case SYS_execv: {
-            int argc = arg2;
-            
-            /// path ///
-            char kernel_buf[256];
-            uint64_t user_va = arg0;
-            
-            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-            int ret = copyinstr(p->pagetable, kernel_buf, user_va, 256);
-            
-            if(ret < 0) {
-                panic("copyinstr2");
-            }
-            
-            char* path = kernel_buf;
-            
-            /// argv ////
-            uintptr_t user_argv_ptr = arg1;
-            /* ユーザー sepc＋レジスタ a1 とかで渡ってくる argv のアドレス */;
-            
-            char* kargv[128];
-            
-            if (copyin(p->pagetable, (char*)kargv, user_argv_ptr, sizeof(uintptr_t) * (argc+1)) < 0) {
-                return -1;  // EFAULT 等
-            }
-                    
-            for (int i = 0; i < argc; i++) {
-                char buf[128];
-                if (copyinstr(p->pagetable, buf, (uint64_t)kargv[i], sizeof(buf)) < 0) {
-                    return -1;
-                }
-                kargv[i] = strdup(buf);
-            }
-            kargv[argc] = NULL;
-            
-            char hello_elf[2048];
-            int fd = fs_open(kargv[0]);
-            ret = fs_read(fd, hello_elf, 2048);
-            if (ret < 0) {
-                trapframe->a0 = -1;
-                return 0;
-            }
-            
-            exec_prog(hello_elf);
-            
-            result = gNumProc-1;
+            result = Sys_execv();
             }
             break;
             

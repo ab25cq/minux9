@@ -21,6 +21,9 @@ kernel.elf:
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello2.elf hello2.c
 	xxd -i hello2.elf > userprog2.h  
 
+	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o hello3.elf -g hello3.c -mcmodel=medany
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello3.elf hello3.c
+
 	dd if=/dev/zero of=fs.img bs=1k count=512
 	dd if=hello.elf of=fs.img bs=512 seek=0 conv=notrunc
 	dd if=hello2.elf of=fs.img bs=512 seek=128 conv=notrunc

@@ -558,6 +558,8 @@ main(int argc, char *argv[])
     write_file_to_file_system("a.txt", 4);
     write_file_to_file_system("b.txt", 5);
     write_file_to_file_system("c.txt", 6);
+    write_file_to_file_system("d.txt", 7);
+    write_file_to_file_system("hello3.elf", 8);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);

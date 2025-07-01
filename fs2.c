@@ -395,8 +395,9 @@ ssize_t fs_read(int fd, void *buf, size_t count) {
 
     struct file *f = &file_table[fd];
     uint32_t remaining = f->din.size - f->off;
-    if (remaining == 0)
+    if (remaining == 0) {
         return 0;  // EOF
+    }
 
     uint32_t to_read = (count < remaining) ? count : remaining;
     read_data(&f->din, f->off, (uint8_t *)buf, to_read);

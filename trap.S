@@ -236,8 +236,6 @@ trap_return:
     # 4) ユーザーモード復帰
     sret
 
-    
-
     # 3) 戻る
     sret
     
