@@ -346,6 +346,8 @@ void dump_inode(uint32_t inum) {
 // シンプルな fs_open/fs_read インタフェース実装
 
 #define MAX_OPEN_FILES 16
+#define FD_OFFSET 3
+
 
 typedef int32_t ssize_t;
 
@@ -361,46 +363,42 @@ static struct file file_table[MAX_OPEN_FILES];
 
 // fs_open: パスから inode を開き、ファイル記述子を返す
 // 成功: [0, MAX_OPEN_FILES) の fd, 失敗: -1
+// 先頭に定義
+#define MAX_OPEN_FILES 16
+#define FD_OFFSET      3   // 返す FD は 3 からスタート
 int fs_open(const char *path) {
     uint32_t inum = path_lookup(path);
-    if (inum == 0) {
-        return -1;  // ファイル未検出
-    }
+    if (inum == 0) return -1;
 
     struct dinode di;
     read_inode(inum, &di);
-    if (di.type != T_FILE && di.type != T_DIR) {
-        return -1;  // 通常ファイルでもディレクトリでもない
-    }
+    if (di.type != T_FILE && di.type != T_DIR) return -1;
 
-    // 空きスロット検索
-    for (int fd = 0; fd < MAX_OPEN_FILES; fd++) {
-        if (!file_table[fd].used) {
-            file_table[fd].used = 1;
-            file_table[fd].inum = inum;
-            file_table[fd].din  = di;
-            file_table[fd].off  = 0;
-            return fd;
+    for (int i = 0; i < MAX_OPEN_FILES; i++) {
+        if (!file_table[i].used) {
+            file_table[i].used  = 1;
+            file_table[i].inum  = inum;
+            file_table[i].din   = di;
+            file_table[i].off   = 0;
+            return i + FD_OFFSET;  // <- 3,4,5… を返す
         }
     }
-    return -1;  // テーブル満杯
+    return -1;
 }
 
 // fs_read: fd から buf に count バイト読み込む
 // 成功: 読み込んだバイト数 (0 は EOF), 失敗: -1
 ssize_t fs_read(int fd, void *buf, size_t count) {
-    if (fd < 0 || fd >= MAX_OPEN_FILES || !file_table[fd].used) {
-        return -1;  // 無効な FD
-    }
+    int idx = fd - FD_OFFSET;           // 受け取った fd を内部インデックスに戻す
+    if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
+        return -1;
 
-    struct file *f = &file_table[fd];
+    struct file *f = &file_table[idx];
     uint32_t remaining = f->din.size - f->off;
-    if (remaining == 0) {
-        return 0;  // EOF
-    }
+    if (remaining == 0) return 0;
 
     uint32_t to_read = (count < remaining) ? count : remaining;
-    read_data(&f->din, f->off, (uint8_t *)buf, to_read);
+    read_data(&f->din, f->off, buf, to_read);
     f->off += to_read;
     return to_read;
 }
@@ -408,11 +406,15 @@ ssize_t fs_read(int fd, void *buf, size_t count) {
 // fs_close: fd を閉じる
 // 成功: 0, 失敗: -1
 int fs_close(int fd) {
-    if (fd < 0 || fd >= MAX_OPEN_FILES || !file_table[fd].used)
+    int idx = fd - FD_OFFSET;
+    if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
         return -1;
-    file_table[fd].used = 0;
+    file_table[idx].used = 0;
     return 0;
 }
+
+
+
 
 
 

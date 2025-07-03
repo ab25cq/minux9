@@ -24,6 +24,10 @@ kernel.elf:
 	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o hello3.elf -g hello3.c -mcmodel=medany
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello3.elf hello3.c
 
+	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o shell.elf -g shell.c -mcmodel=medany
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o shell.elf shell.c
+	xxd -i shell.elf > shell.h  
+
 	dd if=/dev/zero of=fs.img bs=1k count=512
 	dd if=hello.elf of=fs.img bs=512 seek=0 conv=notrunc
 	dd if=hello2.elf of=fs.img bs=512 seek=128 conv=notrunc

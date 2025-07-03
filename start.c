@@ -439,6 +439,8 @@ static inline uint64_t r_mcounteren() {
     return x;
 }
 
+char uart_getc();
+
 void start()
 {
     w_satp(0);

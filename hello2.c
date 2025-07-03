@@ -6,7 +6,8 @@ int main() {
     //*(volatile char*)0x10000000L = 'O';
     char buf[128];
     int fd = open("/c.txt", 0);
-    read(fd, buf, 12);
+    int ret = read(fd, buf, 12);
+    buf[ret] = '\0';
     close(fd);
     write(1, buf, 12);
     while(1);

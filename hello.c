@@ -7,28 +7,24 @@ int fun() {
 // hello.c
 int main() {
     int pid = fork();
+    char buf2[4];
+    buf2[0] = 'c';
 
     if(pid == 0) {
-        char* argv[16];
-        int argc = 0;
-        execv("/hello3.elf", argv, argc);
+        execv("/hello3.elf", (void*)0, 0);
         while(1);
-/*
-        char buf[128];
-        int fd = open("/a.txt", 0);
-        read(fd, buf, 12);
-        close(fd);
-        write(1, buf, 12);
-        while(1);
-*/
     }
     else {
         char buf[128];
         int fd = open("/b.txt", 0);
-        read(fd, buf, 12);
+        int ret = read(fd, buf, 12);
+        buf[ret] = '\0';
         close(fd);
         write(1, buf, 12);
-        //write(1, "X", 1);
+        fd = open("/a.txt", 0);
+        ret = read(fd, buf, 12);
+        buf[ret] = '\0';
+        close(fd);
         while(1);
     }
     

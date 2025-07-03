@@ -1,6 +1,8 @@
 #ifndef MINUX_H
 #define MINUX_H
 
+typedef int pid_t;
+
 #define SYS_write 64
 #define SYS_read 65
 #define SYS_open 66
@@ -115,6 +117,10 @@ static inline int execv(char *path, char **argv, int argc) {
         : "a0","a1","a2","a7","memory"
     );
     return ret;
+}
+
+static inline int exit(int status) {
+    while(1);
 }
 
 #endif

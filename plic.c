@@ -44,3 +44,55 @@ void plic_complete(int irq) {
     *PLIC_MCOMPLETE(HART_ID) = irq;
 }
 
+
+#include <stdint.h>
+
+// 16550 UART レジスタのオフセット
+#define RBR              0    // Receiver Buffer Register (受信データ読み出し)
+#define THR              0    // Transmit Holding Register (送信データ書き込み)
+#define LSR              5    // Line Status Register
+
+// LSR 各ビット
+#define LSR_RX_READY     0x01 // 受信データ準備完了
+#define LSR_THR_EMPTY    0x20 // 送信レジスタ空き
+
+static inline uint8_t uart_read_reg(int offset) {
+    return *(volatile uint8_t*)(UART0 + offset);
+}
+    
+/// UART から１バイト読み出す（ブロッキング）
+char uart_getc(void) {
+    // データが来るまで待つ
+    while ((uart_read_reg(LSR) & LSR_RX_READY) == 0)
+            ;
+    return uart_read_reg(RBR);
+}
+
+typedef unsigned long size_t;
+
+size_t uart_readn(char *buf, size_t len) 
+{
+    size_t i = 0;
+    while (i < len) {
+        buf[i++] = uart_getc();
+    }
+    return i;
+}                            
+    
+/// 改行（'\n' または '\r'）が来るまで、最大 maxlen-1 バイトを読み込んで
+/// buf をヌル終端して返す（改行文字自身は捨てる）
+size_t uart_readline(char *buf, size_t maxlen) {
+    size_t i = 0;
+      char c;
+    while (i + 1 < maxlen) {
+        c = uart_getc();
+        // CR/LF 判定
+        if (c == '\r' || c == '\n') {
+            break;
+        }
+        buf[i++] = c;
+    }
+    buf[i] = '\0';
+    // CR/LF のあとに LF が続く場合、自動で消したいならここでもう一度 uart_getc() を捨てても可
+    return i;
+}
