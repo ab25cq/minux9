@@ -6,7 +6,6 @@ int main(int argc, char** argv)
     int fd = open("/d.txt", 0);
     read(fd, buf, 13);
     close(fd);
-    char c = buf[0];
-    write(1, &c, 13);
+    write(1, buf, 13);
     while(1);
 }
