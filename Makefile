@@ -34,8 +34,8 @@ kernel.elf:
 	gcc -o mkfs2 mkfs2.c
 	./mkfs2 fs.img
 
-#	comelang -S -bare main.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -o main.o main.c
+	comelang -S -bare main.c
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -o main.o main.c.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -g -O0 -T link.ld -Wl,-Map=map.txt  -mcmodel=medany -o kernel.elf entry.o start.o userret.o trap.o fs2.o plic.o trap_c.o main.o 
 
 	$(CCPREFIX)objcopy -O binary kernel.elf kernel.bin

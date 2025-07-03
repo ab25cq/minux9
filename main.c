@@ -1,4 +1,4 @@
-//#include <comelang.h>
+#include <comelang.h>
 #include <stdint.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -26,14 +26,6 @@ static char* heap_limit = (char*)0x88000000;
 
 void putc(char c);
 void puts(const char *s);
-
-/*
-void puts(const char *s) {
-    while (*s) {
-        putc(*s++);
-    }
-}
-*/
 
 void* memset(void *dst, int c, unsigned int n);
 void* memmove(void *dst, const void *src, unsigned int n);
@@ -168,6 +160,7 @@ struct proc {
     pagetable_t pagetable;
     
     char* program;
+    int xstatus;                // exit
 };
 
 
@@ -205,7 +198,6 @@ void freerange(void *pa_start, void *pa_end);
 
 #define KERNBASE 0x80000000UL
 #define PHYSTOP 0x81000000UL
-void* memset(void *dst, int c, unsigned int n);
 
 struct run {
     struct run *next;
@@ -863,7 +855,7 @@ pagetable_t uvmcreate()
     pagetable_t pagetable;
     pagetable = (pagetable_t) kalloc();
     if(pagetable == 0) {
-        return 0;
+        return (pagetable_t)0;
     }
     
     memset(pagetable, 0, PGSIZE);
@@ -875,10 +867,10 @@ pagetable_t uvmcreate()
 // sz はユーザ空間全体のサイズ（スタックも含む）
 pagetable_t copyuvm(pagetable_t old, uint64_t sz)
 {
-    pagetable_t new;
-    new = uvmcreate();
-    if(new == 0)
-        return 0;
+    pagetable_t new_;
+    new_ = uvmcreate();
+    if(new_ == 0)
+        return (pagetable_t)0;
 
     // 0 ～ sz まで PGSIZE ごとにループ
     for(uint64_t addr = 0; addr < sz; addr += PGSIZE){
@@ -894,12 +886,12 @@ pagetable_t copyuvm(pagetable_t old, uint64_t sz)
         // 親のページ内容をコピー（スタックもここでコピーされる）
         memmove(mem, (char*)pa, PGSIZE);
         // 子のページテーブルにマッピング
-        if(mappages(new, addr, PGSIZE, PA2PTE(mem), PTE_U | PTE_R |PTE_W | PTE_X | PTE_V) < 0){
+        if(mappages(new_, addr, PGSIZE, PA2PTE(mem), PTE_U | PTE_R |PTE_W | PTE_X | PTE_V) < 0){
             kfree(mem);
             panic("copyuvm");
         }
     }
-    return new;
+    return new_;
 }
 
 
@@ -1069,7 +1061,7 @@ void disable_timer_interrupts(void) {
     w_sie(r_sie() & ~SIE_STIE);
 }
 
-extern void swtch(struct context *new);
+extern void swtch(struct context *new_);
 
 void timer_reset() {
     uint64_t next = r_time() + TIMER_INTERVAL;
@@ -1114,8 +1106,6 @@ void console_init(void) {
 // コンソール用スピンロック
 static struct spinlock console_lock;
 
-extern void putchar(char c);
-
 // カーネル側の puts (UART 等に文字列を出力)
 void puts(const char *s) {
     acquire(&console_lock);
@@ -1154,6 +1144,26 @@ int Sys_write()
     for(int i=0; i<len; i++) {
         putchar(kernel_buf[i]);
     }
+    
+    return 0;
+}
+
+int Sys_exit()
+{
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+    
+    p->xstatus = arg0;
     
     return 0;
 }
@@ -1307,6 +1317,11 @@ uintptr_t syscall_handler()
             }
             break;
             
+        case SYS_exit: {
+            result = Sys_exit();
+            }
+            break;
+            
         case SYS_open: {
             result = Sys_open();
             }
@@ -1445,6 +1460,7 @@ void timerinit()
 }
 
 
+/*
 void* sbrk(ptrdiff_t incr) {
     if (heap_end == 0)
         heap_end = (char*)&_end;
@@ -2207,6 +2223,7 @@ int printf(const char* fmt, ...) {
     va_end(ap);
     return 0;
 }
+*/
 
 int main()
 {

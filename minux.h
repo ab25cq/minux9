@@ -9,6 +9,7 @@ typedef int pid_t;
 #define SYS_close 67
 #define SYS_fork 68
 #define SYS_execv 69
+#define SYS_exit 70
 
 // user-space 側
 static inline long write(long fd, const void *buf, long size) {
@@ -119,8 +120,16 @@ static inline int execv(char *path, char **argv, int argc) {
     return ret;
 }
 
-static inline int exit(int status) {
-    while(1);
+static inline void exit(long status) {
+    asm volatile(
+        "mv   a0, %0   \n"   // status → a0
+        "li   a7, %1   \n"   // SYS_exit → a7
+        "ecall         \n"   // システムコール発行
+        :
+        : "r"(status), "i"(SYS_exit)
+        : "a0", "a7", "memory"
+    );
+    __builtin_unreachable();  // exit 後は戻らないのでコンパイラに通知
 }
 
 #endif
