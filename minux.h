@@ -10,6 +10,7 @@ typedef int pid_t;
 #define SYS_fork 68
 #define SYS_execv 69
 #define SYS_exit 70
+#define SYS_wait 71
 
 // user-space 側
 static inline long write(long fd, const void *buf, long size) {
@@ -130,6 +131,21 @@ static inline void exit(long status) {
         : "a0", "a7", "memory"
     );
     __builtin_unreachable();  // exit 後は戻らないのでコンパイラに通知
+}
+
+static inline pid_t wait(int* status) {
+    int ret;
+    asm volatile(
+        "mv   a0, %1    \n"
+        "li   a7, %2    \n"
+        "ecall          \n"
+        "mv   %0, a0    \n"
+        : "=r"(ret)         // 出力オペランド
+        : "r"(status),      // %1
+          "i"(SYS_wait)     // %2 = システムコール番号
+        : "a0","a7","memory"
+    );
+    return ret;
 }
 
 #endif

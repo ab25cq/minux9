@@ -161,15 +161,20 @@ struct proc {
     
     char* program;
     int xstatus;                // exit
+    int zombie; 
 };
+
+/// プロセスのユーザー空間を完全に解放
+void free_proc(struct proc *p) {
+    free_pagetable(p->pagetable, 2);
+    kfree(p->pagetable);
+}
 
 
 #define HEAP_END (_end + PGSIZE * 256)
 
-#define NPROC 128
-struct proc* gProc[NPROC];
+list<proc*%>*% gProc;
 int gActiveProc = 0;
-int gNumProc = 0;
 
 void kfree(void *pa);
 void freerange(void *pa_start, void *pa_end);
@@ -762,7 +767,7 @@ void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
 }
 
 void alloc_prog(char* hello_elf, int fork_flag) {
-    struct proc* result = calloc(1, sizeof(struct proc));
+    struct proc*% result = new proc;
     
     result->program = hello_elf;
     
@@ -847,7 +852,7 @@ void alloc_prog(char* hello_elf, int fork_flag) {
     /// USER PROGRAM
     result->context.mepc = eh->entry;
     
-    gProc[gNumProc++] = result;
+    gProc.add(result);
 }
 
 pagetable_t uvmcreate()
@@ -915,12 +920,6 @@ static void free_pagetable(pagetable_t pagetable, int level) {
             kfree(child);
         }
     }
-}
-
-/// プロセスのユーザー空間を完全に解放
-void free_proc(struct proc *p) {
-    free_pagetable(p->pagetable, 2);
-    kfree(p->pagetable);
 }
 
 void exec_prog(char* hello_elf) {
@@ -1079,7 +1078,7 @@ void timer_handler() {
 
     struct proc *old = gProc[gActiveProc];
     gActiveProc++;
-    if(gActiveProc >= gNumProc) {
+    if(gActiveProc >= gProc.length()) {
         gActiveProc = 0;
     } 
     struct proc *new_ = gProc[gActiveProc];
@@ -1164,8 +1163,47 @@ int Sys_exit()
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
     
     p->xstatus = arg0;
+    p->zombie = 1;
     
     return 0;
+}
+
+int Sys_wait()
+{
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    int* status_va = (int*)arg0;
+    
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+    
+    int exit_status = 0;
+    pid_t child_pid = -1;
+    int n = 0;
+    foreach (it, gProc) {
+        if(it->zombie) {
+            free_proc(it);
+            exit_status = it->xstatus;
+            child_pid = n;
+            gProc.remove_by_pointer(it);
+            break;
+        }
+        
+        n++;
+    }
+    if (copyout(p->pagetable, (uint64_t)status_va, (void*)&exit_status, sizeof(int)) < 0) {
+        panic("read: copyout failed");
+    }
+    
+    return child_pid;
 }
 
 int Sys_open()
@@ -1210,7 +1248,7 @@ int Sys_fork()
     int fork_flag;
     alloc_prog((char*)p->program, fork_flag=1);
     
-    struct proc* child = gProc[gNumProc-1];
+    struct proc* child = gProc[gProc.length()-1];
     
     uint64_t sp = child->context.sp;
     
@@ -1219,7 +1257,7 @@ int Sys_fork()
     child->context.sp = sp;
     child->context.a0 = 0;
     
-    int result = gNumProc-1;
+    int result = gProc.length()-1;
     
     return result;
 }
@@ -1322,6 +1360,11 @@ uintptr_t syscall_handler()
             }
             break;
             
+        case SYS_wait: {
+            result = Sys_wait();
+            }
+            break;
+            
         case SYS_open: {
             result = Sys_open();
             }
@@ -1357,27 +1400,6 @@ uintptr_t syscall_handler()
             result = ret;
             }
             break;
-
-/*
-        case SYS_read: {
-            int fd   = arg0;
-            uint64_t user_va = arg1;
-            size_t   n     = arg2;
-        
-            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-            uint64_t pa = (uint64_t)walkaddr(p->pagetable, user_va);
-            
-            int ret = fs_read(fd, (char*)pa, n);
-            if (ret < 0) {
-                trapframe->a0 = ret;
-                return 0;
-            }
-            ((char*)pa)[ret] = '\0';
-            
-            result = ret;
-            }
-            break;
-*/
             
         case SYS_close: {
             int fd = arg0;
@@ -2225,6 +2247,11 @@ int printf(const char* fmt, ...) {
 }
 */
 
+void global_init()
+{
+    gProc = new list<proc*%>();
+}
+
 int main()
 {
     timerinit();
@@ -2241,6 +2268,8 @@ int main()
     virtio_blk_init();
     read_superblock();
     
+    global_init();
+    
     w_stimecmp(r_time() + 10000000);
 
     int fork_flag;
@@ -2255,7 +2284,7 @@ int main()
     /// ユーザープロセスへ降りる
     w_stimecmp(r_time() + 10000000);
     
-    struct proc* p = gProc[gActiveProc];
+    struct proc* p = gProc[0];
     
     uintptr_t usersp = (uint64_t)(p->stack);
     uint64_t usersatp = MAKE_SATP(p->pagetable);

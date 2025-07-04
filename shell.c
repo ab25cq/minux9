@@ -244,10 +244,11 @@ int main(void) {
             char* argv[16];
             int argc = 0;
             execv(buf, argv, argc);
-            while(1);
+            exit(2);
         }
         else {
-            while(1);
+            int status = 0;
+            pid_t pid = wait(&status);
         }
         
         // 親プロセス：子を待たずにループへ（ゾンビになるが極小シェルのため省略）
