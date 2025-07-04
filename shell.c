@@ -211,6 +211,7 @@ int main(void) {
     long n;
     
     for (;;) {
+        puts("\r\n");
         // プロンプト
         write(1, "$ ", 2);
         
@@ -233,6 +234,10 @@ int main(void) {
         buf[n-1] = '\0';
         puts("\r\n");
         
+        if(buf[0] == '\0') {
+            continue;
+        }
+        
         // fork して
         pid_t pid = fork();
         if (pid < 0) {
@@ -243,12 +248,13 @@ int main(void) {
         if (pid == 0) {
             char* argv[16];
             int argc = 0;
-            execv(buf, argv, argc);
-            exit(2);
+            int ret = execv(buf, argv, argc);
+            exit(6);
         }
         else {
             int status = 0;
             pid_t pid = wait(&status);
+            printf("\r\nwait status %d\r\n", status);
         }
         
         // 親プロセス：子を待たずにループへ（ゾンビになるが極小シェルのため省略）

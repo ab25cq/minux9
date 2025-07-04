@@ -553,13 +553,14 @@ main(int argc, char *argv[])
     //-------------------------------------------------------------------
     // ここから「hello.elf」をルート直下に /hello.elf として埋め込む例
     //-------------------------------------------------------------------
-    write_file_to_file_system("hello.elf", 2);
-    write_file_to_file_system("hello2.elf", 3);
-    write_file_to_file_system("a.txt", 4);
-    write_file_to_file_system("b.txt", 5);
-    write_file_to_file_system("c.txt", 6);
-    write_file_to_file_system("d.txt", 7);
-    write_file_to_file_system("hello3.elf", 8);
+    write_file_to_file_system("hello.elf", 3);
+    write_file_to_file_system("hello2.elf", 4);
+    write_file_to_file_system("hello3.elf", 5);
+    write_file_to_file_system("hello4.elf", 6);
+    write_file_to_file_system("a.txt", 7);
+    write_file_to_file_system("b.txt", 8);
+    write_file_to_file_system("c.txt", 9);
+    write_file_to_file_system("d.txt", 10);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);

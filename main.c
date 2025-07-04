@@ -601,7 +601,9 @@ void uart_init(void) {
 
 // 1 文字送信 (FIFO 空きを待ってから)
 void putc(char c) {
-    while (!(*UART_LSR & UART_LSR_THRE)) ;
+    while (!(*UART_LSR & UART_LSR_THRE)) {
+        asm volatile("wfi");   // 割り込みが来るまで低消費で停止
+    };
     *UART_THR = c;
 }
 void putchar(char c) {
@@ -923,10 +925,17 @@ static void free_pagetable(pagetable_t pagetable, int level) {
 }
 
 void exec_prog(char* hello_elf) {
-    struct proc* result = gProc[gActiveProc];
-    free_proc(result);
-
-    memset(result, 0, sizeof(struct proc));
+    struct proc* p = gProc[gActiveProc];
+    
+    free_proc(p);
+    
+    //memset(p, 0, sizeof(struct proc));
+    
+    struct proc*% result = new proc;
+    
+    result.context = p->context;
+    
+    gProc.remove_by_pointer(p);
     
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
@@ -983,6 +992,8 @@ void exec_prog(char* hello_elf) {
     
     /// USER PROGRAM
     result->context.mepc = eh->entry;
+    
+    gProc.add(result);
 }
 
 void reset_watchdog();
@@ -1083,7 +1094,11 @@ void timer_handler() {
     } 
     struct proc *new_ = gProc[gActiveProc];
     
-    if (new_ != old) {
+    if(new_->zombie) {
+        gActiveProc--;
+    }
+    
+    if (new_ != old && new_->zombie == 0) {
         user_sp = new_->context.sp;
         user_satp = MAKE_SATP(new_->pagetable);
         //old->context = *(struct context*)TRAPFRAME;
@@ -1165,6 +1180,8 @@ int Sys_exit()
     p->xstatus = arg0;
     p->zombie = 1;
     
+    timer_handler();
+    
     return 0;
 }
 
@@ -1187,17 +1204,20 @@ int Sys_wait()
     
     int exit_status = 0;
     pid_t child_pid = -1;
-    int n = 0;
-    foreach (it, gProc) {
-        if(it->zombie) {
-            free_proc(it);
-            exit_status = it->xstatus;
-            child_pid = n;
-            gProc.remove_by_pointer(it);
-            break;
+    while(child_pid == -1) {
+        timer_handler();
+        int n = 0;
+        foreach (it, gProc) {
+            if(it->zombie) {
+                free_proc(it);
+                exit_status = it->xstatus;
+                child_pid = n;
+                gProc.remove_by_pointer(it);
+                break;
+            }
+            
+            n++;
         }
-        
-        n++;
     }
     if (copyout(p->pagetable, (uint64_t)status_va, (void*)&exit_status, sizeof(int)) < 0) {
         panic("read: copyout failed");

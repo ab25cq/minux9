@@ -60,11 +60,14 @@ static inline uint8_t uart_read_reg(int offset) {
     return *(volatile uint8_t*)(UART0 + offset);
 }
     
+void timer_handler();
+
 /// UART から１バイト読み出す（ブロッキング）
 char uart_getc(void) {
     // データが来るまで待つ
-    while ((uart_read_reg(LSR) & LSR_RX_READY) == 0)
-            ;
+    while ((uart_read_reg(LSR) & LSR_RX_READY) == 0) {
+timer_handler();
+    }
     return uart_read_reg(RBR);
 }
 
