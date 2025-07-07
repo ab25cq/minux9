@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include "elf.h"
-#include "fs2.h"
+#include "fs.h"
 #include "userprog.h"
 #include "userprog2.h"
 #include "shell.h"
@@ -1350,6 +1350,60 @@ int Sys_execv()
     return 0;
 }
 
+int Sys_dup2(void)
+{
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    uint64_t oldfd = arg0;
+    uint64_t newfd = arg1;
+    
+    fs_dup2(oldfd, newfd);
+    
+    return 0;
+}
+
+int Sys_pipe(void)
+{
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    char* kernel_buf;
+    uint64_t user_va = arg0;
+    
+    int fd0, fd1;
+    pipe_open(&fd0, &fd1);
+    
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+    if(copyout(p->pagetable, (uint64_t)user_va, (char*)&fd0, sizeof(int)) < 0)
+    {
+        panic("copyout");
+    }
+    
+    if(copyout(p->pagetable, (uint64_t)user_va+4,   (char*)&fd1, sizeof(int)) < 0)
+    {
+        panic("copyout");
+    }
+    
+    return 0;
+}
+
 uintptr_t syscall_handler()
 {
     disable_timer_interrupts();
@@ -1372,6 +1426,16 @@ uintptr_t syscall_handler()
     switch(arg_syscall_no) {
         case SYS_write: {
             result = Sys_write();
+            }
+            break;
+            
+        case SYS_pipe: {
+            result = Sys_pipe();
+            }
+            break;
+            
+        case SYS_dup2: {
+            result = Sys_dup2();
             }
             break;
             

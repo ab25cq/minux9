@@ -9,7 +9,7 @@ kernel.elf:
 	$(CCPREFIX)as -g $(CFLAGS) -o trap.o trap.S
 	$(CCPREFIX)as -g $(CFLAGS) -o userret.o userret.S
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o start.o start.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs2.o fs2.c
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs.o fs.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o trap_c.o trap.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o plic.o plic.c
 
@@ -34,12 +34,12 @@ kernel.elf:
 	dd if=/dev/zero of=fs.img bs=1k count=512
 	dd if=hello.elf of=fs.img bs=512 seek=0 conv=notrunc
 	dd if=hello2.elf of=fs.img bs=512 seek=128 conv=notrunc
-	gcc -o mkfs2 mkfs2.c
-	./mkfs2 fs.img
+	gcc -o mkfs mkfs.c
+	./mkfs fs.img
 
 	comelang -S -bare main.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -o main.o main.c.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -g -O0 -T link.ld -Wl,-Map=map.txt  -mcmodel=medany -o kernel.elf entry.o start.o userret.o trap.o fs2.o plic.o trap_c.o main.o 
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -g -O0 -T link.ld -Wl,-Map=map.txt  -mcmodel=medany -o kernel.elf entry.o start.o userret.o trap.o fs.o plic.o trap_c.o main.o 
 
 	$(CCPREFIX)objcopy -O binary kernel.elf kernel.bin
 
@@ -63,5 +63,5 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log hello.elf hello2.elf *.elf mkfs mkfs2 riscv-isa-sim/ riscv-pk fs.img *.bin
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log hello.elf hello2.elf *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin
 

@@ -1,7 +1,10 @@
 // fs.c
 #include <stdint.h>
 #include <stddef.h>
-#include "fs2.h"
+#include "fs.h"
+
+void * kalloc(void);
+void timer_handler();
 
 void *kalloc_pages(size_t npages);
 void* memset(void *dst, int c, unsigned int n);
@@ -345,21 +348,104 @@ void dump_inode(uint32_t inum) {
 // fs_api.c
 // シンプルな fs_open/fs_read インタフェース実装
 
-#define MAX_OPEN_FILES 16
 #define FD_OFFSET 3
 
 
 typedef int32_t ssize_t;
 
-// ファイルテーブルエントリ
-struct file {
-    uint32_t inum;        // inode 番号
-    struct dinode din;     // on-disk inode 情報
-    uint32_t off;         // 現在の読み込みオフセット
-    int used;             // 使用フラグ
-};
 
-static struct file file_table[MAX_OPEN_FILES];
+
+// ── pipealloc ──────────────────────────────────────────────────────────
+// パイプ構造体を確保・初期化して返す
+struct spipe* pipealloc(void)
+{
+    struct spipe *p = (struct spipe*)kalloc();
+    if (p == 0)
+        return 0;
+    p->nread     = 0;
+    p->nwrite    = 0;
+    p->read_open  = 1;
+    p->write_open = 1;
+    
+    return p;
+}
+
+struct file file_table[MAX_OPEN_FILES];
+
+void pipe_open(int* fd1, int* fd2) {
+    struct spipe* pip = pipealloc();
+    
+    for (int i = 0; i < MAX_OPEN_FILES; i++) {
+        if (!file_table[i].used) {
+            file_table[i].used  = 1;
+            file_table[i].inum  = -1;
+            memset(&file_table[i].din, 0, sizeof(struct dinode));
+            file_table[i].off   = 0;
+            file_table[i].pipe = pip;
+            *fd1 = i + FD_OFFSET;  // <- 3,4,5… を返す
+            break;
+        }
+    }
+    for (int i = 0; i < MAX_OPEN_FILES; i++) {
+        if (!file_table[i].used) {
+            file_table[i].used  = 1;
+            file_table[i].inum  = -1;
+            memset(&file_table[i].din, 0, sizeof(struct dinode));
+            file_table[i].off   = 0;
+            file_table[i].pipe = pip;
+            *fd2 = i + FD_OFFSET;  // <- 3,4,5… を返す
+            break;
+        }
+    }
+}
+
+// ── piperead ────────────────────────────────────────────────────────────
+// パイプから最大 n バイト読み込む。EOF:0, エラー:-1
+int piperead(struct spipe *p, char *addr, int n)
+{
+    int i;
+  
+    // データが来るまで待機
+    while (p->nread == p->nwrite && p->write_open) {
+        timer_handler();
+    }
+    // 書き側クローズかつバッファ空 → EOF
+    if (p->nread == p->nwrite && !p->write_open) {
+        return 0;
+    }
+    // バッファからコピー
+    for (i = 0; i < n && p->nread < p->nwrite; i++) {
+        addr[i] = p->data[p->nread % PIPE_SIZE];
+        p->nread++;
+    }
+    timer_handler();
+    return i;
+}
+
+// ── pipewrite ───────────────────────────────────────────────────────────
+// パイプに n バイト書き込む。正常書き込み数、エラー:-1
+int pipewrite(struct spipe *p, char *addr, int n)
+{
+    int i;
+  
+    for (i = 0; i < n; i++) {
+      // バッファ満杯なら読み側を待つ
+      while (p->nwrite - p->nread == PIPE_SIZE && p->read_open) {
+          timer_handler();
+      }
+      // 読み側クローズ → SIGPIPE 相当
+      if (!p->read_open) {
+          return -1;
+      }
+      p->data[p->nwrite % PIPE_SIZE] = addr[i];
+      p->nwrite++;
+      
+      // 読み側を起こす
+      timer_handler();
+    }
+    return n;
+}
+
 
 // fs_open: パスから inode を開き、ファイル記述子を返す
 // 成功: [0, MAX_OPEN_FILES) の fd, 失敗: -1
@@ -413,6 +499,10 @@ int fs_close(int fd) {
     return 0;
 }
 
+void fs_dup2(uint32_t oldfd, uint32_t newfd) {
+    file_table[newfd] = file_table[oldfd];
+    file_table[newfd].used++;
+}
 
 
 

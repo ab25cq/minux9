@@ -11,6 +11,8 @@ typedef int pid_t;
 #define SYS_execv 69
 #define SYS_exit 70
 #define SYS_wait 71
+#define SYS_dup2 72
+#define SYS_pipe 73
 
 // user-space 側
 static inline long write(long fd, const void *buf, long size) {
@@ -143,6 +145,40 @@ static inline pid_t wait(int* status) {
         : "=r"(ret)         // 出力オペランド
         : "r"(status),      // %1
           "i"(SYS_wait)     // %2 = システムコール番号
+        : "a0","a7","memory"
+    );
+    return ret;
+}
+
+// user-space 側
+static inline long dup2(long oldfd, long newfd) { 
+    long ret;
+    asm volatile(
+        "mv   a0, %1    \n"  // fd → a0
+        "mv   a1, %2    \n"  // buf → a1
+        "li   a7, %3    \n"  // SYS_write → a7
+        "ecall          \n"  // システムコール発行
+        "mv   %0, a0    \n"  // 戻り値 a0 → ret
+        : "=r"(ret)         // 出力オペランド
+        : "r"(oldfd),          // %1
+          "r"(newfd),         // %2
+          "i"(SYS_dup2)    // %4 = システムコール番号
+        : "a0","a1","a7","memory"
+    );
+    return ret;
+}
+
+// user-space 側
+static inline long pipe(int* pip) {
+    long ret;
+    asm volatile(
+        "mv   a0, %1    \n"  // fd → a0
+        "li   a7, %2    \n"  // SYS_write → a7
+        "ecall          \n"  // システムコール発行
+        "mv   %0, a0    \n"  // 戻り値 a0 → ret
+        : "=r"(ret)         // 出力オペランド
+        : "r"(pipe),          // %1
+          "i"(SYS_pipe)    // %4 = システムコール番号
         : "a0","a7","memory"
     );
     return ret;

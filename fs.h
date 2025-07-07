@@ -95,5 +95,33 @@ int fs_open(const char *path);
 ssize_t fs_read(int fd, void *buf, size_t count);
 int fs_close(int fd);
 
+// ── パイプ本体 ─────────────────────────────────────────────────────────
+#define PIPE_SIZE 512
+
+struct spipe {
+    char data[PIPE_SIZE];      // リングバッファ
+    uint32_t nread;            // 読み出し済バイト数
+    uint32_t nwrite;           // 書き込み済バイト数
+    int read_open;             // 読み側 open フラグ
+    int write_open;            // 書き側 open フラグ
+};
+
+// ファイルテーブルエントリ
+struct file {
+    uint32_t inum;        // inode 番号
+    struct dinode din;     // on-disk inode 情報
+    uint32_t off;         // 現在の読み込みオフセット
+    int used;             // 使用フラグ
+    struct spipe* pipe;
+};
+
+void pipe_open(int* fd1, int* fd2);
+int piperead(struct spipe *p, char *addr, int n);
+int pipewrite(struct spipe *p, char *addr, int n);
+void fs_dup2(uint32_t oldfd, uint32_t newfd);
+
+#define MAX_OPEN_FILES 16
+extern struct file file_table[MAX_OPEN_FILES];
+
 #endif // FS_H
 
