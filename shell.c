@@ -206,6 +206,31 @@ void puts(const char *s) {
     }
 }
 
+int main() {
+    int p[2];
+    
+    pipe(p);
+    
+    write(p[1], "ABC", 3);
+    
+    char buf[4];
+    read(p[0], buf, 3);
+    puts(buf);
+    
+    int fd = 10;
+    dup2(p[1], fd);
+    
+    close(p[1]);
+    
+    write(fd, "DEF", 3);
+    
+    read(p[0], buf, 3);
+    puts(buf);
+    
+    while(1);
+}
+
+/*
 int main(void) {
     char buf[BUF_SIZE];
     long n;
@@ -262,4 +287,5 @@ int main(void) {
     
     return 0;
 }
+*/
 

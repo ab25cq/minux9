@@ -372,6 +372,17 @@ struct spipe* pipealloc(void)
 
 struct file file_table[MAX_OPEN_FILES];
 
+int is_pipe(int fd)
+{
+    if (file_table[fd-FD_OFFSET].used) {
+        if(file_table[fd-FD_OFFSET].pipe) {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
+
 void pipe_open(int* fd1, int* fd2) {
     struct spipe* pip = pipealloc();
     
@@ -401,8 +412,18 @@ void pipe_open(int* fd1, int* fd2) {
 
 // ── piperead ────────────────────────────────────────────────────────────
 // パイプから最大 n バイト読み込む。EOF:0, エラー:-1
-int piperead(struct spipe *p, char *addr, int n)
+void panic(char* str);
+
+int piperead(int fd, char *addr, int n)
 {
+    if(fd < 0 || fd-FD_OFFSET >= MAX_OPEN_FILES) {
+        panic("pipewrite");
+    }
+    struct spipe* p = file_table[fd-FD_OFFSET].pipe;
+    
+    if(p == NULL) {
+        panic("pipewrite");
+    }
     int i;
   
     // データが来るまで待機
@@ -424,8 +445,17 @@ int piperead(struct spipe *p, char *addr, int n)
 
 // ── pipewrite ───────────────────────────────────────────────────────────
 // パイプに n バイト書き込む。正常書き込み数、エラー:-1
-int pipewrite(struct spipe *p, char *addr, int n)
+int pipewrite(int fd, char *addr, int n)
 {
+    if(fd < 0 || fd-FD_OFFSET >= MAX_OPEN_FILES) {
+        panic("pipewrite");
+    }
+    struct spipe* p = file_table[fd-FD_OFFSET].pipe;
+    
+    if(p == NULL) {
+        panic("pipewrite");
+    }
+    
     int i;
   
     for (i = 0; i < n; i++) {
@@ -495,13 +525,16 @@ int fs_close(int fd) {
     int idx = fd - FD_OFFSET;
     if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
         return -1;
-    file_table[idx].used = 0;
+    file_table[idx].used--;
+    if(file_table[idx].used < 0) {
+        file_table[idx].used = 0;
+    }
     return 0;
 }
 
 void fs_dup2(uint32_t oldfd, uint32_t newfd) {
-    file_table[newfd] = file_table[oldfd];
-    file_table[newfd].used++;
+    file_table[newfd-FD_OFFSET] = file_table[oldfd-FD_OFFSET];
+    file_table[newfd-FD_OFFSET].used++;
 }
 
 

@@ -177,7 +177,7 @@ static inline long pipe(int* pip) {
         "ecall          \n"  // システムコール発行
         "mv   %0, a0    \n"  // 戻り値 a0 → ret
         : "=r"(ret)         // 出力オペランド
-        : "r"(pipe),          // %1
+        : "r"(pip),          // %1
           "i"(SYS_pipe)    // %4 = システムコール番号
         : "a0","a7","memory"
     );

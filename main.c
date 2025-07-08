@@ -1142,6 +1142,8 @@ int Sys_write()
     uintptr_t arg6 = trapframe->a6;
     uintptr_t arg_syscall_no = trapframe->a7;
     
+    int fd = arg0;
+    
     char kernel_buf[256];
     uint64_t user_va = arg1;
     int len = arg2;
@@ -1155,8 +1157,16 @@ int Sys_write()
         panic("copyinstr1");
     }
     
-    for(int i=0; i<len; i++) {
-        putchar(kernel_buf[i]);
+    if(is_pipe(fd)) {
+        pipewrite(fd, kernel_buf, len);
+    }
+    else if(fd == 1) {
+        for(int i=0; i<len; i++) {
+            putchar(kernel_buf[i]);
+        }
+    }
+    else {
+        panic("write");
     }
     
     return 0;
@@ -1387,6 +1397,7 @@ int Sys_pipe(void)
     char* kernel_buf;
     uint64_t user_va = arg0;
     
+    
     int fd0, fd1;
     pipe_open(&fd0, &fd1);
     
@@ -1402,6 +1413,51 @@ int Sys_pipe(void)
     }
     
     return 0;
+}
+
+int Sys_read()
+{
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    int fd   = arg0;
+    uint64_t destva = arg1;
+    size_t   n     = arg2;
+    
+    char kernel_buf[256];
+    int ret;
+    
+    if(fd == 0) {
+        ret = uart_readn(kernel_buf, n);
+    }
+    else if(is_pipe(fd)) {
+        ret = piperead(fd, kernel_buf, n);
+    }
+    else {
+        ret = fs_read(fd, kernel_buf, n);
+        if (ret < 0) {
+            trapframe->a0 = ret;
+            return 0;
+        }
+        kernel_buf[ret] = '\0';
+    }
+    
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+
+    /* copyout を使ってまとめてコピー */
+    if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
+        panic("read: copyout failed");
+    }
+    
+    return ret;
 }
 
 uintptr_t syscall_handler()
@@ -1455,33 +1511,7 @@ uintptr_t syscall_handler()
             break;
             
         case SYS_read: {
-            int fd   = arg0;
-            uint64_t destva = arg1;
-            size_t   n     = arg2;
-            
-            char kernel_buf[256];
-            int ret;
-            
-            if(fd == 0) {
-                ret = uart_readn(kernel_buf, n);
-            }
-            else {
-                ret = fs_read(fd, kernel_buf, n);
-                if (ret < 0) {
-                    trapframe->a0 = ret;
-                    return 0;
-                }
-                kernel_buf[ret] = '\0';
-            }
-            
-            struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-        
-            /* copyout を使ってまとめてコピー */
-            if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
-                panic("read: copyout failed");
-            }
-            
-            result = ret;
+            result = Sys_read();
             }
             break;
             

@@ -115,9 +115,11 @@ struct file {
     struct spipe* pipe;
 };
 
+int is_pipe(int fd);
+
 void pipe_open(int* fd1, int* fd2);
-int piperead(struct spipe *p, char *addr, int n);
-int pipewrite(struct spipe *p, char *addr, int n);
+int piperead(int fd, char *addr, int n);
+int pipewrite(int fd, char *addr, int n);
 void fs_dup2(uint32_t oldfd, uint32_t newfd);
 
 #define MAX_OPEN_FILES 16
