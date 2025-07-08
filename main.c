@@ -162,7 +162,16 @@ struct proc {
     char* program;
     int xstatus;                // exit
     int zombie; 
+    
+    struct file file_table[MAX_OPEN_FILES];
 };
+
+void copy_file_table(struct file* old, struct file* new_)
+{
+    for(int i=0; i<MAX_OPEN_FILES; i++) {
+        new_[i] = old[i];
+    }
+}
 
 /// プロセスのユーザー空間を完全に解放
 void free_proc(struct proc *p) {
@@ -771,6 +780,8 @@ void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
 void alloc_prog(char* hello_elf, int fork_flag) {
     struct proc*% result = new proc;
     
+    copy_file_table(file_table, result->file_table);
+    
     result->program = hello_elf;
     
     pagetable_t pagetable = (pagetable_t)kalloc();
@@ -932,6 +943,8 @@ void exec_prog(char* hello_elf) {
     //memset(p, 0, sizeof(struct proc));
     
     struct proc*% result = new proc;
+    
+    copy_file_table(p->file_table, result->file_table);
     
     result.context = p->context;
     
@@ -1099,6 +1112,7 @@ void timer_handler() {
     }
     
     if (new_ != old && new_->zombie == 0) {
+        copy_file_table(new_->file_table, file_table);
         user_sp = new_->context.sp;
         user_satp = MAKE_SATP(new_->pagetable);
         //old->context = *(struct context*)TRAPFRAME;

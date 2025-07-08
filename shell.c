@@ -206,6 +206,7 @@ void puts(const char *s) {
     }
 }
 
+/*
 int main() {
     int p[2];
     
@@ -229,8 +230,8 @@ int main() {
     
     while(1);
 }
+*/
 
-/*
 int main(void) {
     char buf[BUF_SIZE];
     long n;
@@ -287,5 +288,4 @@ int main(void) {
     
     return 0;
 }
-*/
 
