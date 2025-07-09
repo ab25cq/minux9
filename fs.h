@@ -108,6 +108,7 @@ struct spipe {
 
 // ファイルテーブルエントリ
 struct file {
+    enum { FK_STDIN, FK_STDOUT, FK_STDERR, FK_FILE } kind;
     uint32_t inum;        // inode 番号
     struct dinode din;     // on-disk inode 情報
     uint32_t off;         // 現在の読み込みオフセット
@@ -116,6 +117,8 @@ struct file {
 };
 
 int is_pipe(int fd);
+int is_stdin(int fd);
+int is_stdout(int fd);
 
 void pipe_open(int* fd1, int* fd2);
 int piperead(int fd, char *addr, int n);

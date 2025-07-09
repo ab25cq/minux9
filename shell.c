@@ -232,6 +232,54 @@ int main() {
 }
 */
 
+/*
+int main(void) {
+    int fd[2];
+    pid_t pid1, pid2;
+
+    pipe(fd);
+
+puts("FORK1");
+    pid1 = fork();
+    if (pid1 == 0) {
+puts("CHILD1");
+        char* argv[16];
+        int argc;
+
+        close(fd[0]);
+        dup2(fd[1], 1);
+        close(fd[1]);
+
+        execv("/hello.elf", argv, argc);
+        exit(6);
+    }
+
+puts("FORK2");
+    pid2 = fork();
+    if (pid2 == 0) {
+puts("CHILD2");
+        char* argv[16];
+        int argc;
+        
+        close(fd[1]);               // 書き側は不要
+        dup2(fd[0], 0);
+        close(fd[0]);
+
+        execv("/hello2.elf", argv, argc);
+        exit(6);
+    }
+
+    // 親プロセスはパイプを閉じて子の終了を待つ
+    close(fd[0]);
+    close(fd[1]);
+    
+puts("END");
+    while(1);
+
+    return 0;
+}
+*/
+
 int main(void) {
     char buf[BUF_SIZE];
     long n;

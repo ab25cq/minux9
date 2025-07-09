@@ -370,12 +370,38 @@ struct spipe* pipealloc(void)
     return p;
 }
 
-struct file file_table[MAX_OPEN_FILES];
+struct file file_table[MAX_OPEN_FILES] = {
+    [0] = { .kind = FK_STDIN, .used = 1   },
+    [1] = { .kind = FK_STDOUT, .used = 1  },
+    [2] = { .kind = FK_STDERR, .used = 1  },
+};
 
 int is_pipe(int fd)
 {
-    if (file_table[fd-FD_OFFSET].used) {
-        if(file_table[fd-FD_OFFSET].pipe) {
+    if (file_table[fd].used) {
+        if(file_table[fd].pipe) {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
+
+int is_stdin(int fd)
+{
+    if (file_table[fd].used) {
+        if(file_table[fd].kind == FK_STDIN) {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
+
+int is_stdout(int fd)
+{
+    if (file_table[fd].used) {
+        if(file_table[fd].kind == FK_STDOUT) {
             return 1;
         }
     }
@@ -386,25 +412,27 @@ int is_pipe(int fd)
 void pipe_open(int* fd1, int* fd2) {
     struct spipe* pip = pipealloc();
     
-    for (int i = 0; i < MAX_OPEN_FILES; i++) {
+    for (int i = 3; i < MAX_OPEN_FILES; i++) {
         if (!file_table[i].used) {
+            file_table[i].kind = FK_FILE;
             file_table[i].used  = 1;
             file_table[i].inum  = -1;
             memset(&file_table[i].din, 0, sizeof(struct dinode));
             file_table[i].off   = 0;
             file_table[i].pipe = pip;
-            *fd1 = i + FD_OFFSET;  // <- 3,4,5… を返す
+            *fd1 = i;
             break;
         }
     }
-    for (int i = 0; i < MAX_OPEN_FILES; i++) {
+    for (int i = 3; i < MAX_OPEN_FILES; i++) {
         if (!file_table[i].used) {
+            file_table[i].kind = FK_FILE;
             file_table[i].used  = 1;
             file_table[i].inum  = -1;
             memset(&file_table[i].din, 0, sizeof(struct dinode));
             file_table[i].off   = 0;
             file_table[i].pipe = pip;
-            *fd2 = i + FD_OFFSET;  // <- 3,4,5… を返す
+            *fd2 = i;  // <- 3,4,5… を返す
             break;
         }
     }
@@ -416,10 +444,10 @@ void panic(char* str);
 
 int piperead(int fd, char *addr, int n)
 {
-    if(fd < 0 || fd-FD_OFFSET >= MAX_OPEN_FILES) {
+    if(fd < 0 || fd >= MAX_OPEN_FILES) {
         panic("pipewrite");
     }
-    struct spipe* p = file_table[fd-FD_OFFSET].pipe;
+    struct spipe* p = file_table[fd].pipe;
     
     if(p == NULL) {
         panic("pipewrite");
@@ -447,10 +475,10 @@ int piperead(int fd, char *addr, int n)
 // パイプに n バイト書き込む。正常書き込み数、エラー:-1
 int pipewrite(int fd, char *addr, int n)
 {
-    if(fd < 0 || fd-FD_OFFSET >= MAX_OPEN_FILES) {
+    if(fd < 0 || fd >= MAX_OPEN_FILES) {
         panic("pipewrite");
     }
-    struct spipe* p = file_table[fd-FD_OFFSET].pipe;
+    struct spipe* p = file_table[fd].pipe;
     
     if(p == NULL) {
         panic("pipewrite");
@@ -490,13 +518,14 @@ int fs_open(const char *path) {
     read_inode(inum, &di);
     if (di.type != T_FILE && di.type != T_DIR) return -1;
 
-    for (int i = 0; i < MAX_OPEN_FILES; i++) {
+    for (int i = 3; i < MAX_OPEN_FILES; i++) {
         if (!file_table[i].used) {
+            file_table[i].kind = FK_FILE;
             file_table[i].used  = 1;
             file_table[i].inum  = inum;
             file_table[i].din   = di;
             file_table[i].off   = 0;
-            return i + FD_OFFSET;  // <- 3,4,5… を返す
+            return i;  // <- 3,4,5… を返す
         }
     }
     return -1;
@@ -505,7 +534,7 @@ int fs_open(const char *path) {
 // fs_read: fd から buf に count バイト読み込む
 // 成功: 読み込んだバイト数 (0 は EOF), 失敗: -1
 ssize_t fs_read(int fd, void *buf, size_t count) {
-    int idx = fd - FD_OFFSET;           // 受け取った fd を内部インデックスに戻す
+    int idx = fd;
     if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
         return -1;
 
@@ -522,7 +551,7 @@ ssize_t fs_read(int fd, void *buf, size_t count) {
 // fs_close: fd を閉じる
 // 成功: 0, 失敗: -1
 int fs_close(int fd) {
-    int idx = fd - FD_OFFSET;
+    int idx = fd;
     if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
         return -1;
     file_table[idx].used--;
@@ -533,8 +562,8 @@ int fs_close(int fd) {
 }
 
 void fs_dup2(uint32_t oldfd, uint32_t newfd) {
-    file_table[newfd-FD_OFFSET] = file_table[oldfd-FD_OFFSET];
-    file_table[newfd-FD_OFFSET].used++;
+    file_table[newfd] = file_table[oldfd];
+    file_table[newfd].used++;
 }
 
 

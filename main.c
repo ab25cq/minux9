@@ -183,7 +183,7 @@ void free_proc(struct proc *p) {
 #define HEAP_END (_end + PGSIZE * 256)
 
 list<proc*%>*% gProc;
-int gActiveProc = 0;
+int gActiveProc;
 
 void kfree(void *pa);
 void freerange(void *pa_start, void *pa_end);
@@ -944,8 +944,6 @@ void exec_prog(char* hello_elf) {
     
     struct proc*% result = new proc;
     
-    copy_file_table(p->file_table, result->file_table);
-    
     result.context = p->context;
     
     gProc.remove_by_pointer(p);
@@ -1008,6 +1006,81 @@ void exec_prog(char* hello_elf) {
     
     gProc.add(result);
 }
+
+/*
+void exec_prog(char* hello_elf) {
+    struct proc* active_p = gProc[gActiveProc];
+    
+    struct proc*% result = new proc;
+    
+    copy_file_table(active_p->file_table, result->file_table);
+    
+    result.context = active_p->context;
+    
+    pagetable_t pagetable = (pagetable_t)kalloc();
+    memset(pagetable, 0, PGSIZE);
+    
+    setting_user_pagetable(result, pagetable);
+    
+    result->pagetable = pagetable;
+    
+    struct elfhdr *eh = (struct elfhdr *)hello_elf;
+    
+    if (eh->magic != ELF_MAGIC) {
+        while(1) puts("panic");
+    }
+        
+    struct proghdr *ph = (struct proghdr *)(hello_elf + eh->phoff);
+    
+    uint64_t size = ph->filesz;
+    
+    result->vaddr = PGROUNDDOWN(ph->vaddr);
+    
+    uint64_t va = 0;
+    for (int i = 0; i < eh->phnum; i++, ph++) {
+        if (ph->type != ELF_PROG_LOAD)
+            continue;
+    
+        for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
+            void *pa = kalloc();
+            if (!pa) panic("kalloc");
+            memset(pa, 0, PGSIZE);
+            mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
+                     PTE_U | PTE_R | PTE_W | PTE_X | PTE_V);
+            asm volatile("sfence.vma zero, zero");
+        }
+        
+        
+        if (copyout(result->pagetable, ph->vaddr, hello_elf + ph->off, ph->filesz) < 0) {
+            panic("copyout");
+        }
+        asm volatile("sfence.vma zero, zero"); 
+    }
+
+    
+    /// stack ///
+    char *pa = kalloc();
+    if (!pa) panic("kalloc");
+    memset(pa, 0, PGSIZE);
+    
+    mappages(result->pagetable, va, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
+    asm volatile("sfence.vma zero, zero"); 
+    
+    result->stack = (char*)va + PGSIZE;
+    result->stack_top = (char*)va;
+    result->context.sp = va + PGSIZE;
+    
+    /// USER PROGRAM
+    result->context.mepc = eh->entry;
+    
+    free_proc(active_p);
+    gProc.remove_by_pointer(active_p);
+    
+    gProc.add(result);
+    
+//    gActiveProc = gProc.find_by_pointer(result, 0);
+}
+*/
 
 void reset_watchdog();
 
@@ -1092,6 +1165,7 @@ void timer_reset() {
 }
 
 void timer_handler() {
+//puts("TIMER");
     disable_timer_interrupts();
     struct proc *p = gProc[gActiveProc];
 
@@ -1100,19 +1174,18 @@ void timer_handler() {
 
     timer_reset(); 
 
+    int old_active_proc = gActiveProc;
     struct proc *old = gProc[gActiveProc];
     gActiveProc++;
+    
     if(gActiveProc >= gProc.length()) {
         gActiveProc = 0;
-    } 
-    struct proc *new_ = gProc[gActiveProc];
-    
-    if(new_->zombie) {
-        gActiveProc--;
     }
     
+    struct proc* new_ = gProc[gActiveProc];
+    
     if (new_ != old && new_->zombie == 0) {
-        copy_file_table(new_->file_table, file_table);
+        //copy_file_table(new_->file_table, file_table);
         user_sp = new_->context.sp;
         user_satp = MAKE_SATP(new_->pagetable);
         //old->context = *(struct context*)TRAPFRAME;
@@ -1120,6 +1193,9 @@ void timer_handler() {
         uint64_t a0 = new_->context.a0;
         asm volatile("csrw sscratch, %0" : "=r" (a0));
         swtch(&new_->context);
+    }
+    else {
+        gActiveProc = old_active_proc;
     }
 }
 
@@ -1174,7 +1250,7 @@ int Sys_write()
     if(is_pipe(fd)) {
         pipewrite(fd, kernel_buf, len);
     }
-    else if(fd == 1) {
+    else if(is_stdout(fd)) {
         for(int i=0; i<len; i++) {
             putchar(kernel_buf[i]);
         }
@@ -1203,8 +1279,6 @@ int Sys_exit()
     
     p->xstatus = arg0;
     p->zombie = 1;
-    
-    timer_handler();
     
     return 0;
 }
@@ -1302,7 +1376,7 @@ int Sys_fork()
     child->context.a0 = 0;
     
     int result = gProc.length()-1;
-    
+   
     return result;
 }
 
@@ -1431,6 +1505,7 @@ int Sys_pipe(void)
 
 int Sys_read()
 {
+//puts("Sys_read");
     struct context* trapframe = (struct context*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
@@ -1449,13 +1524,16 @@ int Sys_read()
     char kernel_buf[256];
     int ret;
     
-    if(fd == 0) {
+    if(is_stdin(fd)) {
+//puts("STDIN");
         ret = uart_readn(kernel_buf, n);
     }
     else if(is_pipe(fd)) {
+//puts("PIPE");
         ret = piperead(fd, kernel_buf, n);
     }
     else {
+//puts("FILE READ");
         ret = fs_read(fd, kernel_buf, n);
         if (ret < 0) {
             trapframe->a0 = ret;

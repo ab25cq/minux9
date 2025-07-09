@@ -132,6 +132,8 @@ static inline void exit(long status) {
         : "r"(status), "i"(SYS_exit)
         : "a0", "a7", "memory"
     );
+    
+    while(1);
     __builtin_unreachable();  // exit 後は戻らないのでコンパイラに通知
 }
 
