@@ -150,7 +150,6 @@ handle_ecall:
 /*
     la t0, gCPU
     ld t0, 0(t0)        # t0 = &gCPU
-    ld t0, 0(t0)        # t0 = gCPU->proc (現在のプロセス)
 */
 
     ld ra, 0(t0)

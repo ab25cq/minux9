@@ -15,8 +15,7 @@ int main() {
     write(1, buf, 12);
     exit(1);
 */
-    write(1, "HELLO1", 6);
-    write(1, "\r\n", 2);
+    write(1, "HELLO1\r\n", 8);
     exit(1);
 }
 

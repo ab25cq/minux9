@@ -218,68 +218,101 @@ int main() {
     read(p[0], buf, 3);
     puts(buf);
     
-    int fd = 10;
+    int fd2 = 11;
+    dup2(1, fd2);
+    
+    int fd = 1;
     dup2(p[1], fd);
     
     close(p[1]);
     
-    write(fd, "DEF", 3);
+    write(1, "DEF", 3);
     
     read(p[0], buf, 3);
-    puts(buf);
+    write(fd2, buf, 3);
+    
+    while(1);
+}
+*/
+/*
+int main(void) {
+    int a = 1;
+    int b = 2;
+    
+    int fd[2] = { 1, 2};
+    
+    pid_t pid = fork();
+    
+    if(pid == 0) {
+        printf("%d %d %d %d\r\n", a, b, fd[0], fd[1]);
+    }
+    
+    printf("%d %d %d %d\r\n", a, b, fd[0], fd[1]);
     
     while(1);
 }
 */
 
-/*
 int main(void) {
     int fd[2];
     pid_t pid1, pid2;
 
     pipe(fd);
 
-puts("FORK1");
     pid1 = fork();
     if (pid1 == 0) {
-puts("CHILD1");
         char* argv[16];
         int argc;
+        
+printf("CHILD %d %d\n", fd[0], fd[1]);
 
+/*
         close(fd[0]);
         dup2(fd[1], 1);
         close(fd[1]);
+*/
 
         execv("/hello.elf", argv, argc);
         exit(6);
     }
+printf("PARENT %d %d\r\n", fd[0], fd[1]);
 
-puts("FORK2");
+/*
+    int status = 0;
+    wait(&status);
+*/
+
     pid2 = fork();
     if (pid2 == 0) {
-puts("CHILD2");
         char* argv[16];
         int argc;
+printf("CHILD2 %d %d\n", fd[0], fd[1]);
         
+/*
         close(fd[1]);               // 書き側は不要
         dup2(fd[0], 0);
         close(fd[0]);
+*/
 
         execv("/hello2.elf", argv, argc);
         exit(6);
     }
+    
+/*
+    status = 0;
+    wait(&status);
+*/
 
     // 親プロセスはパイプを閉じて子の終了を待つ
-    close(fd[0]);
-    close(fd[1]);
-    
+//    close(fd[0]);
+//    close(fd[1]);
 puts("END");
     while(1);
 
     return 0;
 }
-*/
 
+/*
 int main(void) {
     char buf[BUF_SIZE];
     long n;
@@ -312,6 +345,15 @@ int main(void) {
             continue;
         }
         
+        volatile char a[3] = { 1, 2, 3 };
+        volatile char b = 4;
+        volatile char c = 5;
+        
+        volatile int fd[2];
+        pipe(fd);
+        
+printf("FD[0] %d FD[1] %d\n", fd[0], fd[1]);
+        
         // fork して
         pid_t pid = fork();
         if (pid < 0) {
@@ -320,6 +362,8 @@ int main(void) {
         }
         
         if (pid == 0) {
+            printf("FD[0] %d FD[1] %d\n", fd[0], fd[1]);
+            printf("a[0] %d a[1] %d a[2] %d b %d c %d\n", a[0], a[1], a[2], b, c);
             char* argv[16];
             int argc = 0;
             int ret = execv(buf, argv, argc);
@@ -336,4 +380,5 @@ int main(void) {
     
     return 0;
 }
+*/
 

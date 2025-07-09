@@ -27,6 +27,7 @@ kernel.elf:
 	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o hello4.elf -g hello4.c -mcmodel=medany
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello4.elf hello4.c
 
+	riscv64-unknown-elf-gcc -nostdlib -S -O0 -static -o shell.S -g shell.c -mcmodel=medany
 	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o shell.elf -g shell.c -mcmodel=medany
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o shell.elf shell.c
 	xxd -i shell.elf > shell.h  

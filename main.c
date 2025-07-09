@@ -163,15 +163,8 @@ struct proc {
     int xstatus;                // exit
     int zombie; 
     
-    struct file file_table[MAX_OPEN_FILES];
+    struct file* file_table;
 };
-
-void copy_file_table(struct file* old, struct file* new_)
-{
-    for(int i=0; i<MAX_OPEN_FILES; i++) {
-        new_[i] = old[i];
-    }
-}
 
 /// プロセスのユーザー空間を完全に解放
 void free_proc(struct proc *p) {
@@ -780,8 +773,6 @@ void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
 void alloc_prog(char* hello_elf, int fork_flag) {
     struct proc*% result = new proc;
     
-    copy_file_table(file_table, result->file_table);
-    
     result->program = hello_elf;
     
     pagetable_t pagetable = (pagetable_t)kalloc();
@@ -828,15 +819,21 @@ void alloc_prog(char* hello_elf, int fork_flag) {
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
         
         uint64_t parent_current    = parent->context.sp;
-        uint64_t parent_stack   = (uint64_t)parent->stack_top;
-        uint64_t offset    = parent_current - parent_stack;
+        uint64_t parent_stack_top   = (uint64_t)parent->stack_top;
         
-        char *src = walkaddr(parent->pagetable, parent_stack);
-    
+        char *src = walkaddr(parent->pagetable, parent_stack_top);
+        
         // 新しいページを確保して中身をコピー
         char *pa = kalloc();
         if (!pa) panic("fork sp");
+//printf("PARENT PA %x sp %x\n", src, parent->context.sp);
         memmove(pa, (void*)src, PGSIZE);
+/*
+for(int i=PGSIZE; i>=PGSIZE-50; i--) {
+printf("pa %d src %d\n", pa[i], src[i]);
+}
+*/
+        
     
         // 元の PTE フラグを継承して子側にマッピング
         mappages(result->pagetable, va, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
@@ -846,12 +843,20 @@ void alloc_prog(char* hello_elf, int fork_flag) {
         result->stack = (char*)va + PGSIZE;
         result->stack_top = (char*)va;
         result->context.sp = parent->context.sp;
+        
+//printf("child stack va %x pa %x sp %x\r\n", va, pa, parent->context.sp);
+        
+        
+        result->file_table = fs_init();
+//        *result->file_table = *get_current_file_table();
     }
     else {
         /// stack ///
         char *pa = kalloc();
         if (!pa) panic("kalloc");
         memset(pa, 0, PGSIZE);
+        
+//printf("parent stack va %x pa %x\r\n", va, pa);
         
         mappages(result->pagetable, va, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
         
@@ -860,6 +865,8 @@ void alloc_prog(char* hello_elf, int fork_flag) {
         result->stack = (char*)va + PGSIZE;
         result->stack_top = (char*)va;
         result->context.sp = va + PGSIZE;
+    
+        result->file_table = fs_init();
     }
     
     /// USER PROGRAM
@@ -935,6 +942,11 @@ static void free_pagetable(pagetable_t pagetable, int level) {
     }
 }
 
+struct file* get_current_file_table()
+{
+    return gProc[gActiveProc].file_table;
+}
+
 void exec_prog(char* hello_elf) {
     struct proc* p = gProc[gActiveProc];
     
@@ -944,10 +956,9 @@ void exec_prog(char* hello_elf) {
     
     struct proc*% result = new proc;
     
+    result->file_table = p->file_table;
     result.context = p->context;
     
-    gProc.remove_by_pointer(p);
-    
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
     
@@ -1004,83 +1015,17 @@ void exec_prog(char* hello_elf) {
     /// USER PROGRAM
     result->context.mepc = eh->entry;
     
-    gProc.add(result);
-}
-
-/*
-void exec_prog(char* hello_elf) {
-    struct proc* active_p = gProc[gActiveProc];
-    
-    struct proc*% result = new proc;
-    
-    copy_file_table(active_p->file_table, result->file_table);
-    
-    result.context = active_p->context;
-    
-    pagetable_t pagetable = (pagetable_t)kalloc();
-    memset(pagetable, 0, PGSIZE);
-    
-    setting_user_pagetable(result, pagetable);
-    
-    result->pagetable = pagetable;
-    
-    struct elfhdr *eh = (struct elfhdr *)hello_elf;
-    
-    if (eh->magic != ELF_MAGIC) {
-        while(1) puts("panic");
-    }
-        
-    struct proghdr *ph = (struct proghdr *)(hello_elf + eh->phoff);
-    
-    uint64_t size = ph->filesz;
-    
-    result->vaddr = PGROUNDDOWN(ph->vaddr);
-    
-    uint64_t va = 0;
-    for (int i = 0; i < eh->phnum; i++, ph++) {
-        if (ph->type != ELF_PROG_LOAD)
-            continue;
-    
-        for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
-            void *pa = kalloc();
-            if (!pa) panic("kalloc");
-            memset(pa, 0, PGSIZE);
-            mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
-                     PTE_U | PTE_R | PTE_W | PTE_X | PTE_V);
-            asm volatile("sfence.vma zero, zero");
-        }
-        
-        
-        if (copyout(result->pagetable, ph->vaddr, hello_elf + ph->off, ph->filesz) < 0) {
-            panic("copyout");
-        }
-        asm volatile("sfence.vma zero, zero"); 
-    }
-
-    
-    /// stack ///
-    char *pa = kalloc();
-    if (!pa) panic("kalloc");
-    memset(pa, 0, PGSIZE);
-    
-    mappages(result->pagetable, va, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
-    asm volatile("sfence.vma zero, zero"); 
-    
-    result->stack = (char*)va + PGSIZE;
-    result->stack_top = (char*)va;
-    result->context.sp = va + PGSIZE;
-    
-    /// USER PROGRAM
-    result->context.mepc = eh->entry;
-    
-    free_proc(active_p);
-    gProc.remove_by_pointer(active_p);
-    
-    gProc.add(result);
-    
-//    gActiveProc = gProc.find_by_pointer(result, 0);
+/*    
+puts("GUHE");
+printf("ACTIVE %d\n", gActiveProc);
+for(int i=0; i<10; i++) {
+printf("%d KIND %d\r\n", i, result->file_table[i].kind);
 }
 */
+    
+    gProc.replace(gActiveProc, result);
+}
+
 
 void reset_watchdog();
 
@@ -1185,10 +1130,9 @@ void timer_handler() {
     struct proc* new_ = gProc[gActiveProc];
     
     if (new_ != old && new_->zombie == 0) {
-        //copy_file_table(new_->file_table, file_table);
         user_sp = new_->context.sp;
         user_satp = MAKE_SATP(new_->pagetable);
-        //old->context = *(struct context*)TRAPFRAME;
+        old->context = *(struct context*)TRAPFRAME;
         //gCPU.proc = new_;
         uint64_t a0 = new_->context.a0;
         asm volatile("csrw sscratch, %0" : "=r" (a0));
@@ -1307,6 +1251,7 @@ int Sys_wait()
         int n = 0;
         foreach (it, gProc) {
             if(it->zombie) {
+                free(it->file_table);
                 free_proc(it);
                 exit_status = it->xstatus;
                 child_pid = n;
@@ -1348,6 +1293,51 @@ int Sys_open()
     return result;
 }
 
+/*
+int Sys_fork()
+{
+    struct proc *p = gProc[gActiveProc]; // 親プロセスを取得
+    
+    // 1. 新しい子プロセス構造体を確保
+    struct proc*% child = new proc;
+
+    // 2. 親のユーザーメモリ空間全体をコピーした新しいページテーブルを作成
+    //    親のプログラムサイズ + スタックサイズなどを渡す必要がある
+    //    ここでは仮にユーザー空間の上限を 0x40000000 としています
+    uint64_t user_space_size = (uint64_t)p->stack; // 親のスタックの最上位アドレスをサイズとする
+    child->pagetable = copyuvm(p->pagetable, user_space_size);
+    if(child->pagetable == 0) {
+        panic("GUHO");
+        // free(child) などエラー処理
+        return -1; 
+    }
+
+    // 3. 親のトラップフレーム（レジスタ状態）を子にコピー
+    struct context* trapframe = (struct context*)TRAPFRAME;
+    child->context = *trapframe;
+
+    // 4. 子プロセスの戻り値を 0 に設定
+    child->context.a0 = 0;
+    
+    // 5. 親プロセスの他の状態をコピー
+    child->parent = p;
+    child->stack = p->stack;
+    child->stack_top = p->stack_top;
+    child->program = p->program; 
+    child->zombie = 0;
+    
+    // 6. ファイルディスクリプタテーブルを複製
+    child->file_table = fs_dup_table(p->file_table);
+
+    // 7. 子プロセスをプロセスリストに追加
+    gProc.add(child);
+    
+    // 8. 親プロセスへの戻り値として、子プロセスのIDを返す
+    int child_pid = gProc.length() - 1;
+    return child_pid;
+}
+*/
+
 int Sys_fork()
 {
     struct context* trapframe = (struct context*)TRAPFRAME;
@@ -1379,7 +1369,6 @@ int Sys_fork()
    
     return result;
 }
-
 
 int Sys_execv()
 {

@@ -108,7 +108,7 @@ struct spipe {
 
 // ファイルテーブルエントリ
 struct file {
-    enum { FK_STDIN, FK_STDOUT, FK_STDERR, FK_FILE } kind;
+    enum { FK_STDIN, FK_STDOUT, FK_STDERR, FK_FILE, FK_PIPE } kind;
     uint32_t inum;        // inode 番号
     struct dinode din;     // on-disk inode 情報
     uint32_t off;         // 現在の読み込みオフセット
@@ -125,8 +125,9 @@ int piperead(int fd, char *addr, int n);
 int pipewrite(int fd, char *addr, int n);
 void fs_dup2(uint32_t oldfd, uint32_t newfd);
 
-#define MAX_OPEN_FILES 16
-extern struct file file_table[MAX_OPEN_FILES];
+struct file* fs_init();
+struct file* get_current_file_table();
+struct file* fs_dup_table(struct file* orig);
 
 #endif // FS_H
 

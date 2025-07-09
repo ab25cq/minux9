@@ -2,10 +2,10 @@
 
 // hello.c
 int main() {
-//    char buf[7];
+    char buf[7];
+    
 //    read(0, buf, 3);
     write(1, "ABC", 3);
-//    write(1, "DEF", 3);
     exit(2);
 }
 
