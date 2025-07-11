@@ -41,7 +41,7 @@ SECTIONS
   . = ALIGN(4096);
   PROVIDE(COMMON = .);
   .common : { *(.common) }
-  . = . + 4096;
+  . = . + 4096 * 8;
   . = ALIGN(4096);
 
   /* End of uninitalized data segement */

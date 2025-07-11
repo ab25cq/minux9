@@ -7,7 +7,12 @@
 #include "userprog.h"
 #include "userprog2.h"
 #include "shell.h"
+no_output {
 #include "minux.h"
+}
+output {
+#include "minux.h"
+}
 
 typedef unsigned long size_t;
 typedef long ptrdiff_t;
@@ -550,6 +555,19 @@ extern char COMMON[];
 uint64_t kernel_sp __attribute__((section(".common")));
 uint64_t user_sp __attribute__((section(".common")));
 
+void *common_kalloc(size_t size) {
+    static size_t offset = 0;
+    const uintptr_t base = (uintptr_t)COMMON;
+    const size_t align = 8;
+
+    // offset を align の倍数に丸め
+    offset = (offset + (align - 1)) & ~(align - 1);
+
+    void *r = (void*)(base + offset);
+    offset += size;
+    return r;
+}
+
 uint64_t kernel_satp __attribute__((section(".common")));    // trap.S から参照する
 uint64_t user_satp __attribute__((section(".common")));
 
@@ -761,7 +779,9 @@ void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
     mappages(pagetable, (uint64_t)TRAMPOLINE, PGSIZE, (uint64_t)TRAMPOLINE, PTE_R | PTE_W | PTE_V | PTE_X);
     mappages(pagetable, (uint64_t)TRAPFRAME, PGSIZE, (uint64_t)TRAPFRAME, PTE_R | PTE_W | PTE_V | PTE_U | PTE_X);
     mappages(pagetable, (uint64_t)TRAPFRAME2, PGSIZE, (uint64_t)TRAPFRAME2, PTE_R | PTE_W | PTE_V | PTE_U | PTE_X);
-    mappages(pagetable, (uint64_t)COMMON, PGSIZE, (uint64_t)COMMON, PTE_R | PTE_W | PTE_V | PTE_X | PTE_U);
+    for(int i=0; i<8; i++) {
+        mappages(pagetable, (uint64_t)COMMON + i*PGSIZE, PGSIZE, (uint64_t)COMMON + i*PGSIZE, PTE_R | PTE_W | PTE_V | PTE_X | PTE_U);
+    }
     
     // UART
     mappages(pagetable, 0x10000000, PGSIZE, 0x10000000, PTE_R | PTE_W | PTE_V | PTE_U);
@@ -951,14 +971,14 @@ struct file* get_current_file_table()
 void exec_prog(char* hello_elf) {
     struct proc* p = gProc[gActiveProc];
     
-    free_proc(p);
+    //free_proc(p);
     
     //memset(p, 0, sizeof(struct proc));
     
     struct proc*% result = new proc;
     
     result->file_table = p->file_table;
-    result.context = p->context;
+    result->context = p->context;
     
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
@@ -1024,7 +1044,7 @@ printf("%d KIND %d\r\n", i, result->file_table[i].kind);
 }
 */
     
-    gProc.replace(gActiveProc, result);
+    gProc.add(result);
 }
 
 

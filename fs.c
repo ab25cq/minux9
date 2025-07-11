@@ -357,12 +357,13 @@ void dump_inode(uint32_t inum) {
 typedef int32_t ssize_t;
 
 
+void *common_kalloc(size_t size);
 
 // ── pipealloc ──────────────────────────────────────────────────────────
 // パイプ構造体を確保・初期化して返す
 struct spipe* pipealloc(void)
 {
-    struct spipe *p = (struct spipe*)kalloc();
+    struct spipe *p = (struct spipe*)common_kalloc(sizeof(struct spipe));
     if (p == 0)
         return 0;
     p->nread     = 0;
@@ -375,7 +376,7 @@ struct spipe* pipealloc(void)
 
 struct file* fs_init()
 {
-    struct file* file_table = (struct file*)calloc(1, sizeof(struct file)*MAX_OPEN_FILES);
+    struct file* file_table = (struct file*)common_kalloc(sizeof(struct file)*MAX_OPEN_FILES);
     
     file_table[0].kind = FK_STDIN;
     file_table[0].used = 1;

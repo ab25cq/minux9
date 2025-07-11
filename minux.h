@@ -170,6 +170,22 @@ static inline long dup2(long oldfd, long newfd) {
     return ret;
 }
 
+static inline long my_dup2(long oldfd, long newfd) {
+    register long _a0 asm("a0") = oldfd;
+    register long _a1 asm("a1") = newfd;
+    register long _a7 asm("a7") = SYS_dup2;
+    asm volatile(
+        "ecall"
+        : "+r"(_a0)         /* a0 is read/write (→ return val) */
+        : "r"(_a1),         /* a1 is input = newfd */
+          "r"(_a7)          /* a7 is input = syscall number */
+        : "memory"
+    );
+    return _a0;
+}
+
+
+
 // user-space 側
 static inline long pipe(int* pip) {
     long ret;

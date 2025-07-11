@@ -261,18 +261,14 @@ int main(void) {
 
     pid1 = fork();
     if (pid1 == 0) {
-        char* argv[16];
-        int argc;
+//        char* argv[16];
+//        int argc;
         
-printf("CHILD %d %d\n", fd[0], fd[1]);
-
-/*
         close(fd[0]);
-        dup2(fd[1], 1);
+        my_dup2(fd[1], 1);
         close(fd[1]);
-*/
 
-        execv("/hello.elf", argv, argc);
+//        execv("/hello.elf", argv, argc);
         exit(6);
     }
 printf("PARENT %d %d\r\n", fd[0], fd[1]);
@@ -294,7 +290,7 @@ printf("CHILD2 %d %d\n", fd[0], fd[1]);
         close(fd[0]);
 */
 
-        execv("/hello2.elf", argv, argc);
+        //execv("/hello2.elf", argv, argc);
         exit(6);
     }
     
