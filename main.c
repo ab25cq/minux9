@@ -848,7 +848,8 @@ printf("pa %d src %d\n", pa[i], src[i]);
         
         
         result->file_table = fs_init();
-//        *result->file_table = *get_current_file_table();
+        //result->file_table = fs_dup_table(parent->file_table);
+        *result->file_table = *get_current_file_table();
     }
     else {
         /// stack ///
@@ -1251,7 +1252,7 @@ int Sys_wait()
         int n = 0;
         foreach (it, gProc) {
             if(it->zombie) {
-                free(it->file_table);
+                //free(it->file_table);
                 free_proc(it);
                 exit_status = it->xstatus;
                 child_pid = n;

@@ -2472,6 +2472,7 @@ char* pa_76;
         result_57->stack_top=(char*)va_62;
         result_57->context.sp=parent_65->context.sp;
         result_57->file_table=fs_init();
+        *result_57->file_table=*get_current_file_table();
     }
     else {
         pa_76=kalloc();
@@ -2696,7 +2697,7 @@ char* pa_100;
     p_91=((struct proc*)(__right_value6=list$1proc$ph_operator_load_element(gProc,gActiveProc)));
     come_call_finalizer(proc_finalize, __right_value6, (void*)0, (void*)0, 0/* alloca value */, 1/* no_decrement */, 0/* no_free */, (void*)0);
     free_proc(p_91);
-    result_92=(struct proc*)come_increment_ref_count((struct proc*)come_calloc_v2(1, sizeof(struct proc)*(1), "main.c", 957, "struct proc*"));
+    result_92=(struct proc*)come_increment_ref_count((struct proc*)come_calloc_v2(1, sizeof(struct proc)*(1), "main.c", 958, "struct proc*"));
     result_92->file_table=p_91->file_table;
     result_92->context=p_91->context;
     pagetable_93=(unsigned long  long*)kalloc();
@@ -3044,7 +3045,6 @@ struct proc* it_161;
         n_157=0;
         for(        o2_saved_158=(struct list$1proc$ph*)come_increment_ref_count((gProc)),it_161=list$1proc$ph_begin((o2_saved_158))        ;        !list$1proc$ph_end((o2_saved_158))        ;        it_161=list$1proc$ph_next((o2_saved_158))        ){
             if(            it_161->zombie            ) {
-                free(it_161->file_table);
                 free_proc(it_161);
                 exit_status_155=it_161->xstatus;
                 child_pid_156=n_157;
@@ -3623,7 +3623,7 @@ void* __right_value24 = (void*)0;
 void* __right_value25 = (void*)0;
 struct list$1proc$ph* __dec_obj8;
     __dec_obj8=gProc,
-    gProc=(struct list$1proc$ph*)come_increment_ref_count(list$1proc$ph_initialize((struct list$1proc$ph*)come_increment_ref_count((struct list$1proc$ph*)come_calloc_v2(1, sizeof(struct list$1proc$ph)*(1), "main.c", 2447, "struct list$1proc$ph*"))));
+    gProc=(struct list$1proc$ph*)come_increment_ref_count(list$1proc$ph_initialize((struct list$1proc$ph*)come_increment_ref_count((struct list$1proc$ph*)come_calloc_v2(1, sizeof(struct list$1proc$ph)*(1), "main.c", 2448, "struct list$1proc$ph*"))));
     come_call_finalizer(list$1proc$ph_finalize, __dec_obj8,(void*)0, (void*)0, 0/* alloca value */, 0/* no decrement */, 0/* no_free */, (void*)0);
 }
 
