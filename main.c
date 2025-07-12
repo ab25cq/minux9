@@ -151,6 +151,8 @@ struct proc {
     char* program;
     int xstatus;                // exit
     
+    map<void*, void*>*% mapping_values;
+    
     file* file_table;
 };
 
@@ -792,6 +794,8 @@ void alloc_prog(char* hello_elf, int fork_flag) {
     
     result->program = hello_elf;
     
+    result->mapping_values = new map<void*, void*>();
+    
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
     
@@ -858,6 +862,15 @@ void alloc_prog(char* hello_elf, int fork_flag) {
         result->file_table = fs_init();
         *result->file_table = *get_current_file_table();
         //result->file_table = fs_dup_table(parent->file_table);
+        
+        foreach(it, parent->mapping_values) {
+            void* pa = parent->mapping_values[it];
+            
+            if(copyout(result->pagetable, (uint64_t)it, (char*)pa, sizeof(long)) < 0)
+            {
+                panic("copyout");
+            }
+        }
     }
     else {
         proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
@@ -1455,17 +1468,25 @@ int Sys_pipe(void)
     uint64_t user_va = arg0;
     
     
-    long fd0, fd1;
-    pipe_open(&fd0, &fd1);
-printf("PIPE OPEN %ld %ld\n", fd0, fd1);
+    long* fd0, *fd1;
+    fd0 = common_kalloc(sizeof(long));
+    fd1 = common_kalloc(sizeof(long));
+    
+    pipe_open(fd0, fd1);
+printf("PIPE OPEN %ld %ld\n", *fd0, *fd1);
     
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-    if(copyout(p->pagetable, (uint64_t)user_va, (char*)&fd0, sizeof(long)) < 0)
+    
+    p->mapping_values.insert((void*)user_va, (void*)fd0);
+    
+    if(copyout(p->pagetable, (uint64_t)user_va, (char*)fd0, sizeof(long)) < 0)
     {
         panic("copyout");
     }
     
-    if(copyout(p->pagetable, (uint64_t)user_va+8,   (char*)&fd1, sizeof(long)) < 0)
+    p->mapping_values.insert(user_va+8, fd1);
+    
+    if(copyout(p->pagetable, (uint64_t)user_va+8,   (char*)fd1, sizeof(long)) < 0)
     {
         panic("copyout");
     }

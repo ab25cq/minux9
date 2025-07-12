@@ -1,0 +1,29 @@
+clang: warning: -lang-c: 'linker' input unused [-Wunused-command-line-argument]
+In file included from main.c:1:
+In file included from /usr/local/include/comelang.h:32:
+In file included from /usr/local/include/comelang-baremetal.h:4:
+In file included from /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdint.h:56:
+In file included from /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/stdint.h:52:
+In file included from /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types.h:32:
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:81:2: warning: "Unsupported compiler detected" [-W#warnings]
+   81 | #warning "Unsupported compiler detected"
+      |  ^
+main.c:583:9: warning: 'UART_THR' macro redefined [-Wmacro-redefined]
+  583 | #define UART_THR      ((volatile uint8_t *)(UART0 + 0x00))  // 書き込み用
+      |         ^
+main.c:23:9: note: previous definition is here
+   23 | #define UART_THR     (*(volatile uint8_t*)(UART0 + 0x00))  // Transmit Holding Register
+      |         ^
+main.c:584:9: warning: 'UART_LSR' macro redefined [-Wmacro-redefined]
+  584 | #define UART_LSR      ((volatile uint8_t *)(UART0 + 0x05))  // Line Status Register
+      |         ^
+main.c:24:9: note: previous definition is here
+   24 | #define UART_LSR     (*(volatile uint8_t*)(UART0 + 0x05))  // Line Status Register
+      |         ^
+main.c:589:9: warning: 'SSTATUS_SIE' macro redefined [-Wmacro-redefined]
+  589 | #define SSTATUS_SIE (1UL << 1) // Sstatus.SIE
+      |         ^
+main.c:233:9: note: previous definition is here
+  233 | #define SSTATUS_SIE (1L << 1)  // Supervisor Interrupt Enable
+      |         ^
+4 warnings generated.
