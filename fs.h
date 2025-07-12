@@ -93,7 +93,7 @@ typedef int32_t ssize_t;
 
 int fs_open(const char *path);
 ssize_t fs_read(int fd, void *buf, size_t count);
-int fs_close(int fd);
+int fs_close(long fd);
 
 // ── パイプ本体 ─────────────────────────────────────────────────────────
 #define PIPE_SIZE 512
@@ -120,10 +120,10 @@ int is_pipe(int fd);
 int is_stdin(int fd);
 int is_stdout(int fd);
 
-void pipe_open(int* fd1, int* fd2);
+void pipe_open(long* fd1, long* fd2);
 int piperead(int fd, char *addr, int n);
 int pipewrite(int fd, char *addr, int n);
-void fs_dup2(uint32_t oldfd, uint32_t newfd);
+void fs_dup2(long oldfd, long newfd);
 
 struct file* fs_init();
 struct file* get_current_file_table();

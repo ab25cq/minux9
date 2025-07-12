@@ -428,7 +428,7 @@ int is_stdout(int fd)
     return 0;
 }
 
-void pipe_open(int* fd1, int* fd2) {
+void pipe_open(long* fd1, long* fd2) {
     struct file* file_table = get_current_file_table();
     
     struct spipe* pip = pipealloc();
@@ -579,16 +579,18 @@ ssize_t fs_read(int fd, void *buf, size_t count) {
 
 // fs_close: fd を閉じる
 // 成功: 0, 失敗: -1
-int fs_close(int fd) {
+int fs_close(long fd) {
     struct file* file_table = get_current_file_table();
     
-    int idx = fd;
+printf("fs_close %ld\n", fd);
+    
+    long idx = fd;
     if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
         return -1;
     file_table[idx].used--;
     if(file_table[idx].used <= 0) {
         file_table[idx].used = 0;
-        memset(&file_table[idx], 0, sizeof(struct file));
+//        memset(&file_table[idx], 0, sizeof(struct file));
     }
     return 0;
 }
@@ -604,11 +606,13 @@ struct file* fs_dup_table(struct file* orig)
     return result;
 }
 
-void fs_dup2(uint32_t oldfd, uint32_t newfd) {
+void fs_dup2(long oldfd, long newfd) {
     struct file* file_table = get_current_file_table();
     
-printf("newfd %d oldfd %d\n", newfd, oldfd);
+printf("dup2 newfd %ld oldfd %ld\n", newfd, oldfd);
+/*
     file_table[newfd] = file_table[oldfd];
     file_table[newfd].used++;
+*/
 }
 

@@ -206,72 +206,29 @@ void puts(const char *s) {
     }
 }
 
-/*
-int main() {
-    int p[2];
-    
-    pipe(p);
-    
-    write(p[1], "ABC", 3);
-    
-    char buf[4];
-    read(p[0], buf, 3);
-    puts(buf);
-    
-    int fd2 = 11;
-    dup2(1, fd2);
-    
-    int fd = 1;
-    dup2(p[1], fd);
-    
-    close(p[1]);
-    
-    write(1, "DEF", 3);
-    
-    read(p[0], buf, 3);
-    write(fd2, buf, 3);
-    
-    while(1);
-}
-*/
-/*
-int main(void) {
-    int a = 1;
-    int b = 2;
-    
-    int fd[2] = { 1, 2};
-    
-    pid_t pid = fork();
-    
-    if(pid == 0) {
-        printf("%d %d %d %d\r\n", a, b, fd[0], fd[1]);
-    }
-    
-    printf("%d %d %d %d\r\n", a, b, fd[0], fd[1]);
-    
-    while(1);
-}
-*/
 
 int main(void) {
-    int fd[2];
+    long fd[2];
     pid_t pid1, pid2;
 
     pipe(fd);
 
     pid1 = fork();
     if (pid1 == 0) {
-//        char* argv[16];
-//        int argc;
+        char* argv[16];
+        int argc;
+printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
         
+puts("close(fd[0])");
         close(fd[0]);
-        my_dup2(fd[1], 1);
+puts("dup2(fd[1], 1)");
+        dup2(fd[1], 1);
+puts("close(fd[1])");
         close(fd[1]);
 
 //        execv("/hello.elf", argv, argc);
         exit(6);
     }
-printf("PARENT %d %d\r\n", fd[0], fd[1]);
 
 /*
     int status = 0;
@@ -282,15 +239,16 @@ printf("PARENT %d %d\r\n", fd[0], fd[1]);
     if (pid2 == 0) {
         char* argv[16];
         int argc;
-printf("CHILD2 %d %d\n", fd[0], fd[1]);
+printf("CHILD2 fd[0] %d fd[1] %d\n", fd[0], fd[1]);
         
-/*
+puts("close(fd[1])");
         close(fd[1]);               // 書き側は不要
+puts("dup2(fd[0], 0)");
         dup2(fd[0], 0);
+puts("close(fd[0])");
         close(fd[0]);
-*/
 
-        //execv("/hello2.elf", argv, argc);
+//        execv("/hello2.elf", argv, argc);
         exit(6);
     }
     
@@ -341,10 +299,6 @@ int main(void) {
             continue;
         }
         
-        volatile char a[3] = { 1, 2, 3 };
-        volatile char b = 4;
-        volatile char c = 5;
-        
         volatile int fd[2];
         pipe(fd);
         
@@ -358,8 +312,6 @@ printf("FD[0] %d FD[1] %d\n", fd[0], fd[1]);
         }
         
         if (pid == 0) {
-            printf("FD[0] %d FD[1] %d\n", fd[0], fd[1]);
-            printf("a[0] %d a[1] %d a[2] %d b %d c %d\n", a[0], a[1], a[2], b, c);
             char* argv[16];
             int argc = 0;
             int ret = execv(buf, argv, argc);
