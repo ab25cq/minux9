@@ -6,8 +6,13 @@
 #include "fs.h"
 #include "userprog.h"
 #include "userprog2.h"
-#include "shell.h"
+#include "child.h"
+no_output {
 #include "minux.h"
+}
+output {
+#include "minux.h"
+}
 
 typedef unsigned long size_t;
 typedef long ptrdiff_t;
@@ -140,7 +145,7 @@ struct proc {
     
     context_t context;      // swtch() here to run process
     proc *parent;         // Parent process
-    char* stack;
+//    char* stack;
     char* stack_top;
     uint64_t vaddr;
     
@@ -151,7 +156,7 @@ struct proc {
     char* program;
     int xstatus;                // exit
     
-    map<void*, void*>*% mapping_values;
+    map<void*, tuple2<void*,long>*%>*% mapping_values;
     
     file* file_table;
 };
@@ -789,12 +794,12 @@ void setting_user_pagetable(proc* proc, pagetable_t pagetable)
     asm volatile("sfence.vma zero, zero"); 
 }
 
-void alloc_prog(char* hello_elf, int fork_flag) {
+void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
     proc*% result = new proc;
     
     result->program = hello_elf;
     
-    result->mapping_values = new map<void*, void*>();
+    result->mapping_values = new map<void*, tuple2<void*,long>*%>();
     
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
@@ -835,6 +840,9 @@ void alloc_prog(char* hello_elf, int fork_flag) {
         }
         asm volatile("sfence.vma zero, zero"); 
     }
+
+#define USER_STACK_TOP  0x40000000UL  // 例: UTOP に近い値
+#define STACK_PAGES     16
     
     if(fork_flag) {
         proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
@@ -842,61 +850,119 @@ void alloc_prog(char* hello_elf, int fork_flag) {
         uint64_t parent_current    = parent->context.sp;
         uint64_t parent_stack_top   = (uint64_t)parent->stack_top;
         
-        char *src = walkaddr(parent->pagetable, parent_stack_top);
-        
-        // 新しいページを確保して中身をコピー
-        char *pa = kalloc();
-        if (!pa) panic("fork sp");
-        memmove(pa, (void*)src, PGSIZE);
-    
-        // 元の PTE フラグを継承して子側にマッピング
-        mappages(result->pagetable, va, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
-        
+        uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
+        for (int i = 0; i < STACK_PAGES; i++) {
+            char *pa = kalloc();
+
+            char *src = walkaddr(parent->pagetable, parent_stack_top+i*PGSIZE);
+            if(src) {
+                memmove(pa, (void*)src, PGSIZE);
+            }
+
+            mappages(result->pagetable,
+             stack_base + i*PGSIZE,
+             PGSIZE,
+             (uint64_t)pa,
+             PTE_U|PTE_R|PTE_W|PTE_V);
+        }
         asm volatile("sfence.vma zero, zero"); 
+
+        result->stack_top  = (char*)stack_base;
+        result->context.sp = stack_base + STACK_PAGES*PGSIZE;
+    
+/*
+        const int STACK_PAGE_MAX = 4;
+        int i;
+        for(i=0; i<STACK_PAGE_MAX; i++) {
+            // 新しいページを確保して中身をコピー
+            char *pa = kalloc();
+            if (!pa) panic("fork sp");
+            
+            char *src = walkaddr(parent->pagetable, parent_stack_top+i*PGSIZE);
+            if(src) {
+                memmove(pa, (void*)src, PGSIZE);
+            }
+    
+            // 元の PTE フラグを継承して子側にマッピング
+            mappages(result->pagetable, va + i*PGSIZE, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
+        }
         
-        result->stack = (char*)va + PGSIZE;
+        //result->stack = (char*)va + PGSIZE*i;
         result->stack_top = (char*)va;
         result->context.sp = parent->context.sp;
+*/
         
 //        result->file_table = parent->file_table;
-        result->file_table = fs_init();
-        *result->file_table = *get_current_file_table();
-        //result->file_table = fs_dup_table(parent->file_table);
+//        result->file_table = fs_init();
+//        *result->file_table = *get_current_file_table();
+        result->file_table = fs_dup_table(parent->file_table);
         
         foreach(it, parent->mapping_values) {
-            void* pa = parent->mapping_values[it];
+            var pa, size = parent->mapping_values[it];
             
-            if(copyout(result->pagetable, (uint64_t)it, (char*)pa, sizeof(long)) < 0)
-            {
+            if (copyout(result->pagetable, (uint64_t)it, pa, size) < 0) {
                 panic("copyout");
             }
+            
+//            mappages(result->pagetable, (uint64_t)it, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
         }
     }
     else {
         proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
-        
-        /// stack ///
-        char *pa = kalloc();
-        if (!pa) panic("kalloc");
-        memset(pa, 0, PGSIZE);
-        
-//printf("parent stack va %x pa %x\r\n", va, pa);
-        
-        mappages(result->pagetable, va, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
+/*
+        const int STACK_PAGE_MAX = 4;
+        int i;
+        for(i=0; i<STACK_PAGE_MAX; i++) {
+            /// stack ///
+            char *pa = kalloc();
+            if (!pa) panic("kalloc");
+            memset(pa, 0, PGSIZE);
+            
+            mappages(result->pagetable, va + PGSIZE*i, PGSIZE
+                , (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
+        }
+*/
+        uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
+        for (int i = 0; i < STACK_PAGES; i++) {
+            char *pa = kalloc();
+
+            mappages(result->pagetable,
+             stack_base + i*PGSIZE,
+             PGSIZE,
+             (uint64_t)pa,
+             PTE_U|PTE_R|PTE_W|PTE_V);
+        }
+        asm volatile("sfence.vma zero, zero"); 
+
+        result->stack_top  = (char*)stack_base;
+        result->context.sp = stack_base + STACK_PAGES*PGSIZE;
         
         asm volatile("sfence.vma zero, zero"); 
         
-        result->stack = (char*)va + PGSIZE;
+/*
         result->stack_top = (char*)va;
-        result->context.sp = va + PGSIZE;
+        result->context.sp = va + PGSIZE*i;
+*/
     
-        result->file_table = fs_init();
+        if(exec_flag) {
+            result->file_table = fs_dup_table(parent->file_table);
+        }
+        else {
+            result->file_table = fs_init();
+        }
     }
     
     /// USER PROGRAM
     result->context.mepc = eh->entry;
     
-    gProc.add(result);
+    if(exec_flag) {
+        gProc.replace(gActiveProc, result);
+        user_satp = MAKE_SATP(result->pagetable);
+        user_sp   = result->context.sp;
+    }
+    else {
+        gProc.add(result);
+    }
 }
 
 pagetable_t uvmcreate()
@@ -971,20 +1037,18 @@ struct file* get_current_file_table()
     return gProc[gActiveProc].file_table;
 }
 
+void activate_proc(int run_proc_num);
+
 void exec_prog(char* hello_elf) {
     proc* parent_proc = gProc[gActiveProc];
-    parent_proc->zombie = 1;
+    //parent_proc->zombie = 1;
     
-    file* old_file_table = parent_proc->file_table;
+    alloc_prog(hello_elf, fork_flag:0, exec_flag:1);
     
-    alloc_prog(hello_elf, fork_flag:0);
-    
-/*
     proc* new_proc = gProc[gProc.length()-1];
     
-    //new_proc->file_table = fs_dup_table(old_file_table);
-    new_proc->file_table = old_file_table; //parent->file_table;
-*/
+    //timer_handler();
+    //activate_proc(gProc.length()-1);
     
 /*
     struct proc* child = gProc[gProc.length()-1];
@@ -1055,7 +1119,7 @@ void exec_prog(char* hello_elf) {
     mappages(result->pagetable, va, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
     asm volatile("sfence.vma zero, zero"); 
     
-    result->stack = (char*)va + PGSIZE;
+    //result->stack = (char*)va + PGSIZE;
     result->stack_top = (char*)va;
     result->context.sp = va + PGSIZE;
     
@@ -1183,6 +1247,35 @@ void timer_handler() {
     }
 }
 
+void activate_proc(int run_proc_num) {
+//puts("TIMER");
+    disable_timer_interrupts();
+    struct proc *p = gProc[gActiveProc];
+
+    context_t *tf = (context_t*)TRAPFRAME;
+    p->context = *tf;
+
+    timer_reset(); 
+
+    int old_active_proc = gActiveProc;
+    struct proc *old = gProc[gActiveProc];
+    
+    struct proc* new_ = gProc[run_proc_num];
+    
+    if (new_ != old && new_->zombie == 0) {
+        user_sp = new_->context.sp;
+        user_satp = MAKE_SATP(new_->pagetable);
+        old->context = *(context_t*)TRAPFRAME;
+        //gCPU.proc = new_;
+        uint64_t a0 = new_->context.a0;
+        asm volatile("csrw sscratch, %0" : "=r" (a0));
+        swtch(&new_->context);
+    }
+    else {
+        gActiveProc = old_active_proc;
+    }
+}
+
 // コンソール用スピンロック
 static struct spinlock console_lock;
 
@@ -1234,7 +1327,7 @@ int Sys_write()
     if(is_pipe(fd)) {
         pipewrite(fd, kernel_buf, len);
     }
-    else if(is_stdout(fd)) {
+    else if(1) { //is_stdout(fd)) {
         for(int i=0; i<len; i++) {
             putchar(kernel_buf[i]);
         }
@@ -1349,7 +1442,7 @@ int Sys_fork()
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
     
     int fork_flag;
-    alloc_prog((char*)p->program, fork_flag=1);
+    alloc_prog((char*)p->program, fork_flag=1, exec_flag:0);
     
     struct proc* child = gProc[gProc.length()-1];
     
@@ -1467,26 +1560,13 @@ int Sys_pipe(void)
     char* kernel_buf;
     uint64_t user_va = arg0;
     
+    int fd[2];
     
-    long* fd0, *fd1;
-    fd0 = common_kalloc(sizeof(long));
-    fd1 = common_kalloc(sizeof(long));
-    
-    pipe_open(fd0, fd1);
-printf("PIPE OPEN %ld %ld\n", *fd0, *fd1);
+    pipe_open(&fd[0], &fd[1]);
     
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
     
-    p->mapping_values.insert((void*)user_va, (void*)fd0);
-    
-    if(copyout(p->pagetable, (uint64_t)user_va, (char*)fd0, sizeof(long)) < 0)
-    {
-        panic("copyout");
-    }
-    
-    p->mapping_values.insert(user_va+8, fd1);
-    
-    if(copyout(p->pagetable, (uint64_t)user_va+8,   (char*)fd1, sizeof(long)) < 0)
+    if(copyout(p->pagetable, (uint64_t)user_va, (char*)fd, sizeof(int)*2) < 0)
     {
         panic("copyout");
     }
@@ -1515,16 +1595,13 @@ int Sys_read()
     char kernel_buf[256];
     int ret;
     
-    if(is_stdin(fd)) {
-//puts("STDIN");
+    if(fd == 0) { //is_stdin(fd)) {
         ret = uart_readn(kernel_buf, n);
     }
     else if(is_pipe(fd)) {
-//puts("PIPE");
         ret = piperead(fd, kernel_buf, n);
     }
     else {
-//puts("FILE READ");
         ret = fs_read(fd, kernel_buf, n);
         if (ret < 0) {
             trapframe->a0 = ret;
@@ -2470,7 +2547,7 @@ int main()
     w_stimecmp(r_time() + 10000000);
 
     int fork_flag;
-    alloc_prog((char*)shell_elf, fork_flag=0);
+    alloc_prog((char*)child_elf, fork_flag=0, exec_flag:0);
 //    alloc_prog((char*)hello_elf, fork_flag=0);
 //    alloc_prog((char*)hello2_elf, fork_flag=0);
 
@@ -2483,7 +2560,7 @@ int main()
     
     struct proc* p = gProc[0];
     
-    uintptr_t usersp = (uint64_t)(p->stack);
+    uintptr_t usersp = (uint64_t)(p->context.sp);
     uint64_t usersatp = MAKE_SATP(p->pagetable);
     uintptr_t entry = p->context.mepc;
     

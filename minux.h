@@ -89,20 +89,7 @@ static inline int close(long fd) {
     );
     return ret;
 }
-
-// 戻り値を取るバージョン
-#define fork()                                        \
-    ({                                                    \
-        register long _num asm("a7") = SYS_fork;          \
-        register long _ret asm("a0");                     \
-        asm volatile("ecall"                              \
-                     : "=r"(_ret)                         \
-                     : "r"(_num)                          \
-                     : "memory");                         \
-        _ret;                                             \
-    })
-
-
+   
 // user-space 側
 static inline int execv(char *path, char **argv, int argc) {
     int ret;
@@ -153,8 +140,8 @@ static inline pid_t wait(int* status) {
 }
 
 // user-space 側
-static inline long dup2(long oldfd, long newfd) { 
-    long ret;
+static inline int dup2(int oldfd, int newfd) { 
+    int ret;
     asm volatile(
         "mv   a0, %1    \n"  // fd → a0
         "mv   a1, %2    \n"  // buf → a1
@@ -189,8 +176,8 @@ static inline long my_dup2(long oldfd, long newfd) {
 
 
 // user-space 側
-static inline long pipe(long* pip) {
-    long ret;
+static inline int pipe(int* pip) {
+    int ret;
     asm volatile(
         "mv   a0, %1    \n"  // fd → a0
         "li   a7, %2    \n"  // SYS_write → a7
@@ -203,5 +190,21 @@ static inline long pipe(long* pip) {
     );
     return ret;
 }
+
+//extern pid_t fork();
+extern void dump_s0();
+extern void dump_s0_minus40();
+
+// 戻り値を取るバージョン
+#define fork()                                        \
+    ({                                                    \
+        register long _num asm("a7") = SYS_fork;          \
+        register long _ret asm("a0");                     \
+        asm volatile("ecall"                              \
+                     : "=r"(_ret)                         \
+                     : "r"(_num)                          \
+                     : "memory");                         \
+        _ret;                                             \
+    })
 
 #endif

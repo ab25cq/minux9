@@ -144,6 +144,12 @@ external_handler:
     .section ".trampoline", "ax"
 handle_ecall:
     call   syscall_handler
+
+    # save the just-restored sp into user_sp for trap_return
+#    la    t1, TRAPFRAME
+#    ld    t2,  8(t1)        # t2 = trapframe.sp
+#    la    t3, user_sp
+#    sd    t2,  0(t3)    
     
     la t0, TRAPFRAME
     

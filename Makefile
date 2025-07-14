@@ -27,10 +27,11 @@ kernel.elf:
 	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o hello4.elf -g hello4.c -mcmodel=medany
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello4.elf hello4.c
 
-	riscv64-unknown-elf-gcc -nostdlib -S -O0 -static -o shell.S -g shell.c -mcmodel=medany
-	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o shell.elf -g shell.c -mcmodel=medany
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o shell.elf shell.c
-	xxd -i shell.elf > shell.h  
+	riscv64-unknown-elf-gcc -nostdlib -S -O0 -static -o child.S -g child.c -mcmodel=medany
+	$(CCPREFIX)as -g -o minux.o minux.S
+	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o child.elf -g child.c -mcmodel=medany minux.o
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o child.elf child.c minux.o
+	xxd -i child.elf > child.h  
 
 	dd if=/dev/zero of=fs.img bs=1k count=512
 	dd if=hello.elf of=fs.img bs=512 seek=0 conv=notrunc

@@ -428,7 +428,7 @@ int is_stdout(int fd)
     return 0;
 }
 
-void pipe_open(long* fd1, long* fd2) {
+void pipe_open(int* fd1, int* fd2) {
     struct file* file_table = get_current_file_table();
     
     struct spipe* pip = pipealloc();
@@ -606,7 +606,7 @@ struct file* fs_dup_table(struct file* orig)
     return result;
 }
 
-void fs_dup2(long oldfd, long newfd) {
+void fs_dup2(int oldfd, int newfd) {
     struct file* file_table = get_current_file_table();
     
 printf("dup2 newfd %ld oldfd %ld\n", newfd, oldfd);

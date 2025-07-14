@@ -206,18 +206,24 @@ void puts(const char *s) {
     }
 }
 
-
 int main(void) {
-    long fd[2];
+    int fd[2];
     pid_t pid1, pid2;
 
     pipe(fd);
-
+//dump_s0();
+//dump_s0_minus40();
+    
+printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
     pid1 = fork();
     if (pid1 == 0) {
+//dump_s0();
+//dump_s0_minus40();
+//dump_s0_minus40();
         char* argv[16];
         int argc;
-printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
+
+        close(fd[0]);
         
 puts("close(fd[0])");
         close(fd[0]);
@@ -229,12 +235,19 @@ puts("close(fd[1])");
 //        execv("/hello.elf", argv, argc);
         exit(6);
     }
+printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
+printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
+printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
+printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
+printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
+printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
+        dup2(fd[1], 1);
+while(1);
 
-/*
     int status = 0;
     wait(&status);
-*/
 
+while(1);
     pid2 = fork();
     if (pid2 == 0) {
         char* argv[16];
@@ -252,10 +265,8 @@ puts("close(fd[0])");
         exit(6);
     }
     
-/*
     status = 0;
     wait(&status);
-*/
 
     // 親プロセスはパイプを閉じて子の終了を待つ
 //    close(fd[0]);
@@ -287,7 +298,10 @@ int main(void) {
             buf[n] = buf2[0];
             n++;
             
-            if(buf2[0] == '\r' || buf2[0] == '\n') {
+            if(buf2[0] == '\r') {
+                break;
+            }
+            if(buf2[0] == '\n') {
                 break;
             }
         }
@@ -298,11 +312,6 @@ int main(void) {
         if(buf[0] == '\0') {
             continue;
         }
-        
-        volatile int fd[2];
-        pipe(fd);
-        
-printf("FD[0] %d FD[1] %d\n", fd[0], fd[1]);
         
         // fork して
         pid_t pid = fork();
@@ -322,11 +331,8 @@ printf("FD[0] %d FD[1] %d\n", fd[0], fd[1]);
             pid_t pid = wait(&status);
             printf("\r\nwait status %d\r\n", status);
         }
-        
-        // 親プロセス：子を待たずにループへ（ゾンビになるが極小シェルのため省略）
     }
     
     return 0;
 }
 */
-

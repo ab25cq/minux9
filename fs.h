@@ -120,10 +120,10 @@ int is_pipe(int fd);
 int is_stdin(int fd);
 int is_stdout(int fd);
 
-void pipe_open(long* fd1, long* fd2);
+void pipe_open(int* fd1, int* fd2);
 int piperead(int fd, char *addr, int n);
 int pipewrite(int fd, char *addr, int n);
-void fs_dup2(long oldfd, long newfd);
+void fs_dup2(int oldfd, int newfd);
 
 struct file* fs_init();
 struct file* get_current_file_table();
