@@ -799,7 +799,14 @@ void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
     
     result->program = hello_elf;
     
-    result->mapping_values = new map<void*, tuple2<void*,long>*%>();
+    if(fork_flag || exec_flag) {
+        proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
+    
+        result->mapping_values = clone parent->mapping_values;
+    }
+    else {
+        result->mapping_values = new map<void*, tuple2<void*,long>*%>();
+    }
     
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
@@ -870,20 +877,14 @@ void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
         result->stack_top  = (char*)stack_base;
         result->context.sp = stack_base + STACK_PAGES*PGSIZE;
     
-        
-        result->file_table = fs_dup_table(parent->file_table);
-        
-/*
         foreach(it, parent->mapping_values) {
             var pa, size = parent->mapping_values[it];
             
             if (copyout(result->pagetable, (uint64_t)it, pa, size) < 0) {
                 panic("copyout");
             }
-            
-//            mappages(result->pagetable, (uint64_t)it, PGSIZE, (uint64_t)pa, PTE_U | PTE_R | PTE_W | PTE_V);
         }
-*/
+        result->file_table = fs_dup_table(parent->file_table);
     }
     else {
         proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
@@ -905,6 +906,13 @@ void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
         asm volatile("sfence.vma zero, zero"); 
     
         if(exec_flag) {
+            foreach(it, parent->mapping_values) {
+                var pa, size = parent->mapping_values[it];
+                
+                if (copyout(result->pagetable, (uint64_t)it, pa, size) < 0) {
+                    panic("copyout");
+                }
+            }
             result->file_table = fs_dup_table(parent->file_table);
         }
         else {
@@ -1408,6 +1416,8 @@ int Sys_pipe(void)
     {
         panic("copyout");
     }
+    
+    p->mapping_values.insert((void*)user_va, ((void*)fd, sizeof(int)*2));
     
     return 0;
 }
@@ -2358,6 +2368,18 @@ int printf(const char* fmt, ...) {
     return 0;
 }
 */
+
+struct proc* get_current_proc()
+{
+    return gProc[gActiveProc];
+}
+
+void append_mapping_values(void* user_va, void* pa, size_t size)
+{
+    struct proc* c = get_current_proc();
+    
+    c.mapping_values.insert(user_va, (pa, (long)size));
+}
 
 void global_init()
 {

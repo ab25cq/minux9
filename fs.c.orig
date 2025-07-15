@@ -361,8 +361,6 @@ void *common_kalloc(size_t size);
 
 // ── pipealloc ──────────────────────────────────────────────────────────
 // パイプ構造体を確保・初期化して返す
-void append_mapping_values(void* user_va, void* pa, size_t size);
-
 struct spipe* pipealloc(void)
 {
     struct spipe *p = (struct spipe*)common_kalloc(sizeof(struct spipe));
@@ -372,11 +370,6 @@ struct spipe* pipealloc(void)
     p->nwrite    = 0;
     p->read_open  = 1;
     p->write_open = 1;
-    
-    void* user_va = p;
-    void* pa = p;
-    
-    append_mapping_values(user_va, pa, sizeof(struct spipe));
     
     return p;
 }
@@ -445,7 +438,7 @@ void pipe_open(int* fd1, int* fd2) {
             file_table[i].kind = FK_PIPE;
             file_table[i].used  = 1;
             file_table[i].inum  = -1;
-            //memset(&file_table[i].din, 0, sizeof(struct dinode));
+            memset(&file_table[i].din, 0, sizeof(struct dinode));
             file_table[i].off   = 0;
             file_table[i].pipe = pip;
             *fd1 = i;
@@ -457,7 +450,7 @@ void pipe_open(int* fd1, int* fd2) {
             file_table[i].kind = FK_PIPE;
             file_table[i].used  = 1;
             file_table[i].inum  = -1;
-            //memset(&file_table[i].din, 0, sizeof(struct dinode));
+            memset(&file_table[i].din, 0, sizeof(struct dinode));
             file_table[i].off   = 0;
             file_table[i].pipe = pip;
             *fd2 = i;  // <- 3,4,5… を返す
@@ -484,12 +477,10 @@ int piperead(int fd, char *addr, int n)
     }
     int i;
   
-/*
     // データが来るまで待機
     while (p->nread == p->nwrite && p->write_open) {
         timer_handler();
     }
-*/
     // 書き側クローズかつバッファ空 → EOF
     if (p->nread == p->nwrite && !p->write_open) {
         return 0;
@@ -499,7 +490,7 @@ int piperead(int fd, char *addr, int n)
         addr[i] = p->data[p->nread % PIPE_SIZE];
         p->nread++;
     }
-//    timer_handler();
+    timer_handler();
     return i;
 }
 
@@ -522,11 +513,9 @@ int pipewrite(int fd, char *addr, int n)
   
     for (i = 0; i < n; i++) {
       // バッファ満杯なら読み側を待つ
-/*
       while (p->nwrite - p->nread == PIPE_SIZE && p->read_open) {
           timer_handler();
       }
-*/
       // 読み側クローズ → SIGPIPE 相当
       if (!p->read_open) {
           return -1;
@@ -535,7 +524,7 @@ int pipewrite(int fd, char *addr, int n)
       p->nwrite++;
       
       // 読み側を起こす
-//      timer_handler();
+      timer_handler();
     }
     return n;
 }
@@ -620,8 +609,10 @@ struct file* fs_dup_table(struct file* orig)
 void fs_dup2(int oldfd, int newfd) {
     struct file* file_table = get_current_file_table();
     
-//printf("dup2 newfd %ld oldfd %ld\n", newfd, oldfd);
+printf("dup2 newfd %ld oldfd %ld\n", newfd, oldfd);
+/*
     file_table[newfd] = file_table[oldfd];
     file_table[newfd].used++;
+*/
 }
 

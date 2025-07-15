@@ -206,46 +206,85 @@ void puts(const char *s) {
     }
 }
 
+/*
 int main(void) {
     int fd[2];
     pid_t pid1, pid2;
+    char* argv[16];
+    int argc;
+    int status;
 
     pipe(fd);
-//dump_s0();
-//dump_s0_minus40();
     
-printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
+//write(1, "AAA", 3);
     pid1 = fork();
     if (pid1 == 0) {
-//dump_s0();
-//dump_s0_minus40();
-//dump_s0_minus40();
-        char* argv[16];
-        int argc;
-
-        close(fd[0]);
-        
-puts("close(fd[0])");
-        close(fd[0]);
-puts("dup2(fd[1], 1)");
+//        close(fd[0]);
         dup2(fd[1], 1);
-puts("close(fd[1])");
-        close(fd[1]);
+//        close(fd[1]);
 
-//        execv("/hello.elf", argv, argc);
+//        execv("/hello.elf", (void*)0, 0);
         exit(6);
     }
-printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
-printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
-printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
-printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
-printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
-printf("CHILD1 fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
-        dup2(fd[1], 1);
+    status = 0;
+    wait(&status);
+
+//dup2(fd[0], 0);
+write(1, "(A)", 3);
+char buf[4];
+int n = read(0, buf, 3);
+write(1, buf, 3);
 while(1);
 
+    pid2 = fork();
+    if (pid2 == 0) {
+//        close(fd[1]);               // 書き側は不要
+        dup2(fd[0], 0);
+//        close(fd[0]);
+
+        execv("/hello2.elf", (void*)0, 0);
+        exit(6);
+    }
+    
+    status = 0;
+    wait(&status);
+
+    // 親プロセスはパイプを閉じて子の終了を待つ
+//    close(fd[0]);
+//    close(fd[1]);
+//printf("CHILD END fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
+puts("END");
+    while(1);
+
+    return 0;
+}
+*/
+
+/*
+int main(void) {
+    int fd[2];
+    pid_t pid1, pid2;
+    char buf[4];
+
+    pipe(fd);
+    
+    pid1 = fork();
+    if (pid1 == 0) {
+//        close(fd[0]);
+        dup2(fd[1], 1);
+//        close(fd[1]);
+//        write(1, "ABC", 3);
+
+        execv("/hello.elf", (void*)0, 0);
+        exit(6);
+    }
     int status = 0;
     wait(&status);
+read(fd[0], buf, 2);
+buf[2] = '0';
+write(1, buf, 2);
+while(1);
+
 
 while(1);
     pid2 = fork();
@@ -276,8 +315,8 @@ puts("END");
 
     return 0;
 }
+*/
 
-/*
 int main(void) {
     char buf[BUF_SIZE];
     long n;
@@ -335,4 +374,4 @@ int main(void) {
     
     return 0;
 }
-*/
+

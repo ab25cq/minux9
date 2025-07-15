@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9-dev" "child.c"
+	.file 0 "/Users/ab25cq/minux9" "child.c"
 	.align	1
 	.type	write, @function
 write:
@@ -14,21 +14,15 @@ write:
 	.file 1 "minux.h"
 	.loc 1 18 63
 	.cfi_startproc
-	addi	sp,sp,-64
-	.cfi_def_cfa_offset 64
-	sd	ra,56(sp)
-	sd	s0,48(sp)
-	.cfi_offset 1, -8
-	.cfi_offset 8, -16
-	addi	s0,sp,64
-	.cfi_def_cfa 8, 0
-	sd	a0,-40(s0)
-	sd	a1,-48(s0)
-	sd	a2,-56(s0)
+	addi	sp,sp,-48
+	.cfi_def_cfa_offset 48
+	sd	a0,24(sp)
+	sd	a1,16(sp)
+	sd	a2,8(sp)
 	.loc 1 20 5
-	ld	a5,-40(s0)
-	ld	a4,-48(s0)
-	ld	a3,-56(s0)
+	ld	a5,24(sp)
+	ld	a4,16(sp)
+	ld	a3,8(sp)
  #APP
 # 20 "minux.h" 1
 	mv   a0, a5    
@@ -40,81 +34,104 @@ mv   a5, a0
 
 # 0 "" 2
  #NO_APP
-	sd	a5,-24(s0)
+	sd	a5,40(sp)
 	.loc 1 34 12
-	ld	a5,-24(s0)
+	ld	a5,40(sp)
 	.loc 1 35 1
 	mv	a0,a5
-	ld	ra,56(sp)
-	.cfi_restore 1
-	ld	s0,48(sp)
-	.cfi_restore 8
-	.cfi_def_cfa 2, 64
-	addi	sp,sp,64
+	addi	sp,sp,48
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
 .LFE0:
 	.size	write, .-write
 	.align	1
-	.type	close, @function
-close:
-.LFB3:
-	.loc 1 78 34
+	.type	read, @function
+read:
+.LFB1:
+	.loc 1 38 56
 	.cfi_startproc
 	addi	sp,sp,-48
 	.cfi_def_cfa_offset 48
-	sd	ra,40(sp)
-	sd	s0,32(sp)
-	.cfi_offset 1, -8
-	.cfi_offset 8, -16
-	addi	s0,sp,48
-	.cfi_def_cfa 8, 0
-	sd	a0,-40(s0)
-	.loc 1 80 5
-	ld	a5,-40(s0)
+	sd	a0,24(sp)
+	sd	a1,16(sp)
+	sd	a2,8(sp)
+	.loc 1 40 5
+	ld	a5,40(sp)
+	ld	a4,24(sp)
+	ld	a3,16(sp)
+	ld	a6,8(sp)
  #APP
-# 80 "minux.h" 1
-	mv   a0, a5    
-li   a7, 67    
+# 40 "minux.h" 1
+	mv   a0, a4    
+mv   a1, a3    
+mv   a2, a6    
+li   a7, 65    
 ecall          
 mv   a5, a0    
 
 # 0 "" 2
  #NO_APP
-	sw	a5,-20(s0)
-	.loc 1 90 12
-	lw	a5,-20(s0)
-	.loc 1 91 1
+	sd	a5,40(sp)
+	.loc 1 55 12
+	ld	a5,40(sp)
+	.loc 1 56 1
 	mv	a0,a5
-	ld	ra,40(sp)
-	.cfi_restore 1
-	ld	s0,32(sp)
-	.cfi_restore 8
-	.cfi_def_cfa 2, 48
 	addi	sp,sp,48
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
-.LFE3:
-	.size	close, .-close
+.LFE1:
+	.size	read, .-read
+	.align	1
+	.type	execv, @function
+execv:
+.LFB4:
+	.loc 1 94 60
+	.cfi_startproc
+	addi	sp,sp,-48
+	.cfi_def_cfa_offset 48
+	sd	a0,24(sp)
+	sd	a1,16(sp)
+	mv	a5,a2
+	sw	a5,12(sp)
+	.loc 1 96 5
+	ld	a5,24(sp)
+	ld	a4,16(sp)
+	lw	a3,12(sp)
+ #APP
+# 96 "minux.h" 1
+	mv   a0, a5    
+mv   a1, a4    
+mv   a2, a3    
+li   a7, 69    
+ecall          
+mv   a5, a0    
+
+# 0 "" 2
+ #NO_APP
+	sw	a5,44(sp)
+	.loc 1 110 12
+	lw	a5,44(sp)
+	.loc 1 111 1
+	mv	a0,a5
+	addi	sp,sp,48
+	.cfi_def_cfa_offset 0
+	jr	ra
+	.cfi_endproc
+.LFE4:
+	.size	execv, .-execv
 	.align	1
 	.type	exit, @function
 exit:
 .LFB5:
 	.loc 1 113 38
 	.cfi_startproc
-	addi	sp,sp,-32
-	.cfi_def_cfa_offset 32
-	sd	ra,24(sp)
-	sd	s0,16(sp)
-	.cfi_offset 1, -8
-	.cfi_offset 8, -16
-	addi	s0,sp,32
-	.cfi_def_cfa 8, 0
-	sd	a0,-24(s0)
+	addi	sp,sp,-16
+	.cfi_def_cfa_offset 16
+	sd	a0,8(sp)
 	.loc 1 114 5
-	ld	a5,-24(s0)
+	ld	a5,8(sp)
  #APP
 # 114 "minux.h" 1
 	mv   a0, a5   
@@ -123,102 +140,43 @@ ecall
 
 # 0 "" 2
  #NO_APP
-.L6:
+.L8:
 	.loc 1 123 10
-	j	.L6
+	j	.L8
 	.cfi_endproc
 .LFE5:
 	.size	exit, .-exit
 	.align	1
-	.type	dup2, @function
-dup2:
-.LFB7:
-	.loc 1 143 46
+	.type	wait, @function
+wait:
+.LFB6:
+	.loc 1 127 39
 	.cfi_startproc
-	addi	sp,sp,-48
-	.cfi_def_cfa_offset 48
-	sd	ra,40(sp)
-	sd	s0,32(sp)
-	.cfi_offset 1, -8
-	.cfi_offset 8, -16
-	addi	s0,sp,48
-	.cfi_def_cfa 8, 0
-	mv	a5,a0
-	mv	a4,a1
-	sw	a5,-36(s0)
-	mv	a5,a4
-	sw	a5,-40(s0)
-	.loc 1 145 5
-	lw	a5,-36(s0)
-	lw	a4,-40(s0)
+	addi	sp,sp,-32
+	.cfi_def_cfa_offset 32
+	sd	a0,8(sp)
+	.loc 1 129 5
+	ld	a5,8(sp)
  #APP
-# 145 "minux.h" 1
+# 129 "minux.h" 1
 	mv   a0, a5    
-mv   a1, a4    
-li   a7, 72    
+li   a7, 71    
 ecall          
 mv   a5, a0    
 
 # 0 "" 2
  #NO_APP
-	sw	a5,-20(s0)
-	.loc 1 157 12
-	lw	a5,-20(s0)
-	.loc 1 158 1
+	sw	a5,28(sp)
+	.loc 1 139 12
+	lw	a5,28(sp)
+	.loc 1 140 1
 	mv	a0,a5
-	ld	ra,40(sp)
-	.cfi_restore 1
-	ld	s0,32(sp)
-	.cfi_restore 8
-	.cfi_def_cfa 2, 48
-	addi	sp,sp,48
+	addi	sp,sp,32
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
-.LFE7:
-	.size	dup2, .-dup2
-	.align	1
-	.type	pipe, @function
-pipe:
-.LFB8:
-	.loc 1 179 34
-	.cfi_startproc
-	addi	sp,sp,-48
-	.cfi_def_cfa_offset 48
-	sd	ra,40(sp)
-	sd	s0,32(sp)
-	.cfi_offset 1, -8
-	.cfi_offset 8, -16
-	addi	s0,sp,48
-	.cfi_def_cfa 8, 0
-	sd	a0,-40(s0)
-	.loc 1 181 5
-	ld	a5,-40(s0)
- #APP
-# 181 "minux.h" 1
-	mv   a0, a5    
-li   a7, 73    
-ecall          
-mv   a5, a0    
-
-# 0 "" 2
- #NO_APP
-	sw	a5,-20(s0)
-	.loc 1 191 12
-	lw	a5,-20(s0)
-	.loc 1 192 1
-	mv	a0,a5
-	ld	ra,40(sp)
-	.cfi_restore 1
-	ld	s0,32(sp)
-	.cfi_restore 8
-	.cfi_def_cfa 2, 48
-	addi	sp,sp,48
-	.cfi_def_cfa_offset 0
-	jr	ra
-	.cfi_endproc
-.LFE8:
-	.size	pipe, .-pipe
+.LFE6:
+	.size	wait, .-wait
 	.align	1
 	.globl	putchar
 	.type	putchar, @function
@@ -1135,144 +1093,179 @@ puts:
 	.section	.rodata
 	.align	3
 .LC1:
-	.string	"CHILD1 fd[0] %ld fd[1] %ld\n"
+	.string	"\r\n"
 	.align	3
 .LC2:
-	.string	"close(fd[0])"
+	.string	"$ "
 	.align	3
 .LC3:
-	.string	"dup2(fd[1], 1)"
+	.string	"fork failed\n"
 	.align	3
 .LC4:
-	.string	"close(fd[1])"
+	.string	"\r\nwait status %d\r\n"
 	.text
 	.align	1
 	.globl	main
 	.type	main, @function
 main:
 .LFB15:
-	.loc 2 209 16
+	.loc 2 320 16
 	.cfi_startproc
-	addi	sp,sp,-176
-	.cfi_def_cfa_offset 176
-	sd	ra,168(sp)
-	sd	s0,160(sp)
+	addi	sp,sp,-320
+	.cfi_def_cfa_offset 320
+	sd	ra,312(sp)
+	sd	s0,304(sp)
 	.cfi_offset 1, -8
 	.cfi_offset 8, -16
-	addi	s0,sp,176
+	addi	s0,sp,320
 	.cfi_def_cfa 8, 0
-	.loc 2 213 5
-	addi	a5,s0,-32
-	mv	a0,a5
-	call	pipe
-	.loc 2 217 1
-	lw	a5,-32(s0)
-	lw	a4,-28(s0)
-	mv	a2,a4
-	mv	a1,a5
-	lla	a0,.LC1
-	call	printf
+.L86:
 .LBB16:
-	.loc 2 218 12
+	.loc 2 325 9
+	lla	a0,.LC1
+	call	puts
+	.loc 2 327 9
+	li	a2,2
+	lla	a1,.LC2
+	li	a0,1
+	call	write
+	.loc 2 331 13
+	sw	zero,-20(s0)
+.L81:
+.LBB17:
+	.loc 2 334 13
+	addi	a5,s0,-176
+	li	a2,1
+	mv	a1,a5
+	li	a0,0
+	call	read
+	.loc 2 335 13
+	addi	a5,s0,-176
+	li	a2,1
+	mv	a1,a5
+	li	a0,1
+	call	write
+	.loc 2 337 26
+	lbu	a4,-176(s0)
+	.loc 2 337 20
+	lw	a5,-20(s0)
+	addi	a5,a5,-16
+	add	a5,a5,s0
+	sb	a4,-152(a5)
+	.loc 2 338 14
+	lw	a5,-20(s0)
+	addiw	a5,a5,1
+	sw	a5,-20(s0)
+	.loc 2 340 20
+	lbu	a5,-176(s0)
+	.loc 2 340 15
+	mv	a4,a5
+	li	a5,13
+	beq	a4,a5,.L87
+	.loc 2 343 20
+	lbu	a5,-176(s0)
+	.loc 2 343 15
+	mv	a4,a5
+	li	a5,10
+	beq	a4,a5,.L88
+.LBE17:
+	.loc 2 332 18
+	j	.L81
+.L87:
+.LBB18:
+	.loc 2 341 17
+	nop
+	j	.L79
+.L88:
+	.loc 2 344 17
+	nop
+.L79:
+.LBE18:
+	.loc 2 348 14
+	lw	a5,-20(s0)
+	addiw	a5,a5,-1
+	sext.w	a5,a5
+	.loc 2 348 18
+	addi	a5,a5,-16
+	add	a5,a5,s0
+	sb	zero,-152(a5)
+	.loc 2 349 9
+	lla	a0,.LC1
+	call	puts
+	.loc 2 351 15
+	lbu	a5,-168(s0)
+	.loc 2 351 11
+	beq	a5,zero,.L89
+.LBB19:
+	.loc 2 356 21
 	li	a7,68
  #APP
-# 218 "child.c" 1
+# 356 "child.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
 	mv	a5,a0
-.LBE16:
-	.loc 2 218 10
-	sw	a5,-20(s0)
-	.loc 2 219 8
-	lw	a5,-20(s0)
+.LBE19:
+	.loc 2 356 15
+	sw	a5,-24(s0)
+	.loc 2 357 12
+	lw	a5,-24(s0)
 	sext.w	a5,a5
-	bne	a5,zero,.L78
-.LBB17:
-	.loc 2 226 17
-	lw	a5,-32(s0)
-	.loc 2 226 9
+	bge	a5,zero,.L84
+	.loc 2 358 13
+	li	a2,12
+	lla	a1,.LC3
+	li	a0,2
+	call	write
+	.loc 2 359 13
+	j	.L83
+.L84:
+	.loc 2 362 12
+	lw	a5,-24(s0)
+	sext.w	a5,a5
+	bne	a5,zero,.L85
+.LBB20:
+	.loc 2 364 17
+	sw	zero,-32(s0)
+	.loc 2 365 23
+	lw	a3,-32(s0)
+	addi	a4,s0,-312
+	addi	a5,s0,-168
+	mv	a2,a3
+	mv	a1,a4
 	mv	a0,a5
-	call	close
-	.loc 2 228 1
-	lla	a0,.LC2
-	call	puts
-	.loc 2 229 17
-	lw	a5,-32(s0)
-	.loc 2 229 9
-	mv	a0,a5
-	call	close
-	.loc 2 230 1
-	lla	a0,.LC3
-	call	puts
-	.loc 2 231 9
-	lw	a5,-28(s0)
-	li	a1,1
-	mv	a0,a5
-	call	dup2
-	.loc 2 232 1
-	lla	a0,.LC4
-	call	puts
-	.loc 2 233 17
-	lw	a5,-28(s0)
-	.loc 2 233 9
-	mv	a0,a5
-	call	close
-	.loc 2 236 9
+	call	execv
+	mv	a5,a0
+	sw	a5,-36(s0)
+	.loc 2 366 13
 	li	a0,6
 	call	exit
-.L78:
-.LBE17:
-	.loc 2 238 1
-	lw	a5,-32(s0)
-	lw	a4,-28(s0)
-	mv	a2,a4
-	mv	a1,a5
-	lla	a0,.LC1
-	call	printf
-	.loc 2 239 1
-	lw	a5,-32(s0)
-	lw	a4,-28(s0)
-	mv	a2,a4
-	mv	a1,a5
-	lla	a0,.LC1
-	call	printf
-	.loc 2 240 1
-	lw	a5,-32(s0)
-	lw	a4,-28(s0)
-	mv	a2,a4
-	mv	a1,a5
-	lla	a0,.LC1
-	call	printf
-	.loc 2 241 1
-	lw	a5,-32(s0)
-	lw	a4,-28(s0)
-	mv	a2,a4
-	mv	a1,a5
-	lla	a0,.LC1
-	call	printf
-	.loc 2 242 1
-	lw	a5,-32(s0)
-	lw	a4,-28(s0)
-	mv	a2,a4
-	mv	a1,a5
-	lla	a0,.LC1
-	call	printf
-	.loc 2 243 1
-	lw	a5,-32(s0)
-	lw	a4,-28(s0)
-	mv	a2,a4
-	mv	a1,a5
-	lla	a0,.LC1
-	call	printf
-	.loc 2 244 9
-	lw	a5,-28(s0)
-	li	a1,1
+.LBE20:
+	j	.L86
+.L85:
+.LBB21:
+	.loc 2 369 17
+	sw	zero,-180(s0)
+	.loc 2 370 25
+	addi	a5,s0,-180
 	mv	a0,a5
-	call	dup2
-.L79:
-	.loc 2 245 6
-	j	.L79
+	call	wait
+	mv	a5,a0
+	sw	a5,-28(s0)
+	.loc 2 371 13
+	lw	a5,-180(s0)
+	mv	a1,a5
+	lla	a0,.LC4
+	call	printf
+	j	.L86
+.L89:
+.LBE21:
+	.loc 2 352 13
+	nop
+.L83:
+.LBE16:
+	.loc 2 324 14
+	j	.L86
 	.cfi_endproc
 .LFE15:
 	.size	main, .-main
@@ -1280,13 +1273,13 @@ main:
 	.file 3 "/opt/homebrew/Cellar/riscv-gnu-toolchain/main/lib/gcc/riscv64-unknown-elf/14.2.0/include/stdarg.h"
 	.section	.debug_info,"",@progbits
 .Ldebug_info0:
-	.4byte	0x763
+	.4byte	0x7dd
 	.2byte	0x5
 	.byte	0x1
 	.byte	0x8
 	.4byte	.Ldebug_abbrev0
 	.uleb128 0x10
-	.4byte	.LASF43
+	.4byte	.LASF41
 	.byte	0x1d
 	.4byte	.LASF0
 	.4byte	.LASF1
@@ -1325,7 +1318,7 @@ main:
 	.byte	0x8
 	.byte	0x7
 	.4byte	.LASF8
-	.uleb128 0xe
+	.uleb128 0xf
 	.4byte	.LASF9
 	.byte	0x3
 	.byte	0x28
@@ -1333,183 +1326,216 @@ main:
 	.4byte	0x72
 	.uleb128 0x12
 	.byte	0x8
-	.4byte	.LASF44
-	.uleb128 0xe
+	.4byte	.LASF42
+	.uleb128 0xf
 	.4byte	.LASF10
 	.byte	0x3
 	.byte	0x67
 	.byte	0x18
 	.4byte	0x66
-	.uleb128 0xe
+	.uleb128 0xf
 	.4byte	.LASF11
 	.byte	0x1
 	.byte	0x4
 	.byte	0xd
 	.4byte	0x4a
-	.uleb128 0xf
-	.4byte	.LASF20
-	.byte	0xd1
+	.uleb128 0x13
+	.4byte	.LASF19
+	.byte	0x2
+	.2byte	0x140
+	.byte	0x5
 	.4byte	0x4a
 	.8byte	.LFB15
 	.8byte	.LFE15-.LFB15
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x17a
-	.uleb128 0x2
-	.string	"fd"
+	.4byte	0x1be
+	.uleb128 0x9
+	.string	"buf"
+	.2byte	0x141
+	.byte	0xa
+	.4byte	0x1be
+	.uleb128 0x3
+	.byte	0x91
+	.sleb128 -168
+	.uleb128 0x14
+	.string	"n"
 	.byte	0x2
-	.byte	0xd2
-	.byte	0x9
-	.4byte	0x17a
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -32
-	.uleb128 0x1
-	.4byte	.LASF12
-	.byte	0xd3
-	.byte	0xb
-	.4byte	0x84
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -20
-	.uleb128 0x7
-	.4byte	.LASF17
-	.byte	0xd3
-	.byte	0x11
-	.4byte	0x84
-	.uleb128 0x1
-	.4byte	.LASF13
-	.byte	0xf7
-	.byte	0x9
+	.2byte	0x142
+	.byte	0xa
+	.4byte	0x58
+	.uleb128 0x6
+	.8byte	.LBB16
+	.8byte	.LBE16-.LBB16
+	.uleb128 0x9
+	.string	"n"
+	.2byte	0x14b
+	.byte	0xd
 	.4byte	0x4a
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -36
-	.uleb128 0x4
-	.8byte	.LBB16
-	.8byte	.LBE16-.LBB16
+	.sleb128 -20
+	.uleb128 0x9
+	.string	"pid"
+	.2byte	0x164
+	.byte	0xf
+	.4byte	0x84
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -24
+	.uleb128 0x15
+	.4byte	.LLRL0
 	.4byte	0x115
-	.uleb128 0x1
-	.4byte	.LASF14
-	.byte	0xda
-	.byte	0xc
+	.uleb128 0x8
+	.4byte	.LASF12
+	.2byte	0x14d
+	.byte	0x12
+	.4byte	0x1da
+	.uleb128 0x3
+	.byte	0x91
+	.sleb128 -176
+	.byte	0
+	.uleb128 0x4
+	.8byte	.LBB19
+	.8byte	.LBE19-.LBB19
+	.4byte	0x147
+	.uleb128 0x8
+	.4byte	.LASF13
+	.2byte	0x164
+	.byte	0x15
 	.4byte	0x58
 	.uleb128 0x1
 	.byte	0x61
-	.uleb128 0x1
-	.4byte	.LASF15
-	.byte	0xda
-	.byte	0xc
+	.uleb128 0x8
+	.4byte	.LASF14
+	.2byte	0x164
+	.byte	0x15
 	.4byte	0x58
 	.uleb128 0x1
 	.byte	0x5a
 	.byte	0
 	.uleb128 0x4
-	.8byte	.LBB17
-	.8byte	.LBE17-.LBB17
-	.4byte	0x145
-	.uleb128 0x1
-	.4byte	.LASF16
-	.byte	0xdf
-	.byte	0xf
-	.4byte	0x18a
+	.8byte	.LBB20
+	.8byte	.LBE20-.LBB20
+	.4byte	0x18b
+	.uleb128 0x8
+	.4byte	.LASF15
+	.2byte	0x16b
+	.byte	0x13
+	.4byte	0x1ea
 	.uleb128 0x3
 	.byte	0x91
-	.sleb128 -168
-	.uleb128 0x7
-	.4byte	.LASF18
-	.byte	0xe0
-	.byte	0xd
-	.4byte	0x4a
-	.byte	0
-	.uleb128 0x13
-	.4byte	0x161
-	.uleb128 0x7
-	.4byte	.LASF14
-	.byte	0xfb
-	.byte	0xc
-	.4byte	0x58
-	.uleb128 0x7
-	.4byte	.LASF15
-	.byte	0xfb
-	.byte	0xc
-	.4byte	0x58
-	.byte	0
-	.uleb128 0x14
-	.uleb128 0x7
-	.4byte	.LASF16
-	.byte	0xfd
-	.byte	0xf
-	.4byte	0x18a
-	.uleb128 0x7
-	.4byte	.LASF18
-	.byte	0xfe
-	.byte	0xd
-	.4byte	0x4a
-	.byte	0
-	.byte	0
+	.sleb128 -312
 	.uleb128 0x8
+	.4byte	.LASF16
+	.2byte	0x16c
+	.byte	0x11
 	.4byte	0x4a
-	.4byte	0x18a
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -32
 	.uleb128 0x9
+	.string	"ret"
+	.2byte	0x16d
+	.byte	0x11
+	.4byte	0x4a
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -36
+	.byte	0
+	.uleb128 0x6
+	.8byte	.LBB21
+	.8byte	.LBE21-.LBB21
+	.uleb128 0x8
+	.4byte	.LASF17
+	.2byte	0x171
+	.byte	0x11
+	.4byte	0x4a
+	.uleb128 0x3
+	.byte	0x91
+	.sleb128 -180
+	.uleb128 0x9
+	.string	"pid"
+	.2byte	0x172
+	.byte	0x13
+	.4byte	0x84
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -28
+	.byte	0
+	.byte	0
+	.byte	0
+	.uleb128 0xa
+	.4byte	0x1ce
+	.4byte	0x1ce
+	.uleb128 0xb
+	.4byte	0x5f
+	.byte	0x7f
+	.byte	0
+	.uleb128 0x5
+	.byte	0x1
+	.byte	0x8
+	.4byte	.LASF18
+	.uleb128 0x16
+	.4byte	0x1ce
+	.uleb128 0xa
+	.4byte	0x1ce
+	.4byte	0x1ea
+	.uleb128 0xb
 	.4byte	0x5f
 	.byte	0x1
 	.byte	0
-	.uleb128 0x8
-	.4byte	0x19a
-	.4byte	0x19a
-	.uleb128 0x9
+	.uleb128 0xa
+	.4byte	0x1fa
+	.4byte	0x1fa
+	.uleb128 0xb
 	.4byte	0x5f
 	.byte	0xf
 	.byte	0
 	.uleb128 0xc
-	.4byte	0x19f
-	.uleb128 0x5
-	.byte	0x1
-	.byte	0x8
-	.4byte	.LASF19
-	.uleb128 0x15
-	.4byte	0x19f
-	.uleb128 0xa
-	.4byte	.LASF26
+	.4byte	0x1ce
+	.uleb128 0xd
+	.4byte	.LASF25
 	.byte	0xcb
 	.8byte	.LFB14
 	.8byte	.LFE14-.LFB14
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x1d5
-	.uleb128 0x6
+	.4byte	0x229
+	.uleb128 0x7
 	.string	"s"
 	.byte	0x2
 	.byte	0xcb
 	.byte	0x17
-	.4byte	0x1d5
+	.4byte	0x229
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
 	.byte	0
 	.uleb128 0xc
-	.4byte	0x1a6
-	.uleb128 0xf
-	.4byte	.LASF21
+	.4byte	0x1d5
+	.uleb128 0x17
+	.4byte	.LASF20
+	.byte	0x2
 	.byte	0x6a
+	.byte	0x5
 	.4byte	0x4a
 	.8byte	.LFB13
 	.8byte	.LFE13-.LFB13
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3b5
-	.uleb128 0x6
+	.4byte	0x40b
+	.uleb128 0x7
 	.string	"fmt"
 	.byte	0x2
 	.byte	0x6a
 	.byte	0x18
-	.4byte	0x1d5
+	.4byte	0x229
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -184
-	.uleb128 0x16
-	.uleb128 0x2
+	.uleb128 0x18
+	.uleb128 0x1
 	.string	"ap"
 	.byte	0x2
 	.byte	0x6b
@@ -1518,21 +1544,21 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -168
-	.uleb128 0x2
+	.uleb128 0x1
 	.string	"p"
 	.byte	0x2
 	.byte	0x6e
 	.byte	0x11
-	.4byte	0x1d5
+	.4byte	0x229
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -88
 	.uleb128 0x4
 	.8byte	.LBB5
 	.8byte	.LBE5-.LBB5
-	.4byte	0x301
-	.uleb128 0x1
-	.4byte	.LASF22
+	.4byte	0x357
+	.uleb128 0x3
+	.4byte	.LASF21
 	.byte	0x78
 	.byte	0x11
 	.4byte	0x4a
@@ -1542,9 +1568,9 @@ main:
 	.uleb128 0x4
 	.8byte	.LBB6
 	.8byte	.LBE6-.LBB6
-	.4byte	0x271
-	.uleb128 0x1
-	.4byte	.LASF23
+	.4byte	0x2c7
+	.uleb128 0x3
+	.4byte	.LASF22
 	.byte	0x82
 	.byte	0x27
 	.4byte	0x5f
@@ -1555,12 +1581,12 @@ main:
 	.uleb128 0x4
 	.8byte	.LBB7
 	.8byte	.LBE7-.LBB7
-	.4byte	0x296
-	.uleb128 0x1
-	.4byte	.LASF23
+	.4byte	0x2ec
+	.uleb128 0x3
+	.4byte	.LASF22
 	.byte	0x85
 	.byte	0x2c
-	.4byte	0x3b5
+	.4byte	0x40b
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -136
@@ -1568,9 +1594,9 @@ main:
 	.uleb128 0x4
 	.8byte	.LBB8
 	.8byte	.LBE8-.LBB8
-	.4byte	0x2bb
-	.uleb128 0x1
-	.4byte	.LASF23
+	.4byte	0x311
+	.uleb128 0x3
+	.4byte	.LASF22
 	.byte	0x8c
 	.byte	0x1e
 	.4byte	0x58
@@ -1581,20 +1607,20 @@ main:
 	.uleb128 0x4
 	.8byte	.LBB9
 	.8byte	.LBE9-.LBB9
-	.4byte	0x2e0
-	.uleb128 0x1
-	.4byte	.LASF23
+	.4byte	0x336
+	.uleb128 0x3
+	.4byte	.LASF22
 	.byte	0x8f
 	.byte	0x23
-	.4byte	0x3bc
+	.4byte	0x412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -152
 	.byte	0
-	.uleb128 0xb
+	.uleb128 0x6
 	.8byte	.LBB10
 	.8byte	.LBE10-.LBB10
-	.uleb128 0x2
+	.uleb128 0x1
 	.string	"i"
 	.byte	0x2
 	.byte	0x96
@@ -1608,9 +1634,9 @@ main:
 	.uleb128 0x4
 	.8byte	.LBB11
 	.8byte	.LBE11-.LBB11
-	.4byte	0x326
-	.uleb128 0x1
-	.4byte	.LASF23
+	.4byte	0x37c
+	.uleb128 0x3
+	.4byte	.LASF22
 	.byte	0x9e
 	.byte	0x19
 	.4byte	0x4a
@@ -1621,9 +1647,9 @@ main:
 	.uleb128 0x4
 	.8byte	.LBB12
 	.8byte	.LBE12-.LBB12
-	.4byte	0x34b
-	.uleb128 0x1
-	.4byte	.LASF23
+	.4byte	0x3a1
+	.uleb128 0x3
+	.4byte	.LASF22
 	.byte	0xa3
 	.byte	0x22
 	.4byte	0x51
@@ -1634,9 +1660,9 @@ main:
 	.uleb128 0x4
 	.8byte	.LBB13
 	.8byte	.LBE13-.LBB13
-	.4byte	0x370
-	.uleb128 0x1
-	.4byte	.LASF23
+	.4byte	0x3c6
+	.uleb128 0x3
+	.4byte	.LASF22
 	.byte	0xa8
 	.byte	0x23
 	.4byte	0x5f
@@ -1647,26 +1673,26 @@ main:
 	.uleb128 0x4
 	.8byte	.LBB14
 	.8byte	.LBE14-.LBB14
-	.4byte	0x394
-	.uleb128 0x2
+	.4byte	0x3ea
+	.uleb128 0x1
 	.string	"s"
 	.byte	0x2
 	.byte	0xae
 	.byte	0x21
-	.4byte	0x1d5
+	.4byte	0x229
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -104
 	.byte	0
-	.uleb128 0xb
+	.uleb128 0x6
 	.8byte	.LBB15
 	.8byte	.LBE15-.LBB15
-	.uleb128 0x2
+	.uleb128 0x1
 	.string	"c"
 	.byte	0x2
 	.byte	0xb4
 	.byte	0x1a
-	.4byte	0x19f
+	.4byte	0x1ce
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -125
@@ -1675,30 +1701,30 @@ main:
 	.uleb128 0x5
 	.byte	0x8
 	.byte	0x7
-	.4byte	.LASF24
+	.4byte	.LASF23
 	.uleb128 0x5
 	.byte	0x8
 	.byte	0x5
-	.4byte	.LASF25
-	.uleb128 0xa
-	.4byte	.LASF27
+	.4byte	.LASF24
+	.uleb128 0xd
+	.4byte	.LASF26
 	.byte	0x4c
 	.8byte	.LFB12
 	.8byte	.LFE12-.LFB12
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x45b
-	.uleb128 0x3
-	.4byte	.LASF23
+	.4byte	0x4b1
+	.uleb128 0x2
+	.4byte	.LASF22
 	.byte	0x2
 	.byte	0x4c
 	.byte	0x27
-	.4byte	0x3b5
+	.4byte	0x40b
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -104
-	.uleb128 0x3
-	.4byte	.LASF28
+	.uleb128 0x2
+	.4byte	.LASF27
 	.byte	0x2
 	.byte	0x4c
 	.byte	0x31
@@ -1706,8 +1732,8 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -108
-	.uleb128 0x3
-	.4byte	.LASF29
+	.uleb128 0x2
+	.4byte	.LASF28
 	.byte	0x2
 	.byte	0x4c
 	.byte	0x3b
@@ -1715,16 +1741,16 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -112
-	.uleb128 0x2
+	.uleb128 0x1
 	.string	"buf"
 	.byte	0x2
 	.byte	0x4d
 	.byte	0xa
-	.4byte	0x45b
+	.4byte	0x4b1
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -96
-	.uleb128 0x2
+	.uleb128 0x1
 	.string	"i"
 	.byte	0x2
 	.byte	0x4e
@@ -1733,19 +1759,19 @@ main:
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -20
-	.uleb128 0x1
-	.4byte	.LASF30
+	.uleb128 0x3
+	.4byte	.LASF29
 	.byte	0x4f
 	.byte	0x9
 	.4byte	0x4a
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
-	.uleb128 0xb
+	.uleb128 0x6
 	.8byte	.LBB4
 	.8byte	.LBE4-.LBB4
-	.uleb128 0x1
-	.4byte	.LASF31
+	.uleb128 0x3
+	.4byte	.LASF30
 	.byte	0x5c
 	.byte	0xd
 	.4byte	0x4a
@@ -1754,23 +1780,23 @@ main:
 	.sleb128 -28
 	.byte	0
 	.byte	0
-	.uleb128 0x8
-	.4byte	0x19f
-	.4byte	0x46b
-	.uleb128 0x9
+	.uleb128 0xa
+	.4byte	0x1ce
+	.4byte	0x4c1
+	.uleb128 0xb
 	.4byte	0x5f
 	.byte	0x40
 	.byte	0
-	.uleb128 0xa
-	.4byte	.LASF32
+	.uleb128 0xd
+	.4byte	.LASF31
 	.byte	0x2e
 	.8byte	.LFB11
 	.8byte	.LFE11-.LFB11
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x503
-	.uleb128 0x3
-	.4byte	.LASF23
+	.4byte	0x559
+	.uleb128 0x2
+	.4byte	.LASF22
 	.byte	0x2
 	.byte	0x2e
 	.byte	0x1e
@@ -1778,8 +1804,8 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -104
-	.uleb128 0x3
-	.4byte	.LASF28
+	.uleb128 0x2
+	.4byte	.LASF27
 	.byte	0x2
 	.byte	0x2e
 	.byte	0x28
@@ -1787,8 +1813,8 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -108
-	.uleb128 0x3
-	.4byte	.LASF29
+	.uleb128 0x2
+	.4byte	.LASF28
 	.byte	0x2
 	.byte	0x2e
 	.byte	0x32
@@ -1796,16 +1822,16 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -112
-	.uleb128 0x2
+	.uleb128 0x1
 	.string	"buf"
 	.byte	0x2
 	.byte	0x2f
 	.byte	0xa
-	.4byte	0x45b
+	.4byte	0x4b1
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -96
-	.uleb128 0x2
+	.uleb128 0x1
 	.string	"i"
 	.byte	0x2
 	.byte	0x30
@@ -1814,19 +1840,19 @@ main:
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -20
-	.uleb128 0x1
-	.4byte	.LASF30
+	.uleb128 0x3
+	.4byte	.LASF29
 	.byte	0x31
 	.byte	0x9
 	.4byte	0x4a
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
-	.uleb128 0xb
+	.uleb128 0x6
 	.8byte	.LBB3
 	.8byte	.LBE3-.LBB3
-	.uleb128 0x1
-	.4byte	.LASF31
+	.uleb128 0x3
+	.4byte	.LASF30
 	.byte	0x3e
 	.byte	0xd
 	.4byte	0x4a
@@ -1835,16 +1861,16 @@ main:
 	.sleb128 -28
 	.byte	0
 	.byte	0
-	.uleb128 0xa
-	.4byte	.LASF33
+	.uleb128 0xd
+	.4byte	.LASF32
 	.byte	0xd
 	.8byte	.LFB10
 	.8byte	.LFE10-.LFB10
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x5a9
-	.uleb128 0x3
-	.4byte	.LASF23
+	.4byte	0x5ff
+	.uleb128 0x2
+	.4byte	.LASF22
 	.byte	0x2
 	.byte	0xd
 	.byte	0x13
@@ -1852,8 +1878,8 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -84
-	.uleb128 0x3
-	.4byte	.LASF28
+	.uleb128 0x2
+	.4byte	.LASF27
 	.byte	0x2
 	.byte	0xd
 	.byte	0x1d
@@ -1861,8 +1887,8 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -88
-	.uleb128 0x3
-	.4byte	.LASF29
+	.uleb128 0x2
+	.4byte	.LASF28
 	.byte	0x2
 	.byte	0xd
 	.byte	0x27
@@ -1870,16 +1896,16 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -92
-	.uleb128 0x2
+	.uleb128 0x1
 	.string	"buf"
 	.byte	0x2
 	.byte	0xe
 	.byte	0xa
-	.4byte	0x5a9
+	.4byte	0x5ff
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -72
-	.uleb128 0x2
+	.uleb128 0x1
 	.string	"i"
 	.byte	0x2
 	.byte	0xf
@@ -1888,27 +1914,27 @@ main:
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -20
-	.uleb128 0x1
-	.4byte	.LASF30
+	.uleb128 0x3
+	.4byte	.LASF29
 	.byte	0x10
 	.byte	0x9
 	.4byte	0x4a
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
-	.uleb128 0x1
-	.4byte	.LASF34
+	.uleb128 0x3
+	.4byte	.LASF33
 	.byte	0x11
 	.byte	0x12
 	.4byte	0x51
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -28
-	.uleb128 0xb
+	.uleb128 0x6
 	.8byte	.LBB2
 	.8byte	.LBE2-.LBB2
-	.uleb128 0x1
-	.4byte	.LASF31
+	.uleb128 0x3
+	.4byte	.LASF30
 	.byte	0x20
 	.byte	0xd
 	.4byte	0x4a
@@ -1917,118 +1943,73 @@ main:
 	.sleb128 -32
 	.byte	0
 	.byte	0
-	.uleb128 0x8
-	.4byte	0x19f
-	.4byte	0x5b9
-	.uleb128 0x9
+	.uleb128 0xa
+	.4byte	0x1ce
+	.4byte	0x60f
+	.uleb128 0xb
 	.4byte	0x5f
 	.byte	0x20
 	.byte	0
-	.uleb128 0xa
-	.4byte	.LASF35
+	.uleb128 0xd
+	.4byte	.LASF34
 	.byte	0x5
 	.8byte	.LFB9
 	.8byte	.LFE9-.LFB9
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x5f2
-	.uleb128 0x6
+	.4byte	0x648
+	.uleb128 0x7
 	.string	"c"
 	.byte	0x2
 	.byte	0x5
 	.byte	0x13
-	.4byte	0x19f
+	.4byte	0x1ce
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -33
-	.uleb128 0x2
+	.uleb128 0x1
 	.string	"buf"
 	.byte	0x2
 	.byte	0x7
 	.byte	0xa
-	.4byte	0x5f2
+	.4byte	0x1da
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
 	.byte	0
-	.uleb128 0x8
-	.4byte	0x19f
-	.4byte	0x602
-	.uleb128 0x9
-	.4byte	0x5f
-	.byte	0x1
-	.byte	0
-	.uleb128 0xd
-	.4byte	.LASF36
-	.byte	0xb3
-	.byte	0x13
-	.4byte	0x4a
-	.8byte	.LFB8
-	.8byte	.LFE8-.LFB8
+	.uleb128 0xe
+	.4byte	.LASF35
+	.byte	0x7f
+	.byte	0x15
+	.4byte	0x84
+	.8byte	.LFB6
+	.8byte	.LFE6-.LFB6
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x642
-	.uleb128 0x6
-	.string	"pip"
+	.4byte	0x688
+	.uleb128 0x2
+	.4byte	.LASF17
 	.byte	0x1
-	.byte	0xb3
-	.byte	0x1d
-	.4byte	0x642
+	.byte	0x7f
+	.byte	0x1f
+	.4byte	0x688
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -40
-	.uleb128 0x2
+	.sleb128 -24
+	.uleb128 0x1
 	.string	"ret"
 	.byte	0x1
-	.byte	0xb4
+	.byte	0x80
 	.byte	0x9
 	.4byte	0x4a
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -20
+	.sleb128 -4
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x4a
-	.uleb128 0xd
-	.4byte	.LASF37
-	.byte	0x8f
-	.byte	0x13
-	.4byte	0x4a
-	.8byte	.LFB7
-	.8byte	.LFE7-.LFB7
-	.uleb128 0x1
-	.byte	0x9c
-	.4byte	0x696
-	.uleb128 0x3
-	.4byte	.LASF38
-	.byte	0x1
-	.byte	0x8f
-	.byte	0x1c
-	.4byte	0x4a
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -36
-	.uleb128 0x3
-	.4byte	.LASF39
-	.byte	0x1
-	.byte	0x8f
-	.byte	0x27
-	.4byte	0x4a
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -40
-	.uleb128 0x2
-	.string	"ret"
-	.byte	0x1
-	.byte	0x90
-	.byte	0x9
-	.4byte	0x4a
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -20
-	.byte	0
-	.uleb128 0x17
-	.4byte	.LASF45
+	.uleb128 0x19
+	.4byte	.LASF43
 	.byte	0x1
 	.byte	0x71
 	.byte	0x14
@@ -2036,48 +2017,117 @@ main:
 	.8byte	.LFE5-.LFB5
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x6c4
-	.uleb128 0x3
-	.4byte	.LASF13
+	.4byte	0x6bb
+	.uleb128 0x2
+	.4byte	.LASF17
 	.byte	0x1
 	.byte	0x71
 	.byte	0x1e
 	.4byte	0x58
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -24
+	.sleb128 -8
 	.byte	0
-	.uleb128 0xd
-	.4byte	.LASF40
-	.byte	0x4e
+	.uleb128 0xe
+	.4byte	.LASF36
+	.byte	0x5e
 	.byte	0x13
 	.4byte	0x4a
-	.8byte	.LFB3
-	.8byte	.LFE3-.LFB3
+	.8byte	.LFB4
+	.8byte	.LFE4-.LFB4
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x703
-	.uleb128 0x6
-	.string	"fd"
+	.4byte	0x719
+	.uleb128 0x2
+	.4byte	.LASF37
 	.byte	0x1
-	.byte	0x4e
-	.byte	0x1e
-	.4byte	0x58
+	.byte	0x5e
+	.byte	0x1f
+	.4byte	0x1fa
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -40
+	.sleb128 -24
 	.uleb128 0x2
+	.4byte	.LASF15
+	.byte	0x1
+	.byte	0x5e
+	.byte	0x2c
+	.4byte	0x719
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -32
+	.uleb128 0x2
+	.4byte	.LASF16
+	.byte	0x1
+	.byte	0x5e
+	.byte	0x36
+	.4byte	0x4a
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -36
+	.uleb128 0x1
 	.string	"ret"
 	.byte	0x1
-	.byte	0x4f
+	.byte	0x5f
 	.byte	0x9
 	.4byte	0x4a
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -20
+	.sleb128 -4
 	.byte	0
-	.uleb128 0xd
-	.4byte	.LASF41
+	.uleb128 0xc
+	.4byte	0x1fa
+	.uleb128 0xe
+	.4byte	.LASF38
+	.byte	0x26
+	.byte	0x14
+	.4byte	0x58
+	.8byte	.LFB1
+	.8byte	.LFE1-.LFB1
+	.uleb128 0x1
+	.byte	0x9c
+	.4byte	0x77b
+	.uleb128 0x7
+	.string	"fd"
+	.byte	0x1
+	.byte	0x26
+	.byte	0x1e
+	.4byte	0x58
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -24
+	.uleb128 0x7
+	.string	"buf"
+	.byte	0x1
+	.byte	0x26
+	.byte	0x28
+	.4byte	0x77b
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -32
+	.uleb128 0x2
+	.4byte	.LASF39
+	.byte	0x1
+	.byte	0x26
+	.byte	0x32
+	.4byte	0x58
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -40
+	.uleb128 0x1
+	.string	"ret"
+	.byte	0x1
+	.byte	0x27
+	.byte	0xa
+	.4byte	0x58
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -8
+	.byte	0
+	.uleb128 0x1a
+	.byte	0x8
+	.uleb128 0xe
+	.4byte	.LASF40
 	.byte	0x12
 	.byte	0x14
 	.4byte	0x58
@@ -2085,8 +2135,8 @@ main:
 	.8byte	.LFE0-.LFB0
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x760
-	.uleb128 0x6
+	.4byte	0x7da
+	.uleb128 0x7
 	.string	"fd"
 	.byte	0x1
 	.byte	0x12
@@ -2094,26 +2144,26 @@ main:
 	.4byte	0x58
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -40
-	.uleb128 0x6
+	.sleb128 -24
+	.uleb128 0x7
 	.string	"buf"
 	.byte	0x1
 	.byte	0x12
 	.byte	0x2f
-	.4byte	0x760
+	.4byte	0x7da
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -48
-	.uleb128 0x3
-	.4byte	.LASF42
+	.sleb128 -32
+	.uleb128 0x2
+	.4byte	.LASF39
 	.byte	0x1
 	.byte	0x12
 	.byte	0x39
 	.4byte	0x58
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -56
-	.uleb128 0x2
+	.sleb128 -40
+	.uleb128 0x1
 	.string	"ret"
 	.byte	0x1
 	.byte	0x13
@@ -2121,33 +2171,15 @@ main:
 	.4byte	0x58
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -24
+	.sleb128 -8
 	.byte	0
 	.uleb128 0xc
-	.4byte	0x765
-	.uleb128 0x18
+	.4byte	0x7df
+	.uleb128 0x1b
 	.byte	0
 	.section	.debug_abbrev,"",@progbits
 .Ldebug_abbrev0:
 	.uleb128 0x1
-	.uleb128 0x34
-	.byte	0
-	.uleb128 0x3
-	.uleb128 0xe
-	.uleb128 0x3a
-	.uleb128 0x21
-	.sleb128 2
-	.uleb128 0x3b
-	.uleb128 0xb
-	.uleb128 0x39
-	.uleb128 0xb
-	.uleb128 0x49
-	.uleb128 0x13
-	.uleb128 0x2
-	.uleb128 0x18
-	.byte	0
-	.byte	0
-	.uleb128 0x2
 	.uleb128 0x34
 	.byte	0
 	.uleb128 0x3
@@ -2164,13 +2196,31 @@ main:
 	.uleb128 0x18
 	.byte	0
 	.byte	0
-	.uleb128 0x3
+	.uleb128 0x2
 	.uleb128 0x5
 	.byte	0
 	.uleb128 0x3
 	.uleb128 0xe
 	.uleb128 0x3a
 	.uleb128 0xb
+	.uleb128 0x3b
+	.uleb128 0xb
+	.uleb128 0x39
+	.uleb128 0xb
+	.uleb128 0x49
+	.uleb128 0x13
+	.uleb128 0x2
+	.uleb128 0x18
+	.byte	0
+	.byte	0
+	.uleb128 0x3
+	.uleb128 0x34
+	.byte	0
+	.uleb128 0x3
+	.uleb128 0xe
+	.uleb128 0x3a
+	.uleb128 0x21
+	.sleb128 2
 	.uleb128 0x3b
 	.uleb128 0xb
 	.uleb128 0x39
@@ -2204,6 +2254,15 @@ main:
 	.byte	0
 	.byte	0
 	.uleb128 0x6
+	.uleb128 0xb
+	.byte	0x1
+	.uleb128 0x11
+	.uleb128 0x1
+	.uleb128 0x12
+	.uleb128 0x7
+	.byte	0
+	.byte	0
+	.uleb128 0x7
 	.uleb128 0x5
 	.byte	0
 	.uleb128 0x3
@@ -2220,7 +2279,7 @@ main:
 	.uleb128 0x18
 	.byte	0
 	.byte	0
-	.uleb128 0x7
+	.uleb128 0x8
 	.uleb128 0x34
 	.byte	0
 	.uleb128 0x3
@@ -2229,14 +2288,34 @@ main:
 	.uleb128 0x21
 	.sleb128 2
 	.uleb128 0x3b
-	.uleb128 0xb
+	.uleb128 0x5
 	.uleb128 0x39
 	.uleb128 0xb
 	.uleb128 0x49
 	.uleb128 0x13
+	.uleb128 0x2
+	.uleb128 0x18
 	.byte	0
 	.byte	0
+	.uleb128 0x9
+	.uleb128 0x34
+	.byte	0
+	.uleb128 0x3
 	.uleb128 0x8
+	.uleb128 0x3a
+	.uleb128 0x21
+	.sleb128 2
+	.uleb128 0x3b
+	.uleb128 0x5
+	.uleb128 0x39
+	.uleb128 0xb
+	.uleb128 0x49
+	.uleb128 0x13
+	.uleb128 0x2
+	.uleb128 0x18
+	.byte	0
+	.byte	0
+	.uleb128 0xa
 	.uleb128 0x1
 	.byte	0x1
 	.uleb128 0x49
@@ -2245,7 +2324,7 @@ main:
 	.uleb128 0x13
 	.byte	0
 	.byte	0
-	.uleb128 0x9
+	.uleb128 0xb
 	.uleb128 0x21
 	.byte	0
 	.uleb128 0x49
@@ -2254,7 +2333,17 @@ main:
 	.uleb128 0xb
 	.byte	0
 	.byte	0
-	.uleb128 0xa
+	.uleb128 0xc
+	.uleb128 0xf
+	.byte	0
+	.uleb128 0xb
+	.uleb128 0x21
+	.sleb128 8
+	.uleb128 0x49
+	.uleb128 0x13
+	.byte	0
+	.byte	0
+	.uleb128 0xd
 	.uleb128 0x2e
 	.byte	0x1
 	.uleb128 0x3f
@@ -2283,26 +2372,7 @@ main:
 	.uleb128 0x13
 	.byte	0
 	.byte	0
-	.uleb128 0xb
-	.uleb128 0xb
-	.byte	0x1
-	.uleb128 0x11
-	.uleb128 0x1
-	.uleb128 0x12
-	.uleb128 0x7
-	.byte	0
-	.byte	0
-	.uleb128 0xc
-	.uleb128 0xf
-	.byte	0
-	.uleb128 0xb
-	.uleb128 0x21
-	.sleb128 8
-	.uleb128 0x49
-	.uleb128 0x13
-	.byte	0
-	.byte	0
-	.uleb128 0xd
+	.uleb128 0xe
 	.uleb128 0x2e
 	.byte	0x1
 	.uleb128 0x3
@@ -2330,7 +2400,7 @@ main:
 	.uleb128 0x13
 	.byte	0
 	.byte	0
-	.uleb128 0xe
+	.uleb128 0xf
 	.uleb128 0x16
 	.byte	0
 	.uleb128 0x3
@@ -2342,37 +2412,6 @@ main:
 	.uleb128 0x39
 	.uleb128 0xb
 	.uleb128 0x49
-	.uleb128 0x13
-	.byte	0
-	.byte	0
-	.uleb128 0xf
-	.uleb128 0x2e
-	.byte	0x1
-	.uleb128 0x3f
-	.uleb128 0x19
-	.uleb128 0x3
-	.uleb128 0xe
-	.uleb128 0x3a
-	.uleb128 0x21
-	.sleb128 2
-	.uleb128 0x3b
-	.uleb128 0xb
-	.uleb128 0x39
-	.uleb128 0x21
-	.sleb128 5
-	.uleb128 0x27
-	.uleb128 0x19
-	.uleb128 0x49
-	.uleb128 0x13
-	.uleb128 0x11
-	.uleb128 0x1
-	.uleb128 0x12
-	.uleb128 0x7
-	.uleb128 0x40
-	.uleb128 0x18
-	.uleb128 0x7c
-	.uleb128 0x19
-	.uleb128 0x1
 	.uleb128 0x13
 	.byte	0
 	.byte	0
@@ -2416,30 +2455,100 @@ main:
 	.byte	0
 	.byte	0
 	.uleb128 0x13
-	.uleb128 0xb
+	.uleb128 0x2e
 	.byte	0x1
+	.uleb128 0x3f
+	.uleb128 0x19
+	.uleb128 0x3
+	.uleb128 0xe
+	.uleb128 0x3a
+	.uleb128 0xb
+	.uleb128 0x3b
+	.uleb128 0x5
+	.uleb128 0x39
+	.uleb128 0xb
+	.uleb128 0x27
+	.uleb128 0x19
+	.uleb128 0x49
+	.uleb128 0x13
+	.uleb128 0x11
+	.uleb128 0x1
+	.uleb128 0x12
+	.uleb128 0x7
+	.uleb128 0x40
+	.uleb128 0x18
+	.uleb128 0x7c
+	.uleb128 0x19
 	.uleb128 0x1
 	.uleb128 0x13
 	.byte	0
 	.byte	0
 	.uleb128 0x14
+	.uleb128 0x34
+	.byte	0
+	.uleb128 0x3
+	.uleb128 0x8
+	.uleb128 0x3a
 	.uleb128 0xb
-	.byte	0x1
+	.uleb128 0x3b
+	.uleb128 0x5
+	.uleb128 0x39
+	.uleb128 0xb
+	.uleb128 0x49
+	.uleb128 0x13
 	.byte	0
 	.byte	0
 	.uleb128 0x15
+	.uleb128 0xb
+	.byte	0x1
+	.uleb128 0x55
+	.uleb128 0x17
+	.uleb128 0x1
+	.uleb128 0x13
+	.byte	0
+	.byte	0
+	.uleb128 0x16
 	.uleb128 0x26
 	.byte	0
 	.uleb128 0x49
 	.uleb128 0x13
 	.byte	0
 	.byte	0
-	.uleb128 0x16
+	.uleb128 0x17
+	.uleb128 0x2e
+	.byte	0x1
+	.uleb128 0x3f
+	.uleb128 0x19
+	.uleb128 0x3
+	.uleb128 0xe
+	.uleb128 0x3a
+	.uleb128 0xb
+	.uleb128 0x3b
+	.uleb128 0xb
+	.uleb128 0x39
+	.uleb128 0xb
+	.uleb128 0x27
+	.uleb128 0x19
+	.uleb128 0x49
+	.uleb128 0x13
+	.uleb128 0x11
+	.uleb128 0x1
+	.uleb128 0x12
+	.uleb128 0x7
+	.uleb128 0x40
+	.uleb128 0x18
+	.uleb128 0x7c
+	.uleb128 0x19
+	.uleb128 0x1
+	.uleb128 0x13
+	.byte	0
+	.byte	0
+	.uleb128 0x18
 	.uleb128 0x18
 	.byte	0
 	.byte	0
 	.byte	0
-	.uleb128 0x17
+	.uleb128 0x19
 	.uleb128 0x2e
 	.byte	0x1
 	.uleb128 0x3
@@ -2464,7 +2573,14 @@ main:
 	.uleb128 0x13
 	.byte	0
 	.byte	0
-	.uleb128 0x18
+	.uleb128 0x1a
+	.uleb128 0xf
+	.byte	0
+	.uleb128 0xb
+	.uleb128 0xb
+	.byte	0
+	.byte	0
+	.uleb128 0x1b
 	.uleb128 0x26
 	.byte	0
 	.byte	0
@@ -2482,100 +2598,113 @@ main:
 	.8byte	.Letext0-.Ltext0
 	.8byte	0
 	.8byte	0
+	.section	.debug_rnglists,"",@progbits
+.Ldebug_ranges0:
+	.4byte	.Ldebug_ranges3-.Ldebug_ranges2
+.Ldebug_ranges2:
+	.2byte	0x5
+	.byte	0x8
+	.byte	0
+	.4byte	0
+.LLRL0:
+	.byte	0x4
+	.uleb128 .LBB17-.Ltext0
+	.uleb128 .LBE17-.Ltext0
+	.byte	0x4
+	.uleb128 .LBB18-.Ltext0
+	.uleb128 .LBE18-.Ltext0
+	.byte	0
+.Ldebug_ranges3:
 	.section	.debug_line,"",@progbits
 .Ldebug_line0:
 	.section	.debug_str,"MS",@progbits,1
 .LASF40:
-	.string	"close"
-.LASF41:
 	.string	"write"
-.LASF15:
+.LASF14:
 	.string	"_ret"
 .LASF4:
 	.string	"short int"
-.LASF35:
-	.string	"putchar"
-.LASF37:
-	.string	"dup2"
-.LASF20:
-	.string	"main"
 .LASF34:
+	.string	"putchar"
+.LASF19:
+	.string	"main"
+.LASF33:
 	.string	"uval"
 .LASF10:
 	.string	"va_list"
-.LASF14:
+.LASF13:
 	.string	"_num"
-.LASF27:
+.LASF26:
 	.string	"printlonglong"
-.LASF25:
+.LASF41:
+	.string	"GNU C17 14.2.0 -mcmodel=medany -momit-leaf-frame-pointer -mtune=rocket -mabi=lp64d -misa-spec=20191213 -march=rv64imafdc_zicsr -g -O0 -fno-omit-frame-pointer"
+.LASF35:
+	.string	"wait"
+.LASF38:
+	.string	"read"
+.LASF24:
 	.string	"long long int"
-.LASF33:
+.LASF32:
 	.string	"printint"
 .LASF7:
 	.string	"long int"
-.LASF21:
+.LASF20:
 	.string	"printf"
-.LASF30:
+.LASF29:
 	.string	"negative"
-.LASF12:
-	.string	"pid1"
-.LASF17:
-	.string	"pid2"
-.LASF45:
+.LASF43:
 	.string	"exit"
-.LASF38:
-	.string	"oldfd"
 .LASF3:
 	.string	"unsigned char"
-.LASF18:
+.LASF16:
 	.string	"argc"
 .LASF2:
 	.string	"signed char"
-.LASF24:
+.LASF23:
 	.string	"long long unsigned int"
 .LASF6:
 	.string	"unsigned int"
-.LASF26:
+.LASF25:
 	.string	"puts"
-.LASF16:
+.LASF15:
 	.string	"argv"
 .LASF5:
 	.string	"short unsigned int"
-.LASF13:
+.LASF17:
 	.string	"status"
-.LASF32:
+.LASF31:
 	.string	"printlong"
-.LASF19:
+.LASF18:
 	.string	"char"
-.LASF39:
-	.string	"newfd"
-.LASF23:
+.LASF22:
 	.string	"val_"
 .LASF8:
 	.string	"long unsigned int"
-.LASF44:
+.LASF42:
 	.string	"__builtin_va_list"
-.LASF29:
+.LASF28:
 	.string	"sign"
+.LASF36:
+	.string	"execv"
 .LASF11:
 	.string	"pid_t"
-.LASF42:
+.LASF39:
 	.string	"size"
-.LASF36:
-	.string	"pipe"
-.LASF22:
+.LASF37:
+	.string	"path"
+.LASF21:
 	.string	"lcount"
 .LASF9:
 	.string	"__gnuc_va_list"
-.LASF31:
+.LASF30:
 	.string	"digit"
-.LASF43:
-	.string	"GNU C17 14.2.0 -mcmodel=medany -mtune=rocket -mabi=lp64d -misa-spec=20191213 -march=rv64imafdc_zicsr -g -O0"
-.LASF28:
+.LASF27:
 	.string	"base"
+.LASF12:
+	.string	"buf2"
 	.section	.debug_line_str,"MS",@progbits,1
 .LASF1:
-	.string	"/Users/ab25cq/minux9-dev"
+	.string	"/Users/ab25cq/minux9"
 .LASF0:
 	.string	"child.c"
 	.ident	"GCC: (g04696df09) 14.2.0"

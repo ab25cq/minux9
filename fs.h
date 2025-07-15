@@ -129,5 +129,7 @@ struct file* fs_init();
 struct file* get_current_file_table();
 struct file* fs_dup_table(struct file* orig);
 
+#define MAX_OPEN_FILES 16
+
 #endif // FS_H
 
