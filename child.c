@@ -260,11 +260,11 @@ puts("END");
 }
 */
 
-/*
 int main(void) {
     int fd[2];
     pid_t pid1, pid2;
     char buf[4];
+    int status;
 
     pipe(fd);
     
@@ -278,27 +278,21 @@ int main(void) {
         execv("/hello.elf", (void*)0, 0);
         exit(6);
     }
-    int status = 0;
+    status = 0;
     wait(&status);
-read(fd[0], buf, 2);
-buf[2] = '0';
-write(1, buf, 2);
-while(1);
 
 
-while(1);
     pid2 = fork();
     if (pid2 == 0) {
-        char* argv[16];
-        int argc;
-printf("CHILD2 fd[0] %d fd[1] %d\n", fd[0], fd[1]);
-        
-puts("close(fd[1])");
-        close(fd[1]);               // 書き側は不要
-puts("dup2(fd[0], 0)");
+putchar('Y');
+putchar(pid2 + '0');
+putchar('Y');
+putchar('X');
+putchar((char)fd[0] + '0');
+putchar('X');
+//        close(fd[1]);               // 書き側は不要
         dup2(fd[0], 0);
-puts("close(fd[0])");
-        close(fd[0]);
+//        close(fd[0]);
 
 //        execv("/hello2.elf", argv, argc);
         exit(6);
@@ -306,6 +300,12 @@ puts("close(fd[0])");
     
     status = 0;
     wait(&status);
+putchar('Y');
+putchar(pid2 + '0');
+putchar('Y');
+putchar('X');
+putchar((char)fd[0] + '0');
+putchar('X');
 
     // 親プロセスはパイプを閉じて子の終了を待つ
 //    close(fd[0]);
@@ -315,8 +315,8 @@ puts("END");
 
     return 0;
 }
-*/
 
+/*
 int main(void) {
     char buf[BUF_SIZE];
     long n;
@@ -374,4 +374,5 @@ int main(void) {
     
     return 0;
 }
+*/
 

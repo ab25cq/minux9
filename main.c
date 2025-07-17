@@ -880,6 +880,8 @@ void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
         foreach(it, parent->mapping_values) {
             var pa, size = parent->mapping_values[it];
             
+printf("FORK pid %d %p %p\n", gProc.length(), it,pa);
+printf("pa %d\n", *(char*)pa);
             if (copyout(result->pagetable, (uint64_t)it, pa, size) < 0) {
                 panic("copyout");
             }
@@ -1406,7 +1408,7 @@ int Sys_pipe(void)
     char* kernel_buf;
     uint64_t user_va = arg0;
     
-    int fd[2];
+    int* fd = common_kalloc(sizeof(int)*2);
     
     pipe_open(&fd[0], &fd[1]);
     
