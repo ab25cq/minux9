@@ -282,11 +282,46 @@ puts("AAA");
     status = 0;
     wait(&status);
 
-    read(fd[0], buf, 3);
-    write(1, buf, 3);
-
     pid2 = fork();
     if (pid2 == 0) {
+/*
+    long ret;
+    asm volatile(
+        "mv   a0, %2    \n"  // fd → a0
+        "mv   a1, %3    \n"  // buf → a1
+        "li   a2, %4    \n"  // size → a2
+        "li   a7, %5    \n"  // SYS_read → a7
+        "ecall          \n"  // システムコール発行
+        "mv   %0, a0    \n"  // 戻り値 a0 → ret
+        : "=r"(ret)         // %0 = 出力オペランド
+        : "0"(ret),         // %1 = 同じレジスタ（ダミー）
+          "r"(fd[0]),          // %2 = fd
+          "r"(buf),         // %3 = buf
+          "i"(3),        // %4 = size
+          "i"(SYS_read)     // %5 = システムコール番号
+        : "a0", "a1", "a2", "a7", "memory"
+    );
+*/
+    read(fd[0], buf, 3);
+//    read(fd[0], buf, 3);
+/*
+    long ret;
+    asm volatile(
+        "li   a0, %1    \n"  // fd → a0
+        "mv   a1, %2    \n"  // buf → a1
+        "li   a2, %3    \n"  // size → a2
+        "li   a7, %4    \n"  // SYS_write → a7
+        "ecall          \n"  // システムコール発行
+        "mv   %0, a0    \n"  // 戻り値 a0 → ret
+        : "=r"(ret)         // 出力オペランド
+        : "i"(1),          // %1
+          "r"(buf),         // %2
+          "i"(3),        // %3
+          "i"(SYS_write)    // %4 = システムコール番号
+        : "a0","a1","a2","a7","memory"
+    );
+*/
+    write(1, buf, 3);
 //        close(fd[1]);               // 書き側は不要
 //        dup2(fd[0], 0);
 //        close(fd[0]);

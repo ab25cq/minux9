@@ -328,7 +328,7 @@ LOAD main.o
  .rodata        0x0000000080011e40      0x138 fs.o
  .rodata        0x0000000080011f78      0x89b main.o
 
-.data           0x0000000080012818     0x2128
+.data           0x0000000080012818     0x2040
  *(.data*)
  .data          0x0000000080012818        0x0 entry.o
  .data          0x0000000080012818        0x0 start.o
@@ -337,17 +337,17 @@ LOAD main.o
  .data          0x0000000080012818        0x0 fs.o
  .data          0x0000000080012818        0x0 plic.o
  .data          0x0000000080012818        0x0 trap_c.o
- .data          0x0000000080012818     0x2128 main.o
+ .data          0x0000000080012818     0x2040 main.o
                 0x0000000080012818                hello_elf
-                0x0000000080012ea0                hello2_elf
-                0x0000000080013528                child_elf
+                0x0000000080012e68                hello2_elf
+                0x00000000800134b8                child_elf
 
-.sdata          0x0000000080014940       0x18
+.sdata          0x0000000080014858       0x18
  *(.sdata*)
- .sdata         0x0000000080014940       0x18 main.o
-                0x0000000080014940                hello_elf_len
-                0x0000000080014944                hello2_elf_len
-                0x0000000080014948                child_elf_len
+ .sdata         0x0000000080014858       0x18 main.o
+                0x0000000080014858                hello_elf_len
+                0x000000008001485c                hello2_elf_len
+                0x0000000080014860                child_elf_len
 
 .bss            0x0000000080014a00     0x8ffc
  *(.bss)

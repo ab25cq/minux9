@@ -14,6 +14,7 @@ typedef int pid_t;
 #define SYS_dup2 72
 #define SYS_pipe 73
 
+/*
 // user-space 側
 static inline long write(long fd, const void *buf, long size) {
     long ret;
@@ -33,7 +34,27 @@ static inline long write(long fd, const void *buf, long size) {
     );
     return ret;
 }
+*/
 
+#define write(fd, buf, len) ({                                       \
+    long _ret;                                                       \
+    /* 引数を対応レジスタにセット */                                \
+    register long _a0 asm("a0") = (long)(fd);                        \
+    register long _a1 asm("a1") = (long)(buf);                       \
+    register long _a2 asm("a2") = (long)(len);                       \
+    register long _a7 asm("a7") = SYS_write;                         \
+    /* ecall して戻り値は a0 に */                                  \
+    asm volatile("ecall"                                            \
+                 : "+r"(_a0)                                        \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                      \
+                 : "memory");                                        \
+    /* statement-expression の結果として返す */                      \
+    _ret = _a0;                                                     \
+    _ret;                                                           \
+})
+
+
+/*
 // user-space 側
 static inline long read(long fd, void *buf, long size) {
     long ret;
@@ -54,6 +75,25 @@ static inline long read(long fd, void *buf, long size) {
     );
     return ret;
 }
+*/
+
+#define read(fd, buf, len) ({                                      \
+    long _ret;                                                     \
+    /* 引数を対応するレジスタにセット */                          \
+    register long _a0 asm("a0") = (long)(fd);                      \
+    register long _a1 asm("a1") = (long)(buf);                     \
+    register long _a2 asm("a2") = (long)(len);                     \
+    register long _a7 asm("a7") = SYS_read;                        \
+    /* ecall 実行。戻り値は a0 に返ってくる */                     \
+    asm volatile("ecall"                                           \
+                 : "+r"(_a0)                                       \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                     \
+                 : "memory");                                       \
+    /* a0 をローカル変数に退避して statement‐expression の値に */   \
+    _ret = _a0;                                                    \
+    _ret;                                                          \
+})
+
 
 // user-space 側
 static inline int open(const char *path, int oflag) {

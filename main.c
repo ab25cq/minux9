@@ -1088,7 +1088,6 @@ void timer_reset() {
 }
 
 void timer_handler() {
-//puts("TIMER");
     disable_timer_interrupts();
     struct proc *p = gProc[gActiveProc];
 
@@ -1164,6 +1163,7 @@ int Sys_write()
     memset(kernel_buf, 0, 256);
     
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+
     int ret = copyin(p->pagetable, kernel_buf, user_va, len);
     
     if(ret < 0) {
@@ -1421,9 +1421,9 @@ int Sys_pipe(void)
     return 0;
 }
 
+
 int Sys_read()
 {
-//puts("Sys_read");
     context_t* trapframe = (context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
@@ -1463,7 +1463,7 @@ int Sys_read()
     if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
         panic("read: copyout failed");
     }
-    
+
     return ret;
 }
 
