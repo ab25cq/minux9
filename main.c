@@ -880,8 +880,6 @@ void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
         foreach(it, parent->mapping_values) {
             var pa, size = parent->mapping_values[it];
             
-printf("FORK pid %d %p %p\n", gProc.length(), it,pa);
-printf("pa %d\n", *(char*)pa);
             if (copyout(result->pagetable, (uint64_t)it, pa, size) < 0) {
                 panic("copyout");
             }
@@ -1175,7 +1173,7 @@ int Sys_write()
     if(is_pipe(fd)) {
         pipewrite(fd, kernel_buf, len);
     }
-    else if(1) { //is_stdout(fd)) {
+    else if(is_stdout(fd)) {
         for(int i=0; i<len; i++) {
             putchar(kernel_buf[i]);
         }
@@ -1386,7 +1384,6 @@ int Sys_dup2(void)
     int oldfd = arg0;
     int newfd = arg1;
     
-printf("gActiveProc %d\n", gActiveProc);
     fs_dup2(oldfd, newfd);
     
     return 0;
@@ -1445,7 +1442,7 @@ int Sys_read()
     char kernel_buf[256];
     int ret;
     
-    if(fd == 0) { //is_stdin(fd)) {
+    if(is_stdin(fd)) {
         ret = uart_readn(kernel_buf, n);
     }
     else if(is_pipe(fd)) {

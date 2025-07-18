@@ -267,31 +267,28 @@ int main(void) {
     int status;
 
     pipe(fd);
+    write(fd[1], "ABC", 3);
+puts("AAA");
     
     pid1 = fork();
     if (pid1 == 0) {
 //        close(fd[0]);
-        dup2(fd[1], 1);
+//        dup2(fd[1], 1);
 //        close(fd[1]);
-//        write(1, "ABC", 3);
 
-        execv("/hello.elf", (void*)0, 0);
+//        execv("/hello.elf", (void*)0, 0);
         exit(6);
     }
     status = 0;
     wait(&status);
 
+    read(fd[0], buf, 3);
+    write(1, buf, 3);
 
     pid2 = fork();
     if (pid2 == 0) {
-putchar('Y');
-putchar(pid2 + '0');
-putchar('Y');
-putchar('X');
-putchar((char)fd[0] + '0');
-putchar('X');
 //        close(fd[1]);               // 書き側は不要
-        dup2(fd[0], 0);
+//        dup2(fd[0], 0);
 //        close(fd[0]);
 
 //        execv("/hello2.elf", argv, argc);
@@ -300,12 +297,6 @@ putchar('X');
     
     status = 0;
     wait(&status);
-putchar('Y');
-putchar(pid2 + '0');
-putchar('Y');
-putchar('X');
-putchar((char)fd[0] + '0');
-putchar('X');
 
     // 親プロセスはパイプを閉じて子の終了を待つ
 //    close(fd[0]);

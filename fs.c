@@ -490,10 +490,12 @@ int piperead(int fd, char *addr, int n)
         timer_handler();
     }
 */
+/*
     // 書き側クローズかつバッファ空 → EOF
     if (p->nread == p->nwrite && !p->write_open) {
         return 0;
     }
+*/
     // バッファからコピー
     for (i = 0; i < n && p->nread < p->nwrite; i++) {
         addr[i] = p->data[p->nread % PIPE_SIZE];
@@ -527,10 +529,12 @@ int pipewrite(int fd, char *addr, int n)
           timer_handler();
       }
 */
+/*
       // 読み側クローズ → SIGPIPE 相当
       if (!p->read_open) {
           return -1;
       }
+*/
       p->data[p->nwrite % PIPE_SIZE] = addr[i];
       p->nwrite++;
       
@@ -621,9 +625,7 @@ void fs_dup2(int oldfd, int newfd) {
     struct file* file_table = get_current_file_table();
     
 printf("dup2 newfd %d oldfd %d\n", newfd, oldfd);
-/*
     file_table[newfd] = file_table[oldfd];
     file_table[newfd].used++;
-*/
 }
 
