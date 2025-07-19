@@ -242,7 +242,7 @@ while(1);
         dup2(fd[0], 0);
 //        close(fd[0]);
 
-        execv("/hello2.elf", (void*)0, 0);
+        execv("/hello2.elf", (void*)0);
         exit(6);
     }
     
@@ -275,7 +275,7 @@ int main(void) {
 //        close(fd[1]);
 //        write(1, "ABC", 3);
 
-        execv("/hello.elf", (void*)0, 0);
+        execv("/hello.elf", (void*)0);
         exit(6);
     }
     status = 0;
@@ -289,7 +289,7 @@ int main(void) {
 //        close(fd[1]);               // 書き側は不要
 //        close(fd[0]);
 
-        execv("/hello2.elf", (void*)0, 0);
+        execv("/hello2.elf", (void*)0);
         exit(6);
     }
     
@@ -351,7 +351,7 @@ int main(void) {
         if (pid == 0) {
             char* argv[16];
             int argc = 0;
-            int ret = execv(buf, argv, argc);
+            int ret = execv(buf, argc);
             exit(6);
         }
         else {

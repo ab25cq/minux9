@@ -14,27 +14,6 @@ typedef int pid_t;
 #define SYS_dup2 72
 #define SYS_pipe 73
 
-/*
-// user-space 側
-static inline long write(long fd, const void *buf, long size) {
-    long ret;
-    asm volatile(
-        "mv   a0, %1    \n"  // fd → a0
-        "mv   a1, %2    \n"  // buf → a1
-        "mv   a2, %3    \n"  // size → a2
-        "li   a7, %4    \n"  // SYS_write → a7
-        "ecall          \n"  // システムコール発行
-        "mv   %0, a0    \n"  // 戻り値 a0 → ret
-        : "=r"(ret)         // 出力オペランド
-        : "r"(fd),          // %1
-          "r"(buf),         // %2
-          "r"(size),        // %3
-          "i"(SYS_write)    // %4 = システムコール番号
-        : "a0","a1","a2","a7","memory"
-    );
-    return ret;
-}
-*/
 
 #define write(fd, buf, len) ({                                       \
     long _ret;                                                       \
@@ -54,28 +33,6 @@ static inline long write(long fd, const void *buf, long size) {
 })
 
 
-/*
-// user-space 側
-static inline long read(long fd, void *buf, long size) {
-    long ret;
-    asm volatile(
-        "mv   a0, %2    \n"  // fd → a0
-        "mv   a1, %3    \n"  // buf → a1
-        "mv   a2, %4    \n"  // size → a2
-        "li   a7, %5    \n"  // SYS_read → a7
-        "ecall          \n"  // システムコール発行
-        "mv   %0, a0    \n"  // 戻り値 a0 → ret
-        : "=r"(ret)         // %0 = 出力オペランド
-        : "0"(ret),         // %1 = 同じレジスタ（ダミー）
-          "r"(fd),          // %2 = fd
-          "r"(buf),         // %3 = buf
-          "r"(size),        // %4 = size
-          "i"(SYS_read)     // %5 = システムコール番号
-        : "a0", "a1", "a2", "a7", "memory"
-    );
-    return ret;
-}
-*/
 
 #define read(fd, buf, len) ({                                      \
     long _ret;                                                     \
@@ -94,61 +51,42 @@ static inline long read(long fd, void *buf, long size) {
     _ret;                                                          \
 })
 
+#define open(path, flags, mode) ({                              \
+    register long _a0 asm("a0") = (long)(path);                 \
+    register long _a1 asm("a1") = (long)(flags);                \
+    register long _a2 asm("a2") = (long)(mode);                 \
+    register long _a7 asm("a7") = SYS_open;                     \
+    asm volatile("ecall"                                        \
+                 : "+r"(_a0)                                    \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                  \
+                 : "memory");                                    \
+    /* 戻り値は a0 に上がってくる */                             \
+    (int)_a0;                                                   \
+})
 
-// user-space 側
-static inline int open(const char *path, int oflag) {
-    int ret;
-    asm volatile(
-        "mv  a0, %2      \n"  // path → a0
-        "mv  a1, %3      \n"  // oflag → a1
-        "li  a7, %4      \n"  // SYS_open → a7
-        "ecall           \n"  // syscall
-        "mv  %0, a0      \n"  // 戻り値 a0 → ret
-        : "=r"(ret)           // %0 = 出力 (ret)
-        : "0"(ret),           // %1 = 同じレジスタに一時退避（不要ですが慣例的に入れます）
-          "r"(path),          // %2 = path
-          "r"(oflag),         // %3 = oflag
-          "i"(SYS_open)       // %4 = syscall 番号
-        : "a0", "a1", "a7", "memory"
-    );
-    return ret;
-}
+#define open(path, flags) open(path, flags, 0)
 
-// user-space 側
-static inline int close(long fd) {
-    int ret;
-    asm volatile(
-        "mv   a0, %1    \n"  // fd → a0
-        "li   a7, %2    \n"  // SYS_close → a7
-        "ecall          \n"  // システムコール発行
-        "mv   %0, a0    \n"  // 戻り値 a0 → ret
-        : "=r"(ret)          // 出力オペランド
-        : "r"(fd),           // %1
-          "i"(SYS_close)     // %2 = システムコール番号
-        : "a0","a7","memory"
-    );
-    return ret;
-}
+#define close(fd) ({                                              \
+    register long _a0 asm("a0") = (long)(fd);                     \
+    register long _a7 asm("a7") = SYS_close;                      \
+    asm volatile("ecall"                                          \
+                 : "+r"(_a0)                                     \
+                 : "r"(_a7)                                      \
+                 : "memory");                                    \
+    (int)_a0;                                                     \
+})
+
    
-// user-space 側
-static inline int execv(char *path, char **argv, int argc) {
-    int ret;
-    asm volatile(
-        "mv   a0, %1    \n"  // path → a0
-        "mv   a1, %2    \n"  // argv → a1
-        "mv   a2, %3    \n"  // argc → a2
-        "li   a7, %4    \n"  // SYS_execv → a7
-        "ecall          \n"  // システムコール発行
-        "mv   %0, a0    \n"  // 戻り値 a0 → ret
-        : "=r"(ret)          // 出力オペランド
-        : "r"(path),         // %1
-          "r"(argv),         // %2
-          "r"(argc),         // %3
-          "i"(SYS_execv)     // %4
-        : "a0","a1","a2","a7","memory"
-    );
-    return ret;
-}
+#define execv(path, argv) ({                                    \
+    register long _a0 asm("a0") = (long)(path);                 \
+    register long _a1 asm("a1") = (long)(argv);                 \
+    register long _a7 asm("a7") = SYS_execv;                    \
+    asm volatile("ecall"                                        \
+                 : "+r"(_a0)                                   \
+                 : "r"(_a1), "r"(_a7)                          \
+                 : "memory");                                  \
+    (int)_a0;                                                   \
+})
 
 static inline void exit(long status) {
     asm volatile(
@@ -164,76 +102,38 @@ static inline void exit(long status) {
     __builtin_unreachable();  // exit 後は戻らないのでコンパイラに通知
 }
 
-static inline pid_t wait(int* status) {
-    int ret;
-    asm volatile(
-        "mv   a0, %1    \n"
-        "li   a7, %2    \n"
-        "ecall          \n"
-        "mv   %0, a0    \n"
-        : "=r"(ret)         // 出力オペランド
-        : "r"(status),      // %1
-          "i"(SYS_wait)     // %2 = システムコール番号
-        : "a0","a7","memory"
-    );
-    return ret;
-}
-
-// user-space 側
-static inline int dup2(int oldfd, int newfd) { 
-    int ret;
-    asm volatile(
-        "mv   a0, %1    \n"  // fd → a0
-        "mv   a1, %2    \n"  // buf → a1
-        "li   a7, %3    \n"  // SYS_write → a7
-        "ecall          \n"  // システムコール発行
-        "mv   %0, a0    \n"  // 戻り値 a0 → ret
-        : "=r"(ret)         // 出力オペランド
-        : "r"(oldfd),          // %1
-          "r"(newfd),         // %2
-          "i"(SYS_dup2)    // %4 = システムコール番号
-        : "a0","a1","a7","memory"
-    );
-    return ret;
-}
-
-/*
-static inline long my_dup2(long oldfd, long newfd) {
-    register long _a0 asm("a0") = oldfd;
-    register long _a1 asm("a1") = newfd;
-    register long _a7 asm("a7") = SYS_dup2;
-    asm volatile(
-        "ecall"
-        : "+r"(_a0)
-        : "r"(_a1),
-          "r"(_a7)
-        : "memory"
-    );
-    return _a0;
-}
-*/
+#define wait(status_ptr) ({                                    \
+    register long _a0 asm("a0") = (long)(status_ptr);          \
+    register long _a7 asm("a7") = SYS_wait;                    \
+    asm volatile("ecall"                                       \
+                 : "+r"(_a0)                                   \
+                 : "r"(_a7)                                    \
+                 : "memory");                                 \
+    (int)_a0;                                                   \
+})
 
 
+#define dup2(oldfd,newfd) ({                                   \
+    register long _a0 asm("a0") = (long)(oldfd);                \
+    register long _a1 asm("a1") = (long)(newfd);                \
+    register long _a7 asm("a7") = SYS_dup2;                     \
+    asm volatile("ecall"                                       \
+                 : "+r"(_a0)                                   \
+                 : "r"(_a1), "r"(_a7)                          \
+                 : "memory");                                 \
+    (int)_a0;                                                   \
+})
 
-// user-space 側
-static inline int pipe(int* pip) {
-    int ret;
-    asm volatile(
-        "mv   a0, %1    \n"  // fd → a0
-        "li   a7, %2    \n"  // SYS_write → a7
-        "ecall          \n"  // システムコール発行
-        "mv   %0, a0    \n"  // 戻り値 a0 → ret
-        : "=r"(ret)         // 出力オペランド
-        : "r"(pip),          // %1
-          "i"(SYS_pipe)    // %4 = システムコール番号
-        : "a0","a7","memory"
-    );
-    return ret;
-}
 
-//extern pid_t fork();
-extern void dump_s0();
-extern void dump_s0_minus40();
+#define pipe(fds) ({                                           \
+    register long _a0 asm("a0") = (long)(fds);                 \
+    register long _a7 asm("a7") = SYS_pipe;                    \
+    asm volatile("ecall"                                        \
+                 : "+r"(_a0)                                   \
+                 : "r"(_a7)                                    \
+                 : "memory");                                  \
+    (int)_a0;                                                   \
+})
 
 // 戻り値を取るバージョン
 #define fork()                                        \

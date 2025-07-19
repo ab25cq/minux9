@@ -624,7 +624,6 @@ struct file* fs_dup_table(struct file* orig)
 void fs_dup2(int oldfd, int newfd) {
     struct file* file_table = get_current_file_table();
     
-printf("dup2 newfd %d oldfd %d\n", newfd, oldfd);
     file_table[newfd] = file_table[oldfd];
     file_table[newfd].used++;
 }
