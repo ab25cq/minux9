@@ -328,7 +328,7 @@ LOAD main.o
  .rodata        0x0000000080011e40      0x138 fs.o
  .rodata        0x0000000080011f78      0x89b main.o
 
-.data           0x0000000080012818     0x2040
+.data           0x0000000080012818     0x2060
  *(.data*)
  .data          0x0000000080012818        0x0 entry.o
  .data          0x0000000080012818        0x0 start.o
@@ -337,17 +337,17 @@ LOAD main.o
  .data          0x0000000080012818        0x0 fs.o
  .data          0x0000000080012818        0x0 plic.o
  .data          0x0000000080012818        0x0 trap_c.o
- .data          0x0000000080012818     0x2040 main.o
+ .data          0x0000000080012818     0x2060 main.o
                 0x0000000080012818                hello_elf
                 0x0000000080012e68                hello2_elf
-                0x00000000800134b8                child_elf
+                0x0000000080013460                child_elf
 
-.sdata          0x0000000080014858       0x18
+.sdata          0x0000000080014878       0x18
  *(.sdata*)
- .sdata         0x0000000080014858       0x18 main.o
-                0x0000000080014858                hello_elf_len
-                0x000000008001485c                hello2_elf_len
-                0x0000000080014860                child_elf_len
+ .sdata         0x0000000080014878       0x18 main.o
+                0x0000000080014878                hello_elf_len
+                0x000000008001487c                hello2_elf_len
+                0x0000000080014880                child_elf_len
 
 .bss            0x0000000080014a00     0x8ffc
  *(.bss)
@@ -466,7 +466,7 @@ LOAD main.o
  .note.GNU-stack
                 0x0000000000000000        0x0 main.o
 
-.debug_info     0x0000000000000000     0xc099
+.debug_info     0x0000000000000000     0xc0aa
  *(.debug_info)
  .debug_info    0x0000000000000000       0x2e entry.o
  .debug_info    0x000000000000002e      0x3b1 start.o
@@ -474,7 +474,7 @@ LOAD main.o
  .debug_info    0x000000000000040d     0x11a9 fs.o
  .debug_info    0x00000000000015b6      0x240 plic.o
  .debug_info    0x00000000000017f6      0x101 trap_c.o
- .debug_info    0x00000000000018f7     0xa7a2 main.o
+ .debug_info    0x00000000000018f7     0xa7b3 main.o
 
 .debug_abbrev   0x0000000000000000      0xb44
  *(.debug_abbrev)
