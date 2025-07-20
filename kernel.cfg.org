@@ -1,0 +1,8 @@
+{
+    version: 1,
+    machine: "riscv64",
+    memory_size: 256,
+    kernel: "kernel.elf",
+    cmdline: "loglevel=3 swiotlb=1 console=hvc0 root=root rootfstype=9p rootflags=trans=virtio ro TZ=${TZ}",
+    drive0: { file: "fs.img" },
+}

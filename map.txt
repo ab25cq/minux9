@@ -503,31 +503,31 @@ LOAD main.o
  .debug_line    0x0000000000001c17       0xa5 trap_c.o
  .debug_line    0x0000000000001cbc     0xcec0 main.o
 
-.debug_str      0x0000000000000000     0x5ce0
+.debug_str      0x0000000000000000     0x5cdc
  *(.debug_str)
- .debug_str     0x0000000000000000     0x5ce0 entry.o
-                                         0x2f (size before relaxing)
- .debug_str     0x0000000000005ce0      0x1af start.o
- .debug_str     0x0000000000005ce0       0x2e trap.o
- .debug_str     0x0000000000005ce0      0x5c2 fs.o
- .debug_str     0x0000000000005ce0      0x177 plic.o
- .debug_str     0x0000000000005ce0      0x14b trap_c.o
- .debug_str     0x0000000000005ce0     0x59e1 main.o
+ .debug_str     0x0000000000000000     0x5cdc entry.o
+                                         0x2b (size before relaxing)
+ .debug_str     0x0000000000005cdc      0x1af start.o
+ .debug_str     0x0000000000005cdc       0x2a trap.o
+ .debug_str     0x0000000000005cdc      0x5c2 fs.o
+ .debug_str     0x0000000000005cdc      0x177 plic.o
+ .debug_str     0x0000000000005cdc      0x14b trap_c.o
+ .debug_str     0x0000000000005cdc     0x59e1 main.o
 
 .debug_line_str
-                0x0000000000000000       0xb1
+                0x0000000000000000       0xad
  *(.debug_line_str)
  .debug_line_str
-                0x0000000000000000       0xb1 start.o
-                                         0xb0 (size before relaxing)
+                0x0000000000000000       0xad start.o
+                                         0xa8 (size before relaxing)
  .debug_line_str
-                0x00000000000000b1       0xb5 fs.o
+                0x00000000000000ad       0xad fs.o
  .debug_line_str
-                0x00000000000000b1       0xad plic.o
+                0x00000000000000ad       0xa5 plic.o
  .debug_line_str
-                0x00000000000000b1       0xad trap_c.o
+                0x00000000000000ad       0xa5 trap_c.o
  .debug_line_str
-                0x00000000000000b1       0x4d main.o
+                0x00000000000000ad       0x45 main.o
 OUTPUT(kernel.elf elf64-littleriscv)
 
 .debug_aranges  0x0000000000000000      0x150
