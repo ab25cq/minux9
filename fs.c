@@ -597,8 +597,6 @@ ssize_t fs_read(int fd, void *buf, size_t count) {
 int fs_close(long fd) {
     struct file* file_table = get_current_file_table();
     
-printf("fs_close %ld\n", fd);
-    
     long idx = fd;
     if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
         return -1;

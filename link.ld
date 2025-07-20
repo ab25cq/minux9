@@ -43,6 +43,10 @@ SECTIONS
   .common : { *(.common) }
   . = . + 4096 * 8;
   . = ALIGN(4096);
+  PROVIDE(COMMON2 = .);
+  .common2 : { *(.common2) }
+  . = . + 4096 * 8;
+  . = ALIGN(4096);
 
   /* End of uninitalized data segement */
   PROVIDE(_end = .);

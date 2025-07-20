@@ -556,12 +556,13 @@ extern char TRAPFRAME[];
 extern char TRAPFRAME2[];
 extern char TRAMPOLINE[];
 extern char COMMON[];
+extern char COMMON2[];
 uint64_t kernel_sp __attribute__((section(".common")));
 uint64_t user_sp __attribute__((section(".common")));
 
 void *common_kalloc(size_t size) {
     static size_t offset = 0;
-    const uintptr_t base = (uintptr_t)COMMON;
+    const uintptr_t base = (uintptr_t)COMMON2;
     const size_t align = 8;
 
     // offset を align の倍数に丸め
@@ -785,6 +786,9 @@ void setting_user_pagetable(proc* proc, pagetable_t pagetable)
     mappages(pagetable, (uint64_t)TRAPFRAME2, PGSIZE, (uint64_t)TRAPFRAME2, PTE_R | PTE_W | PTE_V | PTE_U | PTE_X);
     for(int i=0; i<8; i++) {
         mappages(pagetable, (uint64_t)COMMON + i*PGSIZE, PGSIZE, (uint64_t)COMMON + i*PGSIZE, PTE_R | PTE_W | PTE_V | PTE_X | PTE_U);
+    }
+    for(int i=0; i<8; i++) {
+        mappages(pagetable, (uint64_t)COMMON2 + i*PGSIZE, PGSIZE, (uint64_t)COMMON2 + i*PGSIZE, PTE_R | PTE_W | PTE_V | PTE_X | PTE_U);
     }
     
     // UART
@@ -1181,7 +1185,8 @@ int Sys_write()
     else {
         panic("write");
     }
-    
+
+struct file* f = get_current_file_table();
     return 0;
 }
 
@@ -1441,7 +1446,7 @@ int Sys_read()
     
     char kernel_buf[256];
     int ret;
-    
+
     if(is_stdin(fd)) {
         ret = uart_readn(kernel_buf, n);
     }
@@ -2427,7 +2432,13 @@ int main()
     
     gCPU.proc = p;
     
-    kernel_sp = read_s_sp();
+    //kernel_sp = read_s_sp();
+    asm volatile(
+        "mv %0, sp\n"     // sp レジスタの値を出力オペランド %0 に
+        : "=r"(kernel_sp)    // %0 は r• レジスタに出力
+        :                 // 入力オペランドなし
+        :                 // 破壊するレジスタなし
+    );
     enter_user(entry, usersp, usersatp, TIMER_INTERVAL);
     
     while (1); 

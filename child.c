@@ -198,7 +198,7 @@ int printf(const char* fmt, ...) {
     return 0;
 }
 
-#define BUF_SIZE 128
+#define BUF_SIZE 64
 
 void puts(const char *s) {
     while (*s) {
@@ -260,6 +260,7 @@ puts("END");
 }
 */
 
+/*
 int main(void) {
     int fd[2];
     pid_t pid1, pid2;
@@ -304,22 +305,26 @@ puts("END");
 
     return 0;
 }
+*/
 
-/*
 int main(void) {
     char buf[BUF_SIZE];
     long n;
+    char buf2[2];
+    pid_t pid;
+    char* argv[16];
+    int argc;
+    int status;
     
     for (;;) {
-        puts("\r\n");
+        write(1, "\r\n", 2);
         // プロンプト
         write(1, "$ ", 2);
         
         // キーボードから１行読み込み（改行込み）
         
-        int n = 0;
+        n = 0;
         while(1) {
-            char buf2[2];
             read(0, buf2, 1);
             write(1, buf2, 1);
             
@@ -335,33 +340,30 @@ int main(void) {
         }
         
         buf[n-1] = '\0';
-        puts("\r\n");
+        write(1, "\r\n", 2);
         
         if(buf[0] == '\0') {
             continue;
         }
         
         // fork して
-        pid_t pid = fork();
+        pid = fork();
         if (pid < 0) {
             write(2, "fork failed\n", 12);
             continue;
         }
         
         if (pid == 0) {
-            char* argv[16];
-            int argc = 0;
-            int ret = execv(buf, argc);
+            execv(buf, argc);
             exit(6);
         }
         else {
-            int status = 0;
-            pid_t pid = wait(&status);
+            status = 0;
+            pid = wait(&status);
             printf("\r\nwait status %d\r\n", status);
         }
     }
     
     return 0;
 }
-*/
 
