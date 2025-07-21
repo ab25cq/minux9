@@ -36,7 +36,7 @@
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
-//#include <linux/if_tun.h>
+#include <linux/if_tun.h>
 #endif
 #include <sys/stat.h>
 #include <signal.h>
@@ -411,7 +411,6 @@ static void tun_select_poll(EthernetDevice *net,
    ifconfig eth0 192.168.3.2
    route add -net 0.0.0.0 netmask 0.0.0.0 gw 192.168.3.1
 */
-/*
 static EthernetDevice *tun_open(const char *ifname)
 {
     struct ifreq ifr;
@@ -450,7 +449,6 @@ static EthernetDevice *tun_open(const char *ifname)
     net->select_poll = tun_select_poll;
     return net;
 }
-*/
 
 #endif /* !_WIN32 */
 
@@ -782,7 +780,6 @@ int main(int argc, char **argv)
         p->tab_fs[i].fs_dev = fs;
     }
 
-/*
     for(i = 0; i < p->eth_count; i++) {
 #ifdef CONFIG_SLIRP
         if (!strcmp(p->tab_eth[i].driver, "user")) {
@@ -804,7 +801,6 @@ int main(int argc, char **argv)
             exit(1);
         }
     }
-*/
     
 #ifdef CONFIG_SDL
     if (p->display_device) {

@@ -24,9 +24,9 @@
 
 # if set, network filesystem is enabled. libcurl and libcrypto
 # (openssl) must be installed.
-#CONFIG_FS_NET=y
+CONFIG_FS_NET=y
 # SDL support (optional)
-#CONFIG_SDL=y
+CONFIG_SDL=y
 # if set, compile the 128 bit emulator. Note: the 128 bit target does
 # not compile if gcc does not support the int128 type (32 bit hosts).
 CONFIG_INT128=y
@@ -46,10 +46,9 @@ EXE=
 endif
 CC=$(CROSS_PREFIX)gcc
 STRIP=$(CROSS_PREFIX)strip
-CFLAGS=-O2 -Wall -g -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -MMD -I/opt/homebrew/opt/openssl/include
+CFLAGS=-O2 -Wall -g -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -MMD
 CFLAGS+=-D_GNU_SOURCE -DCONFIG_VERSION=\"$(shell cat VERSION)\"
 LDFLAGS=
-LDFLAGS="-L/opt/homebrew/opt/openssl/lib"
 
 bindir=/usr/local/bin
 INSTALL=install
@@ -73,7 +72,7 @@ endif
 
 ifndef CONFIG_WIN32
 EMU_OBJS+=fs_disk.o
-#EMU_LIBS=-lrt
+EMU_LIBS=-lrt
 endif
 ifdef CONFIG_FS_NET
 CFLAGS+=-DCONFIG_FS_NET

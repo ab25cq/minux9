@@ -91,17 +91,7 @@ static inline uint32_t bswap_32(uint32_t v)
         ((v & 0x0000ff00) <<  8) | ((v & 0x000000ff) << 24);
 }
 #else
-//#include <byteswap.h>
-// 94行目あたりの #include <byteswap.h> を探して
-#ifdef __APPLE__
-#include <libkern/OSByteOrder.h>
-#define bswap_16(x) OSSwapInt16(x)
-#define bswap_32(x) OSSwapInt32(x)
-#define bswap_64(x) OSSwapInt64(x)
-#else
 #include <byteswap.h>
-#endif
-
 #endif
 
 static inline uint16_t get_le16(const uint8_t *ptr)

@@ -4,9 +4,5 @@ riscv64-unknown-elf-gcc \
   -T hello.ld \
   -o hello.elf hello.S
 
-temu \
-  -machine virt -m 256 \
-  -bios bbl64.bin \
-  -kernel hello.elf \
-  -nographic
+temu hello.cfg
 
