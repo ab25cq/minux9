@@ -1,1 +1,0 @@
-splitimg.o: splitimg.c
