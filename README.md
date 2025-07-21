@@ -3,3 +3,5 @@
 unix like operating system on riscv.
 
 sh fast_build.sh 
+
+required qemu version >= 10.0
