@@ -1,7 +1,7 @@
 CCPREFIX=riscv64-unknown-elf-
 CFLAGS=-march=rv64gc -mabi=lp64
 #CFLAGS=-march=rv64imac_zicsr -mabi=lp64 #-march=rv64gc_zifencei -mabi=lp64d
-CHILD_CFLAGS=-fno-omit-frame-pointer -momit-leaf-frame-pointer #-mstack-alignment=16
+CHILD_CFLAGS=-fno-omit-frame-pointer #-momit-leaf-frame-pointer #-mstack-alignment=16
 
 all: kernel.elf
 
