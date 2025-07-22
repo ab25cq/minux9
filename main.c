@@ -1,4 +1,5 @@
 #include <comelang.h>
+#define nullptr ((void*)0)
 #include <stdint.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -7,11 +8,11 @@
 #include "userprog.h"
 #include "userprog2.h"
 #include "child.h"
+
 no_output {
 #include "minux.h"
 }
 output {
-#define _GCC_NULLPTR_T
 #include "minux.h"
 }
 
