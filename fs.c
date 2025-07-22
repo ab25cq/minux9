@@ -469,6 +469,7 @@ void pipe_open(int* fd1, int* fd2) {
 // ── piperead ────────────────────────────────────────────────────────────
 // パイプから最大 n バイト読み込む。EOF:0, エラー:-1
 void panic(char* str);
+void yield();
 
 int piperead(int fd, char *addr, int n)
 {
@@ -484,24 +485,19 @@ int piperead(int fd, char *addr, int n)
     }
     int i;
   
-/*
     // データが来るまで待機
     while (p->nread == p->nwrite && p->write_open) {
-        timer_handler();
+        yield();
     }
-*/
-/*
     // 書き側クローズかつバッファ空 → EOF
     if (p->nread == p->nwrite && !p->write_open) {
         return 0;
     }
-*/
     // バッファからコピー
     for (i = 0; i < n && p->nread < p->nwrite; i++) {
         addr[i] = p->data[p->nread % PIPE_SIZE];
         p->nread++;
     }
-//    timer_handler();
     return i;
 }
 
@@ -524,23 +520,19 @@ int pipewrite(int fd, char *addr, int n)
   
     for (i = 0; i < n; i++) {
       // バッファ満杯なら読み側を待つ
-/*
       while (p->nwrite - p->nread == PIPE_SIZE && p->read_open) {
-          timer_handler();
+          yield();
       }
-*/
-/*
       // 読み側クローズ → SIGPIPE 相当
       if (!p->read_open) {
           return -1;
       }
-*/
       p->data[p->nwrite % PIPE_SIZE] = addr[i];
       p->nwrite++;
-      
-      // 読み側を起こす
-//      timer_handler();
     }
+  
+    // 読み側を起こす
+ //   yield();
     return n;
 }
 
@@ -603,7 +595,7 @@ int fs_close(long fd) {
     file_table[idx].used--;
     if(file_table[idx].used <= 0) {
         file_table[idx].used = 0;
-//        memset(&file_table[idx], 0, sizeof(struct file));
+        memset(&file_table[idx], 0, sizeof(struct file));
     }
     return 0;
 }

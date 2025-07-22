@@ -1176,11 +1176,14 @@ void timer_handler() {
     if(gActiveProc >= gProc.length()) {
         if(gNumKernelState > 0) {
             gActiveProc = 0;
-            kernel_yield_return();
         }
         else {
             gActiveProc = 0;
         }
+    }
+    
+    if(gActiveProc == gKernelState[gKernelStateHead].gYieldUserActiveProc && gNumKernelState > 0) {
+        kernel_yield_return();
     }
     
     struct proc* new_ = gProc[gActiveProc];
@@ -1303,40 +1306,6 @@ int Sys_wait()
     int exit_status = 0;
     pid_t child_pid = -1;
     while(child_pid == -1) {
-
-/*
-uint64_t sp_val;
-asm volatile(
-    "mv %0, sp\n"     // sp レジスタの値を出力オペランド %0 に
-    : "=r"(sp_val)    // %0 は r• レジスタに出力
-    :                 // 入力オペランドなし
-    :                 // 破壊するレジスタなし
-);
-printf("sp_val %x\n", sp_val);
-
-char* p = (char*)sp_val;
-for(int i= 0; i<10; i++) {
-printf("call %d\n", *(p+i));
-}
-*/
-    
-        yield(); //timer_handler();
-
-/*
-uint64_t sp_val;
-asm volatile(
-    "mv %0, sp\n"     // sp レジスタの値を出力オペランド %0 に
-    : "=r"(sp_val)    // %0 は r• レジスタに出力
-    :                 // 入力オペランドなし
-    :                 // 破壊するレジスタなし
-);
-printf("sp_val %x\n", sp_val);
-
-char* p = (char*)sp_val;
-for(int i= 0; i<10; i++) {
-printf("return %d\n", *(p+i));
-}
-*/
         int n = 0;
         foreach (it, gProc) {
             if(it->zombie) {
@@ -1349,6 +1318,10 @@ printf("return %d\n", *(p+i));
             }
             
             n++;
+        }
+        
+        if(child_pid == -1) {
+            yield();
         }
     }
     

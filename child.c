@@ -206,59 +206,6 @@ void puts(const char *s) {
     }
 }
 
-/*
-int main(void) {
-    int fd[2];
-    pid_t pid1, pid2;
-    char* argv[16];
-    int argc;
-    int status;
-
-    pipe(fd);
-    
-//write(1, "AAA", 3);
-    pid1 = fork();
-    if (pid1 == 0) {
-//        close(fd[0]);
-        dup2(fd[1], 1);
-//        close(fd[1]);
-
-//        execv("/hello.elf", (void*)0, 0);
-        exit(6);
-    }
-    status = 0;
-    wait(&status);
-
-//dup2(fd[0], 0);
-write(1, "(A)", 3);
-char buf[4];
-int n = read(0, buf, 3);
-write(1, buf, 3);
-while(1);
-
-    pid2 = fork();
-    if (pid2 == 0) {
-//        close(fd[1]);               // 書き側は不要
-        dup2(fd[0], 0);
-//        close(fd[0]);
-
-        execv("/hello2.elf", (void*)0);
-        exit(6);
-    }
-    
-    status = 0;
-    wait(&status);
-
-    // 親プロセスはパイプを閉じて子の終了を待つ
-//    close(fd[0]);
-//    close(fd[1]);
-//printf("CHILD END fd[0] %ld fd[1] %ld\n", fd[0], fd[1]);
-puts("END");
-    while(1);
-
-    return 0;
-}
-*/
 
 int main(void) {
     int fd[2];
@@ -270,24 +217,20 @@ int main(void) {
     
     pid1 = fork();
     if (pid1 == 0) {
-//        close(fd[0]);
+        close(fd[0]);
         dup2(fd[1], 1);
-//        close(fd[1]);
-//        write(1, "ABC", 3);
+        close(fd[1]);
 
         execv("/hello.elf", (void*)0);
         exit(6);
     }
-    status = 0;
-    wait(&status);
+    
 
     pid2 = fork();
     if (pid2 == 0) {
         dup2(fd[0], 0);
-//        read(0, buf, 3);
-//        write(1, buf, 3);
-//        close(fd[1]);               // 書き側は不要
-//        close(fd[0]);
+        close(fd[1]);               // 書き側は不要
+        close(fd[0]);
 
         execv("/hello2.elf", (void*)0);
         exit(6);
@@ -295,10 +238,12 @@ int main(void) {
     
     status = 0;
     wait(&status);
+    status = 0;
+    wait(&status);
 
     // 親プロセスはパイプを閉じて子の終了を待つ
-//    close(fd[0]);
-//    close(fd[1]);
+    close(fd[0]);
+    close(fd[1]);
 puts("END");
     while(1);
 
