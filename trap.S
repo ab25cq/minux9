@@ -420,7 +420,7 @@ asm_memmove:
     .align 2
     .global yield
     .extern stack_top
-    .extern gYieldStack
+    .extern yield_stack
 yield:
     la t0, TRAPFRAME2;
 
@@ -459,27 +459,25 @@ yield:
     csrr t1, sepc
     sd t1, 248(t0)
     
-    la   a0, gYieldStack      # a0 ← dst (以前のスタック領域)
+    la   a0, yield_stack   # a0 ← dst (以前のスタック領域)
     li   t0, 0x6400        # t0 ← 0x6400
     la   a1, stack_top     # a1 ← &stack_top
     sub  a1, a1, t0        # a1 ← a1 - t0  （= stack_top - 0x6400）
-#    la   a1, stack_top        # a1 ← src (今のスタック領域)
     li   a2, 0x6400           # a2 ← length
     jal  asm_memmove           # call memmove(dst, src, len)
     
-    j kernel_yield
+    call kernel_yield
     
     .align 2
     .global yield_return
     .extern stack_top
-    .extern gYieldStack
+    .extern yield_stack
 yield_return:
     li   t0, 0x6400        # t0 ← 0x6400
     la   a0, stack_top     # a1 ← &stack_top
     sub  a0, a0, t0        # a1 ← a1 - t0  （= stack_top - 0x6400）
 
-#    la   a0, stack_top        # a0 ← dst
-    la   a1, gYieldStack      # a1 ← src
+    la   a1, yield_stack      # a1 ← src
     li   a2, 0x6400           # a2 ← length
     jal  asm_memmove           # call memmove(dst, src, len)
     

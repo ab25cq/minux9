@@ -34,11 +34,10 @@ SECTIONS
   TRAPFRAME2 = .;
   . = . + 4096;
   
-  . = ALIGN(4096);
-  . = 0x80100000;
   PROVIDE(TRAMPOLINE = .);
   .trampoline : { *(.trampoline) }
   . = ALIGN(4096);
+  . = 0x80700000;
   PROVIDE(COMMON = .);
   .common : { *(.common) }
   . = . + 4096 * 8;
