@@ -260,6 +260,7 @@ puts("END");
 }
 */
 
+/*
 int main(void) {
     int fd[2];
     pid_t pid1, pid2;
@@ -304,8 +305,8 @@ puts("END");
 
     return 0;
 }
+*/
 
-/*
 int main(void) {
     char buf[BUF_SIZE];
     long n;
@@ -365,5 +366,3 @@ int main(void) {
     
     return 0;
 }
-
-*/

@@ -376,3 +376,148 @@ mtvec:
     # 4) （必要なら scratch レジスタを復元）---
 
     mret                        # トラップから復帰
+    
+    .globl asm_memmove
+asm_memmove:
+    # t0 にもとの dst を退避
+    mv   t0, a0
+    # 長さゼロ or dst == src なら何もしないで返す
+    beqz a2, .exit
+    beq  a0, a1, .exit
+
+    # オーバーラップ判定：dst > src かつ領域が被っていれば逆順コピー
+    blt  a0, a1, .forward
+
+    # ── backward copy ──
+    # ポインタを末尾位置へ
+    add  a0, a0, a2    # dst_end = dst + len
+    add  a1, a1, a2    # src_end = src + len
+
+.backward_loop:
+    addi a0, a0, -1    # dst_end--
+    addi a1, a1, -1    # src_end--
+    lbu  t1, 0(a1)     # t1 = *src_end
+    sb   t1, 0(a0)     # *dst_end = t1
+    addi a2, a2, -1    # len--
+    bnez a2, .backward_loop
+    j    .exit
+
+.forward:
+    # ── forward copy ──
+.forward_loop:
+    lbu  t1, 0(a1)     # t1 = *src
+    sb   t1, 0(a0)     # *dst = t1
+    addi a1, a1, 1     # src++
+    addi a0, a0, 1     # dst++
+    addi a2, a2, -1    # len--
+    bnez a2, .forward_loop
+
+.exit:
+    # 戻り値に元の dst をセットして帰る
+    mv   a0, t0
+    ret
+    
+    .align 2
+    .global yield
+    .extern stack_top
+    .extern gYieldStack
+yield:
+    la t0, TRAPFRAME2;
+
+    sd ra, 0(t0)
+    sd sp, 8(t0)
+    sd gp, 16(t0)
+    sd tp, 24(t0)
+/*    sd t0, 32(t0) */
+    sd t1, 40(t0)
+    sd t2, 48(t0)
+    sd t3, 56(t0)
+    sd t4, 64(t0)
+    sd t5, 72(t0)
+    sd t6, 80(t0)
+    sd a0, 88(t0)
+    sd a1, 96(t0)
+    sd a2, 104(t0)
+    sd a3, 112(t0)
+    sd a4, 120(t0)
+    sd a5, 128(t0)
+    sd a6, 136(t0)
+    sd a7, 144(t0)
+    sd s0, 152(t0)
+    sd s1, 160(t0)
+    sd s2, 168(t0)
+    sd s3, 176(t0)
+    sd s4, 184(t0)
+    sd s5, 192(t0)
+    sd s6, 200(t0)
+    sd s7, 208(t0)
+    sd s8, 216(t0)
+    sd s9, 224(t0)
+    sd s10, 232(t0)
+    sd s11, 240(t0)
+
+    csrr t1, sepc
+    sd t1, 248(t0)
+    
+    la   a0, gYieldStack      # a0 ← dst (以前のスタック領域)
+    li   t0, 0x6400        # t0 ← 0x6400
+    la   a1, stack_top     # a1 ← &stack_top
+    sub  a1, a1, t0        # a1 ← a1 - t0  （= stack_top - 0x6400）
+#    la   a1, stack_top        # a1 ← src (今のスタック領域)
+    li   a2, 0x6400           # a2 ← length
+    jal  asm_memmove           # call memmove(dst, src, len)
+    
+    j kernel_yield
+    
+    .align 2
+    .global yield_return
+    .extern stack_top
+    .extern gYieldStack
+yield_return:
+    li   t0, 0x6400        # t0 ← 0x6400
+    la   a0, stack_top     # a1 ← &stack_top
+    sub  a0, a0, t0        # a1 ← a1 - t0  （= stack_top - 0x6400）
+
+#    la   a0, stack_top        # a0 ← dst
+    la   a1, gYieldStack      # a1 ← src
+    li   a2, 0x6400           # a2 ← length
+    jal  asm_memmove           # call memmove(dst, src, len)
+    
+    la t0, TRAPFRAME2;
+    
+    ld ra, 0(t0)
+    ld sp, 8(t0)
+    ld gp, 16(t0)
+    ld tp, 24(t0)
+/*    sd t0, 32(t0) */
+    ld t1, 40(t0)
+    ld t2, 48(t0)
+    ld t3, 56(t0)
+    ld t4, 64(t0)
+    ld t5, 72(t0)
+    ld t6, 80(t0)
+    ld a0, 88(t0)
+    ld a1, 96(t0)
+    ld a2, 104(t0)
+    ld a3, 112(t0)
+    ld a4, 120(t0)
+    ld a5, 128(t0)
+    ld a6, 136(t0)
+    ld a7, 144(t0)
+    ld s0, 152(t0)
+    ld s1, 160(t0)
+    ld s2, 168(t0)
+    ld s3, 176(t0)
+    ld s4, 184(t0)
+    ld s5, 192(t0)
+    ld s6, 200(t0)
+    ld s7, 208(t0)
+    ld s8, 216(t0)
+    ld s9, 224(t0)
+    ld s10, 232(t0)
+    ld s11, 240(t0)
+    ld t0, 248(t0)
+    csrw sepc, t0
+
+    ret
+

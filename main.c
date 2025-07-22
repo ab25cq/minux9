@@ -161,6 +161,11 @@ struct proc {
     file* file_table;
 };
 
+context_t gYieldContext;
+context_t gYieldReturnContext;
+char gYieldStack[0x64000];
+extern char stack_top[];
+
 struct cpu {
     proc *proc;          // The process running on this cpu, or null.
     context_t context;     // swtch() here to enter scheduler().
@@ -1091,6 +1096,117 @@ void timer_reset() {
     w_stimecmp(next);
 }
 
+void yield();
+
+uint64_t gYieldSPValue;
+int gFlgYieldKernel = 0;
+uint64_t gYieldUserSatp;
+uint64_t gYieldUserSP;
+uint64_t gYieldUserActiveProc;
+
+void kernel_yield() {
+    gYieldReturnContext = *(context_t*)TRAPFRAME;
+    gYieldUserSatp = user_satp;
+    gYieldUserSP = user_sp;
+    gYieldUserActiveProc = gActiveProc;
+/*
+printf("kernel_yield %d\n", gYieldReturnContext.ra);
+printf("kernel_yield %d\n", gYieldReturnContext.sp);
+printf("kernel_yield %d\n", gYieldReturnContext.gp);
+printf("kernel_yield %d\n", gYieldReturnContext.tp);
+printf("kernel_yield %d\n", gYieldReturnContext.t0);
+printf("kernel_yield %d\n", gYieldReturnContext.t1);
+printf("kernel_yield %d\n", gYieldReturnContext.t2);
+printf("kernel_yield %d\n", gYieldReturnContext.t3);
+printf("kernel_yield %d\n", gYieldReturnContext.t4);
+printf("kernel_yield %d\n", gYieldReturnContext.t5);
+printf("kernel_yield %d\n", gYieldReturnContext.t6);
+printf("kernel_yield %d\n", gYieldReturnContext.a0);
+printf("kernel_yield %d\n", gYieldReturnContext.a1);
+printf("kernel_yield %d\n", gYieldReturnContext.a2);
+printf("kernel_yield %d\n", gYieldReturnContext.a3);
+printf("kernel_yield %d\n", gYieldReturnContext.a4);
+printf("kernel_yield %d\n", gYieldReturnContext.a5);
+printf("kernel_yield %d\n", gYieldReturnContext.a6);
+printf("kernel_yield %d\n", gYieldReturnContext.a7);
+printf("kernel_yield %d\n", gYieldReturnContext.s0);
+printf("kernel_yield %d\n", gYieldReturnContext.s1);
+printf("kernel_yield %d\n", gYieldReturnContext.s2);
+printf("kernel_yield %d\n", gYieldReturnContext.s3);
+printf("kernel_yield %d\n", gYieldReturnContext.s4);
+printf("kernel_yield %d\n", gYieldReturnContext.s5);
+printf("kernel_yield %d\n", gYieldReturnContext.s6);
+printf("kernel_yield %d\n", gYieldReturnContext.s7);
+printf("kernel_yield %d\n", gYieldReturnContext.s8);
+printf("kernel_yield %d\n", gYieldReturnContext.s9);
+printf("kernel_yield %d\n", gYieldReturnContext.s10);
+printf("kernel_yield %d\n", gYieldReturnContext.s11);
+printf("kernel_yield %d\n", gYieldReturnContext.mepc);
+*/
+    gYieldContext = *(context_t*)TRAPFRAME2;
+    
+    char* top = stack_top;
+    char* tail = (char*)gYieldSPValue;
+    
+    gFlgYieldKernel = 1;
+    
+    timer_handler();
+}
+
+void yield_return();
+
+void kernel_yield_return() {
+    gFlgYieldKernel = 0;
+    
+    user_satp = gYieldUserSatp;
+    user_sp = gYieldUserSP;
+    
+    gActiveProc = gYieldUserActiveProc;
+    context_t* trapframe = (context_t*)TRAPFRAME2;
+    
+    *trapframe = gYieldContext;
+    
+    trapframe = (context_t*)TRAPFRAME;
+    *trapframe = gYieldReturnContext;
+    
+/*
+printf("yield_return %d\n", gYieldReturnContext.ra);
+printf("yield_return %d\n", gYieldReturnContext.sp);
+printf("yield_return %d\n", gYieldReturnContext.gp);
+printf("yield_return %d\n", gYieldReturnContext.tp);
+printf("yield_return %d\n", gYieldReturnContext.t0);
+printf("yield_return %d\n", gYieldReturnContext.t1);
+printf("yield_return %d\n", gYieldReturnContext.t2);
+printf("yield_return %d\n", gYieldReturnContext.t3);
+printf("yield_return %d\n", gYieldReturnContext.t4);
+printf("yield_return %d\n", gYieldReturnContext.t5);
+printf("yield_return %d\n", gYieldReturnContext.t6);
+printf("yield_return %d\n", gYieldReturnContext.a0);
+printf("yield_return %d\n", gYieldReturnContext.a1);
+printf("yield_return %d\n", gYieldReturnContext.a2);
+printf("yield_return %d\n", gYieldReturnContext.a3);
+printf("yield_return %d\n", gYieldReturnContext.a4);
+printf("yield_return %d\n", gYieldReturnContext.a5);
+printf("yield_return %d\n", gYieldReturnContext.a6);
+printf("yield_return %d\n", gYieldReturnContext.a7);
+printf("yield_return %d\n", gYieldReturnContext.s0);
+printf("yield_return %d\n", gYieldReturnContext.s1);
+printf("yield_return %d\n", gYieldReturnContext.s2);
+printf("yield_return %d\n", gYieldReturnContext.s3);
+printf("yield_return %d\n", gYieldReturnContext.s4);
+printf("yield_return %d\n", gYieldReturnContext.s5);
+printf("yield_return %d\n", gYieldReturnContext.s6);
+printf("yield_return %d\n", gYieldReturnContext.s7);
+printf("yield_return %d\n", gYieldReturnContext.s8);
+printf("yield_return %d\n", gYieldReturnContext.s9);
+printf("yield_return %d\n", gYieldReturnContext.s10);
+printf("yield_return %d\n", gYieldReturnContext.s11);
+printf("yield_return %d\n", gYieldReturnContext.mepc);
+*/
+    
+    yield_return();
+}
+
 void timer_handler() {
     disable_timer_interrupts();
     struct proc *p = gProc[gActiveProc];
@@ -1105,7 +1221,13 @@ void timer_handler() {
     gActiveProc++;
     
     if(gActiveProc >= gProc.length()) {
-        gActiveProc = 0;
+        if(gFlgYieldKernel) {
+            gActiveProc = 0;
+            kernel_yield_return();
+        }
+        else {
+            gActiveProc = 0;
+        }
     }
     
     struct proc* new_ = gProc[gActiveProc];
@@ -1123,7 +1245,6 @@ void timer_handler() {
         gActiveProc = old_active_proc;
     }
 }
-
 
 // コンソール用スピンロック
 static struct spinlock console_lock;
@@ -1226,12 +1347,43 @@ int Sys_wait()
     
     int* status_va = (int*)arg0;
     
-    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-    
     int exit_status = 0;
     pid_t child_pid = -1;
     while(child_pid == -1) {
-        timer_handler();
+
+/*
+uint64_t sp_val;
+asm volatile(
+    "mv %0, sp\n"     // sp レジスタの値を出力オペランド %0 に
+    : "=r"(sp_val)    // %0 は r• レジスタに出力
+    :                 // 入力オペランドなし
+    :                 // 破壊するレジスタなし
+);
+printf("sp_val %x\n", sp_val);
+
+char* p = (char*)sp_val;
+for(int i= 0; i<10; i++) {
+printf("call %d\n", *(p+i));
+}
+*/
+    
+        yield(); //timer_handler();
+
+/*
+uint64_t sp_val;
+asm volatile(
+    "mv %0, sp\n"     // sp レジスタの値を出力オペランド %0 に
+    : "=r"(sp_val)    // %0 は r• レジスタに出力
+    :                 // 入力オペランドなし
+    :                 // 破壊するレジスタなし
+);
+printf("sp_val %x\n", sp_val);
+
+char* p = (char*)sp_val;
+for(int i= 0; i<10; i++) {
+printf("return %d\n", *(p+i));
+}
+*/
         int n = 0;
         foreach (it, gProc) {
             if(it->zombie) {
@@ -1246,6 +1398,8 @@ int Sys_wait()
             n++;
         }
     }
+    
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
     if (copyout(p->pagetable, (uint64_t)status_va, (void*)&exit_status, sizeof(int)) < 0) {
         panic("read: copyout failed");
     }
