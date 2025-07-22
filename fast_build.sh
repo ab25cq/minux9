@@ -51,8 +51,22 @@ then
                  build-essential \
                  gawk \
                  gdb-multiarch xxd
-     sudo apt install -y libsdl1.2-dev
-     sudo apt install -y pkg-config libcurl4-openssl-dev
+fi
+if which pacman
+then
+
+
+sudo pacman -Syu \
+  riscv64-elf-gcc \
+    riscv64-elf-binutils \
+      make \
+        git \
+          base-devel \
+            gawk \
+              gdb-multiarch \
+                xxd \
+                qemu-arch-extra
+                
 fi
 #if which apk
 #then
