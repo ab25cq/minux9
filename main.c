@@ -11,6 +11,7 @@ no_output {
 #include "minux.h"
 }
 output {
+#define _GCC_NULLPTR_T
 #include "minux.h"
 }
 

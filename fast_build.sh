@@ -52,6 +52,17 @@ then
                  gawk \
                  gdb-multiarch xxd
 fi
+if which dnf
+then
+sudo dnf install \
+    gcc-riscv64-linux-gnu.aarch64 \
+    qemu-system-riscv.aarch64 \
+        binutils-riscv64-linux-gnu.aarch64 \
+                make \
+                    git \
+                            gawk \
+                                    xxd gcc glibc-devel.aarch64
+fi
 if which pacman
 then
 
@@ -83,6 +94,9 @@ if uname -a | grep Darwin
 then
     make run
 #   make debug-mac
+elif which riscv64-linux-gnu-gcc
+then
+    make run CCPREFIX=riscv64-linux-gnu- CFLAGS="-march=rv64gc -mabi=lp64" 
 elif which riscv-none-elf-gcc
 then
     make run CCPREFIX=riscv-none-elf- CFLAGS="-march=rv64gc -mabi=lp64" 

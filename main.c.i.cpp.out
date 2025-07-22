@@ -1,0 +1,32 @@
+In file included from main.c:11:
+minux.h:87:9: warning: ‘open’ redefined
+   87 | #define open(path, flags) open(path, flags, 0)
+      |         ^~~~
+minux.h:74:9: note: this is the location of the previous definition
+   74 | #define open(path, flags, mode) ({                              \
+      |         ^~~~
+main.c:21:9: warning: ‘NULL’ redefined
+   21 | #define NULL ((void*)0)
+      |         ^~~~
+In file included from main.c:4:
+/usr/lib/gcc/aarch64-redhat-linux/15/include/stddef.h:419:9: note: this is the location of the previous definition
+  419 | #define NULL ((void *)0)
+      |         ^~~~
+main.c:590:9: warning: ‘UART_THR’ redefined
+  590 | #define UART_THR      ((volatile uint8_t *)(UART0 + 0x00))  // 書き込み用
+      |         ^~~~~~~~
+main.c:29:9: note: this is the location of the previous definition
+   29 | #define UART_THR     (*(volatile uint8_t*)(UART0 + 0x00))  // Transmit Holding Register
+      |         ^~~~~~~~
+main.c:591:9: warning: ‘UART_LSR’ redefined
+  591 | #define UART_LSR      ((volatile uint8_t *)(UART0 + 0x05))  // Line Status Register
+      |         ^~~~~~~~
+main.c:30:9: note: this is the location of the previous definition
+   30 | #define UART_LSR     (*(volatile uint8_t*)(UART0 + 0x05))  // Line Status Register
+      |         ^~~~~~~~
+main.c:596:9: warning: ‘SSTATUS_SIE’ redefined
+  596 | #define SSTATUS_SIE (1UL << 1) // Sstatus.SIE
+      |         ^~~~~~~~~~~
+main.c:239:9: note: this is the location of the previous definition
+  239 | #define SSTATUS_SIE (1L << 1)  // Supervisor Interrupt Enable
+      |         ^~~~~~~~~~~

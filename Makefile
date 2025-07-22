@@ -1,7 +1,7 @@
 CCPREFIX=riscv64-unknown-elf-
 CFLAGS=-march=rv64gc -mabi=lp64
 #CFLAGS=-march=rv64imac_zicsr -mabi=lp64 #-march=rv64gc_zifencei -mabi=lp64d
-CHILD_CFLAGS=-fno-omit-frame-pointer #-momit-leaf-frame-pointer #-mstack-alignment=16
+CHILD_CFLAGS=-I. -fno-omit-frame-pointer #-momit-leaf-frame-pointer #-mstack-alignment=16
 
 all: kernel.elf
 
@@ -14,23 +14,23 @@ kernel.elf:
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o trap_c.o trap.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o plic.o plic.c
 
-	riscv64-unknown-elf-gcc -O0 -nostdlib -static -o hello.elf -g hello.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -O0 -nostdlib -static -o hello.elf -g hello.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello.elf hello.c $(CHILD_CFLAGS)
 	xxd -i hello.elf > userprog.h  
 
-	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o hello2.elf -g hello2.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello2.elf -g hello2.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello2.elf hello2.c $(CHILD_CFLAGS)
 	xxd -i hello2.elf > userprog2.h  
 
-	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o hello3.elf -g hello3.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello3.elf -g hello3.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello3.elf hello3.c $(CHILD_CFLAGS)
 
-	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o hello4.elf -g hello4.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello4.elf -g hello4.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello4.elf hello4.c $(CHILD_CFLAGS)
 
-	riscv64-unknown-elf-gcc -nostdlib -S -O0 -static -o child.S -g child.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -I. -nostdlib -S -O0 -static -o child.S -g child.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)as -g -o minux.o minux.S
-	riscv64-unknown-elf-gcc -nostdlib -O0 -static -o child.elf -g child.c -mcmodel=medany minux.o $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -I. -nostdlib -O0 -static -o child.elf -I. -g child.c -mcmodel=medany minux.o $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o child.elf child.c minux.o $(CHILD_CFLAGS)
 	xxd -i child.elf > child.h  
 
