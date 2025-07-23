@@ -1097,7 +1097,7 @@ extern char stack_top[];
 
 void yield();
 
-char* yield_stack;
+char yield_stack[0x64000] __attribute__((section(".common")));
 
 #define MAX_KERNEL 16
 
@@ -1128,7 +1128,7 @@ void kernel_yield() {
     gKernelState[gKernelStateTail].gYieldUserActiveProc = gActiveProc;
     gKernelState[gKernelStateTail].gYieldContext = *(context_t*)TRAPFRAME2;
     
-    yield_stack = gKernelState[gKernelStateTail].gYieldStack;
+    memmove(gKernelState[gKernelStateTail].gYieldStack, yield_stack, 0x64000);
     
     gKernelStateTail = (gKernelStateTail + 1) % MAX_KERNEL;
     
@@ -1153,7 +1153,7 @@ void kernel_yield_return() {
     trapframe = (context_t*)TRAPFRAME;
     *trapframe = gKernelState[gKernelStateHead].gYieldReturnContext;
     
-    yield_stack = gKernelState[gKernelStateHead].gYieldStack;
+    memmove(yield_stack, gKernelState[gKernelStateHead].gYieldStack, 0x64000);
     
     gKernelStateHead = (gKernelStateHead + 1) % MAX_KERNEL;
     
@@ -1173,13 +1173,14 @@ void timer_handler() {
     struct proc *old = gProc[gActiveProc];
     gActiveProc++;
     
-    if(gActiveProc == gKernelState[gKernelStateHead].gYieldUserActiveProc && gNumKernelState > 0) {
-        kernel_yield_return();
-    }
-    else if(gActiveProc >= gProc.length()) {
+    if(gActiveProc >= gProc.length()) {
         gActiveProc = 0;
     }
     
+    if(gActiveProc == gKernelState[gKernelStateHead].gYieldUserActiveProc && gNumKernelState > 0) 
+    {
+        kernel_yield_return();
+    }
     
     struct proc* new_ = gProc[gActiveProc];
     

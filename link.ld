@@ -40,7 +40,7 @@ SECTIONS
   . = 0x80700000;
   PROVIDE(COMMON = .);
   .common : { *(.common) }
-  . = . + 4096 * 8;
+  . = . + 4096 * 16;
   . = ALIGN(4096);
   PROVIDE(COMMON2 = .);
   .common2 : { *(.common2) }
