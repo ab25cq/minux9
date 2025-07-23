@@ -1112,11 +1112,11 @@ struct sKernelState
     uint64_t gYieldUserActiveProc;
 };
 
-sKernelState gKernelState[MAX_KERNEL];
-int gNumKernelState = 0;
+sKernelState gKernelState[MAX_KERNEL] __attribute__((section(".common")));
+int gNumKernelState __attribute__((section(".common")));
 
-int gKernelStateHead = 0;
-int gKernelStateTail = 0;
+int gKernelStateHead __attribute__((section(".common")));
+int gKernelStateTail __attribute__((section(".common")));
 
 void kernel_yield() {
     if(((gKernelStateTail + 1) % MAX_KERNEL) == gKernelStateHead) {
@@ -1173,18 +1173,13 @@ void timer_handler() {
     struct proc *old = gProc[gActiveProc];
     gActiveProc++;
     
-    if(gActiveProc >= gProc.length()) {
-        if(gNumKernelState > 0) {
-            gActiveProc = 0;
-        }
-        else {
-            gActiveProc = 0;
-        }
-    }
-    
     if(gActiveProc == gKernelState[gKernelStateHead].gYieldUserActiveProc && gNumKernelState > 0) {
         kernel_yield_return();
     }
+    else if(gActiveProc >= gProc.length()) {
+        gActiveProc = 0;
+    }
+    
     
     struct proc* new_ = gProc[gActiveProc];
     
@@ -1327,7 +1322,7 @@ int Sys_wait()
     
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
     if (copyout(p->pagetable, (uint64_t)status_va, (void*)&exit_status, sizeof(int)) < 0) {
-        panic("read: copyout failed");
+        panic("wait: copyout failed");
     }
     
     return child_pid;
@@ -2468,6 +2463,10 @@ void append_mapping_values(void* user_va, void* pa, size_t size)
 void global_init()
 {
     gProc = new list<proc*%>();
+    gKernelStateHead = 0;
+    gKernelStateTail = 0;
+    gNumKernelState = 0;
+    memset(gKernelState, 0, sizeof(struct sKernelState)*MAX_KERNEL);
 }
 
 int main()

@@ -529,10 +529,11 @@ int pipewrite(int fd, char *addr, int n)
       }
       p->data[p->nwrite % PIPE_SIZE] = addr[i];
       p->nwrite++;
+      
+      // 読み側を起こす
+ //     yield();
     }
   
-    // 読み側を起こす
- //   yield();
     return n;
 }
 

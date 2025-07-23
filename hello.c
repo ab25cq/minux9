@@ -6,7 +6,7 @@ int fun() {
             
 // hello.c
 int main() {
-    write(1, "HEAVEN", 6);
+    write(1, "HEAVEN", 3);
     exit(1);
 }
 
