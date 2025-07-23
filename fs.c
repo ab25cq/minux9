@@ -497,6 +497,7 @@ int piperead(int fd, char *addr, int n)
     for (i = 0; i < n && p->nread < p->nwrite; i++) {
         addr[i] = p->data[p->nread % PIPE_SIZE];
         p->nread++;
+        yield();
     }
     return i;
 }
@@ -531,7 +532,7 @@ int pipewrite(int fd, char *addr, int n)
       p->nwrite++;
       
       // 読み側を起こす
-//      yield();
+      yield();
     }
   
     return n;
