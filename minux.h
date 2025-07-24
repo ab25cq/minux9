@@ -108,6 +108,17 @@ static inline long read(long fd, void *buf, long size) {
     (int)_a0;                                                   \
 })
 
+#define execvp(path, argv) ({                                    \
+    register long _a0 asm("a0") = (long)(path);                 \
+    register long _a1 asm("a1") = (long)(argv);                 \
+    register long _a7 asm("a7") = SYS_execv;                    \
+    asm volatile("ecall"                                        \
+                 : "+r"(_a0)                                   \
+                 : "r"(_a1), "r"(_a7)                          \
+                 : "memory");                                  \
+    (int)_a0;                                                   \
+})
+
 static inline void exit(long status) {
     asm volatile(
         "mv   a0, %0   \n"   // status → a0

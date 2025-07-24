@@ -220,8 +220,10 @@ int main(void) {
         close(fd[0]);
         dup2(fd[1], 1);
         close(fd[1]);
+        
+        char* argv[] = { "/hello.elf", "aaa", "bbb", (void*)0 };
 
-        execv("/hello.elf", (void*)0);
+        execv("/hello.elf", (void*)argv);
         exit(6);
     }
     
@@ -231,8 +233,10 @@ int main(void) {
         dup2(fd[0], 0);
         close(fd[1]);               // 書き側は不要
         close(fd[0]);
+        
+        char* argv[] = { "/hello2.elf", "aaa", "bbb", (void*)0 };
 
-        execv("/hello2.elf", (void*)0);
+        execv("/hello2.elf", (void*)argv);
         exit(6);
     }
     

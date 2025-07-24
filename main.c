@@ -1409,26 +1409,36 @@ int Sys_execv()
     
     char* path = kernel_buf;
     
-/*
     /// argv ////
-    uintptr_t user_argv_ptr = arg1;
-    // ユーザー sepc＋レジスタ a1 とかで渡ってくる argv のアドレス
+    uint64_t user_argv = arg1;
+
+    for (int i = 0;; i++) {
+        uintptr_t uargp;
+        // 1) ユーザー空間の argv[i] （uintptr_t）を１要素だけ読む
+        if (copyin(p->pagetable,
+                   (char*)&uargp,
+                   user_argv + i * sizeof(uintptr_t),
+                   sizeof(uintptr_t)) < 0) 
+        {
+            return -1;  // 何らかのメモリエラー
+        }
     
-    char* kargv[128];
+        // 2) NULL ポインタなら終端
+        if (uargp == 0)
+            break;
     
-    if (copyin(p->pagetable, (char*)kargv, user_argv_ptr, sizeof(uintptr_t) * (argc+1)) < 0) {
-        return -1;  // EFAULT 等
-    }
-            
-    for (int i = 0; i < argc; i++) {
-        char buf[128];
-        if (copyinstr(p->pagetable, buf, (uint64_t)kargv[i], sizeof(buf)) < 0) {
+        // 3) argv[i] の文字列本体を安全にコピー
+        char argbuf[256];
+        if (copyinstr(p->pagetable,
+                      argbuf,
+                      uargp,
+                      sizeof(argbuf)) < 0) {
             return -1;
         }
-        kargv[i] = strdup(buf);
+    
+        // 4) argbuf に取り込まれた文字列を使う
+        printf("arg[%d] = '%s'\n", i, argbuf);
     }
-    kargv[argc] = NULL;
-*/
 
     char hello_elf[PGSIZE];
     
