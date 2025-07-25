@@ -428,8 +428,11 @@ int main(void) {
             run_command(0, commands, num_commands);
         }
         else {
-            int status;
-            wait(&status);
+            for(int k=0; k<num_commands; k++) {
+                int status;
+                wait(&status);
+                printf("status %d\n", status);
+            }
         }
     }
     
