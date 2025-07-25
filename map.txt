@@ -331,7 +331,7 @@ LOAD main.o
  *fill*         0x0000000080012502        0x6 
  .rodata        0x0000000080012508      0x8db main.o
 
-.data           0x0000000080012de8     0x2128
+.data           0x0000000080012de8     0x2340
  *(.data*)
  .data          0x0000000080012de8        0x0 entry.o
  .data          0x0000000080012de8        0x0 start.o
@@ -340,79 +340,79 @@ LOAD main.o
  .data          0x0000000080012de8        0x0 fs.o
  .data          0x0000000080012de8        0x0 plic.o
  .data          0x0000000080012de8        0x0 trap_c.o
- .data          0x0000000080012de8     0x2128 main.o
+ .data          0x0000000080012de8     0x2340 main.o
                 0x0000000080012de8                hello_elf
                 0x0000000080013450                hello2_elf
-                0x0000000080013ad8                child_elf
+                0x0000000080013ad8                msh_elf
 
-.sdata          0x0000000080014f10       0x18
+.sdata          0x0000000080015128       0x18
  *(.sdata*)
- .sdata         0x0000000080014f10       0x18 main.o
-                0x0000000080014f10                hello_elf_len
-                0x0000000080014f14                hello2_elf_len
-                0x0000000080014f18                child_elf_len
+ .sdata         0x0000000080015128       0x18 main.o
+                0x0000000080015128                hello_elf_len
+                0x000000008001512c                hello2_elf_len
+                0x0000000080015130                msh_elf_len
 
-.bss            0x0000000080015000     0x8ffc
+.bss            0x0000000080015200     0x8ffc
  *(.bss)
- .bss           0x0000000080015000        0x0 entry.o
- .bss           0x0000000080015000        0x0 start.o
- .bss           0x0000000080015000        0x0 userret.o
- .bss           0x0000000080015000        0x0 trap.o
- .bss           0x0000000080015000      0x630 fs.o
- .bss           0x0000000080015630        0x0 plic.o
- .bss           0x0000000080015630        0x0 trap_c.o
- .bss           0x0000000080015630     0x8980 main.o
-                0x0000000080015630                gCPU
-                0x0000000080015740                kmem
-                0x0000000080015760                gComeStackFrameSName
-                0x0000000080015b60                gComeStackFrameSLine
-                0x0000000080015d60                gComeStackFrameID
-                0x0000000080015f60                gHeapPages
+ .bss           0x0000000080015200        0x0 entry.o
+ .bss           0x0000000080015200        0x0 start.o
+ .bss           0x0000000080015200        0x0 userret.o
+ .bss           0x0000000080015200        0x0 trap.o
+ .bss           0x0000000080015200      0x630 fs.o
+ .bss           0x0000000080015830        0x0 plic.o
+ .bss           0x0000000080015830        0x0 trap_c.o
+ .bss           0x0000000080015830     0x8980 main.o
+                0x0000000080015830                gCPU
+                0x0000000080015940                kmem
+                0x0000000080015960                gComeStackFrameSName
+                0x0000000080015d60                gComeStackFrameSLine
+                0x0000000080015f60                gComeStackFrameID
+                0x0000000080016160                gHeapPages
  *(.bss.*)
  *(.sbss)
- .sbss          0x000000008001dfb0       0x4c main.o
-                0x000000008001dfb0                kernel_pagetable
-                0x000000008001dfb8                gProc
-                0x000000008001dfc0                gActiveProc
-                0x000000008001dfc4                last_key
-                0x000000008001dfc8                free_list
-                0x000000008001dfd0                gNumComeStackFrame
-                0x000000008001dfd8                gComeStackFrameBuffer
-                0x000000008001dfe0                gAllocMem
-                0x000000008001dfe8                gComeResultObject
-                0x000000008001dff0                gComeMallocLib
-                0x000000008001dff1                gComeDebugLib
-                0x000000008001dff2                gComeGCLib
-                0x000000008001dff4                gNumAlloc
-                0x000000008001dff8                gNumFree
+ .sbss          0x000000008001e1b0       0x4c main.o
+                0x000000008001e1b0                kernel_pagetable
+                0x000000008001e1b8                gProc
+                0x000000008001e1c0                gActiveProc
+                0x000000008001e1c4                last_key
+                0x000000008001e1c8                free_list
+                0x000000008001e1d0                gNumComeStackFrame
+                0x000000008001e1d8                gComeStackFrameBuffer
+                0x000000008001e1e0                gAllocMem
+                0x000000008001e1e8                gComeResultObject
+                0x000000008001e1f0                gComeMallocLib
+                0x000000008001e1f1                gComeDebugLib
+                0x000000008001e1f2                gComeGCLib
+                0x000000008001e1f4                gNumAlloc
+                0x000000008001e1f8                gNumFree
  *(.sbss.*)
                 [!provide]                        PROVIDE (_code_end = .)
-                0x0000000080081ffc                . = (. + 0x64000)
-                0x0000000080081ffc                PROVIDE (stack_top = .)
-                0x0000000080082000                . = ALIGN (0x1000)
-                0x0000000080082000                TRAPFRAME = .
-                0x0000000080083000                . = (. + 0x1000)
+                0x00000000800821fc                . = (. + 0x64000)
+                0x00000000800821fc                PROVIDE (stack_top = .)
                 0x0000000080083000                . = ALIGN (0x1000)
-                0x0000000080083000                TRAPFRAME2 = .
+                0x0000000080083000                TRAPFRAME = .
                 0x0000000080084000                . = (. + 0x1000)
-                0x0000000080084000                PROVIDE (TRAMPOLINE = .)
+                0x0000000080084000                . = ALIGN (0x1000)
+                0x0000000080084000                TRAPFRAME2 = .
+                0x0000000080085000                . = (. + 0x1000)
+                0x0000000080085000                PROVIDE (TRAMPOLINE = .)
 
-.trampoline     0x0000000080084000      0x498
+.trampoline     0x0000000080085000      0x498
  *(.trampoline)
- .trampoline    0x0000000080084000      0x498 trap.o
-                0x0000000080084000                trapvec
-                0x00000000800841fc                swtch
-                0x00000000800842be                enter_user
-                0x00000000800842e8                mtvec
-                0x0000000080084302                asm_memmove
-                0x0000000080084338                yield
-                0x00000000800843e8                yield_return
+ .trampoline    0x0000000080085000      0x498 trap.o
+                0x0000000080085000                trapvec
+                0x00000000800851fc                swtch
+                0x00000000800852be                enter_user
+                0x00000000800852e8                mtvec
+                0x0000000080085302                asm_memmove
+                0x0000000080085338                yield
+                0x00000000800853e8                yield_return
 
-.rela.dyn       0x0000000080084498        0x0
- .rela.text     0x0000000080084498        0x0 entry.o
+.rela.dyn       0x0000000080085498        0x0
+ .rela.text     0x0000000080085498        0x0 entry.o
  .rela.trampoline
-                0x0000000080084498        0x0 entry.o
-                0x0000000080085000                . = ALIGN (0x1000)
+                0x0000000080085498        0x0 entry.o
+                0x0000000080086000                . = ALIGN (0x1000)
                 0x0000000080700000                . = 0x80700000
                 0x0000000080700000                PROVIDE (COMMON = .)
 
@@ -515,28 +515,28 @@ LOAD main.o
 .debug_str      0x0000000000000000     0x5de7
  *(.debug_str)
  .debug_str     0x0000000000000000     0x5de7 entry.o
-                                         0x2b (size before relaxing)
+                                         0x2f (size before relaxing)
  .debug_str     0x0000000000005de7      0x1af start.o
- .debug_str     0x0000000000005de7       0x2a trap.o
+ .debug_str     0x0000000000005de7       0x2e trap.o
  .debug_str     0x0000000000005de7      0x5c8 fs.o
  .debug_str     0x0000000000005de7      0x177 plic.o
  .debug_str     0x0000000000005de7      0x14b trap_c.o
- .debug_str     0x0000000000005de7     0x5aff main.o
+ .debug_str     0x0000000000005de7     0x5afb main.o
 
 .debug_line_str
-                0x0000000000000000       0xad
+                0x0000000000000000       0xb1
  *(.debug_line_str)
  .debug_line_str
-                0x0000000000000000       0xad start.o
-                                         0xa8 (size before relaxing)
+                0x0000000000000000       0xb1 start.o
+                                         0xb0 (size before relaxing)
  .debug_line_str
-                0x00000000000000ad       0xad fs.o
+                0x00000000000000b1       0xb5 fs.o
  .debug_line_str
-                0x00000000000000ad       0xa5 plic.o
+                0x00000000000000b1       0xad plic.o
  .debug_line_str
-                0x00000000000000ad       0xa5 trap_c.o
+                0x00000000000000b1       0xad trap_c.o
  .debug_line_str
-                0x00000000000000ad       0x45 main.o
+                0x00000000000000b1       0x4d main.o
 OUTPUT(kernel.elf elf64-littleriscv)
 
 .debug_aranges  0x0000000000000000      0x150

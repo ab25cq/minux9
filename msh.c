@@ -207,6 +207,7 @@ void puts(const char *s) {
 }
 
 
+/*
 int main(void) {
     int fd[2];
     pid_t pid1, pid2;
@@ -253,14 +254,23 @@ puts("END");
 
     return 0;
 }
+*/
 
-/*
+#define MAX_ARGV 5
+#define MAX_ARG 32
+#define MAX_COMMAND 3
+
+struct sCommand
+{
+    char argv[MAX_ARGV][MAX_ARG];
+    int num_arg;
+};
+
 int main(void) {
     char buf[BUF_SIZE];
     long n;
     char buf2[2];
     pid_t pid;
-    char* argv[16];
     int argc;
     int status;
     
@@ -294,24 +304,93 @@ int main(void) {
             continue;
         }
         
-        // fork して
-        pid = fork();
-        if (pid < 0) {
-            write(2, "fork failed\n", 12);
-            continue;
+        struct sCommand commands[MAX_COMMAND];
+        
+        int num_command = 0;
+        int num_arg = 0;
+        char* p = buf;
+        n = 0;
+        
+        while(1) {
+            if(*p == '|') {
+                p++;
+                while(*p == ' ' || *p == '\t') {
+                    p++;
+                }
+                
+                commands[num_command].num_arg = num_arg;
+            
+                num_command++;
+                n = 0;
+                num_arg = 0;
+                
+                if(num_command >= MAX_COMMAND) {
+                    puts("ERR MAX COMMAND");
+                    break;
+                }
+            }
+            else if(*p == ' ' || *p == '\t') {
+                while(*p == ' ' || *p == '\t') {
+                    p++;
+                }
+                commands[num_command].argv[num_arg][n] = '\0';
+                num_arg++;
+                n = 0;
+                
+                if(num_arg >= MAX_ARGV) {
+                    puts("ARG NUM ERROR");
+                    break;
+                }
+            }
+            else if(*p == '\0') {
+                commands[num_command].argv[num_arg][0] = '\0';
+                num_command++;
+                break;
+            }
+            else {
+                commands[num_command].argv[num_arg][n] = *p;
+                p++;
+                n++;
+                
+                if(n >= MAX_ARG) {
+                    puts("ERR ARG NUM");
+                    break;
+                }
+            }
         }
         
-        if (pid == 0) {
-            execv(buf, argc);
-            exit(6);
-        }
-        else {
-            status = 0;
-            pid = wait(&status);
-            printf("\r\nwait status %d\r\n", status);
+        for(int i=0; i<num_command; i++) {
+            struct sCommand* cmd = commands + i;
+            
+            char* argv[MAX_ARGV];
+/*
+            int j;
+            for(j=0; j<cmd->num_arg; j++) {
+                argv[j] = cmd->argv[j];
+            }
+*/
+            
+            argv[0] = "/hello.elf";
+            argv[1] = (void*)0;
+           
+            // fork して
+            pid = fork();
+            if (pid < 0) {
+                write(2, "fork failed\n", 12);
+                continue;
+            }
+            
+            if (pid == 0) {
+                execv(argv[0], argv);
+                exit(6);
+            }
+            else {
+                status = 0;
+                pid = wait(&status);
+                printf("\r\nwait status %d\r\n", status);
+            }
         }
     }
     
     return 0;
 }
-*/

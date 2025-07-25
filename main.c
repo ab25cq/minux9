@@ -7,7 +7,7 @@
 #include "fs.h"
 #include "userprog.h"
 #include "userprog2.h"
-#include "child.h"
+#include "msh.h"
 
 no_output {
 #include "minux.h"
@@ -2501,7 +2501,7 @@ int main()
     w_stimecmp(r_time() + 10000000);
 
     int fork_flag;
-    alloc_prog((char*)child_elf, fork_flag=0, exec_flag:0);
+    alloc_prog((char*)msh_elf, fork_flag=0, exec_flag:0);
 //    alloc_prog((char*)hello_elf, fork_flag=0);
 //    alloc_prog((char*)hello2_elf, fork_flag=0);
 
