@@ -277,6 +277,53 @@ struct sCommand
     int num_arg;
 };
 
+int run_command(int n, struct sCommand* command, int num_commands)
+{
+    int pipes[2] = { 0, 0 };
+    
+    if(n == num_commands-1) {
+        char* argv[MAX_ARGV];
+        int j;
+        for(j=0; j<command->num_arg; j++) {
+           argv[j] = command->argv[j];
+        }
+        argv[j] = (void*)0;
+        
+        execvp(argv[0], argv);
+        exit(127);
+    }
+    else {
+        pipe(pipes);
+        
+        int pid = fork();
+        
+        if(pid == 0) {
+            close(pipes[0]);
+            dup2(pipes[1], 1);
+            close(pipes[1]);
+            
+            run_command(n+1, command, num_commands);
+        }
+        else {
+            close(pipes[1]);
+            dup2(pipes[0], 0);
+            close(pipes[0]);
+            
+            char* argv[MAX_ARGV];
+            int j;
+            for(j=0; j<command->num_arg; j++) {
+               argv[j] = command->argv[j];
+            }
+            argv[j] = (void*)0;
+            
+            execvp(argv[0], argv);
+            exit(127);
+        }
+    }
+    
+    return 1;
+}
+
 int main(void) {
     char buf[BUF_SIZE];
     long n;
@@ -317,7 +364,7 @@ int main(void) {
         
         struct sCommand commands[MAX_COMMAND];
         
-        int num_command = 0;
+        int num_commands = 0;
         int num_arg = 0;
         char* p = buf;
         n = 0;
@@ -329,14 +376,14 @@ int main(void) {
                     p++;
                 }
                 
-                commands[num_command].argv[num_arg][n] = '\0';
-                commands[num_command].num_arg = num_arg;
+                commands[num_commands].argv[num_arg][n] = '\0';
+                commands[num_commands].num_arg = num_arg;
             
-                num_command++;
+                num_commands++;
                 n = 0;
                 num_arg = 0;
                 
-                if(num_command >= MAX_COMMAND) {
+                if(num_commands >= MAX_COMMAND) {
                     puts("ERR MAX COMMAND");
                     break;
                 }
@@ -345,7 +392,7 @@ int main(void) {
                 while(*p == ' ' || *p == '\t') {
                     p++;
                 }
-                commands[num_command].argv[num_arg][n] = '\0';
+                commands[num_commands].argv[num_arg][n] = '\0';
                 num_arg++;
                 n = 0;
                 
@@ -356,13 +403,13 @@ int main(void) {
             }
             else if(*p == '\0') {
                 num_arg++;
-                commands[num_command].num_arg = num_arg;
-                commands[num_command].argv[num_arg][n] = '\0';
-                num_command++;
+                commands[num_commands].num_arg = num_arg;
+                commands[num_commands].argv[num_arg][n] = '\0';
+                num_commands++;
                 break;
             }
             else {
-                commands[num_command].argv[num_arg][n] = *p;
+                commands[num_commands].argv[num_arg][n] = *p;
                 p++;
                 n++;
                 
@@ -372,39 +419,15 @@ int main(void) {
                 }
             }
         }
+    
+        pid_t pid = fork();
         
-        for(int i=0; i<num_command; i++) {
-            struct sCommand* cmd = commands + i;
-            
-            char* argv[MAX_ARGV];
-            int j;
-            for(j=0; j<cmd->num_arg; j++) {
-               argv[j] = cmd->argv[j];
-            }
-            argv[j] = (void*)0;
-            
-/*
-            argv[0] = "/hello.elf";
-            argv[1] = "aaa";
-            argv[2] = (void*)0;
-*/
-           
-            // fork して
-            pid = fork();
-            if (pid < 0) {
-                write(2, "fork failed\n", 12);
-                continue;
-            }
-            
-            if (pid == 0) {
-                execv(argv[0], argv);
-                exit(6);
-            }
-            else {
-                status = 0;
-                pid = wait(&status);
-                printf("\r\nwait status %d\r\n", status);
-            }
+        if(pid == 0) {
+            run_command(0, commands, num_commands);
+        }
+        else {
+            int status;
+            wait(&status);
         }
     }
     
