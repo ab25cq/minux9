@@ -300,16 +300,15 @@ int run_command(int n, struct sCommand* commands, int num_commands)
         int pid = fork();
         
         if(pid == 0) {
-            close(pipes[0]);
-            dup2(pipes[1], 1);
-            close(pipes[1]);
-            
-            run_command(n+1, commands, num_commands);
-        }
-        else {
             close(pipes[1]);
             dup2(pipes[0], 0);
             close(pipes[0]);
+            run_command(n+1, commands, num_commands);
+        }
+        else {
+            close(pipes[0]);
+            dup2(pipes[1], 1);
+            close(pipes[1]);
             
             char* argv[MAX_ARGV];
             int j;
@@ -431,7 +430,6 @@ int main(void) {
             for(int k=0; k<num_commands; k++) {
                 int status;
                 wait(&status);
-                printf("status %d\n", status);
             }
         }
     }

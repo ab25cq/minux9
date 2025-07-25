@@ -1261,7 +1261,6 @@ int Sys_write()
         panic("write");
     }
 
-struct file* f = get_current_file_table();
     return 0;
 }
 
@@ -1441,7 +1440,6 @@ int Sys_execv()
         }
     
         // 4) argbuf に取り込まれた文字列を使う
-        printf("arg[%d] = '%s'\n", i, argbuf);
         strncpy((char*)argv[i], argbuf, 32);;
     }
 

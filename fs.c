@@ -532,7 +532,7 @@ int pipewrite(int fd, char *addr, int n)
       p->nwrite++;
       
       // 読み側を起こす
-//      yield();
+      yield();
     }
   
     return n;
