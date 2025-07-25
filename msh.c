@@ -277,9 +277,11 @@ struct sCommand
     int num_arg;
 };
 
-int run_command(int n, struct sCommand* command, int num_commands)
+int run_command(int n, struct sCommand* commands, int num_commands)
 {
     int pipes[2] = { 0, 0 };
+    
+    struct sCommand* command = commands + n;
     
     if(n == num_commands-1) {
         char* argv[MAX_ARGV];
@@ -302,7 +304,7 @@ int run_command(int n, struct sCommand* command, int num_commands)
             dup2(pipes[1], 1);
             close(pipes[1]);
             
-            run_command(n+1, command, num_commands);
+            run_command(n+1, commands, num_commands);
         }
         else {
             close(pipes[1]);
