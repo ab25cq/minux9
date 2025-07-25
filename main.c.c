@@ -973,7 +973,7 @@ unsigned char msh_elf[]={
   0x00, 0x00, 0x00, 0x00, 0x2a, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x0d, 0x01, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x88, 0x0d, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x21, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x1d, 0x00, 0x00, 0x00,
   0x01, 0x80, 0x01, 0x11, 0x00, 0x10, 0x06, 0x11, 0x01, 0x12, 0x01, 0x03,
   0x0e, 0x1b, 0x0e, 0x25, 0x0e, 0x13, 0x05, 0x00, 0x00, 0x00, 0xb9, 0x00,
   0x00, 0x00, 0x02, 0x00, 0x1b, 0x00, 0x00, 0x00, 0x01, 0x01, 0xfb, 0x0e,
@@ -993,9 +993,9 @@ unsigned char msh_elf[]={
   0x01, 0x03, 0x01, 0x09, 0x04, 0x00, 0x01, 0x03, 0x01, 0x09, 0x04, 0x00,
   0x01, 0x09, 0x04, 0x00, 0x00, 0x01, 0x01, 0x6d, 0x69, 0x6e, 0x75, 0x78,
   0x2e, 0x53, 0x00, 0x2f, 0x55, 0x73, 0x65, 0x72, 0x73, 0x2f, 0x61, 0x62,
-  0x32, 0x35, 0x63, 0x71, 0x2f, 0x6d, 0x69, 0x6e, 0x75, 0x78, 0x39, 0x2d,
-  0x64, 0x65, 0x76, 0x00, 0x47, 0x4e, 0x55, 0x20, 0x41, 0x53, 0x20, 0x32,
-  0x2e, 0x34, 0x33, 0x2e, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x32, 0x35, 0x63, 0x71, 0x2f, 0x6d, 0x69, 0x6e, 0x75, 0x78, 0x39, 0x00,
+  0x47, 0x4e, 0x55, 0x20, 0x41, 0x53, 0x20, 0x32, 0x2e, 0x34, 0x33, 0x2e,
+  0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x03, 0x00, 0x01, 0x00, 0xe8, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1153,7 +1153,7 @@ unsigned char msh_elf[]={
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x79, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0xdf, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2f, 0x00, 0x00, 0x00,
+  0xdf, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2b, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
@@ -1358,12 +1358,12 @@ unsigned long  long __attribute__((section(".common"))) kernel_satp __attribute_
 unsigned long  long __attribute__((section(".common"))) user_satp __attribute__((section(".common")));
 char last_key=0;
 extern char stack_top[];
-char __attribute__((section(".common"))) yield_stack[409600] __attribute__((section(".common")));
+char __attribute__((section(".common"))) yield_stack[(4096*16)] __attribute__((section(".common")));
 struct sKernelState
 {
     struct context_t gYieldContext;
     struct context_t gYieldReturnContext;
-    char gYieldStack[409600];
+    char gYieldStack[(4096*16)];
     unsigned long  long gYieldUserSatp;
     unsigned long  long gYieldUserSP;
     unsigned long  long gYieldUserActiveProc;
@@ -2357,10 +2357,10 @@ int i_53;
     mappages(pagetable,(unsigned long  long)TRAMPOLINE,4096,(unsigned long  long)TRAMPOLINE,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<3));
     mappages(pagetable,(unsigned long  long)TRAPFRAME,4096,(unsigned long  long)TRAPFRAME,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<4)|(1L<<3));
     mappages(pagetable,(unsigned long  long)TRAPFRAME2,4096,(unsigned long  long)TRAPFRAME2,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<4)|(1L<<3));
-    for(    i_52=0    ;    i_52<8    ;    i_52++    ){
+    for(    i_52=0    ;    i_52<32    ;    i_52++    ){
         mappages(pagetable,(unsigned long  long)COMMON+i_52*4096,4096,(unsigned long  long)COMMON+i_52*4096,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<3)|(1L<<4));
     }
-    for(    i_53=0    ;    i_53<8    ;    i_53++    ){
+    for(    i_53=0    ;    i_53<32    ;    i_53++    ){
         mappages(pagetable,(unsigned long  long)COMMON2+i_53*4096,4096,(unsigned long  long)COMMON2+i_53*4096,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<3)|(1L<<4));
     }
     mappages(pagetable,268435456,4096,268435456,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<4));
@@ -2410,7 +2410,7 @@ void* __right_value31 = (void*)0;
 struct tuple2$2void$plong$* multiple_assign_var2 = (void*)0;
 void* pa_150=0;
 long size_151=0;
-    result_54=(struct proc*)come_increment_ref_count((struct proc*)come_calloc_v2(1, sizeof(struct proc)*(1), "main.c", 805, "struct proc*"));
+    result_54=(struct proc*)come_increment_ref_count((struct proc*)come_calloc_v2(1, sizeof(struct proc)*(1), "main.c", 809, "struct proc*"));
     result_54->program=hello_elf;
     if(    fork_flag||exec_flag    ) {
         parent_55=((struct proc*)(__right_value1=list$1proc$ph_operator_load_element(gProc,gActiveProc)));
@@ -2421,7 +2421,7 @@ long size_151=0;
     }
     else {
         __dec_obj4=result_54->mapping_values,
-        result_54->mapping_values=(struct map$2void$ptuple2$2void$plong$$ph*)come_increment_ref_count(map$2void$ptuple2$2void$plong$$ph_initialize((struct map$2void$ptuple2$2void$plong$$ph*)come_increment_ref_count((struct map$2void$ptuple2$2void$plong$$ph*)come_calloc_v2(1, sizeof(struct map$2void$ptuple2$2void$plong$$ph)*(1), "main.c", 815, "struct map$2void$ptuple2$2void$plong$$ph*"))));
+        result_54->mapping_values=(struct map$2void$ptuple2$2void$plong$$ph*)come_increment_ref_count(map$2void$ptuple2$2void$plong$$ph_initialize((struct map$2void$ptuple2$2void$plong$$ph*)come_increment_ref_count((struct map$2void$ptuple2$2void$plong$$ph*)come_calloc_v2(1, sizeof(struct map$2void$ptuple2$2void$plong$$ph)*(1), "main.c", 819, "struct map$2void$ptuple2$2void$plong$$ph*"))));
         come_call_finalizer(map$2void$ptuple2$2void$plong$$ph_finalize, __dec_obj4,(void*)0, (void*)0, 0/* alloca value */, 0/* no decrement */, 0/* no_free */, (void*)0);
     }
     pagetable_120=(unsigned long  long*)kalloc();
@@ -3597,7 +3597,7 @@ void kernel_yield(){
     gKernelState[gKernelStateTail].gYieldUserSP=user_sp;
     gKernelState[gKernelStateTail].gYieldUserActiveProc=gActiveProc;
     gKernelState[gKernelStateTail].gYieldContext=*(struct context_t*)TRAPFRAME2;
-    memmove(gKernelState[gKernelStateTail].gYieldStack,yield_stack,409600);
+    memmove(gKernelState[gKernelStateTail].gYieldStack,yield_stack,(4096*16));
     gKernelStateTail=(gKernelStateTail+1)%16;
     gNumKernelState++;
     timer_handler();
@@ -3613,7 +3613,7 @@ struct context_t* trapframe_177;
     *trapframe_177=gKernelState[gKernelStateHead].gYieldContext;
     trapframe_177=(struct context_t*)TRAPFRAME;
     *trapframe_177=gKernelState[gKernelStateHead].gYieldReturnContext;
-    memmove(yield_stack,gKernelState[gKernelStateHead].gYieldStack,409600);
+    memmove(yield_stack,gKernelState[gKernelStateHead].gYieldStack,(4096*16));
     gKernelStateHead=(gKernelStateHead+1)%16;
     yield_return();
 }
@@ -4245,7 +4245,7 @@ kernel_buf_319 = (void*)0;
     if(    copyout(p_322->pagetable,(unsigned long  long)user_va_320,(char*)fd_321,sizeof(int)*2)<0    ) {
         panic("copyout");
     }
-    map$2void$ptuple2$2void$plong$$ph_insert(p_322->mapping_values,(void*)user_va_320,(struct tuple2$2void$plong$*)come_increment_ref_count(tuple2$2void$plong$_initialize((struct tuple2$2void$plong$*)come_increment_ref_count((struct tuple2$2void$plong$*)come_calloc_v2(1, sizeof(struct tuple2$2void$plong$)*(1), "main.c", 1514, "struct tuple2$2void$plong$")),(void*)fd_321,sizeof(int)*2)));
+    map$2void$ptuple2$2void$plong$$ph_insert(p_322->mapping_values,(void*)user_va_320,(struct tuple2$2void$plong$*)come_increment_ref_count(tuple2$2void$plong$_initialize((struct tuple2$2void$plong$*)come_increment_ref_count((struct tuple2$2void$plong$*)come_calloc_v2(1, sizeof(struct tuple2$2void$plong$)*(1), "main.c", 1515, "struct tuple2$2void$plong$")),(void*)fd_321,sizeof(int)*2)));
     return 0;
 }
 
@@ -4490,7 +4490,7 @@ struct proc* c_356;
 void* __right_value55 = (void*)0;
 void* __right_value56 = (void*)0;
     c_356=get_current_proc();
-    map$2void$ptuple2$2void$plong$$ph_insert(c_356->mapping_values,user_va,(struct tuple2$2void$plong$*)come_increment_ref_count(tuple2$2void$plong$_initialize((struct tuple2$2void$plong$*)come_increment_ref_count((struct tuple2$2void$plong$*)come_calloc_v2(1, sizeof(struct tuple2$2void$plong$)*(1), "main.c", 2475, "struct tuple2$2void$plong$")),pa,(long)size)));
+    map$2void$ptuple2$2void$plong$$ph_insert(c_356->mapping_values,user_va,(struct tuple2$2void$plong$*)come_increment_ref_count(tuple2$2void$plong$_initialize((struct tuple2$2void$plong$*)come_increment_ref_count((struct tuple2$2void$plong$*)come_calloc_v2(1, sizeof(struct tuple2$2void$plong$)*(1), "main.c", 2476, "struct tuple2$2void$plong$")),pa,(long)size)));
 }
 
 void global_init(){
@@ -4498,7 +4498,7 @@ void* __right_value57 = (void*)0;
 void* __right_value58 = (void*)0;
 struct list$1proc$ph* __dec_obj12;
     __dec_obj12=gProc,
-    gProc=(struct list$1proc$ph*)come_increment_ref_count(list$1proc$ph_initialize((struct list$1proc$ph*)come_increment_ref_count((struct list$1proc$ph*)come_calloc_v2(1, sizeof(struct list$1proc$ph)*(1), "main.c", 2480, "struct list$1proc$ph*"))));
+    gProc=(struct list$1proc$ph*)come_increment_ref_count(list$1proc$ph_initialize((struct list$1proc$ph*)come_increment_ref_count((struct list$1proc$ph*)come_calloc_v2(1, sizeof(struct list$1proc$ph)*(1), "main.c", 2481, "struct list$1proc$ph*"))));
     come_call_finalizer(list$1proc$ph_finalize, __dec_obj12,(void*)0, (void*)0, 0/* alloca value */, 0/* no decrement */, 0/* no_free */, (void*)0);
     gKernelStateHead=0;
     gKernelStateTail=0;

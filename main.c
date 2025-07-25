@@ -20,7 +20,12 @@ typedef unsigned long size_t;
 typedef long ptrdiff_t;
 
 #define NULL ((void*)0)
-#define STACK_MAX 0x64000
+
+#define PGSIZE 4096 // bytes per page
+
+#define USER_STACK_TOP  0x40000000UL  // 例: UTOP に近い値
+#define STACK_PAGES     16
+#define STACK_MAX (4096*STACK_PAGES)
 
 extern char _end[];   // heap start
 static char* heap_end = 0;
@@ -211,7 +216,6 @@ void freerange(void *pa_start, void *pa_end);
 #define PGSHIFT 12  // bits of offset within a page
 #define PX(level, va) ((((uint64_t) (va)) >> PXSHIFT(level)) & PXMASK)
 
-#define PGSIZE 4096 // bytes per page
 #define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
 #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
 
@@ -787,10 +791,10 @@ void setting_user_pagetable(proc* proc, pagetable_t pagetable)
     mappages(pagetable, (uint64_t)TRAMPOLINE, PGSIZE, (uint64_t)TRAMPOLINE, PTE_R | PTE_W | PTE_V | PTE_X);
     mappages(pagetable, (uint64_t)TRAPFRAME, PGSIZE, (uint64_t)TRAPFRAME, PTE_R | PTE_W | PTE_V | PTE_U | PTE_X);
     mappages(pagetable, (uint64_t)TRAPFRAME2, PGSIZE, (uint64_t)TRAPFRAME2, PTE_R | PTE_W | PTE_V | PTE_U | PTE_X);
-    for(int i=0; i<8; i++) {
+    for(int i=0; i<32; i++) {
         mappages(pagetable, (uint64_t)COMMON + i*PGSIZE, PGSIZE, (uint64_t)COMMON + i*PGSIZE, PTE_R | PTE_W | PTE_V | PTE_X | PTE_U);
     }
-    for(int i=0; i<8; i++) {
+    for(int i=0; i<32; i++) {
         mappages(pagetable, (uint64_t)COMMON2 + i*PGSIZE, PGSIZE, (uint64_t)COMMON2 + i*PGSIZE, PTE_R | PTE_W | PTE_V | PTE_X | PTE_U);
     }
     
@@ -855,9 +859,6 @@ void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
         asm volatile("sfence.vma zero, zero"); 
     }
 
-#define USER_STACK_TOP  0x40000000UL  // 例: UTOP に近い値
-#define STACK_PAGES     16
-    
     if(fork_flag) {
         proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
         

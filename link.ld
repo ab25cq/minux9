@@ -1,4 +1,5 @@
-STACK_MAX = 0x64000;
+STACK_PAGES = 16;
+STACK_MAX = 4096 * STACK_PAGES;
 
 OUTPUT_ARCH( "riscv" )
 
@@ -42,11 +43,11 @@ SECTIONS
   . = 0x80700000;
   PROVIDE(COMMON = .);
   .common : { *(.common) }
-  . = . + 4096 * 16;
+  . = . + 4096 * 32;
   . = ALIGN(4096);
   PROVIDE(COMMON2 = .);
   .common2 : { *(.common2) }
-  . = . + 4096 * 8;
+  . = . + 4096 * 32;
   . = ALIGN(4096);
 
   /* End of uninitalized data segement */

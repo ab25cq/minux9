@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9-dev" "msh.c"
+	.file 0 "/Users/ab25cq/minux9" "msh.c"
 	.align	1
 	.type	exit, @function
 exit:
@@ -3720,7 +3720,7 @@ main:
 	.string	"negative"
 	.section	.debug_line_str,"MS",@progbits,1
 .LASF1:
-	.string	"/Users/ab25cq/minux9-dev"
+	.string	"/Users/ab25cq/minux9"
 .LASF0:
 	.string	"msh.c"
 	.ident	"GCC: (g04696df09) 14.2.0"
