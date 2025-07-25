@@ -2,6 +2,17 @@
 #include <stdarg.h>
 #include "minux.h"
 
+char* strncpy(char *s, const char *t, int n) {
+  char *os;
+
+  os = s;
+  while(n-- > 0 && (*s++ = *t++) != 0)
+    ;
+  while(n-- > 0)
+    *s++ = 0;
+  return os;
+}
+
 void putchar(char c)
 {
     char buf[2];
@@ -256,8 +267,8 @@ puts("END");
 }
 */
 
-#define MAX_ARGV 5
-#define MAX_ARG 32
+#define MAX_ARGV 3
+#define MAX_ARG 16
 #define MAX_COMMAND 3
 
 struct sCommand
@@ -318,6 +329,7 @@ int main(void) {
                     p++;
                 }
                 
+                commands[num_command].argv[num_arg][n] = '\0';
                 commands[num_command].num_arg = num_arg;
             
                 num_command++;
@@ -343,7 +355,9 @@ int main(void) {
                 }
             }
             else if(*p == '\0') {
-                commands[num_command].argv[num_arg][0] = '\0';
+                num_arg++;
+                commands[num_command].num_arg = num_arg;
+                commands[num_command].argv[num_arg][n] = '\0';
                 num_command++;
                 break;
             }
@@ -363,15 +377,17 @@ int main(void) {
             struct sCommand* cmd = commands + i;
             
             char* argv[MAX_ARGV];
-/*
             int j;
             for(j=0; j<cmd->num_arg; j++) {
-                argv[j] = cmd->argv[j];
+               argv[j] = cmd->argv[j];
             }
-*/
+            argv[j] = (void*)0;
             
+/*
             argv[0] = "/hello.elf";
-            argv[1] = (void*)0;
+            argv[1] = "aaa";
+            argv[2] = (void*)0;
+*/
            
             // fork して
             pid = fork();

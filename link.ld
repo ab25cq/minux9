@@ -1,3 +1,5 @@
+STACK_MAX = 0x64000;
+
 OUTPUT_ARCH( "riscv" )
 
 PHDRS {
@@ -23,7 +25,7 @@ SECTIONS
   .sdata : { *(.sdata*) } :data
   .bss : { *(.bss) *(.bss.*) *(.sbss) *(.sbss.*) } :data
   PROVIDE(_code_end = .);
-  . += 0x64000;
+  . += STACK_MAX;
   PROVIDE(stack_top = .);
   
   . = ALIGN(4096);
@@ -49,7 +51,7 @@ SECTIONS
 
   /* End of uninitalized data segement */
   PROVIDE(_end = .);
-  . += 0x64000;
+  . += STACK_MAX;
   PROVIDE(_end2 = .);
   . = . + 4096 * 8;
   PROVIDE(_end3 = .);

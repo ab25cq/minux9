@@ -20,6 +20,7 @@ typedef unsigned long size_t;
 typedef long ptrdiff_t;
 
 #define NULL ((void*)0)
+#define STACK_MAX 0x64000
 
 extern char _end[];   // heap start
 static char* heap_end = 0;
@@ -429,7 +430,7 @@ void * kalloc(void) {
     release(&kmem.lock);
 
     if(r) {
-        memset((char*)r, 5, PGSIZE); // fill with junk
+        memset((char*)r, 0, PGSIZE); // fill with junk
     }
     
     return (void*)r;
@@ -1097,7 +1098,7 @@ extern char stack_top[];
 
 void yield();
 
-char yield_stack[0x64000] __attribute__((section(".common")));
+char yield_stack[STACK_MAX] __attribute__((section(".common")));
 
 #define MAX_KERNEL 16
 
@@ -1105,7 +1106,7 @@ struct sKernelState
 {
     context_t gYieldContext;
     context_t gYieldReturnContext;
-    char gYieldStack[0x64000];
+    char gYieldStack[STACK_MAX];
 
     uint64_t gYieldUserSatp;
     uint64_t gYieldUserSP;
@@ -1128,7 +1129,7 @@ void kernel_yield() {
     gKernelState[gKernelStateTail].gYieldUserActiveProc = gActiveProc;
     gKernelState[gKernelStateTail].gYieldContext = *(context_t*)TRAPFRAME2;
     
-    memmove(gKernelState[gKernelStateTail].gYieldStack, yield_stack, 0x64000);
+    memmove(gKernelState[gKernelStateTail].gYieldStack, yield_stack, STACK_MAX);
     
     gKernelStateTail = (gKernelStateTail + 1) % MAX_KERNEL;
     
@@ -1153,7 +1154,7 @@ void kernel_yield_return() {
     trapframe = (context_t*)TRAPFRAME;
     *trapframe = gKernelState[gKernelStateHead].gYieldReturnContext;
     
-    memmove(yield_stack, gKernelState[gKernelStateHead].gYieldStack, 0x64000);
+    memmove(yield_stack, gKernelState[gKernelStateHead].gYieldStack, STACK_MAX);
     
     gKernelStateHead = (gKernelStateHead + 1) % MAX_KERNEL;
     
@@ -1409,6 +1410,8 @@ int Sys_execv()
     
     char* path = kernel_buf;
     
+    char argv[32][32];
+    
     /// argv ////
     uint64_t user_argv = arg1;
 
@@ -1438,6 +1441,7 @@ int Sys_execv()
     
         // 4) argbuf に取り込まれた文字列を使う
         printf("arg[%d] = '%s'\n", i, argbuf);
+        strncpy((char*)argv[i], argbuf, 32);;
     }
 
     char hello_elf[PGSIZE];

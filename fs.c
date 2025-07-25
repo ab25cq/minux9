@@ -548,7 +548,9 @@ int fs_open(const char *path) {
     struct file* file_table = get_current_file_table();
     
     uint32_t inum = path_lookup(path);
-    if (inum == 0) return -1;
+    if (inum == 0) {
+        return -1;
+    }
 
     struct dinode di;
     read_inode(inum, &di);
