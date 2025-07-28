@@ -889,7 +889,7 @@ void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
         result->file_table = fs_dup_table(parent->file_table);
     }
     else {
-        proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
+        proc *parent = gProc[gActiveProc]; // 現在のロセスを取得
         uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
         for (int i = 0; i < STACK_PAGES; i++) {
             char *pa = kalloc();
@@ -1128,7 +1128,7 @@ void kernel_yield() {
     
     gKernelStateTail = (gKernelStateTail + 1) % MAX_KERNEL;
     
-    gNumKernelState++
+    gNumKernelState++;
     
     timer_handler();
 }
@@ -1202,7 +1202,7 @@ void console_init(void) {
     initlock(&console_lock, "console");
 }
 
-// コンソール用スピンロック
+// コンソール用スピロック
 static struct spinlock console_lock;
 
 // カーネル側の puts (UART 等に文字列を出力)
@@ -1240,7 +1240,7 @@ int Sys_write()
     int ret = copyin(p->pagetable, kernel_buf, user_va, len);
     
     if(ret < 0) {
-        panic("copyinstr1");
+        panic("copyinstr1abc");
     }
     
     if(is_pipe(fd)) {
@@ -1252,7 +1252,7 @@ int Sys_write()
         }
     }
     else {
-        panic("write");
+        panic("write(X)");
     }
 
     return 0;
@@ -1386,74 +1386,110 @@ int Sys_execv()
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
-    uintptr_t arg2 = trapframe->a2;
-    uintptr_t arg3 = trapframe->a3;
-    uintptr_t arg4 = trapframe->a4;
-    uintptr_t arg5 = trapframe->a5;
-    uintptr_t arg6 = trapframe->a6;
-    uintptr_t arg_syscall_no = trapframe->a7;
-    
-    int argc = arg2;
     
     /// path ///
     char kernel_buf[256];
     uint64_t user_va = arg0;
     
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
-    copyinstr(p->pagetable, kernel_buf, user_va, 256);
+    if(copyinstr(p->pagetable, kernel_buf, user_va, 256) < 0) {
+        trapframe->a0 = -1;
+        return -1;
+    }
     
     char* path = kernel_buf;
     
-    char argv[32][32];
-    
     /// argv ////
+    char argv_storage[32][32];
+    char* kargv[32];
     uint64_t user_argv = arg1;
+    int argc = 0;
 
-    for (int i = 0;; i++) {
+    for (argc = 0; argc < 32; argc++) {
         uintptr_t uargp;
-        // 1) ユーザー空間の argv[i] （uintptr_t）を１要素だけ読む
-        if (copyin(p->pagetable,
-                   (char*)&uargp,
-                   user_argv + i * sizeof(uintptr_t),
-                   sizeof(uintptr_t)) < 0) 
-        {
-            return -1;  // 何らかのメモリエラー
-        }
-    
-        // 2) NULL ポインタなら終端
-        if (uargp == 0)
-            break;
-    
-        // 3) argv[i] の文字列本体を安全にコピー
-        char argbuf[256];
-        if (copyinstr(p->pagetable,
-                      argbuf,
-                      uargp,
-                      sizeof(argbuf)) < 0) {
+        if (copyin(p->pagetable, (char*)&uargp, user_argv + argc * sizeof(uintptr_t), sizeof(uintptr_t)) < 0) {
+            trapframe->a0 = -1;
             return -1;
         }
     
-        // 4) argbuf に取り込まれた文字列を使う
-        strncpy((char*)argv[i], argbuf, 32);;
+        if (uargp == 0) break; // End of argv
+    
+        if (copyinstr(p->pagetable, argv_storage[argc], uargp, sizeof(argv_storage[0])) < 0) {
+            trapframe->a0 = -1;
+            return -1;
+        }
+        kargv[argc] = argv_storage[argc];
+    }
+    kargv[argc] = NULL;
+
+    // Read ELF file
+    char elf_buf[PGSIZE*4]; // A buffer to hold the ELF file content
+    int fd = fs_open(path);
+    if(fd < 0) {
+        trapframe->a0 = -1;
+        return -1;
+    }
+    int ret = fs_read(fd, elf_buf, PGSIZE*4);
+    fs_close(fd);
+    if (ret <= 0) {
+        trapframe->a0 = -1;
+        return -1;
+    }
+    
+    // alloc_prog with exec_flag=1 replaces the current process's page table etc.
+    alloc_prog(elf_buf, /*fork_flag=*/0, /*exec_flag=*/1);
+    
+    struct proc* new_p = gProc[gActiveProc]; // gProc[gActiveProc] now points to the new process data
+
+    // Set up the user stack
+    uint64_t sp = new_p->context.sp; // Initial top of stack
+    uint64_t str_addrs[32];
+
+    // Copy strings to stack
+    for (int i = argc - 1; i >= 0; i--) {
+        size_t len = strlen(kargv[i]) + 1;
+        sp -= len;
+        // sp &= ~7; // Align strings to 8 bytes for simplicity/safety
+        if (copyout(new_p->pagetable, sp, kargv[i], len) < 0) {
+            panic("execv: copyout string failed");
+        }
+        str_addrs[i] = sp;
+    }
+    
+    // Align stack for argv array
+    sp -= (argc + 1) * sizeof(uint64_t);
+    sp &= ~7; 
+    uint64_t argv_base = sp;
+
+    // Copy argv pointers to stack
+    for (int i = 0; i < argc; i++) {
+        uint64_t ptr = str_addrs[i];
+        if (copyout(new_p->pagetable, argv_base + i * sizeof(uint64_t), &ptr, sizeof(uint64_t)) < 0) {
+            panic("execv: copyout ptr failed");
+        }
+    }
+    // Null terminate argv
+    uint64_t nullp = 0;
+    if (copyout(new_p->pagetable, argv_base + argc * sizeof(uint64_t), &nullp, sizeof(uint64_t)) < 0) {
+        panic("execv: copyout nullp failed");
     }
 
-    char hello_elf[PGSIZE];
+    // Update the trap frame for the new program
+    // The assembly code will restore registers from this frame
+    // and then do `sret`.
+    trapframe->a0 = argc;
+    trapframe->a1 = argv_base;
+    trapframe->sp = sp;
     
-    int fd = fs_open(path);
-    int ret = fs_read(fd, hello_elf, PGSIZE);
-    if (ret < 0) {
-        trapframe->a0 = -1;
-        return 0;
-    }
+    // The assembly code in trap.S increments sepc by 4 after the syscall handler.
+    // To counteract this, we set mepc to entry-4. This is a hack.
+    // A proper fix would involve changing trap.S to handle execv specially.
+    trapframe->mepc = new_p->context.mepc - 4;
+
+    // Update the global user_sp, which trap_return will use.
+    user_sp = sp;
     
-    alloc_prog(hello_elf, fork_flag:0, exec_flag:1);
-    
-    struct proc* result = gProc[gActiveProc];
-    
-    trapframe->mepc = result->context.mepc + 4;
-    trapframe->sp = result->context.sp;
-    
-    return 0;
+    return 0; // This return value (in a0) will be overwritten by the trapframe->a0 restoration.
 }
 
 int Sys_dup2(void)
@@ -2530,3 +2566,4 @@ int main()
     
     while (1); 
 }
+
