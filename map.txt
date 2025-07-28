@@ -514,16 +514,16 @@ LOAD main.o
  .debug_line    0x0000000000001f61       0xa5 trap_c.o
  .debug_line    0x0000000000002006     0xd132 main.o
 
-.debug_str      0x0000000000000000     0x5de6
+.debug_str      0x0000000000000000     0x5dec
  *(.debug_str)
- .debug_str     0x0000000000000000     0x5de6 entry.o
+ .debug_str     0x0000000000000000     0x5dec entry.o
                                          0x2b (size before relaxing)
- .debug_str     0x0000000000005de6      0x1af start.o
- .debug_str     0x0000000000005de6       0x2a trap.o
- .debug_str     0x0000000000005de6      0x5c8 fs.o
- .debug_str     0x0000000000005de6      0x177 plic.o
- .debug_str     0x0000000000005de6      0x14b trap_c.o
- .debug_str     0x0000000000005de6     0x5afe main.o
+ .debug_str     0x0000000000005dec      0x1af start.o
+ .debug_str     0x0000000000005dec       0x2a trap.o
+ .debug_str     0x0000000000005dec      0x5c8 fs.o
+ .debug_str     0x0000000000005dec      0x177 plic.o
+ .debug_str     0x0000000000005dec      0x14b trap_c.o
+ .debug_str     0x0000000000005dec     0x5b04 main.o
 
 .debug_line_str
                 0x0000000000000000       0xad

@@ -8,13 +8,7 @@
 #include "userprog.h"
 #include "userprog2.h"
 #include "msh.h"
-
-no_output {
 #include "minux.h"
-}
-output {
-#include "minux.h"
-}
 
 typedef unsigned long size_t;
 typedef long ptrdiff_t;

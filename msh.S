@@ -10,9 +10,9 @@
 	.align	1
 	.type	exit, @function
 exit:
-.LFB0:
+.LFB1:
 	.file 1 "minux.h"
-	.loc 1 122 38
+	.loc 1 121 38
 	.cfi_startproc
 	addi	sp,sp,-32
 	.cfi_def_cfa_offset 32
@@ -23,10 +23,10 @@ exit:
 	addi	s0,sp,32
 	.cfi_def_cfa 8, 0
 	sd	a0,-24(s0)
-	.loc 1 123 5
+	.loc 1 122 5
 	ld	a5,-24(s0)
  #APP
-# 123 "minux.h" 1
+# 122 "minux.h" 1
 	mv   a0, a5   
 li   a7, 70   
 ecall         
@@ -34,16 +34,16 @@ ecall
 # 0 "" 2
  #NO_APP
 .L2:
-	.loc 1 132 10
+	.loc 1 131 10
 	j	.L2
 	.cfi_endproc
-.LFE0:
+.LFE1:
 	.size	exit, .-exit
 	.align	1
 	.globl	strncpy
 	.type	strncpy, @function
 strncpy:
-.LFB1:
+.LFB2:
 	.file 2 "msh.c"
 	.loc 2 5 46
 	.cfi_startproc
@@ -116,13 +116,13 @@ strncpy:
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
-.LFE1:
+.LFE2:
 	.size	strncpy, .-strncpy
 	.align	1
 	.globl	putchar
 	.type	putchar, @function
 putchar:
-.LFB2:
+.LFB3:
 	.loc 2 17 1
 	.cfi_startproc
 	addi	sp,sp,-48
@@ -165,13 +165,13 @@ putchar:
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
-.LFE2:
+.LFE3:
 	.size	putchar, .-putchar
 	.align	1
 	.globl	printint
 	.type	printint, @function
 printint:
-.LFB3:
+.LFB4:
 	.loc 2 24 45
 	.cfi_startproc
 	addi	sp,sp,-96
@@ -309,13 +309,13 @@ printint:
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
-.LFE3:
+.LFE4:
 	.size	printint, .-printint
 	.align	1
 	.globl	printlong
 	.type	printlong, @function
 printlong:
-.LFB4:
+.LFB5:
 	.loc 2 57 57
 	.cfi_startproc
 	addi	sp,sp,-112
@@ -443,13 +443,13 @@ printlong:
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
-.LFE4:
+.LFE5:
 	.size	printlong, .-printlong
 	.align	1
 	.globl	printlonglong
 	.type	printlonglong, @function
 printlonglong:
-.LFB5:
+.LFB6:
 	.loc 2 87 66
 	.cfi_startproc
 	addi	sp,sp,-112
@@ -577,7 +577,7 @@ printlonglong:
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
-.LFE5:
+.LFE6:
 	.size	printlonglong, .-printlonglong
 	.section	.rodata
 	.align	3
@@ -588,7 +588,7 @@ printlonglong:
 	.globl	printf
 	.type	printf, @function
 printf:
-.LFB6:
+.LFB7:
 	.loc 2 117 34
 	.cfi_startproc
 	addi	sp,sp,-192
@@ -990,13 +990,13 @@ printf:
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
-.LFE6:
+.LFE7:
 	.size	printf, .-printf
 	.align	1
 	.globl	puts
 	.type	puts, @function
 puts:
-.LFB7:
+.LFB8:
 	.loc 2 214 26
 	.cfi_startproc
 	addi	sp,sp,-32
@@ -1036,13 +1036,13 @@ puts:
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
-.LFE7:
+.LFE8:
 	.size	puts, .-puts
 	.align	1
 	.globl	run_command
 	.type	run_command, @function
 run_command:
-.LFB8:
+.LFB9:
 	.loc 2 281 1
 	.cfi_startproc
 	addi	sp,sp,-112
@@ -1306,7 +1306,7 @@ run_command:
 	.cfi_def_cfa_offset 0
 	jr	ra
 	.cfi_endproc
-.LFE8:
+.LFE9:
 	.size	run_command, .-run_command
 	.section	.rodata
 	.align	3
@@ -1329,7 +1329,7 @@ run_command:
 	.globl	main
 	.type	main, @function
 main:
-.LFB9:
+.LFB10:
 	.loc 2 328 16
 	.cfi_startproc
 	addi	sp,sp,-336
@@ -1743,7 +1743,7 @@ main:
 	.loc 2 336 14
 	j	.L107
 	.cfi_endproc
-.LFE9:
+.LFE10:
 	.size	main, .-main
 .Letext0:
 	.file 3 "/opt/homebrew/Cellar/riscv-gnu-toolchain/main/lib/gcc/riscv64-unknown-elf/14.2.0/include/stdarg.h"
@@ -1863,8 +1863,8 @@ main:
 	.4byte	.LASF24
 	.2byte	0x148
 	.4byte	0x3c
-	.8byte	.LFB9
-	.8byte	.LFE9-.LFB9
+	.8byte	.LFB10
+	.8byte	.LFE10-.LFB10
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x42d
@@ -2244,8 +2244,8 @@ main:
 	.4byte	.LASF25
 	.2byte	0x118
 	.4byte	0x3c
-	.8byte	.LFB8
-	.8byte	.LFE8-.LFB8
+	.8byte	.LFB9
+	.8byte	.LFE9-.LFB9
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x774
@@ -2577,8 +2577,8 @@ main:
 	.uleb128 0xc
 	.4byte	.LASF31
 	.byte	0xd6
-	.8byte	.LFB7
-	.8byte	.LFE7-.LFB7
+	.8byte	.LFB8
+	.8byte	.LFE8-.LFB8
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x7c2
@@ -2599,8 +2599,8 @@ main:
 	.byte	0x75
 	.byte	0x5
 	.4byte	0x3c
-	.8byte	.LFB6
-	.8byte	.LFE6-.LFB6
+	.8byte	.LFB7
+	.8byte	.LFE7-.LFB7
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x99e
@@ -2774,8 +2774,8 @@ main:
 	.uleb128 0xc
 	.4byte	.LASF32
 	.byte	0x57
-	.8byte	.LFB5
-	.8byte	.LFE5-.LFB5
+	.8byte	.LFB6
+	.8byte	.LFE6-.LFB6
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0xa34
@@ -2853,8 +2853,8 @@ main:
 	.uleb128 0xc
 	.4byte	.LASF37
 	.byte	0x39
-	.8byte	.LFB4
-	.8byte	.LFE4-.LFB4
+	.8byte	.LFB5
+	.8byte	.LFE5-.LFB5
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0xada
@@ -2925,8 +2925,8 @@ main:
 	.uleb128 0xc
 	.4byte	.LASF38
 	.byte	0x18
-	.8byte	.LFB3
-	.8byte	.LFE3-.LFB3
+	.8byte	.LFB4
+	.8byte	.LFE4-.LFB4
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0xb7e
@@ -3014,8 +3014,8 @@ main:
 	.byte	0x2
 	.byte	0x10
 	.byte	0x6
-	.8byte	.LFB2
-	.8byte	.LFE2-.LFB2
+	.8byte	.LFB3
+	.8byte	.LFE3-.LFB3
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0xc1b
@@ -3082,8 +3082,8 @@ main:
 	.byte	0x5
 	.byte	0x7
 	.4byte	0x45d
-	.8byte	.LFB1
-	.8byte	.LFE1-.LFB1
+	.8byte	.LFB2
+	.8byte	.LFE2-.LFB2
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0xc6f
@@ -3123,16 +3123,16 @@ main:
 	.uleb128 0x1e
 	.4byte	.LASF45
 	.byte	0x1
-	.byte	0x7a
+	.byte	0x79
 	.byte	0x14
-	.8byte	.LFB0
-	.8byte	.LFE0-.LFB0
+	.8byte	.LFB1
+	.8byte	.LFE1-.LFB1
 	.uleb128 0x1
 	.byte	0x9c
 	.uleb128 0x8
 	.4byte	.LASF19
 	.byte	0x1
-	.byte	0x7a
+	.byte	0x79
 	.byte	0x1e
 	.4byte	0x66
 	.uleb128 0x2

@@ -33,27 +33,7 @@ typedef int pid_t;
 })
 
 
-/*
-static inline long read(long fd, void *buf, long size) {
-    long ret;
-    asm volatile(
-        "mv   a0, %2    \n"  // fd → a0
-        "mv   a1, %3    \n"  // buf → a1
-        "mv   a2, %4    \n"  // size → a2
-        "li   a7, %5    \n"  // SYS_read → a7
-        "ecall          \n"  // システムコール発行
-        "mv   %0, a0    \n"  // 戻り値 a0 → ret
-        : "=r"(ret)         // %0 = 出力オペランド
-        : "0"(ret),         // %1 = 同じレジスタ（ダミー）
-          "r"(fd),          // %2 = fd
-          "r"(buf),         // %3 = buf
-          "r"(size),        // %4 = size
-          "i"(SYS_read)     // %5 = システムコール番号
-        : "a0", "a1", "a2", "a7", "memory"
-    );
-    return ret;
-}
-*/
+
 #define read(fd, buf, len) ({                                      \
     long _ret;                                                     \
     /* 引数を対応するレジスタにセット */                          \
