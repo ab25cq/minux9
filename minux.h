@@ -64,8 +64,6 @@ typedef int pid_t;
     (int)_a0;                                                   \
 })
 
-#define open(path, flags) open(path, flags, 0)
-
 #define close(fd) ({                                              \
     register long _a0 asm("a0") = (long)(fd);                     \
     register long _a7 asm("a7") = SYS_close;                      \

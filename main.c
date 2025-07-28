@@ -1489,7 +1489,7 @@ int Sys_execv()
     // Update the global user_sp, which trap_return will use.
     user_sp = sp;
     
-    return 0; // This return value (in a0) will be overwritten by the trapframe->a0 restoration.
+    return argc;
 }
 
 int Sys_dup2(void)

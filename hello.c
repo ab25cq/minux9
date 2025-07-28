@@ -206,12 +206,19 @@ int strlen(const char *s) {
             
 // hello.c
 int main(int argc, char** argv) {
-   // char* s = (char*)0x3fffffe0;
+printf("argc %d\n", argc);
+    if(argc < 2) exit(2);
     
-    printf("child argv %p argv[0] %p %s\n", argv, argv[0], argv[0]);
-    printf("child argv %p argv[1] %p %s\n", argv, argv[1], argv[1]);
-    printf("child argv %p argv[2] %p %s\n", argv, argv[2], argv[2]);
-//    printf("child argv[0] %p(%p) (%s)\n", argv[0], argv + 0, argv[0]);
+    int fd = open(argv[1],0, 0);
+printf("fd %d\n", fd);
+    
+    char buf[32];
+    int size = read(fd, buf, 32);
+printf("size %d\n", size);
+    close(fd);
+    
+    write(1, buf, size);
+    
 //    printf("child argv[1] %p(%p)\n", argv[1], &argv[1]);
 //    printf("argv[0] %p\n", argv[0]);
 //    printf("argv[1] %p\n", argv[1]);
