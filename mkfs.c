@@ -554,7 +554,7 @@ main(int argc, char *argv[])
     // ここから「hello.elf」をルート直下に /hello.elf として埋め込む例
     //-------------------------------------------------------------------
     write_file_to_file_system("cat", 3);
-    write_file_to_file_system("hello2.elf", 4);
+    write_file_to_file_system("grep", 4);
     write_file_to_file_system("hello3.elf", 5);
     write_file_to_file_system("hello4.elf", 6);
     write_file_to_file_system("a.txt", 7);

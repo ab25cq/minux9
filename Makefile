@@ -18,9 +18,8 @@ kernel.elf:
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o cat cat.c $(CHILD_CFLAGS)
 	xxd -i cat > cat.h  
 
-	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello2.elf -g hello2.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello2.elf hello2.c $(CHILD_CFLAGS)
-	xxd -i hello2.elf > userprog2.h  
+	comelang -S -bare grep.c
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o grep grep.c.c $(CHILD_CFLAGS)
 
 	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello3.elf -g hello3.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello3.elf hello3.c $(CHILD_CFLAGS)
@@ -36,7 +35,7 @@ kernel.elf:
 
 	dd if=/dev/zero of=fs.img bs=1k count=512
 	dd if=cat of=fs.img bs=512 seek=0 conv=notrunc
-	dd if=hello2.elf of=fs.img bs=512 seek=128 conv=notrunc
+	dd if=grep of=fs.img bs=512 seek=128 conv=notrunc
 	gcc -o mkfs mkfs.c
 	./mkfs fs.img
 
@@ -67,5 +66,5 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log hello.elf hello2.elf *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin
 
