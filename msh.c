@@ -334,7 +334,7 @@ int main(void) {
     int status;
     
     for (;;) {
-        write(1, "\r\n", 2);
+        //write(1, "\r\n", 2);
         // プロンプト
         write(1, "$ ", 2);
         

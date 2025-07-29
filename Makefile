@@ -14,9 +14,9 @@ kernel.elf:
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o trap_c.o trap.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o plic.o plic.c
 
-	$(CCPREFIX)gcc -O0 -nostdlib -static -o hello.elf -g hello.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello.elf hello.c $(CHILD_CFLAGS)
-	xxd -i hello.elf > userprog.h  
+	$(CCPREFIX)gcc -O0 -nostdlib -static -o cat -g cat.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o cat cat.c $(CHILD_CFLAGS)
+	xxd -i cat > cat.h  
 
 	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello2.elf -g hello2.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello2.elf hello2.c $(CHILD_CFLAGS)
@@ -35,7 +35,7 @@ kernel.elf:
 	xxd -i msh.elf > msh.h  
 
 	dd if=/dev/zero of=fs.img bs=1k count=512
-	dd if=hello.elf of=fs.img bs=512 seek=0 conv=notrunc
+	dd if=cat of=fs.img bs=512 seek=0 conv=notrunc
 	dd if=hello2.elf of=fs.img bs=512 seek=128 conv=notrunc
 	gcc -o mkfs mkfs.c
 	./mkfs fs.img

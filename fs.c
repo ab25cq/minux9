@@ -14,6 +14,7 @@ void* memset(void *dst, int c, unsigned int n);
 void* memcpy(void *dst, const void *src, unsigned int n);
 int strlen(const char *s);
 int printf(const char* fmt, ...);
+char* strncat(char* dest, const char* src, size_t n);
 char* strncpy(char *s, const char *t, int n);
 char *strtok(char *s, const char *delim);
 extern void puts(const char* s);
@@ -547,7 +548,17 @@ int pipewrite(int fd, char *addr, int n)
 int fs_open(const char *path) {
     struct file* file_table = get_current_file_table();
     
-    uint32_t inum = path_lookup(path);
+    char path2[32];
+    
+    if(path[0] == '/') {
+        strncpy(path2, path, 32);
+    }
+    else {
+        strncpy(path2, "/", 32);
+        strncat(path2, path, 32);
+    }
+    
+    uint32_t inum = path_lookup(path2);
     if (inum == 0) {
         return -1;
     }
