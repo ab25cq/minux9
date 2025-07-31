@@ -1768,6 +1768,11 @@ uintptr_t syscall_handler()
             }
             break;
             
+        case SYS_brk: {
+            result = Sys_brk();
+            }
+            break;
+            
         default:
             panic("invalid syscall");
     }
