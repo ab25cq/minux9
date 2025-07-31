@@ -151,6 +151,8 @@ struct proc {
     char* stack_top;
     uint64_t vaddr;
     
+    uint64_t sz; // Size of process memory (program break)
+    
     int zombie; 
     
     pagetable_t pagetable;
@@ -833,9 +835,14 @@ void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
     result->vaddr = PGROUNDDOWN(ph->vaddr);
     
     uint64_t va = 0;
+    uint64_t max_va_end = 0;
     for (int i = 0; i < eh->phnum; i++, ph++) {
         if (ph->type != ELF_PROG_LOAD)
             continue;
+            
+        if (ph->vaddr + ph->memsz > max_va_end) {
+            max_va_end = ph->vaddr + ph->memsz;
+        }
     
         for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
             void *pa = kalloc();
@@ -852,6 +859,7 @@ void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
         }
         asm volatile("sfence.vma zero, zero"); 
     }
+    result->sz = PGROUNDUP(max_va_end);
 
     if(fork_flag) {
         proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
@@ -1491,6 +1499,70 @@ int Sys_execv()
     user_sp = sp;
     
     return argc;
+}
+
+void uvmunmap(pagetable_t pagetable, uint64_t va, uint64_t npages, int do_free) {
+    if((va % PGSIZE) != 0)
+        panic("uvmunmap: not aligned");
+
+    for(uint64_t a = va; a < va + npages * PGSIZE; a += PGSIZE){
+        pte_t *pte = walk(pagetable, a, 0);
+        if(pte == 0 || (*pte & PTE_V) == 0)
+            continue;
+        
+        if(do_free){
+            uint64_t pa = PTE2PA(*pte);
+            kfree((void*)pa);
+        }
+        *pte = 0;
+    }
+}
+
+void uvm_dealloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
+    if(new_sz >= old_sz) return;
+    uvmunmap(pagetable, PGROUNDUP(new_sz), (PGROUNDUP(old_sz) - PGROUNDUP(new_sz)) / PGSIZE, 1);
+}
+
+int uvm_alloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
+    if(new_sz <= old_sz) return 0;
+    
+    uint64_t a = PGROUNDUP(old_sz);
+    for(; a < new_sz; a += PGSIZE) {
+        char *mem = kalloc();
+        if(mem == 0){
+            uvm_dealloc(pagetable, a, old_sz);
+            return -1;
+        }
+        memset(mem, 0, PGSIZE);
+        if(mappages(pagetable, a, PGSIZE, (uint64_t)mem, PTE_W|PTE_R|PTE_U|PTE_V) < 0){
+            kfree(mem);
+            uvm_dealloc(pagetable, a, old_sz);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+int Sys_brk() {
+    context_t* trapframe = (context_t*)TRAPFRAME;
+    uint64_t addr = trapframe->a0;
+    struct proc *p = gProc[gActiveProc];
+    uint64_t old_sz = p->sz;
+
+    if (addr == 0) {
+        return old_sz;
+    }
+
+    if (addr > old_sz) {
+        if(uvm_alloc(p->pagetable, old_sz, addr) < 0) {
+            return -1; 
+        }
+    } else if (addr < old_sz) {
+        uvm_dealloc(p->pagetable, old_sz, addr);
+    }
+
+    p->sz = addr;
+    return p->sz;
 }
 
 int Sys_dup2(void)

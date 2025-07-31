@@ -203,6 +203,8 @@ int strlen(const char *s) {
     ;
   return n;
 }
+
+int gA = 123;
             
 // hello.c
 int main(int argc, char** argv) {
