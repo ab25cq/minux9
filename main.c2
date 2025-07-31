@@ -150,6 +150,7 @@ struct proc {
 //    char* stack;
     char* stack_top;
     uint64_t vaddr;
+    
     uint64_t sz; // Size of process memory (program break)
     
     int zombie; 
@@ -800,10 +801,10 @@ void setting_user_pagetable(proc* proc, pagetable_t pagetable)
     asm volatile("sfence.vma zero, zero"); 
 }
 
-void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
+void alloc_prog(char* hello_elf, int fork_flag, int exec_flag) {
     proc*% result = new proc;
     
-    result->program = elf_buf;
+    result->program = hello_elf;
     
     if(fork_flag || exec_flag) {
         proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
@@ -821,20 +822,24 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
     
     result->pagetable = pagetable;
     
-    struct elfhdr *eh = (struct elfhdr *)elf_buf;
+    struct elfhdr *eh = (struct elfhdr *)hello_elf;
     
     if (eh->magic != ELF_MAGIC) {
-        while(1) puts("panic: not elf");
+        while(1) puts("panic");
     }
         
-    struct proghdr *ph = (struct proghdr *)(elf_buf + eh->phoff);
+    struct proghdr *ph = (struct proghdr *)(hello_elf + eh->phoff);
+    
+    uint64_t size = ph->filesz;
+    
+    result->vaddr = PGROUNDDOWN(ph->vaddr);
     
     uint64_t va = 0;
     uint64_t max_va_end = 0;
     for (int i = 0; i < eh->phnum; i++, ph++) {
         if (ph->type != ELF_PROG_LOAD)
             continue;
-
+            
         if (ph->vaddr + ph->memsz > max_va_end) {
             max_va_end = ph->vaddr + ph->memsz;
         }
@@ -845,47 +850,16 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
             memset(pa, 0, PGSIZE);
             mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
                      PTE_U | PTE_R | PTE_W | PTE_X | PTE_V);
+            asm volatile("sfence.vma zero, zero");
         }
         
-        if (copyout(result->pagetable, ph->vaddr, elf_buf + ph->off, ph->filesz) < 0) {
+        
+        if (copyout(result->pagetable, ph->vaddr, hello_elf + ph->off, ph->filesz) < 0) {
             panic("copyout");
         }
+        asm volatile("sfence.vma zero, zero"); 
     }
     result->sz = PGROUNDUP(max_va_end);
-
-    // Find global pointer
-    uint64_t gp = 0;
-    struct elfshdr *sh = (struct elfshdr *)(elf_buf + eh->shoff);
-    const char *shstrtab = elf_buf + sh[eh->shstrndx].offset;
-    struct elfsym *symtab = (void*)0;
-    const char *strtab = (void*)0;
-    int symtab_size = 0;
-
-    for (int i = 0; i < eh->shnum; i++) {
-        if (strcmp(shstrtab + sh[i].name, ".symtab") == 0) {
-            symtab = (struct elfsym *)(elf_buf + sh[i].offset);
-            symtab_size = sh[i].size;
-        }
-        if (strcmp(shstrtab + sh[i].name, ".strtab") == 0) {
-            strtab = elf_buf + sh[i].offset;
-        }
-    }
-
-    if (symtab && strtab) {
-        for (int i = 0; i < symtab_size / sizeof(struct elfsym); i++) {
-            if (strcmp(strtab + symtab[i].name, "__global_pointer$") == 0) {
-                gp = symtab[i].value;
-                break;
-            }
-        }
-    }
-    
-    if(gp == 0) {
-        // Fallback or error if gp not found, but for now we just warn.
-        // For non-PIC code this might be okay. For PIC/GP-relative, it will fail.
-        // puts("Warning: __global_pointer$ not found\n");
-    }
-
 
     if(fork_flag) {
         proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
@@ -912,7 +886,6 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
 
         result->stack_top  = (char*)stack_base;
         result->context.sp = stack_base + STACK_PAGES*PGSIZE;
-        result->context.gp = parent->context.gp; // Inherit gp in fork
     
         foreach(it, parent->mapping_values) {
             var pa, size = parent->mapping_values[it];
@@ -924,7 +897,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
         result->file_table = fs_dup_table(parent->file_table);
     }
     else {
-        proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
+        proc *parent = gProc[gActiveProc]; // 現在のロセスを取得
         uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
         for (int i = 0; i < STACK_PAGES; i++) {
             char *pa = kalloc();
@@ -939,7 +912,6 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
 
         result->stack_top  = (char*)stack_base;
         result->context.sp = stack_base + STACK_PAGES*PGSIZE;
-        result->context.gp = gp; // Set gp for new program
         
         asm volatile("sfence.vma zero, zero"); 
     
@@ -1476,8 +1448,6 @@ int Sys_execv()
     // alloc_prog with exec_flag=1 replaces the current process's page table etc.
     alloc_prog(elf_buf, /*fork_flag=*/0, /*exec_flag=*/1);
     
-    free(elf_buf);
-    
     struct proc* new_p = gProc[gActiveProc]; // gProc[gActiveProc] now points to the new process data
 
     // Set up the user stack
@@ -1796,7 +1766,7 @@ static inline uint64_t r_sip()
 static inline uint64_t read_s_sp(void) {
     uint64_t sp_val;
     asm volatile(
-        "mv %0, sp\n"     // sp レジスタの値を出オペランド %0 に
+        "mv %0, sp\n"     // sp レジスタの値を出力オペランド %0 に
         : "=r"(sp_val)    // %0 は r• レジスタに出力
         :                 // 入力オペランドなし
         :                 // 破壊するレジスタなし
@@ -2054,7 +2024,7 @@ char *strtok(char *s, const char *delim) {
         next = s;
     }
 
-    // 直前で末尾に達していれば NULL を返
+    // 直前で末尾に達していれば NULL を返す
     if (next == NULL) {
         return NULL;
     }
@@ -2661,7 +2631,7 @@ int main()
     //kernel_sp = read_s_sp();
     asm volatile(
         "mv %0, sp\n"     // sp レジスタの値を出力オペランド %0 に
-        : "=r"(kernel_sp)    // %0 は r レジスタに出力
+        : "=r"(kernel_sp)    // %0 は r• レジスタに出力
         :                 // 入力オペランドなし
         :                 // 破壊するレジスタなし
     );

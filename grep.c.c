@@ -32,8 +32,8 @@ struct sMemHeader* gAllocMem;
 
 void* gComeResultObject=((void*)0);
 
-int gComeMallocLib=(int)0;
 */
+int gComeMallocLib=(int)0;
 int gComeDebugLib=0;
 
 /*
