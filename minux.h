@@ -13,6 +13,7 @@ typedef int pid_t;
 #define SYS_wait 71
 #define SYS_dup2 72
 #define SYS_pipe 73
+#define SYS_brk 74
 
 
 #define write(fd, buf, len) ({                                       \
@@ -155,5 +156,17 @@ static inline void exit(long status) {
                      : "memory");                         \
         _ret;                                             \
     })
+    
+#define brk(size) ({                                           \
+    register long _a0 asm("a0") = (long)(size);                 \
+    register long _a7 asm("a7") = SYS_brk;                    \
+    asm volatile("ecall"                                        \
+                 : "+r"(_a0)                                   \
+                 : "r"(_a7)                                    \
+                 : "memory");                                  \
+    (int)_a0;                                                   \
+})
+    
+#define __MINUX__ 1
 
 #endif

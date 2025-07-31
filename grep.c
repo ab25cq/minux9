@@ -1,5 +1,6 @@
 #include <comelang.h>
 #include "minux.h"
+#include <comelang.h>
 
 void putchar(char c)
 {
@@ -22,11 +23,17 @@ int main(int argc, char** argv) {
     buffer*% buf = new buffer();
     while(1) {
 */
+/*
         char buf2[256];
         int size = read(0, buf2, 3);
         buf2[size] ='\0';
         
         puts(buf2);
+*/
+puts("AAA");
+char*% a = new char[128];
+strncpy(a, "QAB", 128);
+puts(a);
         
 /*
         if(size <= 0) {

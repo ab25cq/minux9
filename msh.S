@@ -12,7 +12,7 @@
 exit:
 .LFB0:
 	.file 1 "minux.h"
-	.loc 1 100 38
+	.loc 1 101 38
 	.cfi_startproc
 	addi	sp,sp,-32
 	.cfi_def_cfa_offset 32
@@ -23,10 +23,10 @@ exit:
 	addi	s0,sp,32
 	.cfi_def_cfa 8, 0
 	sd	a0,-24(s0)
-	.loc 1 101 5
+	.loc 1 102 5
 	ld	a5,-24(s0)
  #APP
-# 101 "minux.h" 1
+# 102 "minux.h" 1
 	mv   a0, a5   
 li   a7, 70   
 ecall         
@@ -34,7 +34,7 @@ ecall
 # 0 "" 2
  #NO_APP
 .L2:
-	.loc 1 110 10
+	.loc 1 111 10
 	j	.L2
 	.cfi_endproc
 .LFE0:
@@ -3068,7 +3068,7 @@ main:
 	.uleb128 0x1e
 	.4byte	.LASF45
 	.byte	0x1
-	.byte	0x64
+	.byte	0x65
 	.byte	0x14
 	.8byte	.LFB0
 	.8byte	.LFE0-.LFB0
@@ -3077,7 +3077,7 @@ main:
 	.uleb128 0x8
 	.4byte	.LASF19
 	.byte	0x1
-	.byte	0x64
+	.byte	0x65
 	.byte	0x1e
 	.4byte	0x66
 	.uleb128 0x2
