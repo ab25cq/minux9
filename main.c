@@ -1423,13 +1423,14 @@ int Sys_execv()
     kargv[argc] = NULL;
 
     // Read ELF file
-    char elf_buf[PGSIZE*4]; // A buffer to hold the ELF file content
     int fd = fs_open(path);
     if(fd < 0) {
         trapframe->a0 = -1;
         return -1;
     }
-    int ret = fs_read(fd, elf_buf, PGSIZE*4);
+    ssize_t size = fs_size(fd);
+    char* elf_buf = calloc(1, size);
+    int ret = fs_read(fd, elf_buf, size);
     fs_close(fd);
     if (ret <= 0) {
         trapframe->a0 = -1;

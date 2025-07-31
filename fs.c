@@ -599,6 +599,17 @@ ssize_t fs_read(int fd, void *buf, size_t count) {
     return to_read;
 }
 
+ssize_t fs_size(int fd) {
+    struct file* file_table = get_current_file_table();
+    
+    int idx = fd;
+    if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
+        return -1;
+
+    struct file *f = &file_table[idx];
+    return f->din.size;
+}
+
 // fs_close: fd を閉じる
 // 成功: 0, 失敗: -1
 int fs_close(long fd) {
