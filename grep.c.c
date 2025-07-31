@@ -15,7 +15,6 @@ typedef __builtin_va_list va_list;
 // uniq global variable
 struct mem_block* free_list=((void*)0);
 
-/*
 char* gComeStackFrameSName[128];
 
 int gComeStackFrameSLine[128];
@@ -25,24 +24,19 @@ int gComeStackFrameID[128];
 int gNumComeStackFrame=0;
 
 char* gComeStackFrameBuffer=((void*)0);
-*/
 
-/*
 struct sMemHeader* gAllocMem;
 
 void* gComeResultObject=((void*)0);
 
-*/
 int gComeMallocLib=(int)0;
 int gComeDebugLib=0;
 
-/*
 int gComeGCLib=0;
 
 int gNumAlloc=0;
 
 int gNumFree=0;
-*/
 
 // inline function
 

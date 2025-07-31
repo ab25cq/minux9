@@ -19,7 +19,7 @@ trapvec:
     sd sp, 8(t0)
     sd gp, 16(t0)
     sd tp, 24(t0)
-/* sd t0, 32(t0) */
+/*    sd t0, 32(t0) */
     sd t1, 40(t0)
     sd t2, 48(t0)
     sd t3, 56(t0)
@@ -162,7 +162,7 @@ handle_ecall:
     ld sp, 8(t0)
     ld gp, 16(t0)
     ld tp, 24(t0)
-/* sd t0, 32(t0) */
+/*    sd t0, 32(t0) */
     ld t1, 40(t0)
     ld t2, 48(t0)
     ld t3, 56(t0)
@@ -258,7 +258,7 @@ swtch:
     ld t4, 64(a0)
     ld t5, 72(a0)
     ld t6, 80(a0)
-/* ld a0, 88(a0) */
+/*    ld a0, 88(a0) */
     ld a1, 96(a0)
     ld a2, 104(a0)
     ld a3, 112(a0)
@@ -329,7 +329,7 @@ swtch:
     .section ".trampoline", "ax"
 .globl enter_user
 enter_user:
-     # a0=entry, a1=usersp, a2=usersatp, a3=interval, a4=gp
+     # a0=entry, a1=usersp, a2=usersatp, a3=interval
 
     # SATP をユーザーテーブルに切り替え
     csrw  satp, a2
@@ -337,8 +337,6 @@ enter_user:
 
     # スタック切り替え
     mv    sp, a1
-    
-    mv    gp, a4
 
     # ユーザー用エントリ設定
     csrw  sepc, a0
@@ -430,7 +428,7 @@ yield:
     sd sp, 8(t0)
     sd gp, 16(t0)
     sd tp, 24(t0)
-/* sd t0, 32(t0) */
+/*    sd t0, 32(t0) */
     sd t1, 40(t0)
     sd t2, 48(t0)
     sd t3, 56(t0)
@@ -489,7 +487,7 @@ yield_return:
     ld sp, 8(t0)
     ld gp, 16(t0)
     ld tp, 24(t0)
-/* sd t0, 32(t0) */
+/*    sd t0, 32(t0) */
     ld t1, 40(t0)
     ld t2, 48(t0)
     ld t3, 56(t0)

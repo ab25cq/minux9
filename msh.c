@@ -403,9 +403,10 @@ int main(void) {
                 }
             }
             else if(*p == '\0') {
+                commands[num_commands].argv[num_arg][n] = '\0';
+            
                 num_arg++;
                 commands[num_commands].num_arg = num_arg;
-                commands[num_commands].argv[num_arg][n] = '\0';
                 num_commands++;
                 break;
             }

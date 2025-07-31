@@ -1782,7 +1782,7 @@ uintptr_t syscall_handler()
 #define SSTATUS_SUM (1UL << 18)
 
 
-void enter_user(uintptr_t, uintptr_t, uintptr_t, uint64_t);
+void enter_user(uintptr_t, uintptr_t, uintptr_t, uint64_t, uint64_t);
 
 #define SSTATUS_SPP (1L << 8)  // Previous mode, 1=Supervisor, 0=User
 
@@ -2650,6 +2650,8 @@ int main()
     
     struct proc* p = gProc[0];
     
+    int gp = p->context.gp;
+    
     uintptr_t usersp = (uint64_t)(p->context.sp);
     uint64_t usersatp = MAKE_SATP(p->pagetable);
     uintptr_t entry = p->context.mepc;
@@ -2665,7 +2667,7 @@ int main()
         :                 // 入力オペランドなし
         :                 // 破壊するレジスタなし
     );
-    enter_user(entry, usersp, usersatp, TIMER_INTERVAL);
+    enter_user(entry, usersp, usersatp, TIMER_INTERVAL, gp);
     
     while (1); 
 }
