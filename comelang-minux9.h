@@ -21,7 +21,7 @@ extern void puts(const char* s);
 
 uniq void* sbrk(long incr) {
     // まず、brk(0)を呼び出して現在のプログラムブレーク位置を取得
-    char* current_brk = brk(0);
+    char* current_brk = (char*)brk(0);
     if (current_brk == (char*)-1) {
         return (void*)-1; // 失敗
     }
@@ -93,6 +93,7 @@ uniq void *malloc(unsigned nbytes) {
                 p->size = nunits;
             }
             freep = prevp;
+printf("p %p\n", (void*)(p + 1));
             return (void *)(p + 1); // ヘッダの次のアドレスを返す
         }
         if (p == freep) { // 空きリストを一周した

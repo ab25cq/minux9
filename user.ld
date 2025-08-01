@@ -20,7 +20,7 @@ SECTIONS
 
   .data : {
     . = ALIGN(8);
-    __global_pointer$ = . + 0x800;
+/*    __global_pointer$ = . + 0x800; */
     *(.sdata .sdata.*)
     *(.data .data.*)
   }
