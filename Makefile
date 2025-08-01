@@ -18,8 +18,8 @@ kernel.elf:
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o cat cat.c $(CHILD_CFLAGS)
 	xxd -i cat > cat.h  
 
-#	comelang -S -bare grep.c
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o grep grep.c.c $(CHILD_CFLAGS)
+	comelang -S -bare grep.c
+	$(CCPREFIX)gcc -Tuser.ld -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o grep grep.c.c $(CHILD_CFLAGS)
 
 	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello3.elf -g hello3.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello3.elf hello3.c $(CHILD_CFLAGS)

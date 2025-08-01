@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include <stdarg.h>
-#include "comelang-minux9.h"
 
 struct header
 {
@@ -37,6 +36,7 @@ int main() {
         return 1;
     }
     printf("OK. Got pointer: %p\n", p1);
+    while(1);
     
     printf("2. Allocating 20 bytes...\n");
     char* p2 = malloc(20);
@@ -59,7 +59,6 @@ int main() {
     printf("OK. Got pointer: %p\n", p3);
 
     printf("--- Malloc Test Complete ---\n");
-    while(1);
 
     return 0;
 }
@@ -324,6 +323,7 @@ char* __result_obj__19;
 os_24 = (void*)0;
     os_24=s;
     while(    n-->0&&(*s++=*t++)!=0    ) {
+        ;
     }
     while(    n-->0    ) {
         *s++=0;
@@ -336,6 +336,7 @@ int strlen(const char* s){
 int n_25;
 memset(&n_25, 0, sizeof(int));
     for(    n_25=0    ;    s[n_25]    ;    n_25++    ){
+        ;
     }
     return n_25;
 }
@@ -430,6 +431,7 @@ p_29 = (void*)0;
 
 void exit(int n){
     while(    1    ) {
+        ;
     }
 }
 

@@ -1017,7 +1017,30 @@ pagetable_t copyuvm(pagetable_t old, uint64_t sz)
 
 
 
+/*
 /// 解放用ユーティリティ：Sv39 ページテーブルを再帰的に破棄
+static void free_pagetable(pagetable_t pagetable, int level) {
+    for(int i = 0; i < 512; i++) {
+        pte_t pte = pagetable[i];
+        if(!(pte & PTE_V))
+            continue;
+
+        uint64_t pa = PTE2PA(pte);
+        
+        // リーフかどうか
+        if(pte & (PTE_R | PTE_W | PTE_X)) {
+            // リーフの場合、levelに関わらず物理ページを解放する
+            kfree((void*)pa);
+        } else if(level > 0) {
+            // 中間ノードの場合は再帰
+            pagetable_t child = (pagetable_t)pa;
+            free_pagetable(child, level - 1);
+            kfree(child); // 中間ノード自身のページも解放
+        }
+    }
+}
+*/
+
 static void free_pagetable(pagetable_t pagetable, int level) {
     for(int i = 0; i < 512; i++) {
         pte_t pte = pagetable[i];
@@ -1276,7 +1299,7 @@ int Sys_write()
     int ret = copyin(p->pagetable, kernel_buf, user_va, len);
     
     if(ret < 0) {
-        panic("copyinstr1abc");
+        panic("copyinstr");
     }
     
     if(is_pipe(fd)) {
@@ -1555,6 +1578,31 @@ void uvm_dealloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
 
 int uvm_alloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
     if(new_sz <= old_sz) return 0;
+
+    uint64_t a = PGROUNDUP(old_sz);
+    for(; a < new_sz; a += PGSIZE) {
+        char *mem = kalloc();
+        if(mem == 0){
+            uvm_dealloc(pagetable, a, old_sz);
+            return -1;
+        }
+        memset(mem, 0, PGSIZE);
+        if(mappages(pagetable, a, PGSIZE, (uint64_t)mem, PTE_W|PTE_R|PTE_U|PTE_V) < 0){
+            kfree(mem);
+            uvm_dealloc(pagetable, a, old_sz);
+            return -1;
+        }
+    }
+
+    // Add this line!
+    asm volatile("sfence.vma zero, zero"); 
+
+    return 0;
+}
+
+/*
+int uvm_alloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
+    if(new_sz <= old_sz) return 0;
     
     uint64_t a = PGROUNDUP(old_sz);
     for(; a < new_sz; a += PGSIZE) {
@@ -1572,7 +1620,38 @@ int uvm_alloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
     }
     return 0;
 }
+*/
 
+// In main.c, inside Sys_brk
+int Sys_brk() {
+    context_t* trapframe = (context_t*)TRAPFRAME;
+    uint64_t addr = trapframe->a0;
+    struct proc *p = gProc[gActiveProc];
+    uint64_t old_sz = p->sz;
+
+    printf("Sys_brk: called. addr=%p, old_sz=%p\n", addr, old_sz);
+
+    if (addr == 0) {
+        printf("Sys_brk: returning current break %p\n", old_sz);
+        return old_sz;
+    }
+
+    if (addr > old_sz) {
+        printf("Sys_brk: allocating from %p to %p\n", old_sz, addr);
+        if(uvm_alloc(p->pagetable, old_sz, addr) < 0) {
+            printf("Sys_brk: uvm_alloc failed!\n");
+            return -1; 
+        }
+    } else if (addr < old_sz) {
+        uvm_dealloc(p->pagetable, old_sz, addr);
+    }
+
+    p->sz = addr;
+    printf("Sys_brk: new break is %p\n", p->sz);
+    return p->sz;
+}
+
+/*
 int Sys_brk() {
     context_t* trapframe = (context_t*)TRAPFRAME;
     uint64_t addr = trapframe->a0;
@@ -1594,6 +1673,7 @@ int Sys_brk() {
     p->sz = addr;
     return p->sz;
 }
+*/
 
 int Sys_dup2(void)
 {
@@ -1774,7 +1854,9 @@ uintptr_t syscall_handler()
             break;
             
         default:
+            printf("NO. %d\n", arg_syscall_no);
             panic("invalid syscall");
+            while(1);
     }
     
     trapframe->a0 = result;
