@@ -1,16 +1,242 @@
-#include <stdint.h>
-#include <stdarg.h>
-#include "minux.h"
+# 1 "grep.c"
+# 1 "<built-in>" 1
+# 1 "<built-in>" 3
+# 465 "<built-in>" 3
+# 1 "<command line>" 1
+# 1 "<built-in>" 2
+# 1 "grep.c" 2
+# 1 "./stdint.h" 1
+
+
+
+// 符号付き整数型
+typedef signed char int8_t;
+typedef short int16_t;
+typedef int int32_t;
+typedef long long int64_t;
+
+// 符号なし整数型
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int uint32_t;
+typedef unsigned long long uint64_t;
+
+// 最小幅保証整数型（任意の型に一致）
+typedef int8_t int_least8_t;
+typedef int16_t int_least16_t;
+typedef int32_t int_least32_t;
+typedef int64_t int_least64_t;
+
+typedef uint8_t uint_least8_t;
+typedef uint16_t uint_least16_t;
+typedef uint32_t uint_least32_t;
+typedef uint64_t uint_least64_t;
+
+// 高速整数型（最低限）
+typedef int64_t int_fast8_t;
+typedef int64_t int_fast16_t;
+typedef int64_t int_fast32_t;
+typedef int64_t int_fast64_t;
+
+typedef uint64_t uint_fast8_t;
+typedef uint64_t uint_fast16_t;
+typedef uint64_t uint_fast32_t;
+typedef uint64_t uint_fast64_t;
+
+// ポインタサイズに依存する整数型（RISC-V 64bit = 64bit）
+typedef long intptr_t;
+typedef unsigned long uintptr_t;
+
+// サイズに関するマクロ
+# 2 "grep.c" 2
+# 1 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h" 1 3
+/*===---- stdarg.h - Variable argument handling ----------------------------===
+ *
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ *===-----------------------------------------------------------------------===
+ */
+
+/*
+ * This header is designed to be included multiple times. If any of the __need_
+ * macros are defined, then only that subset of interfaces are provided. This
+ * can be useful for POSIX headers that need to not expose all of stdarg.h, but
+ * need to use some of its interfaces. Otherwise this header provides all of
+ * the expected interfaces.
+ *
+ * When clang modules are enabled, this header is a textual header to support
+ * the multiple include behavior. As such, it doesn't directly declare anything
+ * so that it doesn't add duplicate declarations to all of its includers'
+ * modules.
+ */
+# 39 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h" 3
+/* GCC always defines __va_copy, but does not define va_copy unless in c99 mode
+ * or -ansi is not specified, since it was not part of C90.
+ */
+
+
+
+
+
+# 1 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/__stdarg_header_macro.h" 1 3
+/*===---- __stdarg_header_macro.h ------------------------------------------===
+ *
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ *===-----------------------------------------------------------------------===
+ */
+# 48 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h" 2 3
+
+
+
+# 1 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/__stdarg___gnuc_va_list.h" 1 3
+/*===---- __stdarg___gnuc_va_list.h - Definition of __gnuc_va_list ---------===
+ *
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ *===-----------------------------------------------------------------------===
+ */
+
+
+
+typedef __builtin_va_list __gnuc_va_list;
+# 52 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h" 2 3
+
+
+
+
+# 1 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/__stdarg_va_list.h" 1 3
+/*===---- __stdarg_va_list.h - Definition of va_list -----------------------===
+ *
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ *===-----------------------------------------------------------------------===
+ */
+
+
+
+typedef __builtin_va_list va_list;
+# 57 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h" 2 3
+
+
+
+
+# 1 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/__stdarg_va_arg.h" 1 3
+/*===---- __stdarg_va_arg.h - Definitions of va_start, va_arg, va_end-------===
+ *
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ *===-----------------------------------------------------------------------===
+ */
+
+
+
+
+
+
+
+/* Versions before C23 do require the second parameter. */
+# 62 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h" 2 3
+
+
+
+
+# 1 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/__stdarg___va_copy.h" 1 3
+/*===---- __stdarg___va_copy.h - Definition of __va_copy -------------------===
+ *
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ *===-----------------------------------------------------------------------===
+ */
+# 67 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h" 2 3
+
+
+
+
+# 1 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/__stdarg_va_copy.h" 1 3
+/*===---- __stdarg_va_copy.h - Definition of va_copy------------------------===
+ *
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ *===-----------------------------------------------------------------------===
+ */
+# 72 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h" 2 3
+# 3 "grep.c" 2
+# 1 "./comelang-minux9.h" 1
+
+# 1 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h" 1 3
+/*===---- stdarg.h - Variable argument handling ----------------------------===
+ *
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ *===-----------------------------------------------------------------------===
+ */
+
+/*
+ * This header is designed to be included multiple times. If any of the __need_
+ * macros are defined, then only that subset of interfaces are provided. This
+ * can be useful for POSIX headers that need to not expose all of stdarg.h, but
+ * need to use some of its interfaces. Otherwise this header provides all of
+ * the expected interfaces.
+ *
+ * When clang modules are enabled, this header is a textual header to support
+ * the multiple include behavior. As such, it doesn't directly declare anything
+ * so that it doesn't add duplicate declarations to all of its includers'
+ * modules.
+ */
+# 39 "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h" 3
+/* GCC always defines __va_copy, but does not define va_copy unless in c99 mode
+ * or -ansi is not specified, since it was not part of C90.
+ */
+# 3 "./comelang-minux9.h" 2
+# 1 "./minux.h" 1
+
+
+
+typedef int pid_t;
+# 101 "./minux.h"
+static inline void exit(long status) {
+    asm volatile(
+        "mv   a0, %0   \n" // status → a0
+        "li   a7, %1   \n" // SYS_exit → a7
+        "ecall         \n" // システムコール発行
+        :
+        : "r"(status), "i"(70)
+        : "a0", "a7", "memory"
+    );
+
+    while(1);
+    __builtin_unreachable(); // exit 後は戻らないのでコンパイラに通知
+}
+# 148 "./minux.h"
+// 戻り値を取るバージョン
+# 4 "./comelang-minux9.h" 2
 
 using comelang;
 
-#define ALLOCATED_MAGIC_NUM 177783
+
 
 typedef unsigned long size_t;
 typedef long ptrdiff_t;
 
-#define NULL ((void*)0)
-#define nullptr ((void*)0)
+
+
 typedef char*% string;
 
 void* memset(void *dst, int c, unsigned int n);
@@ -21,7 +247,7 @@ extern void puts(const char* s);
 
 uniq void* sbrk(long incr) {
     // まず、brk(0)を呼び出して現在のプログラムブレーク位置を取得
-    char* current_brk = brk(0);
+    char* current_brk = ({ register long _a0 asm("a0") = (long)(0); register long _a7 asm("a7") = 74; asm volatile("ecall" : "+r"(_a0) : "r"(_a7) : "memory"); (int)_a0; });
     if (current_brk == (char*)-1) {
         return (void*)-1; // 失敗
     }
@@ -32,7 +258,7 @@ uniq void* sbrk(long incr) {
     }
 
     // 新しいブレーク位置を設定するようカーネルに要求
-    if (brk((long)(current_brk + incr)) == -1) {
+    if (({ register long _a0 asm("a0") = (long)((long)(current_brk + incr)); register long _a7 asm("a7") = 74; asm volatile("ecall" : "+r"(_a0) : "r"(_a7) : "memory"); (int)_a0; }) == -1) {
         return (void*)-1; // 失敗
     }
 
@@ -43,10 +269,10 @@ uniq void* sbrk(long incr) {
 // メモリブロックのヘッダ
 typedef struct header {
     struct header *next; // 次の空きブロックへのポインタ
-    unsigned size;       // このブロックのサイズ (ヘッダ単位)
+    unsigned size; // このブロックのサイズ (ヘッダ単位)
 } Header;
 
-uniq Header base;          // 空のリストの先頭
+uniq Header base; // 空のリストの先頭
 uniq Header *freep = 0; // 空きリストの先頭
 
 // free関数（前方宣言）
@@ -59,11 +285,11 @@ uniq Header *morecore(unsigned nunits) {
 
     if (nunits < 4096)
         nunits = 4096; // 最低でも4096単位を要求
-    
+
     cp = sbrk(nunits * sizeof(Header));
     if (cp == (char *) -1) // メモリ不足
         return (void*)0;
-        
+
     up = (Header *) cp;
     up->size = nunits;
     free((void *)(up + 1)); // 取得した領域をfreeに渡して空きリストに繋げる
@@ -129,7 +355,7 @@ uniq void free(void *ap) {
     }
     freep = p;
 }
-   
+
 /*
 uniq void free(void* ap){
     struct header* bp_11;
@@ -173,11 +399,11 @@ uniq void free(void* ap){
 uniq void *calloc(size_t nmemb, size_t size) {
     size_t total_size = nmemb * size;
     if (total_size == 0) {
-        return NULL;
+        return ((void*)0);
     }
 
     void *ptr = malloc(total_size);
-    if (ptr != NULL) {
+    if (ptr != ((void*)0)) {
         memset(ptr, 0, total_size);
     }
     return ptr;
@@ -199,7 +425,7 @@ uniq int strcmp(const char* s1, const char* s2) {
     }
     return (unsigned char)*s1 - (unsigned char)*s2;
 }
-                            
+
 uniq char* strstr(const char* haystack, const char* needle) {
     if (!*needle)
         return (char*)haystack;
@@ -213,11 +439,11 @@ uniq char* strstr(const char* haystack, const char* needle) {
             n++;
         }
 
-        if (!*n)  // needle 
+        if (!*n) // needle 
             return (char*)haystack;
     }
 
-    return NULL;  
+    return ((void*)0);
 }
 
 uniq void* memset(void *dst, int c, unsigned int n) {
@@ -249,7 +475,7 @@ uniq void* memmove(void *dst, const void *src, unsigned int n) {
 
   if(n == 0)
     return dst;
-  
+
   s = src;
   d = dst;
   if(s < d && s + n > d){
@@ -325,18 +551,18 @@ uniq char* strncat(char* dest, const char* src, size_t n) {
 // delim に含まれるいずれかの文字で文字列を区切り、次のトークンを返す。
 // トークンがなくなったら NULL を返す。
 uniq char *strtok(char *s, const char *delim) {
-    static char *next;    // 次のトークン探索開始位置を保持
+    static char *next; // 次のトークン探索開始位置を保持
     char *start;
     char *p;
 
     // 呼び出し時に s が非 NULL なら、new string の検索を開始
-    if (s != NULL) {
+    if (s != ((void*)0)) {
         next = s;
     }
 
     // 直前で末尾に達していれば NULL を返す
-    if (next == NULL) {
-        return NULL;
+    if (next == ((void*)0)) {
+        return ((void*)0);
     }
 
     // 1) 先頭の区切り文字をスキップ
@@ -360,8 +586,8 @@ uniq char *strtok(char *s, const char *delim) {
 
     // 終端まで区切り文字しかなかった → もうトークンはない
     if (*start == '\0') {
-        next = NULL;
-        return NULL;
+        next = ((void*)0);
+        return ((void*)0);
     }
 
     // 2) トークンの終端を見つける
@@ -385,7 +611,7 @@ uniq char *strtok(char *s, const char *delim) {
     // 3) トークン終端を '\0' に置き換え、next を次回呼び出し用にセット
     if (*p == '\0') {
         // 文字列の末尾に達したので、次回以降 s=NULL にして呼べば再び NULL が返る
-        next = NULL;
+        next = ((void*)0);
     } else {
         // 区切り文字を '\0' に置し、次の検索開始位置を p+1 にする
         *p = '\0';
@@ -445,32 +671,32 @@ uniq int vasprintf(char** out, const char* fmt, va_list ap) {
             continue;
         }
 
-        fmt++;  // skip '%'
+        fmt++; // skip '%'
         switch (*fmt) {
         case 'd':
-            itoa(buf, va_arg(ap, int), 10, 1);
+            itoa(buf, __builtin_va_arg(ap, int), 10, 1);
             s = buf;
             break;
         case 'u':
-            itoa(buf, va_arg(ap, unsigned int), 10, 0);
+            itoa(buf, __builtin_va_arg(ap, unsigned int), 10, 0);
             s = buf;
             break;
         case 'x':
-            itoa(buf, va_arg(ap, unsigned int), 16, 0);
+            itoa(buf, __builtin_va_arg(ap, unsigned int), 16, 0);
             s = buf;
             break;
         case 's':
-            s = va_arg(ap, const char*);
+            s = __builtin_va_arg(ap, const char*);
             if (!s) s = "(null)";
             break;
         case 'c':
-            buf[0] = (char)va_arg(ap, int);  
+            buf[0] = (char)__builtin_va_arg(ap, int);
             buf[1] = '\0';
             s = buf;
             break;
         case 'p':
             strncpy(buf, "0x", 32);
-            itoa(buf + 2, (unsigned long)(uintptr_t)va_arg(ap, void*), 16, 0);
+            itoa(buf + 2, (unsigned long)(uintptr_t)__builtin_va_arg(ap, void*), 16, 0);
             s = buf;
             break;
         case '%':
@@ -499,7 +725,7 @@ uniq int vasprintf(char** out, const char* fmt, va_list ap) {
 
 uniq int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     va_list ap;
-    va_start(ap, fmt);
+    __builtin_va_start(ap, fmt);
 
     char* p = out;
     const char* s;
@@ -507,7 +733,7 @@ uniq int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     unsigned long remaining = out_size;
 
     if (remaining == 0) {
-        va_end(ap);
+        __builtin_va_end(ap);
         return 0;
     }
 
@@ -523,14 +749,14 @@ uniq int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
         fmt++;
         switch (*fmt) {
         case 's':
-            s = va_arg(ap, const char*);
+            s = __builtin_va_arg(ap, const char*);
             while (*s && remaining > 1) {
                 *p++ = *s++;
                 remaining--;
             }
             break;
         case 'd':
-            itoa(buf, va_arg(ap, int), 10, 0);
+            itoa(buf, __builtin_va_arg(ap, int), 10, 0);
             s = buf;
             while (*s && remaining > 1) {
                 *p++ = *s++;
@@ -538,7 +764,7 @@ uniq int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
             }
             break;
         case 'x':
-            itoa(buf, (unsigned int)va_arg(ap, int), 16, 1);  
+            itoa(buf, (unsigned int)__builtin_va_arg(ap, int), 16, 1);
             s = buf;
             while (*s && remaining > 1) {
                 *p++ = *s++;
@@ -547,7 +773,7 @@ uniq int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
             break;
         case 'c':
             if (remaining > 1) {
-                *p++ = (char)va_arg(ap, int);
+                *p++ = (char)__builtin_va_arg(ap, int);
                 remaining--;
             }
             break;
@@ -557,7 +783,7 @@ uniq int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
                 *p++ = *s++;
                 remaining--;
             }
-            itoa(buf, (long)va_arg(ap, void*), 16, 1);
+            itoa(buf, (long)__builtin_va_arg(ap, void*), 16, 1);
             s = buf;
             while (*s && remaining > 1) {
                 *p++ = *s++;
@@ -567,7 +793,7 @@ uniq int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
         case 'l':
             if (*(fmt + 1) == 'u') {
                 fmt++;
-                itoa(buf, va_arg(ap, long), 10, 1);
+                itoa(buf, __builtin_va_arg(ap, long), 10, 1);
                 s = buf;
                 while (*s && remaining > 1) {
                     *p++ = *s++;
@@ -589,13 +815,13 @@ uniq int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     }
 
     *p = '\0';
-    va_end(ap);
+    __builtin_va_end(ap);
     return p - out;
 }
 
 uniq int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     va_list ap;
-    va_start(ap, fmt);
+    __builtin_va_start(ap, fmt);
 
     char* p = out;
     const char* s;
@@ -603,7 +829,7 @@ uniq int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     unsigned long remaining = out_size;
 
     if (remaining == 0) {
-        va_end(ap);
+        __builtin_va_end(ap);
         return 0;
     }
 
@@ -619,14 +845,14 @@ uniq int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
         fmt++;
         switch (*fmt) {
         case 's':
-            s = va_arg(ap, const char*);
+            s = __builtin_va_arg(ap, const char*);
             while (*s && remaining > 1) {
                 *p++ = *s++;
                 remaining--;
             }
             break;
         case 'd':
-            itoa(buf, va_arg(ap, int), 10, 0);
+            itoa(buf, __builtin_va_arg(ap, int), 10, 0);
             s = buf;
             while (*s && remaining > 1) {
                 *p++ = *s++;
@@ -634,7 +860,7 @@ uniq int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
             }
             break;
         case 'x':
-            itoa(buf, (unsigned int)va_arg(ap, int), 16, 1);  
+            itoa(buf, (unsigned int)__builtin_va_arg(ap, int), 16, 1);
             s = buf;
             while (*s && remaining > 1) {
                 *p++ = *s++;
@@ -643,7 +869,7 @@ uniq int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
             break;
         case 'c':
             if (remaining > 1) {
-                *p++ = (char)va_arg(ap, int);
+                *p++ = (char)__builtin_va_arg(ap, int);
                 remaining--;
             }
             break;
@@ -653,7 +879,7 @@ uniq int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
                 *p++ = *s++;
                 remaining--;
             }
-            itoa(buf, (long)va_arg(ap, void*), 16, 1);
+            itoa(buf, (long)__builtin_va_arg(ap, void*), 16, 1);
             s = buf;
             while (*s && remaining > 1) {
                 *p++ = *s++;
@@ -663,7 +889,7 @@ uniq int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
         case 'l':
             if (*(fmt + 1) == 'u') {
                 fmt++;
-                itoa(buf, va_arg(ap, long), 10, 1);
+                itoa(buf, __builtin_va_arg(ap, long), 10, 1);
                 s = buf;
                 while (*s && remaining > 1) {
                     *p++ = *s++;
@@ -685,7 +911,7 @@ uniq int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     }
 
     *p = '\0';
-    va_end(ap);
+    __builtin_va_end(ap);
     return p - out;
 }
 
@@ -693,7 +919,7 @@ uniq int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
 extern void putchar(char c);
 
 uniq void printint(int val_, int base, int sign) {
-    char buf[33];  
+    char buf[33];
     int i = 0;
     int negative = 0;
     unsigned int uval;
@@ -725,8 +951,8 @@ uniq void printint(int val_, int base, int sign) {
     }
 }
 
-uniq void printlong(unsigned long val_, int base, int sign)  {
-    char buf[65];  
+uniq void printlong(unsigned long val_, int base, int sign) {
+    char buf[65];
     int i = 0;
     int negative = 0;
 
@@ -755,7 +981,7 @@ uniq void printlong(unsigned long val_, int base, int sign)  {
     }
 }
 
-uniq void printlonglong(unsigned long long val_, int base, int sign)  {
+uniq void printlonglong(unsigned long long val_, int base, int sign) {
     char buf[65];
     int i = 0;
     int negative = 0;
@@ -787,7 +1013,7 @@ uniq void printlonglong(unsigned long long val_, int base, int sign)  {
 
 uniq int printf(const char* fmt, ...) {
     va_list ap;
-    va_start(ap, fmt);
+    __builtin_va_start(ap, fmt);
 
     const char* p;
     for (p = fmt; *p; p++) {
@@ -796,7 +1022,7 @@ uniq int printf(const char* fmt, ...) {
             continue;
         }
 
-        p++; 
+        p++;
 
         if (*p == 'l') {
             int lcount = 1;
@@ -809,20 +1035,20 @@ uniq int printf(const char* fmt, ...) {
             switch (*p) {
                 case 'x': {
                     if (lcount == 1) {
-                        unsigned long val_ = va_arg(ap, unsigned long);
+                        unsigned long val_ = __builtin_va_arg(ap, unsigned long);
                         printlong(val_, 16, 0);
                     } else {
-                        unsigned long long val_ = va_arg(ap, unsigned long long);
+                        unsigned long long val_ = __builtin_va_arg(ap, unsigned long long);
                         printlonglong(val_, 16, 0);
                     }
                     break;
                 }
                 case 'd': {
                     if (lcount == 1) {
-                        long val_ = va_arg(ap, long);
+                        long val_ = __builtin_va_arg(ap, long);
                         printlong(val_, 10, 1);
                     } else {
-                        long long val_ = va_arg(ap, long long);
+                        long long val_ = __builtin_va_arg(ap, long long);
                         printlonglong(val_, 10, 1);
                     }
                     break;
@@ -837,29 +1063,29 @@ uniq int printf(const char* fmt, ...) {
         } else {
             switch (*p) {
                 case 'd': {
-                    int val_ = va_arg(ap, int);
+                    int val_ = __builtin_va_arg(ap, int);
                     printint(val_, 10, 1);
                     break;
                 }
                 case 'x': {
-                    unsigned int val_ = va_arg(ap, unsigned int);
+                    unsigned int val_ = __builtin_va_arg(ap, unsigned int);
                     printint(val_, 16, 0);
                     break;
                 }
                 case 'p': {
-                    unsigned long val_ = (unsigned long)va_arg(ap, void*);
+                    unsigned long val_ = (unsigned long)__builtin_va_arg(ap, void*);
                     putchar('0'); putchar('x');
                     printlong(val_, 16, 0);
                     break;
                 }
                 case 's': {
-                    const char* s = va_arg(ap, const char*);
+                    const char* s = __builtin_va_arg(ap, const char*);
                     if (!s) s = "(null)";
                     while (*s) putchar(*s++);
                     break;
                 }
                 case 'c': {
-                    char c = (char)va_arg(ap, int);
+                    char c = (char)__builtin_va_arg(ap, int);
                     putchar(c);
                     break;
                 }
@@ -876,17 +1102,17 @@ uniq int printf(const char* fmt, ...) {
         }
     }
 
-    va_end(ap);
+    __builtin_va_end(ap);
     return 0;
 }
 
-#define foreach(o1, o2) for(var o2_saved = (o2), var o1 = (o2_saved).begin(); !(o2_saved).end(); o1 = (o2_saved).next())
+
 
 //////////////////////////////
 /// exception
 //////////////////////////////
 
-struct buffer 
+struct buffer
 {
     char*% buf;
     int len;
@@ -967,7 +1193,7 @@ uniq void xassert(char* msg, bool test)
 struct sMemHeaderTiny
 {
     size_t size;
-    int allocated;   //ALLOCATED_MAGIC_NUM
+    int allocated; //ALLOCATED_MAGIC_NUM
     struct sMemHeaderTiny* next;
     struct sMemHeaderTiny* prev;
     struct sMemHeaderTiny* free_next;
@@ -979,17 +1205,17 @@ struct sMemHeaderTiny
 struct sMemHeader
 {
     size_t size;
-    int allocated;            /// ALLOCATED_MAGIC_NUM 
+    int allocated; /// ALLOCATED_MAGIC_NUM 
     struct sMemHeader* next;
     struct sMemHeader* prev;
     struct sMemHeader* free_next;
-    
+
     char* class_name;
 };
 
 uniq sMemHeader* gAllocMem;
 
-uniq void* gComeResultObject = NULL;
+uniq void* gComeResultObject = ((void*)0);
 uniq int gComeGCLib = 0;
 
 uniq int gComeMallocLib = 0;
@@ -1021,19 +1247,19 @@ uniq void come_free_mem_of_heap_pool(void* mem)
     if(mem) {
         if(gComeDebugLib) {
             sMemHeader* it = (sMemHeader*)((char*)mem - sizeof(sMemHeader));
-            
-            if(it->allocated != ALLOCATED_MAGIC_NUM) {
+
+            if(it->allocated != 177783) {
                 return;
             }
-            
+
             it->allocated = 0;
-            
+
             sMemHeader* prev_it = it->prev;
             sMemHeader* next_it = it->next;
-            
+
             if(gAllocMem == it) {
                 gAllocMem = next_it;
-                
+
                 if(gAllocMem) {
                     gAllocMem->prev = null;
                 }
@@ -1046,28 +1272,28 @@ uniq void come_free_mem_of_heap_pool(void* mem)
                     next_it->prev = prev_it;
                 }
             }
-            
+
             size_t size = it->size;
-            
+
             free(it);
-            
+
             gNumFree++;
         }
         else {
             sMemHeaderTiny* it = (sMemHeaderTiny*)((char*)mem - sizeof(sMemHeaderTiny));
-            
-            if(it->allocated != ALLOCATED_MAGIC_NUM) {
+
+            if(it->allocated != 177783) {
                 return;
             }
-            
+
             it->allocated = 0;
-            
+
             sMemHeaderTiny* prev_it = it->prev;
             sMemHeaderTiny* next_it = it->next;
-            
+
             if(gAllocMem == it) {
                 gAllocMem = (sMemHeader*)next_it;
-                
+
                 if(gAllocMem) {
                     gAllocMem->prev = null;
                 }
@@ -1080,11 +1306,11 @@ uniq void come_free_mem_of_heap_pool(void* mem)
                     next_it->prev = prev_it;
                 }
             }
-            
+
             size_t size = it->size;
-            
+
             free(it);
-            
+
             gNumFree++;
         }
     }
@@ -1096,30 +1322,30 @@ uniq void* come_alloc_mem_from_heap_pool(size_t size, char* sname=null, int slin
     }
     else {
         void* result = alloc_from_pages(size + sizeof(sMemHeaderTiny));
-        
+
         sMemHeaderTiny* it = result;
-        
-        it->allocated = ALLOCATED_MAGIC_NUM;
-        
-        it->class_name = class_name; 
-        
+
+        it->allocated = 177783;
+
+        it->class_name = class_name;
+
         it->sname = sname;
         it->sline = sline;
-        
+
         it->size = size + sizeof(sMemHeaderTiny);
-        it->free_next = NULL;
-        
+        it->free_next = ((void*)0);
+
         it->next = (sMemHeaderTiny*)gAllocMem;
         it->prev = null;
-        
+
         if(gAllocMem) {
             ((sMemHeaderTiny*)gAllocMem)->prev = it;
         }
-        
+
         gAllocMem = (sMemHeader*)it;
-        
+
         gNumAlloc++;
-        
+
         return (char*)result + sizeof(sMemHeaderTiny);
     }
 }
@@ -1129,22 +1355,22 @@ uniq char* come_dynamic_typeof(void* mem)
 {
     if(gComeDebugLib) {
         sMemHeader* it = (sMemHeader*)((char*)mem - sizeof(size_t) - sizeof(size_t) - sizeof(sMemHeader));
-        
-        if(it->allocated != ALLOCATED_MAGIC_NUM) {
+
+        if(it->allocated != 177783) {
             printf("invalid heap object(%p)(1)\n", it);
             exit(2);
         }
-        
+
         return it->class_name;
     }
     else {
         sMemHeaderTiny* it = (sMemHeaderTiny*)((char*)mem - sizeof(size_t) - sizeof(size_t) - sizeof(sMemHeaderTiny));
-        
-        if(it->allocated != ALLOCATED_MAGIC_NUM) {
+
+        if(it->allocated != 177783) {
             printf("invalid heap object(%p)(2)\n", it);
             exit(2);
         }
-        
+
         return it->class_name;
     }
 }
@@ -1153,11 +1379,11 @@ uniq void come_print_heap_info(void* mem)
 {
     if(gComeDebugLib) {
         sMemHeader* it = (sMemHeader*)((char*)mem - sizeof(size_t) - sizeof(size_t) - sizeof(sMemHeader));
-        
-        if(it->allocated != ALLOCATED_MAGIC_NUM) {
+
+        if(it->allocated != 177783) {
             return;
         }
-        
+
         printf("%p ", mem);
         if(it->class_name) {
             printf("(%s): ", it->class_name);
@@ -1166,8 +1392,8 @@ uniq void come_print_heap_info(void* mem)
     }
     else {
         sMemHeaderTiny* it = (sMemHeaderTiny*)((char*)mem - sizeof(size_t) - sizeof(size_t) - sizeof(sMemHeaderTiny));
-        
-        if(it->allocated != ALLOCATED_MAGIC_NUM) {
+
+        if(it->allocated != 177783) {
             return;
         }
         printf("%p (%s) %s %d\n", mem, it->class_name, it->sname , it->sline);
@@ -1177,26 +1403,26 @@ uniq void come_print_heap_info(void* mem)
 uniq void* come_calloc(size_t count, size_t size, char* sname=null, int sline=0, char* class_name="")
 {
     char* mem = come_alloc_mem_from_heap_pool(sizeof(size_t)+sizeof(size_t)+count*size, sname, sline, class_name);
-    
+
     size_t* ref_count = (size_t*)mem;
 
     *ref_count = 0;
-    
+
     size_t* size2 = (size_t*)(mem + sizeof(size_t));
-    
+
     *size2 = size*count + sizeof(size_t) + sizeof(size_t);
-    
+
     return mem + sizeof(size_t) + sizeof(size_t);
 }
 
 uniq void come_free(void* mem)
 {
-    if(mem == NULL) {
+    if(mem == ((void*)0)) {
         return;
     }
-    
+
     size_t* ref_count = (size_t*)((char*)mem - sizeof(size_t) - sizeof(size_t));
-    
+
     come_free_mem_of_heap_pool((char*)ref_count);
 }
 
@@ -1207,52 +1433,52 @@ uniq void* come_memdup(void* block, char* sname=null, int sline=0, char* class_n
     }
 
     char* mem = (char*)block - sizeof(size_t) - sizeof(size_t);
-    
+
     size_t* size_p = (size_t*)(mem + sizeof(size_t));
 
     size_t size = *size_p - sizeof(size_t) - sizeof(size_t);
-    
+
     void* result = come_calloc(1, size, sname, sline, class_name);
 
     memcpy(result, block, size);
-    
+
     return result;
 }
 
 uniq void* come_increment_ref_count(void* mem)
 {
-    if(mem == NULL) {
+    if(mem == ((void*)0)) {
         return mem;
     }
-    
+
     size_t* ref_count = (size_t*)((char*)mem - sizeof(size_t) - sizeof(size_t));
-    
+
     (*ref_count)++;
-    
+
     return mem;
 }
 
 uniq void* come_print_ref_count(void* mem)
 {
-    if(mem == NULL) {
+    if(mem == ((void*)0)) {
         return mem;
     }
-    
+
     size_t* ref_count = (size_t*)((char*)mem - sizeof(size_t) - sizeof(size_t));
-    
+
     printf("ref_count %ld\n", *ref_count);
-    
+
     return mem;
 }
 
 uniq int come_get_ref_count(void* mem)
 {
-    if(mem == NULL) {
+    if(mem == ((void*)0)) {
         return 0;
     }
-    
+
     size_t* ref_count = (size_t*)((char*)mem - sizeof(size_t) - sizeof(size_t));
-    
+
     return *ref_count;
 }
 
@@ -1263,28 +1489,28 @@ uniq void* come_decrement_ref_count(void* mem, void* protocol_fun, void* protoco
             return mem;
         }
     }
-    if(mem == NULL) {
-        return NULL;
+    if(mem == ((void*)0)) {
+        return ((void*)0);
     }
-    
+
     size_t* ref_count = (size_t*)((char*)mem - sizeof(size_t) - sizeof(size_t));
-    
+
     if(!no_decrement) {
         (*ref_count)--;
     }
-    
+
     size_t count = *ref_count;
     if(!no_free && count <= 0) {
         if(protocol_obj && protocol_fun) {
             void (*finalizer)(void*) = protocol_fun;
             finalizer(protocol_obj);
-            
+
             come_free(protocol_obj);
         }
         come_free(mem);
-        return NULL;
+        return ((void*)0);
     }
-    
+
     return mem;
 }
 
@@ -1295,10 +1521,10 @@ uniq void come_call_finalizer(void* fun, void* mem, void* protocol_fun, void* pr
             return;
         }
     }
-    if(mem == NULL) {
+    if(mem == ((void*)0)) {
         return;
     }
-    
+
     if(call_finalizer_only) {
         if(fun) {
             if(protocol_obj && protocol_fun) {
@@ -1317,11 +1543,11 @@ uniq void come_call_finalizer(void* fun, void* mem, void* protocol_fun, void* pr
     }
     else {
         size_t* ref_count = (size_t*)((char*)mem - sizeof(size_t) - sizeof(size_t));
-        
+
         if(!no_decrement) {
             (*ref_count)--;
         }
-        
+
         size_t count = *ref_count;
         if(!no_free && count <= 0) {
             if(mem) {
@@ -1356,7 +1582,7 @@ uniq string __builtin_string(char* str)
         return null;
     }
     int len = strlen(str) + 1;
-    
+
     char*% result = new char[len];
 
     strncpy(result, str, len);
@@ -1392,12 +1618,12 @@ impl list <T>
 
         return self;
     }
-    list<T>*% initialize_with_values(list<T>*% self, int num_value, T&* values) 
+    list<T>*% initialize_with_values(list<T>*% self, int num_value, T&* values)
     {
         self.head = null;
         self.tail = null;
         self.len = 0;
-        
+
         for(int i=0; i<num_value; i++) {
             self.push_back(dummy_heap values[i]);
         }
@@ -1436,11 +1662,11 @@ impl list <T>
     {
         if(self.len == 0) {
             list_item<T>* litem = borrow gc_inc(new list_item<T>);
-            
+
             litem.prev = null;
             litem.next = null;
             litem.item = item;
-            
+
             self.tail = litem;
             self.head = litem;
         }
@@ -1450,7 +1676,7 @@ impl list <T>
             litem.prev = self.head;
             litem.next = null;
             litem.item = item;
-            
+
             self.tail = litem;
             self.head.next = litem;
         }
@@ -1460,13 +1686,13 @@ impl list <T>
             litem.prev = self.tail;
             litem.next = null;
             litem.item = item;
-            
+
             self.tail.next = litem;
             self.tail = litem;
         }
 
         self.len++;
-        
+
         return self;
     }
     void pop_front(list<T>* self) {
@@ -1474,31 +1700,31 @@ impl list <T>
             list_item<T>* litem = self.head;
             self.head = null;
             self.tail = null;
-            
+
             delete borrow litem;
-            
+
             self.len--;
         }
         else if(self.len == 2) {
             list_item<T>* litem = self.head;
-            
+
             self.head = self.head.next;
             self.head.prev = null;
             self.head.next = null;
             self.tail = self.head;
-            
+
             delete borrow litem;
-            
+
             self.len--;
         }
         else if(self.len >= 3) {
             list_item<T>* litem = self.head;
-            
+
             self.head = litem.next;
             self.head.prev = null;
-            
+
             delete borrow litem;
-            
+
             self.len--;
         }
     }
@@ -1506,11 +1732,11 @@ impl list <T>
     {
         if(self.len == 0) {
             list_item<T>* litem = borrow gc_inc(new list_item<T>);
-            
+
             litem.prev = null;
             litem.next = null;
             litem.item = item;
-            
+
             self.tail = litem;
             self.head = litem;
         }
@@ -1520,7 +1746,7 @@ impl list <T>
             litem.prev = self.head;
             litem.next = null;
             litem.item = item;
-            
+
             self.tail = litem;
             self.head.next = litem;
         }
@@ -1530,39 +1756,39 @@ impl list <T>
             litem.prev = self.tail;
             litem.next = null;
             litem.item = item;
-            
+
             self.tail.next = litem;
             self.tail = litem;
         }
 
         self.len++;
-        
+
         return self;
     }
-    
+
     immutable string to_string(list<T>* self)
     {
         buffer*% result = new buffer();
-        
+
         result.append_str("[");
         list_item<T>* it = self.head;
         int i = 0;
         while(it != null) {
             result.append_str(it.item.to_string());
             it = it.next;
-            
+
             i++;
-            
+
             if(i != self.length()) {
                 result.append_str(",");
             }
         }
-        
+
         result.append_str("]");
-        
+
         return result.to_string();
     }
-    
+
     T& begin(list<T>* self) {
         if(self == null) {
             T&` result;
@@ -1574,7 +1800,7 @@ impl list <T>
         if(self.it) {
             return self.it.item;
         }
-        
+
         T&` result;
         memset(&result, 0, sizeof(T));
         return result;
@@ -1586,13 +1812,13 @@ impl list <T>
             memset(&result, 0, sizeof(T));
             return result;
         }
-        
+
         self.it = self.it.next;
 
         if(self.it) {
             return self.it.item;
         }
-        
+
         T&` result;
         memset(&result, 0, sizeof(T));
         return result;
@@ -1601,7 +1827,7 @@ impl list <T>
     bool end(list<T>* self) {
         return self == null || self.it == null;
     }
-    immutable list<T>* each(list<T>* self, void* parent, void (*block)(void*, T&,int,bool*)) 
+    immutable list<T>* each(list<T>* self, void* parent, void (*block)(void*, T&,int,bool*))
     {
         list_item<T>* it = self.head;
         int i = 0;
@@ -1615,10 +1841,10 @@ impl list <T>
             it = it.next;
             i++;
         }
-        
+
         return self;
     }
-    immutable T item(list<T>* self, int position, T& default_value) 
+    immutable T item(list<T>* self, int position, T& default_value)
     {
         if(position < 0) {
             position += self.len;
@@ -1644,7 +1870,7 @@ impl list <T>
         }
         return self.len;
     }
-    
+
     list<T>* insert(list<T>* self, int position, T item)
     {
         if(position < 0) {
@@ -1670,7 +1896,7 @@ impl list <T>
             litem.prev = null;
             litem.next = self.head;
             litem.item = item;
-            
+
             self.head.prev = litem;
             self.head = litem;
 
@@ -1682,7 +1908,7 @@ impl list <T>
             litem.prev = self.head;
             litem.next = self.tail;
             litem.item = item;
-            
+
             self.tail.prev = litem;
             self.head.next = litem;
 
@@ -1709,7 +1935,7 @@ impl list <T>
                 i++;
             }
         }
-        
+
         return self;
     }
     list<T>* reset(list<T>* self) {
@@ -1724,7 +1950,7 @@ impl list <T>
         self.tail = null;
 
         self.len = 0;
-        
+
         return self;
     }
     list<T>* remove(list<T>* self, T& item) {
@@ -1736,10 +1962,10 @@ impl list <T>
                 break;
             }
             it2++;
-            
+
             it = it.next;
         }
-        
+
         return self;
     }
     list<T>* remove_by_pointer(list<T>* self, T& item) {
@@ -1751,10 +1977,10 @@ impl list <T>
                 break;
             }
             it2++;
-            
+
             it = it.next;
         }
-        
+
         return self;
     }
     list<T>* delete(list<T>* self, int head, int tail)
@@ -1783,8 +2009,8 @@ impl list <T>
         if(head == tail) {
             return self;
         }
-        
-        if(head == 0 && tail == self.len) 
+
+        if(head == 0 && tail == self.len)
         {
             self.reset();
         }
@@ -1854,7 +2080,7 @@ impl list <T>
                     tail_it = it;
                 }
 
-                if(i >= head && i < tail) 
+                if(i >= head && i < tail)
                 {
                     list_item<T>* prev_it = it;
 
@@ -1878,7 +2104,7 @@ impl list <T>
                 tail_it.prev = head_prev_it;
             }
         }
-        
+
         return self;
     }
     list<T>* replace(list<T>* self, int position, T item)
@@ -1889,7 +2115,7 @@ impl list <T>
         if(position < 0) {
             position = 0;
         }
-        
+
         if(self.len == 0 || position >= self.len) {
             int len = self.len;
             for(int i=0; i<position-len; i++) {
@@ -1911,7 +2137,7 @@ impl list <T>
             it = it.next;
             i++;
         }
-        
+
         return self;
     }
 
@@ -1923,7 +2149,7 @@ impl list <T>
                 return it2;
             }
             it2++;
-            
+
             it = it.next;
         }
 
@@ -1937,7 +2163,7 @@ impl list <T>
                 return it2;
             }
             it2++;
-            
+
             it = it.next;
         }
 
@@ -2047,7 +2273,7 @@ impl list <T>
 
         return result;
     }
-    bool operator_equals(list<T>* left, list<T>* right) 
+    bool operator_equals(list<T>* left, list<T>* right)
     {
         if(left.len != right.len) {
             return false;
@@ -2076,7 +2302,7 @@ impl list <T>
                 return true;
             }
         }
-        
+
         return false;
     }
     list<T>*% merge_list_with_lambda(list<T>* left, list<T>* right, int (*compare)(T&,T&)) {
@@ -2093,7 +2319,7 @@ impl list <T>
                 else if(it2.item == null) {
                     it2 = it2.next;
                 }
-                else if(compare(it.item, it2.item) <= 0) 
+                else if(compare(it.item, it2.item) <= 0)
                 {
                     if(isheap(T)) {
                         result.push_back(clone it.item);
@@ -2184,10 +2410,10 @@ impl list <T>
                 break;
             }
         }
-        
+
         auto left_list = list1.merge_sort_with_lambda(compare);
         auto right_list = list2.merge_sort_with_lambda(compare);
-        
+
         return left_list.merge_list_with_lambda(right_list, compare);
     }
     list<T>*% sort_with_lambda(list<T>* self, int (*compare)(T&,T&)) {
@@ -2237,7 +2463,7 @@ impl list <T>
                 }
 
                 item_before = it.item;
-                
+
                 it = it.next;
             }
         }
@@ -2258,8 +2484,8 @@ impl list <T>
         }
 
         return result;
-    } 
-    
+    }
+
     immutable list<T>*% operator_add(list<T>*% left, list<T>*% right) {
         list<T>*% result = new list<T>();
 
@@ -2286,7 +2512,7 @@ impl list <T>
             list_item<T>* it = left.head;
             while(it != null) {
                 result.push_back(dupe it.item);
-    
+
                 it = it.next;
             }
         }
@@ -2295,18 +2521,18 @@ impl list <T>
     }
     string join(list<T>* self, char* sep=" ") {
         buffer*% buf = new buffer();
-        
+
         int n = 0;
         for(var it = self.begin(); !self.end(); it = self.next()) {
             buf.append_str(it);
-            
+
             if(n < self.length()-1) {
                 buf.append_str(sep);
             }
-            
+
             n++;
         }
-        
+
         return buf.to_string();
     }
 }
@@ -2321,53 +2547,53 @@ struct map<T, T2>
     T2*& items;
     int size;
     int len;
-    
+
     list<T>*% key_list;
 
     int it;
 };
 
-#define MAP_TABLE_DEFAULT_SIZE 128
+
 
 impl map <T, T2>
 {
     map<T,T2>*% initialize(map<T,T2>*% self) {
-        self.keys = borrow gc_inc(new T[MAP_TABLE_DEFAULT_SIZE]);
-        self.items = borrow gc_inc(new T2[MAP_TABLE_DEFAULT_SIZE]);
-        self.item_existance = borrow gc_inc(new bool[MAP_TABLE_DEFAULT_SIZE]);
+        self.keys = borrow gc_inc(new T[128]);
+        self.items = borrow gc_inc(new T2[128]);
+        self.item_existance = borrow gc_inc(new bool[128]);
 
-        for(int i=0; i<MAP_TABLE_DEFAULT_SIZE; i++)
+        for(int i=0; i<128; i++)
         {
             self.item_existance[i] = false;
         }
 
-        self.size = MAP_TABLE_DEFAULT_SIZE;
+        self.size = 128;
         self.len = 0;
-        
+
         self.key_list = new list<T&>();
 
         self.it = 0;
 
         return self;
     }
-    map<T,T2>*% initialize_with_values(map<T,T2>*% self, int num_keys, T&* keys, T2&* values) 
+    map<T,T2>*% initialize_with_values(map<T,T2>*% self, int num_keys, T&* keys, T2&* values)
     {
-        self.keys = borrow gc_inc(new T[MAP_TABLE_DEFAULT_SIZE]);
-        self.items = borrow gc_inc(new T2[MAP_TABLE_DEFAULT_SIZE]);
-        self.item_existance = borrow gc_inc(new bool[MAP_TABLE_DEFAULT_SIZE]);
+        self.keys = borrow gc_inc(new T[128]);
+        self.items = borrow gc_inc(new T2[128]);
+        self.item_existance = borrow gc_inc(new bool[128]);
 
-        for(int i=0; i<MAP_TABLE_DEFAULT_SIZE; i++)
+        for(int i=0; i<128; i++)
         {
             self.item_existance[i] = false;
         }
 
-        self.size = MAP_TABLE_DEFAULT_SIZE;
+        self.size = 128;
         self.len = 0;
 
         self.it = 0;
-        
+
         self.key_list = new list<T&>();
-        
+
         for(int i=0; i<num_keys; i++) {
             self.insert(dummy_heap keys\[i], dummy_heap values[i]);
         }
@@ -2392,7 +2618,7 @@ impl map <T, T2>
             }
         }
         come_free((char*)self.keys);
-        
+
         delete borrow self.key_list;
 
         delete borrow self.item_existance;
@@ -2402,15 +2628,15 @@ impl map <T, T2>
         if(self == null) {
             return null;
         }
-        
+
         var result = new map<T,T2>();
-        
+
         result.key_list = new list<T&>();
 
         for(var it = self.begin(); !self.end(); it = self.next()) {
             T2` default_value;
             memset(&default_value, 0, sizeof(T2));
-            
+
             var it2 = self.at(it, default_value);
 
             if(isheap(T) && isheap(T2)) {
@@ -2429,39 +2655,39 @@ impl map <T, T2>
 
         return result;
     }
-    
+
     immutable string to_string(map<T,T2>* self)
     {
         buffer*% result = new buffer();
-        
+
         result.append_str("[");
-        
+
         list_item<T&>* it = self.key_list.head;
         while(it) {
             T2` default_value;
             memset(&default_value, 0, sizeof(T2));
             T2& it2 = self.at(it.item, default_value);
-            
+
             result.append_str(it.item.to_string());
             result.append_str(":");
             result.append_str(it2.to_string());
-            
+
             it = it.next;
-            
+
             if(it != null) {
                 result.append_str(",");
             }
         }
-        
+
         result.append_str("]");
-        
+
         return result.to_string();
     }
-    
+
     immutable T2 at(map<T, T2>* self, T& key, T2 default_value) {
         unsigned int hash = ((T)key).get_hash_key() % self.size;
         unsigned int it = hash;
-        
+
         while(true) {
             if(self.item_existance[it])
             {
@@ -2489,14 +2715,14 @@ impl map <T, T2>
     map<T,T2>* remove(map<T, T2>* self, T& key) {
         unsigned int hash = ((T)key).get_hash_key() % self.size;
         unsigned int it = hash;
-        
+
         while(true) {
             if(self.item_existance[it])
             {
                 if(self.keys\[it].equals(key))
                 {
                     self.key_list.remove(self.keys\[it]);
-                    
+
                     self.item_existance[it] = false;
                     if(isheap(T)) {
                         delete borrow self.keys\[it];
@@ -2506,7 +2732,7 @@ impl map <T, T2>
                         delete borrow self.items\[it];
                     }
                     self.items\[it] = null;
-                    
+
                     self.len--;
                     break;
                 }
@@ -2524,13 +2750,13 @@ impl map <T, T2>
                 break;
             }
         }
-        
+
         return self;
     }
     immutable int length(map<T, T2>* self) {
         return self.len;
     }
-    
+
     T& begin(map<T, T2>* self) {
         if(self == null) {
             T`& result;
@@ -2542,7 +2768,7 @@ impl map <T, T2>
         if(self.key_list.it) {
             return self.key_list.it.item;
         }
-        
+
         T`& result;
         memset(&result, 0, sizeof(T));
         return result;
@@ -2559,7 +2785,7 @@ impl map <T, T2>
         if(self.key_list.it) {
             return self.key_list.it.item;
         }
-        
+
         T`& result;
         memset(&result, 0, sizeof(T));
         return result;
@@ -2568,7 +2794,7 @@ impl map <T, T2>
     bool end(map<T, T2>* self) {
         return self == null || self.key_list == null || self.key_list.it == null;
     }
-    
+
     void rehash(map<T,T2>* self) {
         int size = self.size * 10;
         T&* keys = borrow gc_inc(new T[size]);
@@ -2621,18 +2847,18 @@ impl map <T, T2>
         self.size = size;
         self.len = len;
     }
-    
+
     map<T,T2>* insert(map<T,T2>* self, T key, T2 item) {
         if(self.len*10 >= self.size) {
             self.rehash();
         }
         unsigned int hash = ((T)key).get_hash_key() % self.size;
         unsigned int it = hash;
-        
+
         while(true) {
             if(self.item_existance[it])
             {
-                if(self.keys\[it].equals(key)) 
+                if(self.keys\[it].equals(key))
                 {
                     if(isheap(T)) {
                         self.key_list.remove(self.keys\[it]);
@@ -2684,18 +2910,18 @@ impl map <T, T2>
                 break;
             }
         }
-        
+
         bool same_key_exist = false;
         for(var it2 = self.key_list.begin(); !self.key_list.end(); it2 = self.key_list.next()) {
             if(it2.equals(key)) {
                 same_key_exist = true;
             }
         }
-        
+
         if(!same_key_exist) {
             self.key_list.push_back(key);
         }
-        
+
         return self;
     }
     map<T,T2>* put(map<T,T2>* self, T key, T2 item) {
@@ -2708,7 +2934,7 @@ impl map <T, T2>
         while(true) {
             if(self.item_existance[it])
             {
-                if(self.keys\[it].equals(key)) 
+                if(self.keys\[it].equals(key))
                 {
                     if(isheap(T)) {
                         delete self.keys\[it];
@@ -2760,27 +2986,27 @@ impl map <T, T2>
                 break;
             }
         }
-        
+
         bool same_key_exist = false;
         for(var it2 = self.key_list.begin(); !self.key_list.end(); it2 = self.key_list.next()) {
             if(it2.equals(key)) {
                 same_key_exist = true;
             }
         }
-        
+
         if(!same_key_exist) {
             self.key_list.push_back(key);
         }
-        
+
         return self;
     }
     immutable T2 operator_load_element(map<T, T2>* self, T& key) {
         T2` default_value;
         memset(&default_value, 0, sizeof(T2));
-        
+
         unsigned int hash = ((T)key).get_hash_key() % self.size;
         unsigned int it = hash;
-        
+
         while(true) {
             if(self.item_existance[it])
             {
@@ -2805,11 +3031,11 @@ impl map <T, T2>
 
         return default_value;
     }
-    
+
     void operator_store_element(map<T, T2>* self, T key, T2 item) {
         self.insert(key, item);
     }
-    
+
     immutable bool equals(map<T, T2>* left, map<T, T2>* right)
     {
         if(left.len != right.len) {
@@ -2822,13 +3048,13 @@ impl map <T, T2>
             T` default_value;
             memset(&default_value, 0, sizeof(T));
             T& it2 = right.key_list.item(n, default_value);
-            
+
             if(it.equals(it2)) {
                 T2` default_value2;
                 memset(&default_value2, 0, sizeof(T2));
                 T2& item = left.at(it, default_value2);
                 T2& item2 = right.at(it2, default_value2);
-                
+
                 if(!item.equals(item2)) {
                     result = false;
                 }
@@ -2836,13 +3062,13 @@ impl map <T, T2>
             else {
                 result = false;
             }
-            
+
             n++;
         }
 
         return result;
     }
-    
+
     immutable bool operator_equals(map<T, T2>* left, map<T,T2>* right) {
         if(left.len != right.len) {
             return false;
@@ -2854,13 +3080,13 @@ impl map <T, T2>
             T` default_value;
             memset(&default_value, 0, sizeof(T));
             T& it2 = right.key_list.item(n, default_value);
-            
+
             if(it === it2) {
                 T2` default_value2;
                 memset(&default_value2, 0, sizeof(T2));
                 T2& item = left.at(it, default_value2);
                 T2& item2 = right.at(it2, default_value2);
-                
+
                 if(!(item === item2)) {
                     result = false;
                 }
@@ -2868,17 +3094,17 @@ impl map <T, T2>
             else {
                 result = false;
             }
-            
+
             n++;
         }
 
         return result;
     }
-    
+
     bool operator_not_equals(map<T, T2>* left, map<T,T2>* right) {
         return !(left.operator_equals(right);
     }
-    
+
     immutable bool find(map<T, T2>* self, T& key) {
         unsigned int hash = ((T)key).get_hash_key() % self.size;
         int it = hash;
@@ -2915,7 +3141,7 @@ impl map <T, T2>
             T2` default_value;
             memset(&default_value, 0, sizeof(T2));
             T2& it2 = left.at(it, default_value);
-            
+
             if(isheap(T) && isheap(T2)) {
                 result.insert(clone it, clone it2);
             }
@@ -2936,7 +3162,7 @@ impl map <T, T2>
             T2` default_value;
             memset(&default_value, 0, sizeof(T2));
             T2& it2 = left.at(it, default_value);
-            
+
             if(isheap(T) && isheap(T2)) {
                 result.insert(clone it, clone it2);
             }
@@ -2962,9 +3188,9 @@ impl map <T, T2>
             for(var it = left.key_list.begin(); !left.key_list.end(); it = left.key_list.next()) {
                 T2` default_value;
                 memset(&default_value, 0, sizeof(T2));
-                
+
                 T2& it2 = left.at(it, default_value);
-                
+
                 if(isheap(T) && isheap(T2)) {
                     result.insert(clone it, clone it2);
                 }
@@ -2985,7 +3211,7 @@ impl map <T, T2>
     }
     immutable list<T>*% keys(map<T, T2>* self) {
         var result = new list<T>();
-        
+
         for(var it = self.key_list.begin(); !self.key_list.end(); it = self.key_list.next()) {
             if(isheap(T)) {
                 result.push_back(clone it);
@@ -2994,19 +3220,19 @@ impl map <T, T2>
                 result.push_back(dummy_heap dupe it);
             }
         }
-        
+
         return result;
     }
-    
+
     immutable list<T2>*% values(map<T, T2>* self) {
         var result = new list<T2>();
-        
-        for(var it = self.key_list.begin(); !self.key_list.end(); it = self.key_list.next()) { 
+
+        for(var it = self.key_list.begin(); !self.key_list.end(); it = self.key_list.next()) {
             T2` default_value;
             memset(&default_value, 0, sizeof(T2));
-        
+
             var it2 = self.at(it, default_value);
-            
+
             if(isheap(T2)) {
                 result.push_back(clone it2);
             }
@@ -3014,7 +3240,7 @@ impl map <T, T2>
                 result.push_back(dummy_heap dupe it2);
             }
         }
-        
+
         return result;
     }
 }
@@ -3032,30 +3258,30 @@ impl tuple1 <T>
     tuple1<T>*% initialize(tuple1<T>*% self, T v1)
     {
         self.v1 = v1;
-        
+
         return self;
     }
-    
+
     immutable bool equals(tuple1<T>* self, tuple1<T>* right)
     {
         if(!self.v1.equals(right.v1)) {
             return false;
         }
-        
+
         return true;
     }
-    immutable bool operator_equals(tuple1<T>* self, tuple1<T>* right) 
+    immutable bool operator_equals(tuple1<T>* self, tuple1<T>* right)
     {
         if(!(self.v1 === right.v1)) {
             return false;
         }
-        
+
         return true;
     }
     immutable bool operator_not_equals(tuple1<T>* left, tuple1<T>* right) {
         return !left.operator_equals(right);
     }
-    
+
     immutable string to_string(tuple1<T>* self)
     {
         return "(" + self.v1.to_string() + ")";
@@ -3074,10 +3300,10 @@ impl tuple2 <T, T2>
     {
         self.v1 = v1;
         self.v2 = v2;
-        
+
         return self;
     }
-    
+
     immutable string to_string(tuple2<T, T2>* self)
     {
         return "(" + self.v1.to_string() + "," + self.v2.to_string() + ")";
@@ -3090,10 +3316,10 @@ impl tuple2 <T, T2>
         if(!self.v2.equals(right.v2)) {
             return false;
         }
-        
+
         return true;
     }
-    immutable bool operator_equals(tuple2<T,T2>* self, tuple2<T,T2>* right) 
+    immutable bool operator_equals(tuple2<T,T2>* self, tuple2<T,T2>* right)
     {
         if(!(self.v1 === right.v1)) {
             return false;
@@ -3101,7 +3327,7 @@ impl tuple2 <T, T2>
         if(!(self.v2 === right.v2)) {
             return false;
         }
-        
+
         return true;
     }
     immutable bool operator_not_equals(tuple2<T,T2>* left, tuple2<T,T2>* right) {
@@ -3124,10 +3350,10 @@ impl tuple3 <T, T2, T3>
         self.v1 = v1;
         self.v2 = v2;
         self.v3 = v3;
-        
+
         return self;
     }
-    
+
     immutable string to_string(tuple3<T, T2, T3>* self)
     {
         return "(" + self.v1.to_string() + "," + self.v2.to_string() + "," + self.v3.to_string() + ")";
@@ -3143,10 +3369,10 @@ impl tuple3 <T, T2, T3>
         if(!self.v3.equals(right.v3)) {
             return false;
         }
-        
+
         return true;
     }
-    immutable bool operator_equals(tuple3<T,T2,T3>* self, tuple3<T,T2,T3>* right) 
+    immutable bool operator_equals(tuple3<T,T2,T3>* self, tuple3<T,T2,T3>* right)
     {
         if(!(self.v1 === right.v1)) {
             return false;
@@ -3157,7 +3383,7 @@ impl tuple3 <T, T2, T3>
         if(!(self.v3 === right.v3)) {
             return false;
         }
-        
+
         return true;
     }
     immutable bool operator_not_equals(tuple3<T,T2,T3>* left, tuple3<T,T2,T3>* right) {
@@ -3181,10 +3407,10 @@ impl tuple4 <T, T2, T3, T4>
         self.v2 = v2;
         self.v3 = v3;
         self.v4 = v4;
-        
+
         return self;
     }
-    
+
     immutable string to_string(tuple4<T, T2, T3, T4>* self)
     {
         return "(" + self.v1.to_string() + "," + self.v2.to_string() + "," + self.v3.to_string() + "," + self.v4.to_string() + ")";
@@ -3203,10 +3429,10 @@ impl tuple4 <T, T2, T3, T4>
         if(!self.v4.equals(right.v4)) {
             return false;
         }
-        
+
         return true;
     }
-    immutable bool operator_equals(tuple4<T,T2,T3,T4>* self, tuple4<T,T2,T3,T4>* right) 
+    immutable bool operator_equals(tuple4<T,T2,T3,T4>* self, tuple4<T,T2,T3,T4>* right)
     {
         if(!(self.v1 === right.v1)) {
             return false;
@@ -3220,7 +3446,7 @@ impl tuple4 <T, T2, T3, T4>
         if(!(self.v4 === right.v4)) {
             return false;
         }
-        
+
         return true;
     }
     immutable bool operator_not_equals(tuple4<T,T2,T3,T4>* left, tuple4<T,T2,T3,T4>* right) {
@@ -3246,10 +3472,10 @@ impl tuple5 <T, T2, T3, T4, T5>
         self.v3 = v3;
         self.v4 = v4;
         self.v5 = v5;
-        
+
         return self;
     }
-    
+
     immutable string to_string(tuple5<T, T2, T3, T4, T5>* self)
     {
         return "(" + self.v1.to_string() + "," + self.v2.to_string() + "," + self.v3.to_string() + "," + self.v4.to_string() + "," + self.v5.to_string() + ")";
@@ -3271,10 +3497,10 @@ impl tuple5 <T, T2, T3, T4, T5>
         if(!self.v5.equals(right.v5)) {
             return false;
         }
-        
+
         return true;
     }
-    immutable bool operator_equals(tuple5<T,T2,T3,T4,T5>* self, tuple5<T,T2,T3,T4,T5>* right) 
+    immutable bool operator_equals(tuple5<T,T2,T3,T4,T5>* self, tuple5<T,T2,T3,T4,T5>* right)
     {
         if(!(self.v1 === right.v1)) {
             return false;
@@ -3291,7 +3517,7 @@ impl tuple5 <T, T2, T3, T4, T5>
         if(!(self.v5 === right.v5)) {
             return false;
         }
-        
+
         return true;
     }
     immutable bool operator_not_equals(tuple5<T,T2,T3,T4,T5>* left, tuple5<T,T2,T3,T4,T5>* right) {
@@ -3302,7 +3528,7 @@ impl tuple5 <T, T2, T3, T4, T5>
 //////////////////////////////
 // buffer
 //////////////////////////////
-uniq buffer*% buffer*::initialize(buffer*% self) 
+uniq buffer*% buffer*::initialize(buffer*% self)
 {
     self.size = 128;
     self.buf = new char[self.size];
@@ -3312,13 +3538,13 @@ uniq buffer*% buffer*::initialize(buffer*% self)
     return self;
 }
 
-uniq buffer*% buffer*::initialize_with_value(buffer*% self, char* mem, size_t size) 
+uniq buffer*% buffer*::initialize_with_value(buffer*% self, char* mem, size_t size)
 {
     self.size = 128;
     self.buf = new char[self.size];
     self.buf[0] = '\0';
     self.len = 0;
-    
+
     self.append(mem, size);
 
     return self;
@@ -3334,14 +3560,14 @@ uniq immutable buffer*% buffer*::clone(buffer* self)
     if(self == null) {
         return null;
     }
-    
+
     var result = new buffer;
-    
+
     result.size = self.size;
     result.buf = new char[self.size];
     result.len = self.len;
     memcpy(result.buf, self.buf, self.len);
-    
+
     return result;
 }
 
@@ -3350,11 +3576,11 @@ uniq immutable bool buffer*::equals(buffer* left, buffer* right)
     if(left == null || right == null) {
         return false;
     }
-    
+
     return left.to_string().equals(right.to_string());
 }
 
-uniq immutable int buffer*::length(buffer* self) 
+uniq immutable int buffer*::length(buffer* self)
 {
     if(self == null) {
         return 0;
@@ -3399,7 +3625,7 @@ uniq buffer* buffer*::append(buffer* self, char* mem, size_t size)
     memcpy(self.buf + self.len, mem, size);
     self.len += size;
     self.buf[self.len] = '\0';
-    
+
     return self;
 }
 
@@ -3411,7 +3637,7 @@ uniq buffer* buffer*::append_char(buffer* self, char c)
     if(self.len + 1 + 1 + 1 >= self.size) {
         char*% old_buf = clone self.buf;
         int old_len = self.len;
-        
+
         int new_size = (self.size + 10 + 1) * 2;
         self.buf = new char[new_size];
         memcpy(self.buf, old_buf, old_len);
@@ -3423,7 +3649,7 @@ uniq buffer* buffer*::append_char(buffer* self, char c)
     self.len++;
 
     self.buf[self.len] = '\0';
-    
+
     return self;
 }
 
@@ -3432,7 +3658,7 @@ uniq buffer* buffer*::append_str(buffer* self, char* mem)
     if(self == null || mem == null) {
         return self;
     }
-    
+
     int size = strlen(mem);
     if(self.len + size + 1 + 1 >= self.size) {
         char*% old_buf = new char[self.size];
@@ -3448,7 +3674,7 @@ uniq buffer* buffer*::append_str(buffer* self, char* mem)
     memcpy(self.buf + self.len, mem, size);
     self.len += size;
     self.buf[self.len] = '\0';
-    
+
     return self;
 }
 
@@ -3457,18 +3683,18 @@ uniq buffer* buffer*::append_format(buffer* self, char* msg, ...)
     if(self == null || msg == null) {
         return self;
     }
-    
+
     char result[128];
-    
+
     va_list` args;
-    va_start(args, msg);
+    __builtin_va_start(args, msg);
     snprintf(result, 128, args);
-    va_end(args);
-    
+    __builtin_va_end(args);
+
     int len = strlen(result);
-    
+
     string mem = string(result);
-    
+
     int size = strlen(mem);
     if(self.len + size + 1 + 1 >= self.size) {
         char*% old_buf = new char[self.size];
@@ -3484,9 +3710,9 @@ uniq buffer* buffer*::append_format(buffer* self, char* msg, ...)
     memcpy(self.buf + self.len, mem, size);
     self.len += size;
     self.buf[self.len] = '\0';
-    
+
     free(result);
-    
+
     return self;
 }
 
@@ -3511,18 +3737,18 @@ uniq buffer* buffer*::append_nullterminated_str(buffer* self, char* mem)
     self.len += size;
     self.buf[self.len] = '\0';
     self.len++;
-    
+
     return self;
 }
 
-uniq buffer* buffer*::append_int(buffer* self, int value) 
+uniq buffer* buffer*::append_int(buffer* self, int value)
 {
     if(self == null) {
         return null;
     }
     int* mem = &value;
     int size = sizeof(int);
-    
+
     if(self.len + size + 1 + 1 >= self.size) {
         char*% old_buf = new char[self.size];
         memcpy(old_buf, self.buf, self.size);
@@ -3537,15 +3763,15 @@ uniq buffer* buffer*::append_int(buffer* self, int value)
     memcpy(self.buf + self.len, mem, size);
     self.len += size;
     self.buf[self.len] = '\0';
-    
+
     return self;
 }
 
-uniq buffer* buffer*::append_long(buffer* self, long value) 
+uniq buffer* buffer*::append_long(buffer* self, long value)
 {
     long* mem = &value;
     int size = sizeof(long);
-    
+
     if(self.len + size + 1 + 1 >= self.size) {
         char*% old_buf = new char[self.size];
         memcpy(old_buf, self.buf, self.size);
@@ -3560,19 +3786,19 @@ uniq buffer* buffer*::append_long(buffer* self, long value)
     memcpy(self.buf + self.len, mem, size);
     self.len += size;
     self.buf[self.len] = '\0';
-    
+
     return self;
 }
 
-uniq buffer* buffer*::append_short(buffer* self, short value) 
+uniq buffer* buffer*::append_short(buffer* self, short value)
 {
     if(self == null) {
         return null;
     }
-    
+
     short* mem = &value;
     int size = sizeof(short);
-    
+
     if(self.len + size + 1 + 1 >= self.size) {
         char*% old_buf = new char[self.size];
         memcpy(old_buf, self.buf, self.size);
@@ -3587,19 +3813,19 @@ uniq buffer* buffer*::append_short(buffer* self, short value)
     memcpy(self.buf + self.len, mem, size);
     self.len += size;
     self.buf[self.len] = '\0';
-    
+
     return self;
 }
 
-uniq buffer* buffer*::alignment(buffer* self) 
+uniq buffer* buffer*::alignment(buffer* self)
 {
     if(self == null) {
         return null;
     }
-    
+
     int len = self.len;
     len = (len + 3) & ~3;
-    
+
     if(len >= self.size) {
         int new_size = (self.size + 1 + 1) * 2;
         self.buf = new char[new_size];
@@ -3609,13 +3835,13 @@ uniq buffer* buffer*::alignment(buffer* self)
     for(int i=self.len; i<len; i++) {
         self.buf[i] = '\0';
     }
-    
+
     self.len = len;
-    
+
     return self;
 }
 
-uniq immutable int buffer*::compare(buffer* left, buffer* right) 
+uniq immutable int buffer*::compare(buffer* left, buffer* right)
 {
     if(left == null && right == null) {
         return 0;
@@ -3626,14 +3852,14 @@ uniq immutable int buffer*::compare(buffer* left, buffer* right)
     else if(right == null) {
         return 1;
     }
-    
+
     return strcmp(left.buf, right.buf);
 }
 
-uniq immutable buffer*% char*::to_buffer(char* self) 
+uniq immutable buffer*% char*::to_buffer(char* self)
 {
     var result = new buffer.initialize();
-    
+
     if(self == null) {
         return result;
     }
@@ -3648,7 +3874,7 @@ uniq immutable string buffer*::to_string(buffer* self)
     if(self == null) {
         return string("");
     }
-    
+
     return string(self.buf);
 }
 
@@ -3657,14 +3883,14 @@ uniq immutable unsigned char* buffer*::head_pointer(buffer* self)
     return self.buf;
 }
 
-uniq buffer*% char[]::to_buffer(char* self, size_t len) 
+uniq buffer*% char[]::to_buffer(char* self, size_t len)
 {
     var result = new buffer();
     result.append(self, sizeof(char)*len);
     return result;
 }
 
-uniq immutable buffer*% char*[]::to_buffer(char** self, size_t len) 
+uniq immutable buffer*% char*[]::to_buffer(char** self, size_t len)
 {
     var result = new buffer();
     for(int i=0; i<len; i++) {
@@ -3673,35 +3899,35 @@ uniq immutable buffer*% char*[]::to_buffer(char** self, size_t len)
     return result;
 }
 
-uniq immutable buffer*% short[]::to_buffer(short* self, size_t len) 
+uniq immutable buffer*% short[]::to_buffer(short* self, size_t len)
 {
     var result = new buffer();
     result.append((char*)self, sizeof(short)*len);
     return result;
 }
 
-uniq immutable buffer*% int[]::to_buffer(int* self, size_t len) 
+uniq immutable buffer*% int[]::to_buffer(int* self, size_t len)
 {
     var result = new buffer();
     result.append((char*)self, sizeof(int)*len);
     return result;
 }
 
-uniq immutable buffer*% long[]::to_buffer(long* self, size_t len) 
+uniq immutable buffer*% long[]::to_buffer(long* self, size_t len)
 {
     var result = new buffer();
     result.append((char*)self, sizeof(long)*len);
     return result;
 }
 
-uniq immutable buffer*% float[]::to_buffer(float* self, size_t len) 
+uniq immutable buffer*% float[]::to_buffer(float* self, size_t len)
 {
     var result = new buffer();
     result.append((char*)self, sizeof(float)*len);
     return result;
 }
 
-uniq immutable buffer*% double[]::to_buffer(double* self, size_t len) 
+uniq immutable buffer*% double[]::to_buffer(double* self, size_t len)
 {
     var result = new buffer();
     result.append((char*)self, sizeof(double)*len);
@@ -3717,7 +3943,7 @@ uniq immutable string buffer*::printable(buffer* self)
     for(int i=0; i<len; i++) {
         unsigned char c = self.buf[i];
 
-        if((c >= 0 && c < ' ') 
+        if((c >= 0 && c < ' ')
             || c == 127)
         {
             result[n++] = '^';
@@ -3750,37 +3976,37 @@ impl list <T>
 //////////////////////////////
 /// base library(primitive array)
 //////////////////////////////
-uniq list<char>*% char[]::to_list(char* self, size_t len) 
+uniq list<char>*% char[]::to_list(char* self, size_t len)
 {
     return new list<char>.initialize_with_values(len, self);
 }
 
-uniq list<char*>*% char*[]::to_list(char** self, size_t len) 
+uniq list<char*>*% char*[]::to_list(char** self, size_t len)
 {
     return new list<char*>.initialize_with_values(len, self);
 }
 
-uniq list<short>*% short[]::to_list(short* self, size_t len) 
+uniq list<short>*% short[]::to_list(short* self, size_t len)
 {
     return new list<short>.initialize_with_values(len, self);
 }
 
-uniq list<int>*% int[]::to_list(int* self, size_t len) 
+uniq list<int>*% int[]::to_list(int* self, size_t len)
 {
     return new list<int>.initialize_with_values(len, self);
 }
 
-uniq list<long>*% long[]::to_list(long* self, size_t len) 
+uniq list<long>*% long[]::to_list(long* self, size_t len)
 {
     return new list<long>.initialize_with_values(len, self);
 }
 
-uniq list<float>*% float[]::to_list(float* self, size_t len) 
+uniq list<float>*% float[]::to_list(float* self, size_t len)
 {
     return new list<float>.initialize_with_values(len, self);
 }
 
-uniq list<double>*% double[]::to_list(double* self, size_t len) 
+uniq list<double>*% double[]::to_list(double* self, size_t len)
 {
     return new list<double>.initialize_with_values(len, self);
 }
@@ -3788,47 +4014,47 @@ uniq list<double>*% double[]::to_list(double* self, size_t len)
 //////////////////////////////
 /// base library(equals)
 //////////////////////////////
-uniq immutable bool bool::equals(bool self, bool right) 
+uniq immutable bool bool::equals(bool self, bool right)
 {
     return self == right;
 }
 
-uniq immutable bool _Bool::equals(_Bool self, _Bool right) 
+uniq immutable bool _Bool::equals(_Bool self, _Bool right)
 {
     return self == right;
 }
 
-uniq immutable bool char::equals(char self, char right) 
+uniq immutable bool char::equals(char self, char right)
 {
     return self == right;
 }
 
-uniq immutable bool short::equals(short self, short right) 
+uniq immutable bool short::equals(short self, short right)
 {
     return self == right;
 }
 
-uniq immutable bool int::equals(int self, int right) 
+uniq immutable bool int::equals(int self, int right)
 {
     return self == right;
 }
 
-uniq immutable bool long::equals(long self, long right) 
+uniq immutable bool long::equals(long self, long right)
 {
     return self == right;
 }
 
-uniq immutable bool size_t::equals(size_t self, size_t right) 
+uniq immutable bool size_t::equals(size_t self, size_t right)
 {
     return self == right;
 }
 
-uniq immutable bool float::equals(float self, float right) 
+uniq immutable bool float::equals(float self, float right)
 {
     return self == right;
 }
 
-uniq immutable bool double::equals(double self, double right) 
+uniq immutable bool double::equals(double self, double right)
 {
     return self == right;
 }
@@ -3893,7 +4119,7 @@ uniq bool long::operator_not_equals(long self, long right)
     return !(self == right);
 }
 
-uniq bool char*::equals(char* self, char* right) 
+uniq bool char*::equals(char* self, char* right)
 {
     if(self == null && right == null) {
         return true;
@@ -3904,11 +4130,11 @@ uniq bool char*::equals(char* self, char* right)
     else if(right == null) {
         return false;
     }
-    
+
     return strcmp(self, right) == 0;
 }
 
-uniq bool string::equals(char* self, char* right) 
+uniq bool string::equals(char* self, char* right)
 {
     if(self == null && right == null) {
         return true;
@@ -3919,21 +4145,21 @@ uniq bool string::equals(char* self, char* right)
     else if(right == null) {
         return false;
     }
-    
+
     return strcmp(self, right) == 0;
 }
 
-uniq bool void*::equals(void* self, void* right) 
+uniq bool void*::equals(void* self, void* right)
 {
     return self == right;
 }
 
-uniq bool bool*::equals(bool* self, bool* right) 
+uniq bool bool*::equals(bool* self, bool* right)
 {
     return *self == *right;
 }
 
-uniq bool string::operator_equals(char* self, char* right) 
+uniq bool string::operator_equals(char* self, char* right)
 {
     if(self == null && right == null) {
         return true;
@@ -3944,11 +4170,11 @@ uniq bool string::operator_equals(char* self, char* right)
     else if(right == null) {
         return false;
     }
-    
+
     return strcmp(self, right) == 0;
 }
 
-uniq bool char*::operator_equals(char* self, char* right) 
+uniq bool char*::operator_equals(char* self, char* right)
 {
     if(self == null && right == null) {
         return true;
@@ -3959,21 +4185,21 @@ uniq bool char*::operator_equals(char* self, char* right)
     else if(right == null) {
         return false;
     }
-    
+
     return strcmp(self, right) == 0;
 }
 
-uniq bool void*::operator_equals(char* self, char* right) 
+uniq bool void*::operator_equals(char* self, char* right)
 {
     return self == right;
 }
 
-uniq bool void*::operator_not_equals(char* self, char* right) 
+uniq bool void*::operator_not_equals(char* self, char* right)
 {
     return !self.operator_equals(right);
 }
 
-uniq bool string::operator_not_equals(char* self, char* right) 
+uniq bool string::operator_not_equals(char* self, char* right)
 {
     if(self == null && right == null) {
         return false;
@@ -3984,11 +4210,11 @@ uniq bool string::operator_not_equals(char* self, char* right)
     else if(right == null) {
         return true;
     }
-    
+
     return strcmp(self, right) != 0;
 }
 
-uniq bool char*::operator_not_equals(char* self, char* right) 
+uniq bool char*::operator_not_equals(char* self, char* right)
 {
     if(self == null && right == null) {
         return false;
@@ -3999,75 +4225,75 @@ uniq bool char*::operator_not_equals(char* self, char* right)
     else if(right == null) {
         return true;
     }
-    
+
     return strcmp(self, right) != 0;
 }
 
 
-uniq string char*::operator_add(char* self, char* right) 
+uniq string char*::operator_add(char* self, char* right)
 {
     if(self == null || right == null) {
         return string("");
     }
     int len = strlen(self) + strlen(right);
-   
+
     char*% result = new char[len+1];
-    
+
     strncpy(result, self, len+1);
     strncat(result, right, len+1);
-    
+
     return result;
 }
 
-uniq string string::operator_add(char* self, char* right) 
+uniq string string::operator_add(char* self, char* right)
 {
     if(self == null || right == null) {
         return string("");
     }
     int len = strlen(self) + strlen(right);
-   
+
     char*% result = new char[len+1];
-    
+
     strncpy(result, self, len+1);
     strncat(result, right, len+1);
-    
+
     return result;
 }
 
-uniq string char*::operator_mult(char* self, int right) 
+uniq string char*::operator_mult(char* self, int right)
 {
     if(self == null) {
         return string("");
     }
     var buf = new buffer();
-    
+
     for(int i=0; i<right; i++) {
         buf.append_str(self);
     }
-    
+
     return buf.to_string();
 }
 
-uniq string string::operator_mult(char* self, int right) 
+uniq string string::operator_mult(char* self, int right)
 {
     if(self == null) {
         return string("");
     }
     var buf = new buffer();
-    
+
     for(int i=0; i<right; i++) {
         buf.append_str(self);
     }
-    
+
     return buf.to_string();
 }
 
-uniq size_t char[]::length(char* self, size_t len) 
+uniq size_t char[]::length(char* self, size_t len)
 {
     return len;
 }
 
-uniq bool char*[]::contained(char** self, size_t len, char* str) 
+uniq bool char*[]::contained(char** self, size_t len, char* str)
 {
     bool result = false;
     for(int i=0; i<len; i++) {
@@ -4079,27 +4305,27 @@ uniq bool char*[]::contained(char** self, size_t len, char* str)
     return result;
 }
 
-uniq size_t short[]::length(short* self, size_t len) 
+uniq size_t short[]::length(short* self, size_t len)
 {
     return len;
 }
 
-uniq size_t int[]::length(int* self, size_t len) 
+uniq size_t int[]::length(int* self, size_t len)
 {
     return len;
 }
 
-uniq size_t long[]::length(long* self, size_t len) 
+uniq size_t long[]::length(long* self, size_t len)
 {
     return len;
 }
 
-uniq size_t float[]::length(float* self, size_t len) 
+uniq size_t float[]::length(float* self, size_t len)
 {
     return len;
 }
 
-uniq size_t double[]::length(double* self, size_t len) 
+uniq size_t double[]::length(double* self, size_t len)
 {
     return len;
 }
@@ -4285,7 +4511,7 @@ uniq int char*::length(char* str) {
     return strlen(str);
 }
 
-uniq string char*::reverse(char* str) 
+uniq string char*::reverse(char* str)
 {
     if(str == null) {
         return string("");
@@ -4437,38 +4663,38 @@ uniq string xsprintf(char* msg, ...)
         return string("");
     }
     va_list` args;
-    va_start(args, msg);
+    __builtin_va_start(args, msg);
     char* result;
     int len = vasprintf(&result, msg, args);
-    va_end(args);
-    
+    __builtin_va_end(args);
+
     if(len < 0) {
         return string("");
     }
-    
+
     string result2 = string(result);
-    
+
     free(result);
-    
+
     return result2;
 }
 
-uniq string char*::delete(char* str, int head, int tail) 
+uniq string char*::delete(char* str, int head, int tail)
 {
     if(str == null) {
         return string("");
     }
-    
+
     int len = strlen(str);
 
     if(strcmp(str, "") == 0) {
         return string(str);
     }
-    
+
     if(head < 0) {
        head += len;
     }
-    
+
     if(tail < 0) {
        tail += len + 1;
     }
@@ -4484,23 +4710,23 @@ uniq string char*::delete(char* str, int head, int tail)
     if(tail >= len) {
         tail = len;
     }
-    
+
     char*% result = new char[len-(tail-head)+1];
-    
+
     memcpy(result, str, head);
     memcpy(result + head, str + tail, len-tail);
-    
+
     result[len -(tail-head)] = '\0';
 
     return result;
 }
 
-uniq list<string>*% char*::split_char(char* self, char c) 
+uniq list<string>*% char*::split_char(char* self, char c)
 {
     if(self == null) {
         return new list<string>();
     }
-    
+
     auto result = new list<string>.initialize();
 
     auto str = new buffer.initialize();
@@ -4541,7 +4767,7 @@ uniq string char*::printable(char* str)
     for(int i=0; i<len; i++) {
         char c = str[i];
 
-        if((c >= 0 && c < ' ') 
+        if((c >= 0 && c < ' ')
             || c == 127)
         {
             result[n++] = '^';
@@ -4564,12 +4790,12 @@ uniq string char*::sub_plain(char* self, char* str, char* replace)
     }
 
     auto result = new buffer.initialize();
-    
+
     char* p = self;
-    
+
     while(true) {
         char* p2 = strstr(p, str);
-        
+
         if(p2 == null) {
             p2 = p;
             while(*p2) {
@@ -4578,10 +4804,10 @@ uniq string char*::sub_plain(char* self, char* str, char* replace)
             result.append(p, p2 - p);
             break;
         }
-        
+
         result.append(p, p2 - p);
         result.append_str(replace);
-        
+
         p = p2 + strlen(str);
     }
 
@@ -4597,7 +4823,7 @@ uniq string xbasename(char* path)
         return string("");
     }
     char* p = path + strlen(path);
-    
+
     while(p >= path) {
         if(*p == '/') {
             break;
@@ -4606,14 +4832,14 @@ uniq string xbasename(char* path)
             p--;
         }
     }
-    
+
     if(p < path) {
         return string(path);
     }
     else {
-        return string(p+1);  
+        return string(p+1);
     }
-    
+
     return string("");
 }
 
@@ -4623,9 +4849,9 @@ uniq string xnoextname(char* path)
         return string("");
     }
     string path2 = xbasename(path);
-    
+
     char* p = path2 + strlen(path2);
-    
+
     while(p >= path2) {
         if(*p == '.') {
             break;
@@ -4634,14 +4860,14 @@ uniq string xnoextname(char* path)
             p--;
         }
     }
-    
+
     if(p < path2) {
         return string(path2);
     }
     else {
         return path2.substring(0, p - path2);
     }
-    
+
     return string("");
 }
 
@@ -4651,7 +4877,7 @@ uniq string xextname(char* path)
         return string("");
     }
     char* p = path + strlen(path);
-    
+
     while(p >= path) {
         if(*p == '.') {
             break;
@@ -4660,14 +4886,14 @@ uniq string xextname(char* path)
             p--;
         }
     }
-    
+
     if(p < path) {
         return string(path);
     }
     else {
-        return string(p+1);  
+        return string(p+1);
     }
-    
+
     return string("");
 }
 
@@ -4762,7 +4988,7 @@ uniq int bool::compare(bool left, bool right)
     else {
         return 1;
     }
-    
+
     return 0;
 }
 
@@ -4780,11 +5006,11 @@ uniq int _Bool::compare(bool left, bool right)
     else {
         return 1;
     }
-    
+
     return 0;
 }
 
-uniq int char::compare(char left, char right) 
+uniq int char::compare(char left, char right)
 {
     if(left < right) {
         return -1;
@@ -4795,11 +5021,11 @@ uniq int char::compare(char left, char right)
     else {
         return 0;
     }
-    
+
     return 0;
 }
 
-uniq int short::compare(short left, short right) 
+uniq int short::compare(short left, short right)
 {
     if(left < right) {
         return -1;
@@ -4810,11 +5036,11 @@ uniq int short::compare(short left, short right)
     else {
         return 0;
     }
-    
+
     return 0;
 }
 
-uniq int int::compare(int left, int right) 
+uniq int int::compare(int left, int right)
 {
     if(left < right) {
         return -1;
@@ -4825,11 +5051,11 @@ uniq int int::compare(int left, int right)
     else {
         return 0;
     }
-    
+
     return 0;
 }
 
-uniq int long::compare(long left, long right) 
+uniq int long::compare(long left, long right)
 {
     if(left < right) {
         return -1;
@@ -4840,11 +5066,11 @@ uniq int long::compare(long left, long right)
     else {
         return 0;
     }
-    
+
     return 0;
 }
 
-uniq int size_t::compare(size_t left, size_t right) 
+uniq int size_t::compare(size_t left, size_t right)
 {
     if(left < right) {
         return -1;
@@ -4855,11 +5081,11 @@ uniq int size_t::compare(size_t left, size_t right)
     else {
         return 0;
     }
-    
+
     return 0;
 }
 
-uniq int float::compare(float left, float right) 
+uniq int float::compare(float left, float right)
 {
     if(left < right) {
         return -1;
@@ -4870,11 +5096,11 @@ uniq int float::compare(float left, float right)
     else {
         return 0;
     }
-    
+
     return 0;
 }
 
-uniq int double::compare(double left, double right) 
+uniq int double::compare(double left, double right)
 {
     if(left < right) {
         return -1;
@@ -4885,11 +5111,11 @@ uniq int double::compare(double left, double right)
     else {
         return 0;
     }
-    
+
     return 0;
 }
 
-uniq int string::compare(char* left, char* right) 
+uniq int string::compare(char* left, char* right)
 {
     if(left == null && right == null) {
         return 0;
@@ -4900,11 +5126,11 @@ uniq int string::compare(char* left, char* right)
     else if(right == null) {
         return 1;
     }
-    
+
     return strcmp(left,right);
 }
 
-uniq int char*::compare(char* left, char* right) 
+uniq int char*::compare(char* left, char* right)
 {
     if(left == null && right == null) {
         return 0;
@@ -4915,7 +5141,7 @@ uniq int char*::compare(char* left, char* right)
     else if(right == null) {
         return 1;
     }
-    
+
     return strcmp(left,right);
 }
 
@@ -4925,4 +5151,43 @@ uniq void int::times(int self, void* parent, void (*block)(void* parent, int it)
         block(parent, i);
     }
 }
+# 4 "grep.c" 2
 
+void putchar(char c);
+
+int main() {
+    printf("--- Malloc Test Start ---\n");
+
+    printf("1. Allocating 10 bytes...\n");
+    char* p1 = malloc(10);
+    if (p1 == 0) {
+        printf("Failed!\n");
+        return 1;
+    }
+    printf("OK. Got pointer: %p\n", p1);
+
+    printf("2. Allocating 20 bytes...\n");
+    char* p2 = malloc(20);
+    if (p2 == 0) {
+        printf("Failed!\n");
+        return 1;
+    }
+    printf("OK. Got pointer: %p\n", p2);
+
+    printf("3. Freeing first block...\n");
+    free(p1);
+    printf("OK.\n");
+
+    printf("4. Allocating 5 bytes (should reuse block)...\n");
+    char* p3 = malloc(5);
+     if (p3 == 0) {
+        printf("Failed!\n");
+        return 1;
+    }
+    printf("OK. Got pointer: %p\n", p3);
+
+    printf("--- Malloc Test Complete ---\n");
+    while(1);
+
+    return 0;
+}
