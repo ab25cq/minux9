@@ -93,7 +93,6 @@ uniq void *malloc(unsigned nbytes) {
                 p->size = nunits;
             }
             freep = prevp;
-printf("p %p\n", (void*)(p + 1));
             return (void *)(p + 1); // ヘッダの次のアドレスを返す
         }
         if (p == freep) { // 空きリストを一周した

@@ -1629,15 +1629,11 @@ int Sys_brk() {
     struct proc *p = gProc[gActiveProc];
     uint64_t old_sz = p->sz;
 
-    printf("Sys_brk: called. addr=%p, old_sz=%p\n", addr, old_sz);
-
     if (addr == 0) {
-        printf("Sys_brk: returning current break %p\n", old_sz);
         return old_sz;
     }
 
     if (addr > old_sz) {
-        printf("Sys_brk: allocating from %p to %p\n", old_sz, addr);
         if(uvm_alloc(p->pagetable, old_sz, addr) < 0) {
             printf("Sys_brk: uvm_alloc failed!\n");
             return -1; 
@@ -1647,7 +1643,6 @@ int Sys_brk() {
     }
 
     p->sz = addr;
-    printf("Sys_brk: new break is %p\n", p->sz);
     return p->sz;
 }
 

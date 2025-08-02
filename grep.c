@@ -14,7 +14,7 @@ int main() {
     puts(a);
     
     char*% b = new char[4];
-    strncpy(b, "ABC", 4);
+    strncpy(b, "QAB", 4);
     
     puts(b);
     
