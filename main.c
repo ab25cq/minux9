@@ -1355,23 +1355,26 @@ int Sys_wait()
     
     int exit_status = 0;
     pid_t child_pid = -1;
-    while(child_pid == -1) {
+    while(1) { // Keep searching until a zombie is found and handled
         int n = 0;
+        proc* zombie_proc = NULL;
         foreach (it, gProc) {
             if(it->zombie) {
-                free(it->file_table);
-                free_proc(it);
-                exit_status = it->xstatus;
-                child_pid = n;
-                gProc.remove_by_pointer(it);
+                zombie_proc = it;
+                child_pid = n; // This is problematic if gProc is not an array-like list
                 break;
             }
-            
             n++;
         }
-        
-        if(child_pid == -1) {
-            yield();
+
+        if(zombie_proc) {
+            exit_status = zombie_proc->xstatus;
+            free(zombie_proc->file_table);
+            free_proc(zombie_proc);
+            gProc.remove_by_pointer(zombie_proc);
+            break; // Exit the while(1) loop
+        } else {
+            yield(); // No zombie found, yield and try again
         }
     }
     
