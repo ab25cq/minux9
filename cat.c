@@ -1,7 +1,6 @@
 #include "minux.h"
 #include <stdarg.h>
 
-// putcharは環境依存で外部定義
 void putchar(char c)
 {
     char d = c;

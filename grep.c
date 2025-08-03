@@ -1,11 +1,5 @@
-#include <stdint.h>
-#include <stdarg.h>
-#include "comelang-minux9.h"
-
-void putchar(char c)
-{
-    write(1, &c, 1);
-}
+#include "minux.h"
+#include "comelang.h"
 
 int main() {
     char*% a = new char[4];
