@@ -98,19 +98,15 @@ typedef int pid_t;
     (int)_a0;                                                   \
 })
 
-static inline void exit(long status) {
-    asm volatile(
-        "mv   a0, %0   \n"   // status → a0
-        "li   a7, %1   \n"   // SYS_exit → a7
-        "ecall         \n"   // システムコール発行
-        :
-        : "r"(status), "i"(SYS_exit)
-        : "a0", "a7", "memory"
-    );
-    
-    while(1);
-    __builtin_unreachable();  // exit 後は戻らないのでコンパイラに通知
-}
+#define exit(status) ({  \
+    register long _a0 asm("a0") = (long)(status);                 \
+    register long _a7 asm("a7") = SYS_exit;                    \
+    asm volatile("ecall"                                        \
+                 : "+r"(_a0)                                   \
+                 : "r"(_a7)                          \
+                 : "memory");                                  \
+    while(1); \
+}) \
 
 #define wait(status_ptr) ({                                    \
     register long _a0 asm("a0") = (long)(status_ptr);          \

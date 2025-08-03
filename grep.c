@@ -9,11 +9,8 @@ int main() {
     
     char*% b = new char[4];
     strncpy(b, "QAB", 4);
-    
-    puts(b);
+    printf("%s\r\n", b);
     
     exit(1);
-
-    return 0;
 }
 
