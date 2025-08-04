@@ -162,6 +162,8 @@ struct proc {
     map<void*, tuple2<void*,long>*%>*% mapping_values;
     
     file* file_table;
+    
+    int deleted;
 };
 
 struct cpu {
@@ -1228,6 +1230,10 @@ void timer_handler() {
     struct proc *old = gProc[gActiveProc];
     gActiveProc++;
     
+    if(gActiveProc < gProc.length() &&gProc[gActiveProc].deleted) {
+        gActiveProc++;
+    }
+    
     if(gActiveProc >= gProc.length()) {
         gActiveProc = 0;
     }
@@ -1359,7 +1365,9 @@ int Sys_wait()
         int n = 0;
         proc* zombie_proc = NULL;
         foreach (it, gProc) {
-            if(it->zombie) {
+            if(it->deleted) {
+            }
+            else if(it->zombie) {
                 zombie_proc = it;
                 child_pid = n; // This is problematic if gProc is not an array-like list
                 break;
@@ -1371,7 +1379,8 @@ int Sys_wait()
             exit_status = zombie_proc->xstatus;
             free(zombie_proc->file_table);
             free_proc(zombie_proc);
-            gProc.remove_by_pointer(zombie_proc);
+            zombie_proc->deleted = 1;
+            //gProc.remove_by_pointer(zombie_proc);
             break; // Exit the while(1) loop
         } else {
             yield(); // No zombie found, yield and try again

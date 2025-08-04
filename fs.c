@@ -472,6 +472,8 @@ void pipe_open(int* fd1, int* fd2) {
 void panic(char* str);
 void yield();
 
+extern int gActiveProc;
+
 int piperead(int fd, char *addr, int n)
 {
     struct file* file_table = get_current_file_table();
@@ -531,6 +533,7 @@ int pipewrite(int fd, char *addr, int n)
       }
       p->data[p->nwrite % PIPE_SIZE] = addr[i];
       p->nwrite++;
+      
       
       // 読み側を起こす
       yield();
