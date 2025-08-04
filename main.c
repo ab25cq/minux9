@@ -1175,6 +1175,35 @@ int gNumKernelState __attribute__((section(".common")));
 int gKernelStateHead __attribute__((section(".common")));
 int gKernelStateTail __attribute__((section(".common")));
 
+void remove_kernel_state(int active_proc) {
+    if (gKernelStateHead == gKernelStateTail) {
+        return;
+    }
+    int index = -1;
+    for(int i=0; i<MAX_KERNEL; i++) {
+        if(gKernelState[i].gYieldUserActiveProc == active_proc) {
+            index = i;
+            break;
+        }
+    }
+    
+    if(index == -1) {
+        return;
+    }
+
+    // 削除位置から末尾まで、要素を一つずつ前にシフトする
+    // ループは削除する要素の次の要素から開始し、最後の要素まで回る
+    for (int i = index; i < gNumKernelState - 1; i++) {
+        int current_index = (gKernelStateHead + i) % MAX_KERNEL;
+        int next_index = (gKernelStateHead + i + 1) % MAX_KERNEL;
+        gKernelState[current_index] = gKernelState[next_index];
+    }
+
+    // tailとcountを更新する
+    gKernelStateTail = (gKernelStateTail - 1 + MAX_KERNEL) % MAX_KERNEL;
+    gNumKernelState--;
+}
+
 void kernel_yield() {
     if(((gKernelStateTail + 1) % MAX_KERNEL) == gKernelStateHead) {
         panic("kernel state queue max");
@@ -1230,7 +1259,7 @@ void timer_handler() {
     struct proc *old = gProc[gActiveProc];
     gActiveProc++;
     
-    if(gActiveProc < gProc.length() &&gProc[gActiveProc].deleted) {
+    while(gActiveProc < gProc.length() &&gProc[gActiveProc].deleted) {
         gActiveProc++;
     }
     
@@ -1364,10 +1393,13 @@ int Sys_wait()
     while(1) { // Keep searching until a zombie is found and handled
         int n = 0;
         proc* zombie_proc = NULL;
+        int num_deleted_proc = 0;
         foreach (it, gProc) {
             if(it->deleted) {
+                num_deleted_proc++;
             }
             else if(it->zombie) {
+                num_deleted_proc++;
                 zombie_proc = it;
                 child_pid = n; // This is problematic if gProc is not an array-like list
                 break;
@@ -1380,9 +1412,11 @@ int Sys_wait()
             free(zombie_proc->file_table);
             free_proc(zombie_proc);
             zombie_proc->deleted = 1;
+            remove_kernel_state(child_pid);
             //gProc.remove_by_pointer(zombie_proc);
             break; // Exit the while(1) loop
-        } else {
+        }
+        else {
             yield(); // No zombie found, yield and try again
         }
     }
