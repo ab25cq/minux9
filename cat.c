@@ -17,14 +17,12 @@ int gA = 123;
             
 // hello.c
 int main(int argc, char** argv) {
-    if(argc < 2) {
-puts("CAT1");
+    if(argc == 1) {
         char buf[32];
         int size = read(0, buf, 32);
-        write(0, buf, size);
+        write(1, buf, size);
     }
     else {
-puts("CAT2");
         int fd = open(argv[1], 0, 0);
         char buf[32];
         int size = read(fd, buf, 32);
