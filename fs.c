@@ -382,28 +382,43 @@ struct spipe* pipealloc(void)
     return p;
 }
 
-struct file* fs_init()
+struct file* new_file_table()
 {
-    struct file* file_table = (struct file*)common_kalloc(sizeof(struct file)*MAX_OPEN_FILES);
+    struct file* result = (struct file*)common_kalloc(sizeof(struct file));
+    memset(result, 0, sizeof(struct file));
+    return result;
+}
+
+struct file** fs_init()
+{
+    struct file** file_table = (struct file**)common_kalloc(sizeof(struct file*)*MAX_OPEN_FILES);
     
-    file_table[0].kind = FK_STDIN;
-    file_table[0].used = 1;
+    memset(file_table, 0, sizeof(struct file*)*MAX_OPEN_FILES);
     
-    file_table[1].kind = FK_STDOUT;
-    file_table[1].used = 1;
+    file_table[0] = new_file_table();
     
-    file_table[2].kind = FK_STDERR;
-    file_table[2].used = 1;
+    file_table[0]->kind = FK_STDIN;
+    file_table[0]->used = 1;
+    
+    file_table[1] = new_file_table();
+    
+    file_table[1]->kind = FK_STDOUT;
+    file_table[1]->used = 1;
+    
+    file_table[2] = new_file_table();
+    
+    file_table[2]->kind = FK_STDERR;
+    file_table[2]->used = 1;
     
     return file_table;
 }
 
 int is_pipe(int fd)
 {
-    struct file* file_table = get_current_file_table();
+    struct file** file_table = get_current_file_table();
     
-    if (file_table[fd].used) {
-        if(file_table[fd].pipe) {
+    if (file_table[fd] && file_table[fd]->used) {
+        if(file_table[fd]->pipe) {
             return 1;
         }
     }
@@ -413,9 +428,9 @@ int is_pipe(int fd)
 
 int is_stdin(int fd)
 {
-    struct file* file_table = get_current_file_table();
-    if (file_table[fd].used) {
-        if(file_table[fd].kind == FK_STDIN) {
+    struct file** file_table = get_current_file_table();
+    if (file_table[fd] && file_table[fd]->used) {
+        if(file_table[fd]->kind == FK_STDIN) {
             return 1;
         }
     }
@@ -425,10 +440,10 @@ int is_stdin(int fd)
 
 int is_stdout(int fd)
 {
-    struct file* file_table = get_current_file_table();
+    struct file** file_table = get_current_file_table();
     
-    if (file_table[fd].used) {
-        if(file_table[fd].kind == FK_STDOUT) {
+    if (file_table[fd] && file_table[fd]->used) {
+        if(file_table[fd]->kind == FK_STDOUT) {
             return 1;
         }
     }
@@ -437,30 +452,37 @@ int is_stdout(int fd)
 }
 
 void pipe_open(int* fd1, int* fd2) {
-    struct file* file_table = get_current_file_table();
+    struct file** file_table = get_current_file_table();
     
     struct spipe* pip = pipealloc();
     
     for (int i = 3; i < MAX_OPEN_FILES; i++) {
-        if (!file_table[i].used) {
-            file_table[i].kind = FK_PIPE;
-            file_table[i].used  = 1;
-            file_table[i].inum  = -1;
-            //memset(&file_table[i].din, 0, sizeof(struct dinode));
-            file_table[i].off   = 0;
-            file_table[i].pipe = pip;
+        if (file_table[i] == NULL) {
+            file_table[i] = new_file_table();
+            
+            file_table[i]->kind = FK_PIPE;
+            file_table[i]->used  = 1;
+            file_table[i]->inum  = -1;
+            file_table[i]->off   = 0;
+            file_table[i]->pipe = pip;
+            file_table[i]->read_pipe = 1;
+            file_table[i]->write_pipe   = 0;
             *fd1 = i;
             break;
         }
     }
     for (int i = 3; i < MAX_OPEN_FILES; i++) {
-        if (!file_table[i].used) {
-            file_table[i].kind = FK_PIPE;
-            file_table[i].used  = 1;
-            file_table[i].inum  = -1;
+        if (file_table[i] == NULL) {
+            file_table[i] = new_file_table();
+            
+            file_table[i]->kind = FK_PIPE;
+            file_table[i]->used  = 1;
+            file_table[i]->inum  = -1;
             //memset(&file_table[i].din, 0, sizeof(struct dinode));
-            file_table[i].off   = 0;
-            file_table[i].pipe = pip;
+            file_table[i]->off   = 0;
+            file_table[i]->pipe = pip;
+            file_table[i]->write_pipe = 1;
+            file_table[i]->read_pipe = 0;
             *fd2 = i;  // <- 3,4,5… を返す
             break;
         }
@@ -476,32 +498,39 @@ extern int gActiveProc;
 
 int piperead(int fd, char *addr, int n)
 {
-    struct file* file_table = get_current_file_table();
+    struct file** file_table = get_current_file_table();
+    
+    if (file_table[fd] == NULL) {
+        panic("piperead");
+    }
     
     if(fd < 0 || fd >= MAX_OPEN_FILES) {
-        panic("pipewrite");
+        panic("piperead");
     }
-    struct spipe* p = file_table[fd].pipe;
+    struct spipe* p = file_table[fd]->pipe;
     
     if(p == NULL) {
         panic("pipewrite");
     }
-    int i;
   
     // データが来るまで待機
     while (p->nread == p->nwrite && p->write_open) {
-        yield();
+       yield();
     }
     // 書き側クローズかつバッファ空 → EOF
     if (p->nread == p->nwrite && !p->write_open) {
         return 0;
     }
     // バッファからコピー
+    volatile int i;
     for (i = 0; i < n && p->nread < p->nwrite; i++) {
         addr[i] = p->data[p->nread % PIPE_SIZE];
         p->nread++;
-        yield();
+printf("PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
+        //yield();
     }
+addr[i] = '\0';
+printf("READED %s i %d\r\n", addr, i);
     return i;
 }
 
@@ -509,18 +538,22 @@ int piperead(int fd, char *addr, int n)
 // パイプに n バイト書き込む。正常書き込み数、エラー:-1
 int pipewrite(int fd, char *addr, int n)
 {
-    struct file* file_table = get_current_file_table();
+    struct file** file_table = get_current_file_table();
+    
+    if (file_table[fd] == NULL) {
+        panic("pipewrite");
+    }
     
     if(fd < 0 || fd >= MAX_OPEN_FILES) {
         panic("pipewrite");
     }
-    struct spipe* p = file_table[fd].pipe;
+    struct spipe* p = file_table[fd]->pipe;
     
     if(p == NULL) {
         panic("pipewrite");
     }
     
-    int i;
+    volatile int i;
   
     for (i = 0; i < n; i++) {
       // バッファ満杯なら読み側を待つ
@@ -533,10 +566,10 @@ int pipewrite(int fd, char *addr, int n)
       }
       p->data[p->nwrite % PIPE_SIZE] = addr[i];
       p->nwrite++;
-      
+printf("PID %d write %c i %d p->nread %d p->nwrite %% PIPE_SIZE %d\r\n", gActiveProc, addr[i], i, p->nread, p->nwrite % PIPE_SIZE);
       
       // 読み側を起こす
-      yield();
+      //yield();
     }
   
     return n;
@@ -549,7 +582,7 @@ int pipewrite(int fd, char *addr, int n)
 #define MAX_OPEN_FILES 16
 #define FD_OFFSET      3   // 返す FD は 3 からスタート
 int fs_open(const char *path) {
-    struct file* file_table = get_current_file_table();
+    struct file** file_table = get_current_file_table();
     
     char path2[32];
     
@@ -571,12 +604,16 @@ int fs_open(const char *path) {
     if (di.type != T_FILE && di.type != T_DIR) return -1;
 
     for (int i = 3; i < MAX_OPEN_FILES; i++) {
-        if (!file_table[i].used) {
-            file_table[i].kind = FK_FILE;
-            file_table[i].used  = 1;
-            file_table[i].inum  = inum;
-            file_table[i].din   = di;
-            file_table[i].off   = 0;
+        if (file_table[i] == NULL) {
+            file_table[i] = new_file_table();
+            
+            file_table[i]->kind = FK_FILE;
+            file_table[i]->used  = 1;
+            file_table[i]->inum  = inum;
+            file_table[i]->din   = di;
+            file_table[i]->off   = 0;
+            file_table[i]->read_pipe   = 0;
+            file_table[i]->write_pipe   = 0;
             return i;  // <- 3,4,5… を返す
         }
     }
@@ -586,13 +623,17 @@ int fs_open(const char *path) {
 // fs_read: fd から buf に count バイト読み込む
 // 成功: 読み込んだバイト数 (0 は EOF), 失敗: -1
 ssize_t fs_read(int fd, void *buf, size_t count) {
-    struct file* file_table = get_current_file_table();
+    struct file** file_table = get_current_file_table();
+    
+    if(file_table[fd] == NULL) {
+        return -1;
+    }
     
     int idx = fd;
-    if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
+    if (idx < 0 || idx >= MAX_OPEN_FILES)
         return -1;
 
-    struct file *f = &file_table[idx];
+    struct file *f = file_table[idx];
     uint32_t remaining = f->din.size - f->off;
     if (remaining == 0) return 0;
 
@@ -603,47 +644,77 @@ ssize_t fs_read(int fd, void *buf, size_t count) {
 }
 
 ssize_t fs_size(int fd) {
-    struct file* file_table = get_current_file_table();
+    struct file** file_table = get_current_file_table();
+    
+    if(file_table[fd] == NULL) {
+        return -1;
+    }
     
     int idx = fd;
-    if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
+    if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx]->used)
         return -1;
 
-    struct file *f = &file_table[idx];
+    struct file *f = file_table[idx];
     return f->din.size;
 }
 
 // fs_close: fd を閉じる
 // 成功: 0, 失敗: -1
 int fs_close(long fd) {
-    struct file* file_table = get_current_file_table();
+    struct file** file_table = get_current_file_table();
+    
+    if(file_table[fd] == NULL) {
+        return -1;
+    }
+    
+    if(file_table[fd]->kind == FK_STDIN || file_table[fd]->kind == FK_STDOUT || file_table[fd]->kind == FK_STDERR)
+    {
+        return -1;
+    }
     
     long idx = fd;
-    if (idx < 0 || idx >= MAX_OPEN_FILES || !file_table[idx].used)
+    if (idx < 0 || idx >= MAX_OPEN_FILES || file_table[idx] == NULL || !file_table[idx]->used)
         return -1;
-    file_table[idx].used--;
-    if(file_table[idx].used <= 0) {
-        file_table[idx].used = 0;
-        memset(&file_table[idx], 0, sizeof(struct file));
+    file_table[idx]->used--;
+    if(file_table[idx]->used <= 0) {
+        file_table[idx]->used = 0;
+        struct spipe* p = file_table[idx]->pipe;
+        if(file_table[idx]->read_pipe) {
+            p->read_open = 0;
+        }
+        if(file_table[idx]->write_pipe) {
+            p->write_open = 0;
+        }
+        memset(file_table[idx], 0, sizeof(struct file));
     }
     return 0;
 }
 
-struct file* fs_dup_table(struct file* orig)
+void fs_exit(struct file** file_table)
 {
-    struct file* result = fs_init();
+    for(int i=0; i<MAX_OPEN_FILES; i++) {
+        fs_close(i);
+    }
+}
+
+struct file** fs_dup_table(struct file** orig)
+{
+    struct file** result = fs_init();
     
     for(int i=0; i<MAX_OPEN_FILES; i++) {
-        result[i] = orig[i];
+        if(orig[i]) {
+            result[i] = orig[i];
+            result[i]->used++;
+        }
     }
     
     return result;
 }
 
 void fs_dup2(int oldfd, int newfd) {
-    struct file* file_table = get_current_file_table();
+    struct file** file_table = get_current_file_table();
     
     file_table[newfd] = file_table[oldfd];
-    file_table[newfd].used++;
+    file_table[newfd]->used++;
 }
 

@@ -161,7 +161,7 @@ struct proc {
     
     map<void*, tuple2<void*,long>*%>*% mapping_values;
     
-    file* file_table;
+    file** file_table;
     
     int deleted;
 };
@@ -953,7 +953,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
                     panic("copyout");
                 }
             }
-            result->file_table = fs_dup_table(parent->file_table);
+            result->file_table = parent->file_table;
         }
         else {
             result->file_table = fs_init();
@@ -1063,7 +1063,7 @@ static void free_pagetable(pagetable_t pagetable, int level) {
     }
 }
 
-struct file* get_current_file_table()
+struct file** get_current_file_table()
 {
     return gProc[gActiveProc].file_table;
 }
@@ -1346,7 +1346,8 @@ int Sys_write()
         }
     }
     else {
-        panic("write(X)");
+        return -1;
+        //panic("write(X)");
     }
 
     return 0;
@@ -1366,6 +1367,8 @@ int Sys_exit()
     uintptr_t arg_syscall_no = trapframe->a7;
     
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+    
+    fs_exit(p->file_table);
     
     p->xstatus = arg0;
     p->zombie = 1;

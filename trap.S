@@ -421,6 +421,8 @@ asm_memmove:
     
     .align 2
     .global yield
+    .equ STACK_PAGES, 16
+    .equ STACK_MAX, 4096 * STACK_PAGES
     .extern stack_top
     .extern yield_stack
 yield:
@@ -462,25 +464,27 @@ yield:
     sd t1, 248(t0)
     
     la   a0, yield_stack   # a0 ← dst (以前のスタック領域)
-    li   t0, 0x6400        # t0 ← 0x6400
+    li   t0, STACK_MAX        # t0 ← 
     la   a1, stack_top     # a1 ← &stack_top
-    sub  a1, a1, t0        # a1 ← a1 - t0  （= stack_top - 0x6400）
-    li   a2, 0x6400           # a2 ← length
+    sub  a1, a1, t0        # a1 ← a1 - t0  （= stack_top - 
+    li   a2, STACK_MAX           # a2 ← length
     jal  asm_memmove           # call memmove(dst, src, len)
     
     call kernel_yield
     
     .align 2
+    .equ STACK_PAGES, 16
+    .equ STACK_MAX, 4096 * STACK_PAGES
     .global yield_return
     .extern stack_top
     .extern yield_stack
 yield_return:
-    li   t0, 0x6400        # t0 ← 0x6400
+    li   t0, STACK_MAX        # t0 ← 
     la   a0, stack_top     # a1 ← &stack_top
-    sub  a0, a0, t0        # a1 ← a1 - t0  （= stack_top - 0x6400）
+    sub  a0, a0, t0        # a1 ← a1 - t0  （= stack_top - 
 
     la   a1, yield_stack      # a1 ← src
-    li   a2, 0x6400           # a2 ← length
+    li   a2, STACK_MAX           # a2 ← length
     jal  asm_memmove           # call memmove(dst, src, len)
     
     la t0, TRAPFRAME2;

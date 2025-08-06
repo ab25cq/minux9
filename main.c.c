@@ -347,6 +347,8 @@ struct file
     unsigned int off;
     int used;
     struct spipe* pipe;
+    int read_pipe;
+    int write_pipe;
 };
 
 unsigned char hello_elf[]={
@@ -1528,7 +1530,7 @@ struct proc
     char* program;
     int xstatus;
     struct map$2void$ptuple2$2void$plong$$ph* mapping_values;
-    struct file* file_table;
+    struct file** file_table;
     int deleted;
 };
 
@@ -1653,9 +1655,10 @@ void pipe_open(int* fd1, int* fd2);
 int piperead(int fd, char* addr, int n);
 int pipewrite(int fd, char* addr, int n);
 void fs_dup2(int oldfd, int newfd);
-struct file* fs_init();
-struct file* fs_dup_table(struct file* orig);
+struct file** fs_init();
+struct file** fs_dup_table(struct file** orig);
 int fs_size(int fd);
+void fs_exit(struct file** file_table);
 static void* kalloc_page(unsigned long  long bump);
 void* kalloc_pages(unsigned long  int npages);
 void perror(char* str);
@@ -1729,7 +1732,7 @@ static struct list$1proc$ph* list$1proc$ph_add(struct list$1proc$ph* self, struc
 unsigned long  long* uvmcreate();
 unsigned long  long* copyuvm(unsigned long  long* old, unsigned long  long sz);
 static void free_pagetable(unsigned long  long* pagetable, int level);
-struct file* get_current_file_table();
+struct file** get_current_file_table();
 void reset_watchdog();
 void plic_init();
 void trap_init();
@@ -2783,7 +2786,7 @@ long size_159=0;
                 }
             }
             come_call_finalizer(map$2void$ptuple2$2void$plong$$ph$p_finalize, o2_saved_156, (void*)0, (void*)0, 0/* alloca value */, 0/* no_decrement */, 0/* no_free */, (void*)0);
-            result_54->file_table=fs_dup_table(parent_152->file_table);
+            result_54->file_table=parent_152->file_table;
         }
         else {
             result_54->file_table=fs_init();
@@ -3823,9 +3826,9 @@ unsigned long  long* child_181;
     }
 }
 
-struct file* get_current_file_table(){
+struct file** get_current_file_table(){
 void* __right_value38 = (void*)0;
-struct file* __result_obj__60;
+struct file** __result_obj__60;
     __result_obj__60 = ((struct proc*)(__right_value38=list$1proc$ph_operator_load_element(gProc,gActiveProc)))->file_table;
     come_call_finalizer(proc_finalize, __right_value38, (void*)0, (void*)0, 0/* alloca value */, 1/* no_decrement */, 0/* no_free */, (void*)0);
     return __result_obj__60;
@@ -4026,7 +4029,7 @@ int i_212;
         }
     }
     else {
-        panic("write(X)");
+        return -1;
     }
     return 0;
 }
@@ -4054,6 +4057,7 @@ struct proc* p_222;
     arg_syscall_no_221=trapframe_213->a7;
     p_222=((struct proc*)(__right_value44=list$1proc$ph_operator_load_element(gProc,gActiveProc)));
     come_call_finalizer(proc_finalize, __right_value44, (void*)0, (void*)0, 0/* alloca value */, 1/* no_decrement */, 0/* no_free */, (void*)0);
+    fs_exit(p_222->file_table);
     p_222->xstatus=arg0_214;
     p_222->zombie=1;
     return 0;
@@ -4517,7 +4521,7 @@ kernel_buf_328 = (void*)0;
     if(    copyout(p_331->pagetable,(unsigned long  long)user_va_329,(char*)fd_330,sizeof(int)*2)<0    ) {
         panic("copyout");
     }
-    map$2void$ptuple2$2void$plong$$ph_insert(p_331->mapping_values,(void*)user_va_329,(struct tuple2$2void$plong$*)come_increment_ref_count(tuple2$2void$plong$_initialize((struct tuple2$2void$plong$*)come_increment_ref_count((struct tuple2$2void$plong$*)come_calloc_v2(1, sizeof(struct tuple2$2void$plong$)*(1), "main.c", 1767, "struct tuple2$2void$plong$")),(void*)fd_330,sizeof(int)*2)));
+    map$2void$ptuple2$2void$plong$$ph_insert(p_331->mapping_values,(void*)user_va_329,(struct tuple2$2void$plong$*)come_increment_ref_count(tuple2$2void$plong$_initialize((struct tuple2$2void$plong$*)come_increment_ref_count((struct tuple2$2void$plong$*)come_calloc_v2(1, sizeof(struct tuple2$2void$plong$)*(1), "main.c", 1770, "struct tuple2$2void$plong$")),(void*)fd_330,sizeof(int)*2)));
     return 0;
 }
 
@@ -4771,7 +4775,7 @@ struct proc* c_365;
 void* __right_value57 = (void*)0;
 void* __right_value58 = (void*)0;
     c_365=get_current_proc();
-    map$2void$ptuple2$2void$plong$$ph_insert(c_365->mapping_values,user_va,(struct tuple2$2void$plong$*)come_increment_ref_count(tuple2$2void$plong$_initialize((struct tuple2$2void$plong$*)come_increment_ref_count((struct tuple2$2void$plong$*)come_calloc_v2(1, sizeof(struct tuple2$2void$plong$)*(1), "main.c", 1969, "struct tuple2$2void$plong$")),pa,(long)size)));
+    map$2void$ptuple2$2void$plong$$ph_insert(c_365->mapping_values,user_va,(struct tuple2$2void$plong$*)come_increment_ref_count(tuple2$2void$plong$_initialize((struct tuple2$2void$plong$*)come_increment_ref_count((struct tuple2$2void$plong$*)come_calloc_v2(1, sizeof(struct tuple2$2void$plong$)*(1), "main.c", 1972, "struct tuple2$2void$plong$")),pa,(long)size)));
 }
 
 void global_init(){
@@ -4779,7 +4783,7 @@ void* __right_value59 = (void*)0;
 void* __right_value60 = (void*)0;
 struct list$1proc$ph* __dec_obj12;
     __dec_obj12=gProc,
-    gProc=(struct list$1proc$ph*)come_increment_ref_count(list$1proc$ph_initialize((struct list$1proc$ph*)come_increment_ref_count((struct list$1proc$ph*)come_calloc_v2(1, sizeof(struct list$1proc$ph)*(1), "main.c", 1974, "struct list$1proc$ph*"))));
+    gProc=(struct list$1proc$ph*)come_increment_ref_count(list$1proc$ph_initialize((struct list$1proc$ph*)come_increment_ref_count((struct list$1proc$ph*)come_calloc_v2(1, sizeof(struct list$1proc$ph)*(1), "main.c", 1977, "struct list$1proc$ph*"))));
     come_call_finalizer(list$1proc$ph_finalize, __dec_obj12,(void*)0, (void*)0, 0/* alloca value */, 0/* no decrement */, 0/* no_free */, (void*)0);
     gKernelStateHead=0;
     gKernelStateTail=0;

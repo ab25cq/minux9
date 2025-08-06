@@ -260,7 +260,6 @@ int main(void) {
     // 親プロセスはパイプを閉じて子の終了を待つ
     close(fd[0]);
     close(fd[1]);
-puts("END");
     while(1);
 
     return 0;
