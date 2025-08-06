@@ -11,16 +11,10 @@ PHDRS {
 ENTRY(entry)
 SECTIONS
 {
-#  . = 0x90000000;
-#  PROVIDE(_userret = .);
-#  .text.userret : {
-#    *(.text.userret)
-#  }
-#  . += 4096;
   
   . = 0x80000000;
   .text : { *(.text*) } :text
-#  .text : { *(.text) }
+  . = ALIGN(4096); /* <-- この行を追加 */
   .rodata : { *(.rodata*) } :text
   .data : { *(.data*) } :data
   .sdata : { *(.sdata*) } :data
@@ -62,7 +56,5 @@ SECTIONS
   .debug_line        0 : { *(.debug_line) }
   .debug_str         0 : { *(.debug_str) }
   .debug_line_str    0 : { *(.debug_line_str) }
-/*  .debug_pubnames    : { *(.debug_pubnames) }
-  .debug_pubtypes    0 : { *(.debug_pubtypes) } */
 }
 

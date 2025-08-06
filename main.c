@@ -1,7 +1,7 @@
 #include <comelang.h>
 #define nullptr ((void*)0)
 #include <stdint.h>
-#include <stdarg.h>
+//#include <stdarg.h>
 #include <stddef.h>
 #include "elf.h"
 #include "fs.h"
