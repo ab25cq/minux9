@@ -510,9 +510,8 @@ int piperead(int fd, char *addr, int n)
     struct spipe* p = file_table[fd]->pipe;
     
     if(p == NULL) {
-        panic("pipewrite");
+        panic("piperead");
     }
-  
     // データが来るまで待機
     while (p->nread == p->nwrite && p->write_open) {
        yield();
@@ -521,16 +520,27 @@ int piperead(int fd, char *addr, int n)
     if (p->nread == p->nwrite && !p->write_open) {
         return 0;
     }
+  
     // バッファからコピー
     volatile int i;
     for (i = 0; i < n && p->nread < p->nwrite; i++) {
+        while (p->nread == p->nwrite && p->write_open) {
+           yield();
+        }
+        
+        // 書き側クローズかつバッファ空 → EOF
+        if (p->nread == p->nwrite && !p->write_open) {
+            return 0;
+        }
+        
         addr[i] = p->data[p->nread % PIPE_SIZE];
         p->nread++;
-printf("PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
+//printf("PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
         //yield();
     }
-addr[i] = '\0';
-printf("READED %s i %d\r\n", addr, i);
+//addr[i] = '\0';
+//printf("READED %s i %d\r\n", addr, i);
+    //yield();
     return i;
 }
 
@@ -566,11 +576,11 @@ int pipewrite(int fd, char *addr, int n)
       }
       p->data[p->nwrite % PIPE_SIZE] = addr[i];
       p->nwrite++;
-printf("PID %d write %c i %d p->nread %d p->nwrite %% PIPE_SIZE %d\r\n", gActiveProc, addr[i], i, p->nread, p->nwrite % PIPE_SIZE);
+//printf("PID %d write %c i %d p->nread %d p->nwrite %% PIPE_SIZE %d\r\n", gActiveProc, addr[i], i, p->nread, p->nwrite % PIPE_SIZE);
       
       // 読み側を起こす
-      //yield();
     }
+    yield();
   
     return n;
 }
