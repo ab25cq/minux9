@@ -340,7 +340,7 @@ LOAD main.o
  *fill*         0x000000008001214a        0x6 
  .rodata        0x0000000080012150      0x8b8 main.o
 
-.data           0x0000000080012a08     0x31f0
+.data           0x0000000080012a08     0x3240
  *(.data*)
  .data          0x0000000080012a08        0x0 entry.o
  .data          0x0000000080012a08        0x0 start.o
@@ -349,17 +349,17 @@ LOAD main.o
  .data          0x0000000080012a08        0x0 fs.o
  .data          0x0000000080012a08        0x0 plic.o
  .data          0x0000000080012a08        0x0 trap_c.o
- .data          0x0000000080012a08     0x31f0 main.o
+ .data          0x0000000080012a08     0x3240 main.o
                 0x0000000080012a08                hello_elf
                 0x0000000080013b40                hello2_elf
                 0x00000000800143d0                msh_elf
 
-.sdata          0x0000000080015bf8       0x18
+.sdata          0x0000000080015c48       0x18
  *(.sdata*)
- .sdata         0x0000000080015bf8       0x18 main.o
-                0x0000000080015bf8                hello_elf_len
-                0x0000000080015bfc                hello2_elf_len
-                0x0000000080015c00                msh_elf_len
+ .sdata         0x0000000080015c48       0x18 main.o
+                0x0000000080015c48                hello_elf_len
+                0x0000000080015c4c                hello2_elf_len
+                0x0000000080015c50                msh_elf_len
 
 .bss            0x0000000080015e00      0x7d4
  *(.bss)

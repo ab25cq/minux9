@@ -344,18 +344,26 @@ int main(void) {
             read(0, buf2, 1);
             write(1, buf2, 1);
             
-            buf[n] = buf2[0];
-            n++;
-            
-            if(buf2[0] == '\r') {
+            // バックスペース or DEL?
+            if ((buf2[0] == '\b' || buf2[0] == 127) && n > 0) {
+                // バッファ末尾をひとつ取り除く
+                n--;
+                buf[n] = '\0';
+                // 画面上の文字を消す: "\b \b"
+                write(1, "\b \b", 3);
+            }
+            else if(buf2[0] == '\r') {
                 break;
             }
-            if(buf2[0] == '\n') {
+            else if(buf2[0] == '\n') {
                 break;
+            }
+            else {
+                buf[n] = buf2[0];
+                n++;
             }
         }
         
-        buf[n-1] = '\0';
         write(1, "\r\n", 2);
         
         if(buf[0] == '\0') {
