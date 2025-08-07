@@ -1539,7 +1539,7 @@ int Sys_execv()
     ssize_t size = fs_size(fd);
     char* elf_buf = calloc(1, size);
     int ret = fs_read(fd, elf_buf, size);
-    fs_close(fd);
+    fs_close(fd, 0/*force_pipe_close*/);
     if (ret <= 0) {
         trapframe->a0 = -1;
         return -1;
@@ -1876,7 +1876,7 @@ uintptr_t syscall_handler()
         case SYS_close: {
             long fd = arg0;
             
-            int ret = fs_close(fd);
+            int ret = fs_close(fd, 0 /*force_pipe_close*/);
             
             result = ret;
             }

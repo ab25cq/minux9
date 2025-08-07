@@ -268,7 +268,7 @@ int main(void) {
 
 #define MAX_ARGV 3
 #define MAX_ARG 16
-#define MAX_COMMAND 3
+#define MAX_COMMAND 5
 
 struct sCommand
 {

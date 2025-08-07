@@ -668,7 +668,7 @@ ssize_t fs_size(int fd) {
 
 // fs_close: fd を閉じる
 // 成功: 0, 失敗: -1
-int fs_close(long fd) {
+int fs_close(long fd, int force_pipe_close) {
     struct file** file_table = get_current_file_table();
     
     if(file_table[fd] == NULL) {
@@ -684,6 +684,15 @@ int fs_close(long fd) {
     if (idx < 0 || idx >= MAX_OPEN_FILES || file_table[idx] == NULL || !file_table[idx]->used)
         return -1;
     file_table[idx]->used--;
+    if(force_pipe_close) {
+        struct spipe* p = file_table[idx]->pipe;
+        if(file_table[idx]->read_pipe) {
+            p->read_open = 0;
+        }
+        if(file_table[idx]->write_pipe) {
+            p->write_open = 0;
+        }
+    }
     if(file_table[idx]->used <= 0) {
         file_table[idx]->used = 0;
         struct spipe* p = file_table[idx]->pipe;
@@ -701,7 +710,7 @@ int fs_close(long fd) {
 void fs_exit(struct file** file_table)
 {
     for(int i=0; i<MAX_OPEN_FILES; i++) {
-        fs_close(i);
+        fs_close(i, 1/* force_pipe_close */);
     }
 }
 
@@ -721,6 +730,12 @@ struct file** fs_dup_table(struct file** orig)
 
 void fs_dup2(int oldfd, int newfd) {
     struct file** file_table = get_current_file_table();
+     
+     // newfdが既に開かれている場合、まず閉じる処理を追加します
+     if (file_table[newfd] != NULL) {
+         fs_close(newfd, 0 /* force_pipe_close */);
+     }
+                         
     
     file_table[newfd] = file_table[oldfd];
     file_table[newfd]->used++;

@@ -1320,13 +1320,13 @@ main:
 .LFB8:
 	.loc 1 327 16
 	.cfi_startproc
-	addi	sp,sp,-336
-	.cfi_def_cfa_offset 336
-	sd	ra,328(sp)
-	sd	s0,320(sp)
+	addi	sp,sp,-432
+	.cfi_def_cfa_offset 432
+	sd	ra,424(sp)
+	sd	s0,416(sp)
 	.cfi_offset 1, -8
 	.cfi_offset 8, -16
-	addi	s0,sp,336
+	addi	s0,sp,432
 	.cfi_def_cfa 8, 0
 .L111:
 .LBB32:
@@ -1522,7 +1522,7 @@ main:
 	add	a4,a5,s0
 	ld	a5,-24(s0)
 	add	a5,a4,a5
-	sb	zero,-312(a5)
+	sb	zero,-416(a5)
 	.loc 1 388 48
 	lw	a4,-28(s0)
 	li	a5,52
@@ -1530,7 +1530,7 @@ main:
 	addi	a5,a5,-16
 	add	a5,a5,s0
 	lw	a4,-32(s0)
-	sw	a4,-264(a5)
+	sw	a4,-368(a5)
 	.loc 1 390 29
 	lw	a5,-28(s0)
 	addiw	a5,a5,1
@@ -1542,7 +1542,7 @@ main:
 	.loc 1 394 19
 	lw	a5,-28(s0)
 	sext.w	a4,a5
-	li	a5,2
+	li	a5,4
 	ble	a4,a5,.L106
 	.loc 1 395 21
 	lla	a0,.LC4
@@ -1597,7 +1597,7 @@ main:
 	add	a4,a5,s0
 	ld	a5,-24(s0)
 	add	a5,a4,a5
-	sb	zero,-312(a5)
+	sb	zero,-416(a5)
 	.loc 1 404 24
 	lw	a5,-32(s0)
 	addiw	a5,a5,1
@@ -1631,7 +1631,7 @@ main:
 	add	a4,a5,s0
 	ld	a5,-24(s0)
 	add	a5,a4,a5
-	sb	zero,-312(a5)
+	sb	zero,-416(a5)
 	.loc 1 415 24
 	lw	a5,-32(s0)
 	addiw	a5,a5,1
@@ -1643,7 +1643,7 @@ main:
 	addi	a5,a5,-16
 	add	a5,a5,s0
 	lw	a4,-32(s0)
-	sw	a4,-264(a5)
+	sw	a4,-368(a5)
 	.loc 1 417 29
 	lw	a5,-28(s0)
 	addiw	a5,a5,1
@@ -1665,7 +1665,7 @@ main:
 	add	a3,a5,s0
 	ld	a5,-24(s0)
 	add	a5,a3,a5
-	sb	a4,-312(a5)
+	sb	a4,-416(a5)
 	.loc 1 422 18
 	ld	a5,-40(s0)
 	addi	a5,a5,1
@@ -1705,7 +1705,7 @@ main:
 	bne	a5,zero,.L107
 	.loc 1 435 13
 	lw	a4,-28(s0)
-	addi	a5,s0,-328
+	addi	a5,s0,-432
 	mv	a2,a4
 	mv	a1,a5
 	li	a0,0
@@ -1926,7 +1926,7 @@ main:
 	.4byte	0x44d
 	.uleb128 0x3
 	.byte	0x91
-	.sleb128 -328
+	.sleb128 -432
 	.uleb128 0x3
 	.4byte	.LASF21
 	.2byte	0x177
@@ -2246,7 +2246,7 @@ main:
 	.4byte	0x45d
 	.uleb128 0x8
 	.4byte	0x6d
-	.byte	0x2
+	.byte	0x4
 	.byte	0
 	.uleb128 0xe
 	.4byte	0xdd

@@ -93,7 +93,7 @@ typedef int32_t ssize_t;
 
 int fs_open(const char *path);
 ssize_t fs_read(int fd, void *buf, size_t count);
-int fs_close(long fd);
+int fs_close(long fd, int force_pipe_close);
 
 // ── パイプ本体 ─────────────────────────────────────────────────────────
 #define PIPE_SIZE 512
