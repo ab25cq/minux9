@@ -1,6 +1,5 @@
 #include "minux.h"
-#include <stdint.h>
-#include <stdarg.h>
+#include <comelang.h>
 
 int strlen(const char *s) {
   int n;
@@ -257,6 +256,7 @@ int main(int argc, char** argv) {
             p++;
         }
     }
+    puts("AAAAABC".substring(0,5));
     
     exit(0);
 }
