@@ -522,8 +522,8 @@ int piperead(int fd, char *addr, int n)
     }
   
     // バッファからコピー
-    volatile int i;
-    for (i = 0; i < n && p->nread < p->nwrite; i++) {
+    volatile int j = 0;
+    for (volatile int i = 0; i < n && p->nread < p->nwrite; i++) {
         while (p->nread == p->nwrite && p->write_open) {
            yield();
         }
@@ -535,13 +535,13 @@ int piperead(int fd, char *addr, int n)
         
         addr[i] = p->data[p->nread % PIPE_SIZE];
         p->nread++;
-//printf("PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
-        //yield();
+//printf("(1)PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
+//        yield();
+        j++;
+//printf("(2)PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
     }
-//addr[i] = '\0';
-//printf("READED %s i %d\r\n", addr, i);
     //yield();
-    return i;
+    return j;
 }
 
 // ── pipewrite ───────────────────────────────────────────────────────────
@@ -563,9 +563,7 @@ int pipewrite(int fd, char *addr, int n)
         panic("pipewrite");
     }
     
-    volatile int i;
-  
-    for (i = 0; i < n; i++) {
+    for (volatile int i = 0; i < n; i++) {
       // バッファ満杯なら読み側を待つ
       while (p->nwrite - p->nread == PIPE_SIZE && p->read_open) {
           yield();
@@ -579,8 +577,8 @@ int pipewrite(int fd, char *addr, int n)
 //printf("PID %d write %c i %d p->nread %d p->nwrite %% PIPE_SIZE %d\r\n", gActiveProc, addr[i], i, p->nread, p->nwrite % PIPE_SIZE);
       
       // 読み側を起こす
+      //yield();
     }
-    yield();
   
     return n;
 }
