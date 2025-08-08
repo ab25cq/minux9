@@ -1536,7 +1536,7 @@ struct proc
     char* program;
     int xstatus;
     struct map$2void$ptuple2$2void$plong$$ph* mapping_values;
-    struct file** file_table;
+    struct file* file_table[16];
     int deleted;
 };
 
@@ -1661,10 +1661,11 @@ void pipe_open(int* fd1, int* fd2);
 int piperead(int fd, char* addr, int n);
 int pipewrite(int fd, char* addr, int n);
 void fs_dup2(int oldfd, int newfd);
-struct file** fs_init();
-struct file** fs_dup_table(struct file** orig);
+void fs_init(struct file** file_table);
+void fs_dup_table(struct file** result, struct file** orig);
 int fs_size(int fd);
 void fs_exit(struct file** file_table);
+void free_fs_table(struct file** file_table);
 static void* kalloc_page(unsigned long  long bump);
 void* kalloc_pages(unsigned long  int npages);
 void perror(char* str);
@@ -2666,7 +2667,7 @@ void* __right_value31 = (void*)0;
 struct tuple2$2void$plong$* multiple_assign_var2 = (void*)0;
 void* pa_158=0;
 long size_159=0;
-    result_54=(struct proc*)come_increment_ref_count((struct proc*)come_calloc_v2(1, sizeof(struct proc)*(1), "main.c", 806, "struct proc*"));
+    result_54=(struct proc*)come_increment_ref_count((struct proc*)come_calloc_v2(1, sizeof(struct proc)*(1), "main.c", 808, "struct proc*"));
     result_54->program=elf_buf;
     if(    fork_flag||exec_flag    ) {
         parent_55=((struct proc*)(__right_value1=list$1proc$ph_operator_load_element(gProc,gActiveProc)));
@@ -2677,7 +2678,7 @@ long size_159=0;
     }
     else {
         __dec_obj4=result_54->mapping_values,
-        result_54->mapping_values=(struct map$2void$ptuple2$2void$plong$$ph*)come_increment_ref_count(map$2void$ptuple2$2void$plong$$ph_initialize((struct map$2void$ptuple2$2void$plong$$ph*)come_increment_ref_count((struct map$2void$ptuple2$2void$plong$$ph*)come_calloc_v2(1, sizeof(struct map$2void$ptuple2$2void$plong$$ph)*(1), "main.c", 816, "struct map$2void$ptuple2$2void$plong$$ph*"))));
+        result_54->mapping_values=(struct map$2void$ptuple2$2void$plong$$ph*)come_increment_ref_count(map$2void$ptuple2$2void$plong$$ph_initialize((struct map$2void$ptuple2$2void$plong$$ph*)come_increment_ref_count((struct map$2void$ptuple2$2void$plong$$ph*)come_calloc_v2(1, sizeof(struct map$2void$ptuple2$2void$plong$$ph)*(1), "main.c", 818, "struct map$2void$ptuple2$2void$plong$$ph*"))));
         come_call_finalizer(map$2void$ptuple2$2void$plong$$ph_finalize, __dec_obj4,(void*)0, (void*)0, 0/* alloca value */, 0/* no decrement */, 0/* no_free */, (void*)0);
     }
     pagetable_120=(unsigned long  long*)kalloc();
@@ -2766,7 +2767,7 @@ long size_159=0;
             }
         }
         come_call_finalizer(map$2void$ptuple2$2void$plong$$ph$p_finalize, o2_saved_142, (void*)0, (void*)0, 0/* alloca value */, 0/* no_decrement */, 0/* no_free */, (void*)0);
-        result_54->file_table=fs_dup_table(parent_135->file_table);
+        fs_dup_table(result_54->file_table,parent_135->file_table);
     }
     else {
         parent_152=((struct proc*)(__right_value30=list$1proc$ph_operator_load_element(gProc,gActiveProc)));
@@ -2792,10 +2793,10 @@ long size_159=0;
                 }
             }
             come_call_finalizer(map$2void$ptuple2$2void$plong$$ph$p_finalize, o2_saved_156, (void*)0, (void*)0, 0/* alloca value */, 0/* no_decrement */, 0/* no_free */, (void*)0);
-            result_54->file_table=parent_152->file_table;
+            memcpy(result_54->file_table,parent_152->file_table,sizeof(struct file*)*16);
         }
         else {
-            result_54->file_table=fs_init();
+            fs_init(result_54->file_table);
         }
     }
     result_54->context.mepc=eh_121->entry;
@@ -4120,7 +4121,7 @@ struct proc* p_246;
         come_call_finalizer(list$1proc$ph$p_finalize, o2_saved_238, (void*)0, (void*)0, 0/* alloca value */, 0/* no_decrement */, 0/* no_free */, (void*)0);
         if(        zombie_proc_236        ) {
             exit_status_233=zombie_proc_236->xstatus;
-            free(zombie_proc_236->file_table);
+            free_fs_table(zombie_proc_236->file_table);
             free_proc(zombie_proc_236);
             zombie_proc_236->deleted=1;
             remove_kernel_state(child_pid_234);
@@ -4696,7 +4697,7 @@ struct proc* c_362;
 void* __right_value55 = (void*)0;
 void* __right_value56 = (void*)0;
     c_362=get_current_proc();
-    map$2void$ptuple2$2void$plong$$ph_insert(c_362->mapping_values,user_va,(struct tuple2$2void$plong$*)come_increment_ref_count(tuple2$2void$plong$_initialize((struct tuple2$2void$plong$*)come_increment_ref_count((struct tuple2$2void$plong$*)come_calloc_v2(1, sizeof(struct tuple2$2void$plong$)*(1), "main.c", 1973, "struct tuple2$2void$plong$")),pa,(long)size)));
+    map$2void$ptuple2$2void$plong$$ph_insert(c_362->mapping_values,user_va,(struct tuple2$2void$plong$*)come_increment_ref_count(tuple2$2void$plong$_initialize((struct tuple2$2void$plong$*)come_increment_ref_count((struct tuple2$2void$plong$*)come_calloc_v2(1, sizeof(struct tuple2$2void$plong$)*(1), "main.c", 1975, "struct tuple2$2void$plong$")),pa,(long)size)));
 }
 
 static struct map$2void$ptuple2$2void$plong$$ph* map$2void$ptuple2$2void$plong$$ph_insert(struct map$2void$ptuple2$2void$plong$$ph* self, void* key, struct tuple2$2void$plong$* item){
@@ -4788,7 +4789,7 @@ void* __right_value57 = (void*)0;
 void* __right_value58 = (void*)0;
 struct list$1proc$ph* __dec_obj12;
     __dec_obj12=gProc,
-    gProc=(struct list$1proc$ph*)come_increment_ref_count(list$1proc$ph_initialize((struct list$1proc$ph*)come_increment_ref_count((struct list$1proc$ph*)come_calloc_v2(1, sizeof(struct list$1proc$ph)*(1), "main.c", 1978, "struct list$1proc$ph*"))));
+    gProc=(struct list$1proc$ph*)come_increment_ref_count(list$1proc$ph_initialize((struct list$1proc$ph*)come_increment_ref_count((struct list$1proc$ph*)come_calloc_v2(1, sizeof(struct list$1proc$ph)*(1), "main.c", 1980, "struct list$1proc$ph*"))));
     come_call_finalizer(list$1proc$ph_finalize, __dec_obj12,(void*)0, (void*)0, 0/* alloca value */, 0/* no decrement */, 0/* no_free */, (void*)0);
     gKernelStateHead=0;
     gKernelStateTail=0;

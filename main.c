@@ -142,6 +142,8 @@ pagetable_t kernel_pagetable;
 
 uint64_t make_satp(pagetable_t pagetable);
 
+#define MAX_OPEN_FILES 16
+
 struct proc {
     context_t trapframe;
     
@@ -161,7 +163,7 @@ struct proc {
     
     map<void*, tuple2<void*,long>*%>*% mapping_values;
     
-    file** file_table;
+    struct file* file_table[MAX_OPEN_FILES];
     
     int deleted;
 };
@@ -923,7 +925,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
                 panic("copyout");
             }
         }
-        result->file_table = fs_dup_table(parent->file_table);
+        fs_dup_table(result->file_table, parent->file_table);
     }
     else {
         proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
@@ -953,10 +955,10 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
                     panic("copyout");
                 }
             }
-            result->file_table = parent->file_table;
+            memcpy(result->file_table, parent->file_table, sizeof(struct file*)*MAX_OPEN_FILES);
         }
         else {
-            result->file_table = fs_init();
+            fs_init(result->file_table);
         }
     }
     
@@ -1412,7 +1414,7 @@ int Sys_wait()
 
         if(zombie_proc) {
             exit_status = zombie_proc->xstatus;
-            free(zombie_proc->file_table);
+            free_fs_table(zombie_proc->file_table);
             free_proc(zombie_proc);
             zombie_proc->deleted = 1;
             remove_kernel_state(child_pid);

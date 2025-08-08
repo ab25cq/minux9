@@ -127,11 +127,12 @@ int piperead(int fd, char *addr, int n);
 int pipewrite(int fd, char *addr, int n);
 void fs_dup2(int oldfd, int newfd);
 
-struct file** fs_init();
+void fs_init(struct file** file_table);
 struct file** get_current_file_table();
-struct file** fs_dup_table(struct file** orig);
+void fs_dup_table(struct file** result, struct file** orig);
 ssize_t fs_size(int fd);
 void fs_exit(struct file** file_table);
+void free_fs_table(struct file** file_table);
 
 #define MAX_OPEN_FILES 16
 

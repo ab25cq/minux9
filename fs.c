@@ -395,10 +395,8 @@ struct file* new_file_table()
     return result;
 }
 
-struct file** fs_init()
+void fs_init(struct file** file_table)
 {
-    struct file** file_table = (struct file**)common_kalloc(sizeof(struct file*)*MAX_OPEN_FILES);
-    
     memset(file_table, 0, sizeof(struct file*)*MAX_OPEN_FILES);
     
     file_table[0] = new_file_table();
@@ -415,8 +413,6 @@ struct file** fs_init()
     
     file_table[2]->kind = FK_STDERR;
     file_table[2]->used = 1;
-    
-    return file_table;
 }
 
 int is_pipe(int fd)
@@ -720,18 +716,18 @@ void fs_exit(struct file** file_table)
     }
 }
 
-struct file** fs_dup_table(struct file** orig)
+void fs_dup_table(struct file** result, struct file** orig)
 {
-    struct file** result = fs_init();
-    
     for(int i=0; i<MAX_OPEN_FILES; i++) {
         if(orig[i]) {
             result[i] = orig[i];
             result[i]->used++;
         }
     }
-    
-    return result;
+}
+
+void free_fs_table(struct file** file_table)
+{
 }
 
 void fs_dup2(int oldfd, int newfd) {
