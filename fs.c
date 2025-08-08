@@ -386,6 +386,12 @@ struct file* new_file_table()
 {
     struct file* result = (struct file*)common_kalloc(sizeof(struct file));
     memset(result, 0, sizeof(struct file));
+    
+    void* user_va = result;
+    void* pa = result;
+    
+//    append_mapping_values(user_va, pa, sizeof(struct file));
+    
     return result;
 }
 
