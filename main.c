@@ -1756,7 +1756,8 @@ int Sys_pipe(void)
     char* kernel_buf;
     uint64_t user_va = arg0;
     
-    int* fd = common_kalloc(sizeof(int)*2);
+    int pipe_fds[2];
+    int* fd = (int*)pipe_fds;
     
     pipe_open(&fd[0], &fd[1]);
     
@@ -1767,7 +1768,7 @@ int Sys_pipe(void)
         panic("copyout");
     }
     
-    p->mapping_values.insert((void*)user_va, ((void*)fd, sizeof(int)*2));
+//    p->mapping_values.insert((void*)user_va, ((void*)fd, sizeof(int)*2));
     
     return 0;
 }
