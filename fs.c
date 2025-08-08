@@ -6,6 +6,7 @@
 #define MAX_OPEN_FILES 16
 
 void * kalloc(void);
+void kfree(void *pa);
 void timer_handler();
 void *calloc(size_t nmemb, size_t size);
 
@@ -366,25 +367,26 @@ void append_mapping_values(void* user_va, void* pa, size_t size);
 
 struct spipe* pipealloc(void)
 {
-    struct spipe *p = (struct spipe*)common_kalloc(sizeof(struct spipe));
+    struct spipe *p = (struct spipe*)kalloc(); //1, sizeof(struct spipe));
     if (p == 0)
         return 0;
     p->nread     = 0;
     p->nwrite    = 0;
     p->read_open  = 1;
     p->write_open = 1;
+    //p->used = 0;
     
     void* user_va = p;
     void* pa = p;
     
-    append_mapping_values(user_va, pa, sizeof(struct spipe));
+    //append_mapping_values(user_va, pa, sizeof(struct spipe));
     
     return p;
 }
 
 struct file* new_file_table()
 {
-    struct file* result = (struct file*)common_kalloc(sizeof(struct file));
+    struct file* result = (struct file*)kalloc(); //1, sizeof(struct file));
     memset(result, 0, sizeof(struct file));
     
     void* user_va = result;
@@ -467,6 +469,7 @@ void pipe_open(int* fd1, int* fd2) {
             file_table[i]->inum  = -1;
             file_table[i]->off   = 0;
             file_table[i]->pipe = pip;
+            //pip->used++;
             file_table[i]->read_pipe = 1;
             file_table[i]->write_pipe   = 0;
             *fd1 = i;
@@ -483,6 +486,7 @@ void pipe_open(int* fd1, int* fd2) {
             //memset(&file_table[i].din, 0, sizeof(struct dinode));
             file_table[i]->off   = 0;
             file_table[i]->pipe = pip;
+            //pip->used++;
             file_table[i]->write_pipe = 1;
             file_table[i]->read_pipe = 0;
             *fd2 = i;  // <- 3,4,5… を返す
@@ -704,6 +708,13 @@ int fs_close(long fd, int force_pipe_close) {
         if(file_table[idx]->write_pipe) {
             p->write_open = 0;
         }
+        //p->used--;
+        /*
+        if(p->used == 0) {
+            kfree(p);
+        }
+        */
+        //kfree(file_table[idx]);
         memset(file_table[idx], 0, sizeof(struct file));
     }
     return 0;
