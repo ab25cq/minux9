@@ -137,7 +137,6 @@ void virtio_blk_init(void)
     mw32(vbase, R_Q_NUM, drvQ);
     Q = drvQ;
     if(!Q || Q > 1024) { puts("unsupported queue size\n"); while(1); }
-    //printf("device queue size = %d (driver uses %d)\n", devQ, Q);
 
     size_t sz_desc  = 16ULL * Q;
     size_t sz_avail =  4ULL + 2ULL * Q;
@@ -368,13 +367,14 @@ void append_mapping_values(void* user_va, void* pa, size_t size);
 struct spipe* pipealloc(void)
 {
     struct spipe *p = (struct spipe*)kalloc(); //1, sizeof(struct spipe));
+printf("kalloc pipe %p\n", p);
     if (p == 0)
         return 0;
     p->nread     = 0;
     p->nwrite    = 0;
     p->read_open  = 1;
     p->write_open = 1;
-    //p->used = 0;
+    p->used = 0;
     
     void* user_va = p;
     void* pa = p;
@@ -384,13 +384,22 @@ struct spipe* pipealloc(void)
     return p;
 }
 
+#define MAX_FILES 128
+struct file* gFiles[MAX_FILES];
+int gNumFiles = 0;
+
 struct file* new_file_table()
 {
     struct file* result = (struct file*)kalloc(); //1, sizeof(struct file));
+printf("kalloc file table %p\n", result);
     memset(result, 0, sizeof(struct file));
     
-    void* user_va = result;
-    void* pa = result;
+    gFiles[gNumFiles++] = result;
+    
+    if(gNumFiles >= MAX_FILES) {
+        puts("MAX FILE DISCRIPTOR OPEN");
+        while(1);
+    }
     
 //    append_mapping_values(user_va, pa, sizeof(struct file));
     
@@ -469,7 +478,7 @@ void pipe_open(int* fd1, int* fd2) {
             file_table[i]->inum  = -1;
             file_table[i]->off   = 0;
             file_table[i]->pipe = pip;
-            //pip->used++;
+            pip->used++;
             file_table[i]->read_pipe = 1;
             file_table[i]->write_pipe   = 0;
             *fd1 = i;
@@ -486,7 +495,7 @@ void pipe_open(int* fd1, int* fd2) {
             //memset(&file_table[i].din, 0, sizeof(struct dinode));
             file_table[i]->off   = 0;
             file_table[i]->pipe = pip;
-            //pip->used++;
+            pip->used++;
             file_table[i]->write_pipe = 1;
             file_table[i]->read_pipe = 0;
             *fd2 = i;  // <- 3,4,5… を返す
@@ -681,13 +690,15 @@ int fs_close(long fd, int force_pipe_close) {
         return -1;
     }
     
+/*
     if(file_table[fd]->kind == FK_STDIN || file_table[fd]->kind == FK_STDOUT || file_table[fd]->kind == FK_STDERR)
     {
         return -1;
     }
+*/
     
     long idx = fd;
-    if (idx < 0 || idx >= MAX_OPEN_FILES || file_table[idx] == NULL || !file_table[idx]->used)
+    if (idx < 0 || idx >= MAX_OPEN_FILES) // || file_table[idx] == NULL) // || !file_table[idx]->used)
         return -1;
     file_table[idx]->used--;
     if(force_pipe_close) {
@@ -708,14 +719,11 @@ int fs_close(long fd, int force_pipe_close) {
         if(file_table[idx]->write_pipe) {
             p->write_open = 0;
         }
-        //p->used--;
-        /*
-        if(p->used == 0) {
-            kfree(p);
+        if(p) {
+            p->used--;
         }
-        */
+//        memset(file_table[idx], 0, sizeof(struct file));
         //kfree(file_table[idx]);
-        memset(file_table[idx], 0, sizeof(struct file));
     }
     return 0;
 }
@@ -733,12 +741,27 @@ void fs_dup_table(struct file** result, struct file** orig)
         if(orig[i]) {
             result[i] = orig[i];
             result[i]->used++;
+            if(result[i]->pipe) {
+                result[i]->pipe->used++;
+            }
         }
     }
 }
 
 void free_fs_table(struct file** file_table)
 {
+    for(int i=0; i<MAX_OPEN_FILES; i++) {
+        if(file_table[i]) {
+            if(file_table[i]->pipe) {
+                kfree(file_table[i]->pipe);
+printf("kfree %p\n", file_table[i]->pipe);
+            }
+            if(file_table[i]->used <= 0) {
+                kfree(file_table[i]);
+printf("kfree %p\n", file_table[i]);
+            }
+        }
+    }
 }
 
 void fs_dup2(int oldfd, int newfd) {
@@ -752,5 +775,8 @@ void fs_dup2(int oldfd, int newfd) {
     
     file_table[newfd] = file_table[oldfd];
     file_table[newfd]->used++;
+    if(file_table[newfd]->pipe) {
+        file_table[newfd]->pipe->used++;
+    }
 }
 

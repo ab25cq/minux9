@@ -104,7 +104,7 @@ struct spipe {
     uint32_t nwrite;           // 書き込み済バイト数
     int read_open;             // 読み側 open フラグ
     int write_open;            // 書き側 open フラグ
-    //int used;
+    int used;
 };
 
 // ファイルテーブルエントリ
