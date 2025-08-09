@@ -362,7 +362,6 @@ void *common_kalloc(size_t size);
 
 // ── pipealloc ──────────────────────────────────────────────────────────
 // パイプ構造体を確保・初期化して返す
-void append_mapping_values(void* user_va, void* pa, size_t size);
 
 struct spipe* pipealloc(void)
 {
@@ -378,8 +377,6 @@ printf("kalloc pipe %p\n", p);
     
     void* user_va = p;
     void* pa = p;
-    
-    //append_mapping_values(user_va, pa, sizeof(struct spipe));
     
     return p;
 }
@@ -400,8 +397,6 @@ printf("kalloc file table %p\n", result);
         puts("MAX FILE DISCRIPTOR OPEN");
         while(1);
     }
-    
-//    append_mapping_values(user_va, pa, sizeof(struct file));
     
     return result;
 }

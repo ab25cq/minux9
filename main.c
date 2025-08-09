@@ -161,8 +161,6 @@ struct proc {
     char* program;
     int xstatus;                // exit
     
-    map<void*, tuple2<void*,long>*%>*% mapping_values;
-    
     struct file* file_table[MAX_OPEN_FILES];
     
     int deleted;
@@ -819,15 +817,6 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
     
     result->program = elf_buf;
     
-    if(fork_flag || exec_flag) {
-        proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
-    
-        result->mapping_values = clone parent->mapping_values;
-    }
-    else {
-        result->mapping_values = new map<void*, tuple2<void*,long>*%>();
-    }
-    
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
     
@@ -928,13 +917,6 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
         result->context.sp = stack_base + STACK_PAGES*PGSIZE;
         result->context.gp = parent->context.gp; // Inherit gp in fork
     
-        foreach(it, parent->mapping_values) {
-            var pa, size = parent->mapping_values[it];
-            
-            if (copyout(result->pagetable, (uint64_t)it, pa, size) < 0) {
-                panic("copyout");
-            }
-        }
         fs_dup_table(result->file_table, parent->file_table);
     }
     else {
@@ -958,13 +940,6 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
         asm volatile("sfence.vma zero, zero"); 
     
         if(exec_flag) {
-            foreach(it, parent->mapping_values) {
-                var pa, size = parent->mapping_values[it];
-                
-                if (copyout(result->pagetable, (uint64_t)it, pa, size) < 0) {
-                    panic("copyout");
-                }
-            }
             memcpy(result->file_table, parent->file_table, sizeof(struct file*)*MAX_OPEN_FILES);
         }
         else {
@@ -1780,8 +1755,6 @@ int Sys_pipe(void)
         panic("copyout");
     }
     
-//    p->mapping_values.insert((void*)user_va, ((void*)fd, sizeof(int)*2));
-    
     return 0;
 }
 
@@ -1976,13 +1949,6 @@ void timerinit()
 struct proc* get_current_proc()
 {
     return gProc[gActiveProc];
-}
-
-void append_mapping_values(void* user_va, void* pa, size_t size)
-{
-    struct proc* c = get_current_proc();
-    
-    c.mapping_values.insert(user_va, (pa, (long)size));
 }
 
 void global_init()
