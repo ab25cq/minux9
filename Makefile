@@ -30,9 +30,8 @@ kernel.elf:
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello4.elf hello4.c $(CHILD_CFLAGS)
 
 	$(CCPREFIX)gcc -I. -nostdlib -S -O0 -static -o msh.S -g msh.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)as -g -o minux.o minux.S
-	$(CCPREFIX)gcc -I. -nostdlib -O0 -static -o msh.elf -I. -g msh.c -mcmodel=medany minux.o $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o msh.elf msh.c minux.o $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -I. -nostdlib -O0 -static -o msh.elf -I. -g msh.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o msh.elf msh.c $(CHILD_CFLAGS)
 	xxd -i msh.elf > msh.h  
 
 	dd if=/dev/zero of=fs.img bs=1k count=512

@@ -458,8 +458,10 @@ pte_t * walk(pagetable_t pagetable, uint64_t va, int alloc) {
         if(*pte & PTE_V) {
             pagetable = (pagetable_t)PTE2PA(*pte);
         } else {
-            if(!alloc || (pagetable = (pagetable_t)kalloc()) == 0)
+            if(!alloc || (pagetable = (pagetable_t)kalloc()) == 0) {
                 return (void*)0;
+            }
+printf("mappage kalloc %p\n", pagetable);
             memset(pagetable, 0, PGSIZE);
             *pte = PA2PTE(pagetable) | PTE_V;
         }
@@ -570,22 +572,8 @@ extern char TRAPFRAME[];
 extern char TRAPFRAME2[];
 extern char TRAMPOLINE[];
 extern char COMMON[];
-extern char COMMON2[];
 uint64_t kernel_sp __attribute__((section(".common")));
 uint64_t user_sp __attribute__((section(".common")));
-
-void *common_kalloc(size_t size) {
-    static size_t offset = 0;
-    const uintptr_t base = (uintptr_t)COMMON2;
-    const size_t align = 8;
-
-    // offset を align の倍数に丸め
-    offset = (offset + (align - 1)) & ~(align - 1);
-
-    void *r = (void*)(base + offset);
-    offset += size;
-    return r;
-}
 
 uint64_t kernel_satp __attribute__((section(".common")));    // trap.S から参照する
 uint64_t user_satp __attribute__((section(".common")));
@@ -801,9 +789,6 @@ void setting_user_pagetable(proc* proc, pagetable_t pagetable)
     for(int i=0; i<32; i++) {
         mappages(pagetable, (uint64_t)COMMON + i*PGSIZE, PGSIZE, (uint64_t)COMMON + i*PGSIZE, PTE_R | PTE_W | PTE_V | PTE_X | PTE_U);
     }
-    for(int i=0; i<32; i++) {
-        mappages(pagetable, (uint64_t)COMMON2 + i*PGSIZE, PGSIZE, (uint64_t)COMMON2 + i*PGSIZE, PTE_R | PTE_W | PTE_V | PTE_X | PTE_U);
-    }
     
     // UART
     mappages(pagetable, 0x10000000, PGSIZE, 0x10000000, PTE_R | PTE_W | PTE_V | PTE_U);
@@ -813,6 +798,7 @@ void setting_user_pagetable(proc* proc, pagetable_t pagetable)
 }
 
 void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
+puts("ALLOC PROG START");
     proc*% result = new proc;
     
     result->program = elf_buf;
@@ -950,6 +936,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
     /// USER PROGRAM
     result->context.mepc = eh->entry;
     
+puts("ALLOC PROG END");
     if(exec_flag) {
         gProc.replace(gActiveProc, result);
         user_satp = MAKE_SATP(result->pagetable);
@@ -1006,29 +993,6 @@ pagetable_t copyuvm(pagetable_t old, uint64_t sz)
 
 
 
-/*
-/// 解放用ユーティリティ：Sv39 ページテーブルを再帰的に破棄
-static void free_pagetable(pagetable_t pagetable, int level) {
-    for(int i = 0; i < 512; i++) {
-        pte_t pte = pagetable[i];
-        if(!(pte & PTE_V))
-            continue;
-
-        uint64_t pa = PTE2PA(pte);
-        
-        // リーフかどうか
-        if(pte & (PTE_R | PTE_W | PTE_X)) {
-            // リーフの場合、levelに関わらず物理ページを解放する
-            kfree((void*)pa);
-        } else if(level > 0) {
-            // 中間ノードの場合は再帰
-            pagetable_t child = (pagetable_t)pa;
-            free_pagetable(child, level - 1);
-            kfree(child); // 中間ノード自身のページも解放
-        }
-    }
-}
-*/
 
 static void free_pagetable(pagetable_t pagetable, int level) {
     for(int i = 0; i < 512; i++) {
@@ -1039,6 +1003,7 @@ static void free_pagetable(pagetable_t pagetable, int level) {
         // リーフかどうか (R/W/X フラグがあるならファイルデータページ)
         if(pte & (PTE_R | PTE_W | PTE_X)) {
             if(level > 0) {
+printf("free_pagetable %p\n", pa);
                 kfree((void*)pa);
             }
         } else if(level > 0) {
@@ -1046,6 +1011,7 @@ static void free_pagetable(pagetable_t pagetable, int level) {
             pagetable_t child = (pagetable_t)pa;
             free_pagetable(child, level - 1);
             kfree(child);
+printf("free_pagetable %p\n", child);
         }
     }
 }
@@ -1636,28 +1602,6 @@ int uvm_alloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
     return 0;
 }
 
-/*
-int uvm_alloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
-    if(new_sz <= old_sz) return 0;
-    
-    uint64_t a = PGROUNDUP(old_sz);
-    for(; a < new_sz; a += PGSIZE) {
-        char *mem = kalloc();
-        if(mem == 0){
-            uvm_dealloc(pagetable, a, old_sz);
-            return -1;
-        }
-        memset(mem, 0, PGSIZE);
-        if(mappages(pagetable, a, PGSIZE, (uint64_t)mem, PTE_W|PTE_R|PTE_U|PTE_V) < 0){
-            kfree(mem);
-            uvm_dealloc(pagetable, a, old_sz);
-            return -1;
-        }
-    }
-    return 0;
-}
-*/
-
 // In main.c, inside Sys_brk
 int Sys_brk() {
     context_t* trapframe = (context_t*)TRAPFRAME;
@@ -1984,6 +1928,8 @@ int main()
     alloc_prog((char*)msh_elf, fork_flag=0, exec_flag:0);
 //    alloc_prog((char*)hello_elf, fork_flag=0);
 //    alloc_prog((char*)hello2_elf, fork_flag=0);
+    free_proc(gProc[0]);
+    while(1);
 
     /// カーネルページからユーザープロセスをアクセス可能にする
     asm volatile("csrs sstatus, %0" : : "r"(SSTATUS_SUM));
