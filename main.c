@@ -144,6 +144,8 @@ uint64_t make_satp(pagetable_t pagetable);
 
 #define MAX_OPEN_FILES 16
 
+#define NUM_PROC_VA_MAX 64
+
 struct proc {
     context_t trapframe;
     
@@ -164,7 +166,8 @@ struct proc {
     
     struct file* file_table[MAX_OPEN_FILES];
     
-    list<char*>* process_kalloc_address;
+    char* process_kalloc_address[NUM_PROC_VA_MAX];
+    int num_process_kalloc_address;
     
     int deleted;
 };
@@ -210,14 +213,12 @@ void free_proc(proc *p) {
         kfree(pa);
 //printf("stack kfree %p\n", pa);
     }
-    foreach (it, p->process_kalloc_address) {
-printf("process_kalloc_address kfree %p\n", it);
-        kfree(it);
+    for (int i=0; i<p->num_process_kalloc_address; i++) {
+        kfree(p->process_kalloc_address[i]);
     }
     
     free_pagetable(p->pagetable, 2);
     kfree(p->pagetable);
-    delete p->process_kalloc_address;
     kfree(p);
 }
 
@@ -429,7 +430,8 @@ void kfree(void *pa) {
     struct run *r;
 
     if(((uint64_t)pa % PGSIZE) != 0 || (char*)pa < _end3 || (uint64_t)pa >= PHYSTOP) {
-        while(1) puts("kfree panic");
+        puts("kfree panic");
+        while(1);
     }
 
     // Fill with junk to catch dangling refs.
@@ -838,7 +840,8 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
     }
         
     struct proghdr *ph = (struct proghdr *)(elf_buf + eh->phoff);
-    result->process_kalloc_address = borrow new list<char*>();
+    
+    result->num_process_kalloc_address = 0;
     
     uint64_t va = 0;
     uint64_t max_va_end = 0;
@@ -852,9 +855,13 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
     
         for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
             void *pa = kalloc();
-printf("process kalloc %p\n", pa);
             
-            result->process_kalloc_address.add(pa);
+            result->process_kalloc_address[result->num_process_kalloc_address++] = pa;
+            
+            if(result->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
+                puts("ELF MAX ERROR");
+                while(1);
+            }
             
             if (!pa) panic("kalloc");
             memset(pa, 0, PGSIZE);
@@ -1213,7 +1220,6 @@ void timer_handler() {
 
     int old_active_proc = gActiveProc;
     struct proc *old = gProc[gActiveProc];
-printf("old %d\n", gActiveProc);
     gActiveProc++;
     
     while(gActiveProc < gNumProc && gProc[gActiveProc] == NULL) {
@@ -1223,19 +1229,14 @@ printf("old %d\n", gActiveProc);
     if(gActiveProc >= gNumProc) {
         gActiveProc = 0;
     }
-printf("new %d\n", gActiveProc);
     
-printf("gActiveProc %d gKernelState[gKernelStateHead].gYieldUserActiveProc %d\n", gActiveProc, gKernelState[gKernelStateHead].gYieldUserActiveProc);
     if(gActiveProc == gKernelState[gKernelStateHead].gYieldUserActiveProc && gNumKernelState > 0) 
     {
-puts("YES");
         kernel_yield_return();
     }
     
     struct proc* new_ = gProc[gActiveProc];
     
-printf("new_->zombie %d\n", new_->zombie);
-printf("new_ %p old %p\n", new_, old);
     if (new_ != old && new_->zombie == 0) {
         user_sp = new_->context.sp;
         user_satp = MAKE_SATP(new_->pagetable);
@@ -1247,7 +1248,6 @@ printf("new_ %p old %p\n", new_, old);
     }
     else {
         gActiveProc = old_active_proc;
-printf("end active %d\n", gActiveProc);
     }
 }
 
@@ -1435,7 +1435,6 @@ int Sys_fork()
     int child_proc_index = -1;
     alloc_prog((char*)p->program, fork_flag=1, exec_flag:0, &child_proc_index);
     struct proc* child_proc = gProc[child_proc_index];
-printf("CHILD PROC INDEX %d\n", child_proc_index);
     
     uint64_t sp = child_proc->context.sp;
     
@@ -1593,9 +1592,14 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
     uint64_t a = PGROUNDUP(old_sz);
     for(; a < new_sz; a += PGSIZE) {
         char *mem = kalloc();
-printf("uvm kalloc %p\n", mem);
+//printf("uvm kalloc %p\n", mem);
         
-        p->process_kalloc_address.add(mem);
+        p->process_kalloc_address[p->num_process_kalloc_address++] = mem;
+        
+        if(p->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
+            puts("ELF MAX ERROR");
+            while(1);
+        }
         
         if(mem == 0){
             uvm_dealloc(pagetable, a, old_sz);

@@ -294,7 +294,6 @@ int run_command(int n, struct sCommand* commands, int num_commands)
         exit(127);
     }
     else {
-puts("PIPE");
         pipe(pipes);
         
         int pid = fork();
@@ -333,12 +332,16 @@ int main(void) {
     int argc;
     int status;
     
+    struct sCommand commands[MAX_COMMAND];
+    int num_commands;
+    int num_arg;
+    char* p;
+    
     for (;;) {
         //write(1, "\r\n", 2);
         // プロンプト
         write(1, "$ ", 2);
         
-/*
         // キーボードから１行読み込み（改行込み）
         n = 0;
         while(1) {
@@ -364,8 +367,8 @@ int main(void) {
                 n++;
             }
         }
-*/
-        strncpy(buf, "echo aaa", BUF_SIZE);
+//        strncpy(buf, "cat a.txt | cat", BUF_SIZE);
+        buf[n] = '\0';
         
         write(1, "\r\n", 2);
         
@@ -373,11 +376,9 @@ int main(void) {
             continue;
         }
         
-        struct sCommand commands[MAX_COMMAND];
-        
-        int num_commands = 0;
-        int num_arg = 0;
-        char* p = buf;
+        num_commands = 0;
+        num_arg = 0;
+        p = buf;
         n = 0;
         
         while(1) {
@@ -432,7 +433,7 @@ int main(void) {
             }
         }
     
-        pid_t pid = fork();
+        pid = fork();
         
         if(pid == 0) {
             run_command(0, commands, num_commands);

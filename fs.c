@@ -363,7 +363,7 @@ typedef int32_t ssize_t;
 struct spipe* pipealloc(void)
 {
     struct spipe *p = (struct spipe*)kalloc(); //1, sizeof(struct spipe));
-printf("kalloc pipe %p\n", p);
+//printf("kalloc pipe %p\n", p);
     if (p == 0)
         return 0;
     p->nread     = 0;
@@ -371,6 +371,7 @@ printf("kalloc pipe %p\n", p);
     p->read_open  = 1;
     p->write_open = 1;
     p->used = 0;
+    p->num_linked_file = 0;
     
     void* user_va = p;
     void* pa = p;
@@ -383,7 +384,7 @@ printf("kalloc pipe %p\n", p);
 struct file* new_file_table()
 {
     struct file* result = (struct file*)kalloc(); //1, sizeof(struct file));
-printf("kalloc file table %p\n", result);
+//printf("kalloc file table %p\n", result);
     memset(result, 0, sizeof(struct file));
     
     return result;
@@ -461,10 +462,14 @@ void pipe_open(int* fd1, int* fd2) {
             file_table[i]->inum  = -1;
             file_table[i]->off   = 0;
             file_table[i]->pipe = pip;
-            pip->used++;
             file_table[i]->read_pipe = 1;
             file_table[i]->write_pipe   = 0;
             *fd1 = i;
+            
+            pip->used++;
+            //pip->linked_file[pip->num_linked_file++] = file_table[i];
+            
+//printf("pip->used %d\n", pip->used);
             break;
         }
     }
@@ -478,10 +483,14 @@ void pipe_open(int* fd1, int* fd2) {
             //memset(&file_table[i].din, 0, sizeof(struct dinode));
             file_table[i]->off   = 0;
             file_table[i]->pipe = pip;
-            pip->used++;
             file_table[i]->write_pipe = 1;
             file_table[i]->read_pipe = 0;
             *fd2 = i;  // <- 3,4,5… を返す
+            
+            pip->used++;
+            //pip->linked_file[pip->num_linked_file++] = file_table[i];
+            
+//printf("pip->used %d\n", pip->used);
             break;
         }
     }
@@ -612,7 +621,6 @@ int fs_open(const char *path) {
     for (int i = 3; i < MAX_OPEN_FILES; i++) {
         if (file_table[i] == NULL) {
             file_table[i] = new_file_table();
-printf("fs_open %p\n", file_table[i]);
             
             file_table[i]->kind = FK_FILE;
             file_table[i]->used  = 1;
@@ -694,8 +702,14 @@ int fs_close(long fd, int force_pipe_close) {
             p->write_open = 0;
         }
     }
+    struct spipe* p = file_table[idx]->pipe;
+    if(p) {
+        p->used--;
+    }
     if(file_table[idx]->used <= 0) {
+//puts("FILE CLOSE");
         file_table[idx]->used = 0;
+        
         struct spipe* p = file_table[idx]->pipe;
         if(file_table[idx]->read_pipe) {
             p->read_open = 0;
@@ -703,15 +717,24 @@ int fs_close(long fd, int force_pipe_close) {
         if(file_table[idx]->write_pipe) {
             p->write_open = 0;
         }
+//printf("pipe %p\n", p);
         if(p) {
-            p->used--;
+//printf("fs_close pipe used %d\n", p->used);
             
-            if(p->used <= 0) {
-                kfree(p);
+            if(p->used == 0) {
+            /*
+                for(int i=0; i<p->num_linked_file; i++) {
+                    struct file* f = p->linked_file[i];
+                    
+                    f->pipe = NULL;
+                }
+            */
+//                kfree(p);
+//puts("PIPE FREE");
+                file_table[idx]->pipe = NULL;
             }
         }
 //        memset(file_table[idx], 0, sizeof(struct file));
-printf("kfree file table %p\n", file_table[idx]);
         kfree(file_table[idx]);
         file_table[idx] = NULL;
     }
@@ -727,15 +750,26 @@ void fs_exit(struct file** file_table)
 
 void fs_dup_table(struct file** result, struct file** orig)
 {
+//puts("fs_dup");
     for(int i=0; i<MAX_OPEN_FILES; i++) {
         if(orig[i]) {
             result[i] = orig[i];
             result[i]->used++;
             if(result[i]->pipe) {
-                result[i]->pipe->used++;
+                struct spipe* pip = result[i]->pipe;
+                
+                pip->used++;
+//printf("i %d pip->used %d\n", i, pip->used);
+                //pip->linked_file[pip->num_linked_file++] = result[i];
+                
+                if(pip->num_linked_file >= PIPE_LINKED_MAX) {
+                    puts("PIPE LINKED MAX");
+                    while(1);
+                }
             }
         }
     }
+//puts("fs_dup end");
 }
 
 void free_fs_table(struct file** file_table)
@@ -744,12 +778,19 @@ void free_fs_table(struct file** file_table)
     for(int i=0; i<MAX_OPEN_FILES; i++) {
         if(file_table[i]) {
             if(file_table[i]->pipe) {
+                struct spipe* p = file_table[i]->pipe;
+                
+                for(int i=0; i<p->num_linked_file; i++) {
+                    struct file* f = p->linked_file[i];
+                    
+                    f->pipe = NULL;
+                }
                 kfree(file_table[i]->pipe);
-printf("kfree %p\n", file_table[i]->pipe);
+//printf("kfree %p\n", file_table[i]->pipe);
             }
             if(file_table[i]->used <= 0) {
                 kfree(file_table[i]);
-printf("kfree %p\n", file_table[i]);
+//printf("kfree %p\n", file_table[i]);
             }
         }
     }
@@ -768,7 +809,15 @@ void fs_dup2(int oldfd, int newfd) {
     file_table[newfd] = file_table[oldfd];
     file_table[newfd]->used++;
     if(file_table[newfd]->pipe) {
-        file_table[newfd]->pipe->used++;
+        struct spipe* pip = file_table[newfd]->pipe;
+        
+        pip->used++;
+        //pip->linked_file[pip->num_linked_file++] = file_table[newfd];
+        
+        if(pip->num_linked_file >= PIPE_LINKED_MAX) {
+            puts("PIPE LINKED MAX");
+            while(1);
+        }
     }
 }
 

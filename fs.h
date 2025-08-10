@@ -98,6 +98,10 @@ int fs_close(long fd, int force_pipe_close);
 // ── パイプ本体 ─────────────────────────────────────────────────────────
 #define PIPE_SIZE 512
 
+#define PIPE_LINKED_MAX 32
+
+struct file;
+
 struct spipe {
     char data[PIPE_SIZE];      // リングバッファ
     uint32_t nread;            // 読み出し済バイト数
@@ -105,6 +109,9 @@ struct spipe {
     int read_open;             // 読み側 open フラグ
     int write_open;            // 書き側 open フラグ
     int used;
+    
+    struct file* linked_file[PIPE_LINKED_MAX];
+    int num_linked_file;
 };
 
 // ファイルテーブルエントリ
@@ -115,6 +122,7 @@ struct file {
     uint32_t off;         // 現在の読み込みオフセット
     int used;             // 使用フラグ
     struct spipe* pipe;
+    int pipe_used;
     int read_pipe;
     int write_pipe;
 };
