@@ -337,7 +337,7 @@ LOAD main.o
  .rodata        0x0000000080010000      0x130 fs.o
  .rodata        0x0000000080010130      0x738 main.o
 
-.data           0x0000000080010868     0x2db8
+.data           0x0000000080010868     0x2d08
  *(.data*)
  .data          0x0000000080010868        0x0 entry.o
  .data          0x0000000080010868        0x0 start.o
@@ -346,50 +346,50 @@ LOAD main.o
  .data          0x0000000080010868        0x0 fs.o
  .data          0x0000000080010868        0x0 plic.o
  .data          0x0000000080010868        0x0 trap_c.o
- .data          0x0000000080010868     0x2db8 main.o
+ .data          0x0000000080010868     0x2d08 main.o
                 0x0000000080010868                hello_elf
                 0x00000000800119a0                hello2_elf
                 0x0000000080012230                msh_elf
 
-.sdata          0x0000000080013620       0x18
+.sdata          0x0000000080013570       0x18
  *(.sdata*)
- .sdata         0x0000000080013620       0x18 main.o
-                0x0000000080013620                hello_elf_len
-                0x0000000080013624                hello2_elf_len
-                0x0000000080013628                msh_elf_len
+ .sdata         0x0000000080013570       0x18 main.o
+                0x0000000080013570                hello_elf_len
+                0x0000000080013574                hello2_elf_len
+                0x0000000080013578                msh_elf_len
 
-.bss            0x0000000080013800     0x27cc
+.bss            0x0000000080013600     0x27cc
  *(.bss)
- .bss           0x0000000080013800        0x0 entry.o
- .bss           0x0000000080013800        0x0 start.o
- .bss           0x0000000080013800        0x0 userret.o
- .bss           0x0000000080013800        0x0 trap.o
- .bss           0x0000000080013800      0x630 fs.o
- .bss           0x0000000080013e30        0x0 plic.o
- .bss           0x0000000080013e30        0x0 trap_c.o
- .bss           0x0000000080013e30     0x2158 main.o
-                0x0000000080013e30                gCPU
-                0x0000000080013f40                gProc
-                0x0000000080015f40                kmem
+ .bss           0x0000000080013600        0x0 entry.o
+ .bss           0x0000000080013600        0x0 start.o
+ .bss           0x0000000080013600        0x0 userret.o
+ .bss           0x0000000080013600        0x0 trap.o
+ .bss           0x0000000080013600      0x630 fs.o
+ .bss           0x0000000080013c30        0x0 plic.o
+ .bss           0x0000000080013c30        0x0 trap_c.o
+ .bss           0x0000000080013c30     0x2158 main.o
+                0x0000000080013c30                gCPU
+                0x0000000080013d40                gProc
+                0x0000000080015d40                kmem
  *(.bss.*)
  *(.sbss)
- .sbss          0x0000000080015f88       0x44 main.o
-                0x0000000080015f88                kernel_pagetable
-                0x0000000080015f90                gNumProc
-                0x0000000080015f94                gActiveProc
-                0x0000000080015f98                last_key
-                0x0000000080015fa0                free_list
-                0x0000000080015fa8                gAllocMem
-                0x0000000080015fb0                gComeResultObject
-                0x0000000080015fb8                gComeMallocLib
-                0x0000000080015fbc                gComeDebugLib
-                0x0000000080015fc0                gComeGCLib
-                0x0000000080015fc4                gNumAlloc
-                0x0000000080015fc8                gNumFree
+ .sbss          0x0000000080015d88       0x44 main.o
+                0x0000000080015d88                kernel_pagetable
+                0x0000000080015d90                gNumProc
+                0x0000000080015d94                gActiveProc
+                0x0000000080015d98                last_key
+                0x0000000080015da0                free_list
+                0x0000000080015da8                gAllocMem
+                0x0000000080015db0                gComeResultObject
+                0x0000000080015db8                gComeMallocLib
+                0x0000000080015dbc                gComeDebugLib
+                0x0000000080015dc0                gComeGCLib
+                0x0000000080015dc4                gNumAlloc
+                0x0000000080015dc8                gNumFree
  *(.sbss.*)
                 [!provide]                        PROVIDE (_code_end = .)
-                0x0000000080025fcc                . = (. + STACK_MAX)
-                0x0000000080025fcc                PROVIDE (stack_top = .)
+                0x0000000080025dcc                . = (. + STACK_MAX)
+                0x0000000080025dcc                PROVIDE (stack_top = .)
                 0x0000000080026000                . = ALIGN (0x1000)
                 0x0000000080026000                TRAPFRAME = .
                 0x0000000080027000                . = (. + 0x1000)

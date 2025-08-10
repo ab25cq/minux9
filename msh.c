@@ -367,8 +367,9 @@ int main(void) {
                 n++;
             }
         }
-//        strncpy(buf, "cat a.txt | cat", BUF_SIZE);
         buf[n] = '\0';
+     
+//        strncpy(buf, "cat a.txt", BUF_SIZE);
         
         write(1, "\r\n", 2);
         
