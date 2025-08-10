@@ -152,6 +152,7 @@ struct proc {
 //    char* stack;
     char* stack_top;
     uint64_t vaddr;
+    uint64_t memsz;
     uint64_t sz; // Size of process memory (program break)
     
     int zombie; 
@@ -162,6 +163,8 @@ struct proc {
     int xstatus;                // exit
     
     struct file* file_table[MAX_OPEN_FILES];
+    
+    list<char*>* process_kalloc_address;
     
     int deleted;
 };
@@ -179,29 +182,6 @@ struct cpu* mycpu() {
     return &gCPU;
 }
 
-
-/// プロセスのユーザー空間を完全に解放
-void free_proc(proc *p) {
-    free_pagetable(p->pagetable, 2);
-    kfree(p->pagetable);
-}
-
-
-#define HEAP_END (_end + PGSIZE * 256)
-
-list<proc*%>*% gProc;
-int gActiveProc;
-
-void kfree(void *pa);
-void freerange(void *pa_start, void *pa_end);
-
-#define PTE_V (1L << 0)
-#define PTE_R (1L << 1)
-#define PTE_W (1L << 2)
-#define PTE_X (1L << 3)
-#define PTE_U (1L << 4)
-
-
 #define VA2VPN(va, level) ((((uint64_t)(va)) >> (12 + (9 * level))) & 0x1FF)
 
 #define MAXVA (1UL << (9 + 9 + 9 + 12 - 1))
@@ -218,6 +198,48 @@ void freerange(void *pa_start, void *pa_end);
 
 #define KERNBASE 0x80000000UL
 #define PHYSTOP 0x81000000UL
+
+void* walkaddr(pagetable_t pagetable, uint64_t va);
+
+/// プロセスのユーザー空間を完全に解放
+void free_proc(proc *p) {
+    uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
+    for (int i = 0; i < STACK_PAGES; i++) {
+        char* pa = walkaddr(p->pagetable, stack_base + i*PGSIZE);
+
+        kfree(pa);
+//printf("stack kfree %p\n", pa);
+    }
+    foreach (it, p->process_kalloc_address) {
+printf("process_kalloc_address kfree %p\n", it);
+        kfree(it);
+    }
+    
+    free_pagetable(p->pagetable, 2);
+    kfree(p->pagetable);
+    delete p->process_kalloc_address;
+    kfree(p);
+}
+
+
+#define HEAP_END (_end + PGSIZE * 256)
+
+#define PROC_MAX 1024
+
+struct proc* gProc[PROC_MAX];
+int gNumProc;
+int gActiveProc;
+
+void kfree(void *pa);
+void freerange(void *pa_start, void *pa_end);
+
+#define PTE_V (1L << 0)
+#define PTE_R (1L << 1)
+#define PTE_W (1L << 2)
+#define PTE_X (1L << 3)
+#define PTE_U (1L << 4)
+
+
 
 struct run {
     struct run *next;
@@ -413,15 +435,16 @@ void kfree(void *pa) {
     // Fill with junk to catch dangling refs.
     memset(pa, 0, PGSIZE);
 
+/*
     r = (struct run*)kmem.freelist;
     
     while(r) {
         if(r == pa) {
-printf("kfree ALREADY %p\n", pa);
             return;
         }
         r = r->next;
     }
+*/
     
     r = (struct run*)pa;
 
@@ -461,7 +484,6 @@ pte_t * walk(pagetable_t pagetable, uint64_t va, int alloc) {
             if(!alloc || (pagetable = (pagetable_t)kalloc()) == 0) {
                 return (void*)0;
             }
-printf("mappage kalloc %p\n", pagetable);
             memset(pagetable, 0, PGSIZE);
             *pte = PA2PTE(pagetable) | PTE_V;
         }
@@ -797,9 +819,8 @@ void setting_user_pagetable(proc* proc, pagetable_t pagetable)
     asm volatile("sfence.vma zero, zero"); 
 }
 
-void alloc_prog(char* elf_buf, int fork_flag, int exec_flag) {
-puts("ALLOC PROG START");
-    proc*% result = new proc;
+void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_index) {
+    proc* result = kalloc();
     
     result->program = elf_buf;
     
@@ -817,6 +838,7 @@ puts("ALLOC PROG START");
     }
         
     struct proghdr *ph = (struct proghdr *)(elf_buf + eh->phoff);
+    result->process_kalloc_address = borrow new list<char*>();
     
     uint64_t va = 0;
     uint64_t max_va_end = 0;
@@ -830,6 +852,10 @@ puts("ALLOC PROG START");
     
         for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
             void *pa = kalloc();
+printf("process kalloc %p\n", pa);
+            
+            result->process_kalloc_address.add(pa);
+            
             if (!pa) panic("kalloc");
             memset(pa, 0, PGSIZE);
             mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
@@ -840,7 +866,9 @@ puts("ALLOC PROG START");
             panic("copyout");
         }
     }
-    result->sz = PGROUNDUP(max_va_end);
+    
+    result->vaddr = ph->vaddr;
+    result->memsz = ph->memsz;
 
     // Find global pointer
     uint64_t gp = 0;
@@ -886,6 +914,7 @@ puts("ALLOC PROG START");
         for (int i = 0; i < STACK_PAGES; i++) {
             char *pa = kalloc();
 
+//printf("stack kalloc %p\n", pa);
             char *src = walkaddr(parent->pagetable, parent_stack_top+i*PGSIZE);
             if(src) {
                 memmove(pa, (void*)src, PGSIZE);
@@ -911,6 +940,7 @@ puts("ALLOC PROG START");
         for (int i = 0; i < STACK_PAGES; i++) {
             char *pa = kalloc();
 
+//printf("stack kalloc %p\n", pa);
             mappages(result->pagetable,
              stack_base + i*PGSIZE,
              PGSIZE,
@@ -936,63 +966,38 @@ puts("ALLOC PROG START");
     /// USER PROGRAM
     result->context.mepc = eh->entry;
     
-puts("ALLOC PROG END");
     if(exec_flag) {
-        gProc.replace(gActiveProc, result);
+        proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
+        free_proc(parent);
+        gProc[gActiveProc] = result;
         user_satp = MAKE_SATP(result->pagetable);
         user_sp   = result->context.sp;
+        
+        *child_proc_index = gActiveProc;
     }
     else {
-        gProc.add(result);
-    }
-}
-
-pagetable_t uvmcreate()
-{
-    pagetable_t pagetable;
-    pagetable = (pagetable_t) kalloc();
-    if(pagetable == 0) {
-        return (pagetable_t)0;
-    }
-    
-    memset(pagetable, 0, PGSIZE);
-    return pagetable;
-}
-
-
-// pagetable_t copyuvm(pagetable_t old, uint64_t sz);
-// sz はユーザ空間全体のサイズ（スタックも含む）
-pagetable_t copyuvm(pagetable_t old, uint64_t sz)
-{
-    pagetable_t new_;
-    new_ = uvmcreate();
-    if(new_ == 0)
-        return (pagetable_t)0;
-
-    // 0 ～ sz まで PGSIZE ごとにループ
-    for(uint64_t addr = 0; addr < sz; addr += PGSIZE){
-        pte_t *pte = walk(old, addr, 0);
-        if(!pte || !(*pte & PTE_V))
-            continue;
-        uint64_t pa = PTE2PA(*pte);
-        uint32_t flags = PTE_FLAGS(*pte);
-        // 新しい物理ページを確保
-        char *mem = kalloc();
-        if(mem == 0)
-            panic("coypuvm");
-        // 親のページ内容をコピー（スタックもここでコピーされる）
-        memmove(mem, (char*)pa, PGSIZE);
-        // 子のページテーブルにマッピング
-        if(mappages(new_, addr, PGSIZE, PA2PTE(mem), PTE_U | PTE_R |PTE_W | PTE_X | PTE_V) < 0){
-            kfree(mem);
-            panic("copyuvm");
+        if(gNumProc >= PROC_MAX) {
+            int found = 0;
+            for(int i=0; i<PROC_MAX; i++) {
+                if(gProc[i] == NULL) {
+                    gProc[i] = result;
+                    *child_proc_index = i;
+                    found = 1;
+                    break;
+                }
+            }
+            
+            if(found == 0) {
+                puts("proc max");
+                while(1);
+            }
+        }
+        else {
+            gProc[gNumProc++] = result;
+            *child_proc_index = gNumProc -1;
         }
     }
-    return new_;
 }
-
-
-
 
 static void free_pagetable(pagetable_t pagetable, int level) {
     for(int i = 0; i < 512; i++) {
@@ -1003,7 +1008,6 @@ static void free_pagetable(pagetable_t pagetable, int level) {
         // リーフかどうか (R/W/X フラグがあるならファイルデータページ)
         if(pte & (PTE_R | PTE_W | PTE_X)) {
             if(level > 0) {
-printf("free_pagetable %p\n", pa);
                 kfree((void*)pa);
             }
         } else if(level > 0) {
@@ -1011,7 +1015,6 @@ printf("free_pagetable %p\n", pa);
             pagetable_t child = (pagetable_t)pa;
             free_pagetable(child, level - 1);
             kfree(child);
-printf("free_pagetable %p\n", child);
         }
     }
 }
@@ -1210,23 +1213,29 @@ void timer_handler() {
 
     int old_active_proc = gActiveProc;
     struct proc *old = gProc[gActiveProc];
+printf("old %d\n", gActiveProc);
     gActiveProc++;
     
-    while(gActiveProc < gProc.length() &&gProc[gActiveProc].deleted) {
+    while(gActiveProc < gNumProc && gProc[gActiveProc] == NULL) {
         gActiveProc++;
     }
     
-    if(gActiveProc >= gProc.length()) {
+    if(gActiveProc >= gNumProc) {
         gActiveProc = 0;
     }
+printf("new %d\n", gActiveProc);
     
+printf("gActiveProc %d gKernelState[gKernelStateHead].gYieldUserActiveProc %d\n", gActiveProc, gKernelState[gKernelStateHead].gYieldUserActiveProc);
     if(gActiveProc == gKernelState[gKernelStateHead].gYieldUserActiveProc && gNumKernelState > 0) 
     {
+puts("YES");
         kernel_yield_return();
     }
     
     struct proc* new_ = gProc[gActiveProc];
     
+printf("new_->zombie %d\n", new_->zombie);
+printf("new_ %p old %p\n", new_, old);
     if (new_ != old && new_->zombie == 0) {
         user_sp = new_->context.sp;
         user_satp = MAKE_SATP(new_->pagetable);
@@ -1238,6 +1247,7 @@ void timer_handler() {
     }
     else {
         gActiveProc = old_active_proc;
+printf("end active %d\n", gActiveProc);
     }
 }
 
@@ -1347,29 +1357,26 @@ int Sys_wait()
     int exit_status = 0;
     pid_t child_pid = -1;
     while(1) { // Keep searching until a zombie is found and handled
-        int n = 0;
         proc* zombie_proc = NULL;
-        int num_deleted_proc = 0;
-        foreach (it, gProc) {
-            if(it->deleted) {
-                num_deleted_proc++;
+        for (int n=0; n<gNumProc; n++) {
+            struct proc* it = gProc[n];
+            
+            if(it == NULL) {
             }
             else if(it->zombie) {
-                num_deleted_proc++;
                 zombie_proc = it;
                 child_pid = n; // This is problematic if gProc is not an array-like list
                 break;
             }
-            n++;
         }
 
         if(zombie_proc) {
             exit_status = zombie_proc->xstatus;
             free_fs_table(zombie_proc->file_table);
             free_proc(zombie_proc);
-            zombie_proc->deleted = 1;
             remove_kernel_state(child_pid);
             //gProc.remove_by_pointer(zombie_proc);
+            gProc[child_pid] = NULL;
             break; // Exit the while(1) loop
         }
         else {
@@ -1425,18 +1432,19 @@ int Sys_fork()
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
     
     int fork_flag;
-    alloc_prog((char*)p->program, fork_flag=1, exec_flag:0);
+    int child_proc_index = -1;
+    alloc_prog((char*)p->program, fork_flag=1, exec_flag:0, &child_proc_index);
+    struct proc* child_proc = gProc[child_proc_index];
+printf("CHILD PROC INDEX %d\n", child_proc_index);
     
-    struct proc* child = gProc[gProc.length()-1];
+    uint64_t sp = child_proc->context.sp;
     
-    uint64_t sp = child->context.sp;
+    child_proc->context = *trapframe;
+    child_proc->context.mepc = child_proc->context.mepc + 4;
+    child_proc->context.sp = sp;
+    child_proc->context.a0 = 0;
     
-    child->context = *trapframe;
-    child->context.mepc = child->context.mepc + 4;
-    child->context.sp = sp;
-    child->context.a0 = 0;
-    
-    int result = gProc.length()-1;
+    int result = child_proc_index;
    
     return result;
 }
@@ -1490,7 +1498,7 @@ int Sys_execv()
         return -1;
     }
     ssize_t size = fs_size(fd);
-    char* elf_buf = calloc(1, size);
+    char elf_buf[2048]; // = calloc(1, size);
     int ret = fs_read(fd, elf_buf, size);
     fs_close(fd, 0/*force_pipe_close*/);
     if (ret <= 0) {
@@ -1499,9 +1507,10 @@ int Sys_execv()
     }
     
     // alloc_prog with exec_flag=1 replaces the current process's page table etc.
-    alloc_prog(elf_buf, /*fork_flag=*/0, /*exec_flag=*/1);
+    int child_proc_index = 0;
+    alloc_prog(elf_buf, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index);
     
-    free(elf_buf);
+    //free(elf_buf);
     
     struct proc* new_p = gProc[gActiveProc]; // gProc[gActiveProc] now points to the new process data
 
@@ -1578,12 +1587,16 @@ void uvm_dealloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
     uvmunmap(pagetable, PGROUNDUP(new_sz), (PGROUNDUP(old_sz) - PGROUNDUP(new_sz)) / PGSIZE, 1);
 }
 
-int uvm_alloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
+int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
     if(new_sz <= old_sz) return 0;
 
     uint64_t a = PGROUNDUP(old_sz);
     for(; a < new_sz; a += PGSIZE) {
         char *mem = kalloc();
+printf("uvm kalloc %p\n", mem);
+        
+        p->process_kalloc_address.add(mem);
+        
         if(mem == 0){
             uvm_dealloc(pagetable, a, old_sz);
             return -1;
@@ -1614,7 +1627,7 @@ int Sys_brk() {
     }
 
     if (addr > old_sz) {
-        if(uvm_alloc(p->pagetable, old_sz, addr) < 0) {
+        if(uvm_alloc(p, p->pagetable, old_sz, addr) < 0) {
             printf("Sys_brk: uvm_alloc failed!\n");
             return -1; 
         }
@@ -1897,7 +1910,8 @@ struct proc* get_current_proc()
 
 void global_init()
 {
-    gProc = new list<proc*%>();
+    memset(gProc, 0, sizeof(struct proc*)*PROC_MAX);
+    gNumProc = 0;
     gKernelStateHead = 0;
     gKernelStateTail = 0;
     gNumKernelState = 0;
@@ -1925,11 +1939,14 @@ int main()
     w_stimecmp(r_time() + 10000000);
 
     int fork_flag;
-    alloc_prog((char*)msh_elf, fork_flag=0, exec_flag:0);
+    int child_proc_index = 0;
+    alloc_prog((char*)msh_elf, fork_flag=0, exec_flag:0, &child_proc_index);
+//free_fs_table(gProc[0]->file_table);
+//fs_exit(gProc[0]->file_table);
+//free_proc(gProc[0]);
+//while(1);
 //    alloc_prog((char*)hello_elf, fork_flag=0);
 //    alloc_prog((char*)hello2_elf, fork_flag=0);
-    free_proc(gProc[0]);
-    while(1);
 
     /// カーネルページからユーザープロセスをアクセス可能にする
     asm volatile("csrs sstatus, %0" : : "r"(SSTATUS_SUM));

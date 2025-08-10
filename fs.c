@@ -8,7 +8,6 @@
 void * kalloc(void);
 void kfree(void *pa);
 void timer_handler();
-void *calloc(size_t nmemb, size_t size);
 
 void *kalloc_pages(size_t npages);
 void* memset(void *dst, int c, unsigned int n);
@@ -358,8 +357,6 @@ void dump_inode(uint32_t inum) {
 typedef int32_t ssize_t;
 
 
-void *common_kalloc(size_t size);
-
 // ── pipealloc ──────────────────────────────────────────────────────────
 // パイプ構造体を確保・初期化して返す
 
@@ -382,21 +379,12 @@ printf("kalloc pipe %p\n", p);
 }
 
 #define MAX_FILES 128
-struct file* gFiles[MAX_FILES];
-int gNumFiles = 0;
 
 struct file* new_file_table()
 {
     struct file* result = (struct file*)kalloc(); //1, sizeof(struct file));
 printf("kalloc file table %p\n", result);
     memset(result, 0, sizeof(struct file));
-    
-    gFiles[gNumFiles++] = result;
-    
-    if(gNumFiles >= MAX_FILES) {
-        puts("MAX FILE DISCRIPTOR OPEN");
-        while(1);
-    }
     
     return result;
 }
@@ -624,6 +612,7 @@ int fs_open(const char *path) {
     for (int i = 3; i < MAX_OPEN_FILES; i++) {
         if (file_table[i] == NULL) {
             file_table[i] = new_file_table();
+printf("fs_open %p\n", file_table[i]);
             
             file_table[i]->kind = FK_FILE;
             file_table[i]->used  = 1;
@@ -716,9 +705,15 @@ int fs_close(long fd, int force_pipe_close) {
         }
         if(p) {
             p->used--;
+            
+            if(p->used <= 0) {
+                kfree(p);
+            }
         }
 //        memset(file_table[idx], 0, sizeof(struct file));
-        //kfree(file_table[idx]);
+printf("kfree file table %p\n", file_table[idx]);
+        kfree(file_table[idx]);
+        file_table[idx] = NULL;
     }
     return 0;
 }
@@ -745,6 +740,7 @@ void fs_dup_table(struct file** result, struct file** orig)
 
 void free_fs_table(struct file** file_table)
 {
+/*
     for(int i=0; i<MAX_OPEN_FILES; i++) {
         if(file_table[i]) {
             if(file_table[i]->pipe) {
@@ -757,6 +753,7 @@ printf("kfree %p\n", file_table[i]);
             }
         }
     }
+*/
 }
 
 void fs_dup2(int oldfd, int newfd) {
