@@ -363,7 +363,7 @@ typedef int32_t ssize_t;
 struct spipe* pipealloc(void)
 {
     struct spipe *p = (struct spipe*)kalloc(); //1, sizeof(struct spipe));
-printf("kalloc pipe %p\n", p);
+//printf("kalloc pipe %p\n", p);
     if (p == 0)
         return 0;
     p->nread     = 0;
@@ -384,7 +384,7 @@ printf("kalloc pipe %p\n", p);
 struct file* new_file_table()
 {
     struct file* result = (struct file*)kalloc(); //1, sizeof(struct file));
-printf("kalloc file table %p\n", result);
+//printf("kalloc file table %p\n", result);
     memset(result, 0, sizeof(struct file));
     
     return result;
@@ -730,13 +730,13 @@ int fs_close(long fd, int force_pipe_close) {
                 }
             */
                 kfree(p);
-printf("PIPE FREE %p", p);
+//printf("PIPE FREE %p", p);
                 file_table[idx]->pipe = NULL;
             }
         }
 //        memset(file_table[idx], 0, sizeof(struct file));
         kfree(file_table[idx]);
-printf("kfree %p\n", file_table[idx]);
+//printf("kfree %p\n", file_table[idx]);
         file_table[idx] = NULL;
     }
     return 0;

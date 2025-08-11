@@ -1877,11 +1877,6 @@ dump_inode:
 	.cfi_endproc
 .LFE12:
 	.size	dump_inode, .-dump_inode
-	.section	.rodata
-	.align	3
-.LC14:
-	.string	"kalloc pipe %p\n"
-	.text
 	.align	1
 	.globl	pipealloc
 	.type	pipealloc, @function
@@ -1900,10 +1895,6 @@ pipealloc:
 	.loc 1 365 38
 	call	kalloc
 	sd	a0,-24(s0)
-	.loc 1 366 1
-	ld	a1,-24(s0)
-	lla	a0,.LC14
-	call	printf
 	.loc 1 367 8
 	ld	a5,-24(s0)
 	bne	a5,zero,.L73
@@ -1953,11 +1944,6 @@ pipealloc:
 	.cfi_endproc
 .LFE13:
 	.size	pipealloc, .-pipealloc
-	.section	.rodata
-	.align	3
-.LC15:
-	.string	"kalloc file table %p\n"
-	.text
 	.align	1
 	.globl	new_file_table
 	.type	new_file_table, @function
@@ -1976,10 +1962,6 @@ new_file_table:
 	.loc 1 386 41
 	call	kalloc
 	sd	a0,-24(s0)
-	.loc 1 387 1
-	ld	a1,-24(s0)
-	lla	a0,.LC15
-	call	printf
 	.loc 1 388 5
 	li	a2,112
 	li	a1,0
@@ -2573,7 +2555,7 @@ pipe_open:
 	.size	pipe_open, .-pipe_open
 	.section	.rodata
 	.align	3
-.LC16:
+.LC14:
 	.string	"piperead"
 	.text
 	.align	1
@@ -2609,7 +2591,7 @@ piperead:
 	.loc 1 510 8
 	bne	a5,zero,.L97
 	.loc 1 511 9
-	lla	a0,.LC16
+	lla	a0,.LC14
 	call	panic
 .L97:
 	.loc 1 514 7
@@ -2623,7 +2605,7 @@ piperead:
 	ble	a4,a5,.L99
 .L98:
 	.loc 1 515 9
-	lla	a0,.LC16
+	lla	a0,.LC14
 	call	panic
 .L99:
 	.loc 1 517 33
@@ -2639,7 +2621,7 @@ piperead:
 	ld	a5,-32(s0)
 	bne	a5,zero,.L101
 	.loc 1 520 9
-	lla	a0,.LC16
+	lla	a0,.LC14
 	call	panic
 	.loc 1 523 11
 	j	.L101
@@ -2797,7 +2779,7 @@ piperead:
 	.size	piperead, .-piperead
 	.section	.rodata
 	.align	3
-.LC17:
+.LC15:
 	.string	"pipewrite"
 	.text
 	.align	1
@@ -2833,7 +2815,7 @@ pipewrite:
 	.loc 1 560 8
 	bne	a5,zero,.L114
 	.loc 1 561 9
-	lla	a0,.LC17
+	lla	a0,.LC15
 	call	panic
 .L114:
 	.loc 1 564 7
@@ -2847,7 +2829,7 @@ pipewrite:
 	ble	a4,a5,.L116
 .L115:
 	.loc 1 565 9
-	lla	a0,.LC17
+	lla	a0,.LC15
 	call	panic
 .L116:
 	.loc 1 567 33
@@ -2863,7 +2845,7 @@ pipewrite:
 	ld	a5,-32(s0)
 	bne	a5,zero,.L117
 	.loc 1 570 9
-	lla	a0,.LC17
+	lla	a0,.LC15
 	call	panic
 .L117:
 .LBB14:
@@ -3384,14 +3366,6 @@ fs_size:
 	.cfi_endproc
 .LFE24:
 	.size	fs_size, .-fs_size
-	.section	.rodata
-	.align	3
-.LC18:
-	.string	"PIPE FREE %p"
-	.align	3
-.LC19:
-	.string	"kfree %p\n"
-	.text
 	.align	1
 	.globl	fs_close
 	.type	fs_close, @function
@@ -3583,10 +3557,6 @@ fs_close:
 	.loc 1 732 17
 	ld	a0,-56(s0)
 	call	kfree
-	.loc 1 733 1
-	ld	a1,-56(s0)
-	lla	a0,.LC18
-	call	printf
 	.loc 1 734 27
 	ld	a5,-32(s0)
 	slli	a5,a5,3
@@ -3605,16 +3575,6 @@ fs_close:
 	ld	a5,0(a5)
 	mv	a0,a5
 	call	kfree
-	.loc 1 739 32
-	ld	a5,-32(s0)
-	slli	a5,a5,3
-	ld	a4,-24(s0)
-	add	a5,a4,a5
-	.loc 1 739 1
-	ld	a5,0(a5)
-	mv	a1,a5
-	lla	a0,.LC19
-	call	printf
 	.loc 1 740 19
 	ld	a5,-32(s0)
 	slli	a5,a5,3
@@ -3694,7 +3654,7 @@ fs_exit:
 	.size	fs_exit, .-fs_exit
 	.section	.rodata
 	.align	3
-.LC20:
+.LC16:
 	.string	"PIPE LINKED MAX"
 	.text
 	.align	1
@@ -3789,7 +3749,7 @@ fs_dup_table:
 	li	a5,31
 	ble	a4,a5,.L164
 	.loc 1 767 21
-	lla	a0,.LC20
+	lla	a0,.LC16
 	call	puts
 .L165:
 	.loc 1 768 26
@@ -3948,7 +3908,7 @@ fs_dup2:
 	li	a5,31
 	ble	a4,a5,.L172
 	.loc 1 814 13
-	lla	a0,.LC20
+	lla	a0,.LC16
 	call	puts
 .L171:
 	.loc 1 815 18

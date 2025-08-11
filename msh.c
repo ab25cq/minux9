@@ -340,6 +340,7 @@ int main(void) {
     for (;;) {
         //write(1, "\r\n", 2);
         // プロンプト
+/*
         write(1, "$ ", 2);
         
         // キーボードから１行読み込み（改行込み）
@@ -368,8 +369,9 @@ int main(void) {
             }
         }
         buf[n] = '\0';
+*/
      
-//        strncpy(buf, "cat a.txt", BUF_SIZE);
+        strncpy(buf, "cat a.txt", BUF_SIZE);
         
         write(1, "\r\n", 2);
         
