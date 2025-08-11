@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9-dev" "fs.c"
+	.file 0 "/Users/ab25cq/minux9" "fs.c"
 	.local	vbase
 	.comm	vbase,8,8
 	.local	Q
@@ -1877,6 +1877,11 @@ dump_inode:
 	.cfi_endproc
 .LFE12:
 	.size	dump_inode, .-dump_inode
+	.section	.rodata
+	.align	3
+.LC14:
+	.string	"kalloc pipe %p\n"
+	.text
 	.align	1
 	.globl	pipealloc
 	.type	pipealloc, @function
@@ -1895,6 +1900,10 @@ pipealloc:
 	.loc 1 365 38
 	call	kalloc
 	sd	a0,-24(s0)
+	.loc 1 366 1
+	ld	a1,-24(s0)
+	lla	a0,.LC14
+	call	printf
 	.loc 1 367 8
 	ld	a5,-24(s0)
 	bne	a5,zero,.L73
@@ -1944,6 +1953,11 @@ pipealloc:
 	.cfi_endproc
 .LFE13:
 	.size	pipealloc, .-pipealloc
+	.section	.rodata
+	.align	3
+.LC15:
+	.string	"kalloc file table %p\n"
+	.text
 	.align	1
 	.globl	new_file_table
 	.type	new_file_table, @function
@@ -1962,6 +1976,10 @@ new_file_table:
 	.loc 1 386 41
 	call	kalloc
 	sd	a0,-24(s0)
+	.loc 1 387 1
+	ld	a1,-24(s0)
+	lla	a0,.LC15
+	call	printf
 	.loc 1 388 5
 	li	a2,112
 	li	a1,0
@@ -2555,7 +2573,7 @@ pipe_open:
 	.size	pipe_open, .-pipe_open
 	.section	.rodata
 	.align	3
-.LC14:
+.LC16:
 	.string	"piperead"
 	.text
 	.align	1
@@ -2591,7 +2609,7 @@ piperead:
 	.loc 1 510 8
 	bne	a5,zero,.L97
 	.loc 1 511 9
-	lla	a0,.LC14
+	lla	a0,.LC16
 	call	panic
 .L97:
 	.loc 1 514 7
@@ -2605,7 +2623,7 @@ piperead:
 	ble	a4,a5,.L99
 .L98:
 	.loc 1 515 9
-	lla	a0,.LC14
+	lla	a0,.LC16
 	call	panic
 .L99:
 	.loc 1 517 33
@@ -2621,7 +2639,7 @@ piperead:
 	ld	a5,-32(s0)
 	bne	a5,zero,.L101
 	.loc 1 520 9
-	lla	a0,.LC14
+	lla	a0,.LC16
 	call	panic
 	.loc 1 523 11
 	j	.L101
@@ -2779,7 +2797,7 @@ piperead:
 	.size	piperead, .-piperead
 	.section	.rodata
 	.align	3
-.LC15:
+.LC17:
 	.string	"pipewrite"
 	.text
 	.align	1
@@ -2815,7 +2833,7 @@ pipewrite:
 	.loc 1 560 8
 	bne	a5,zero,.L114
 	.loc 1 561 9
-	lla	a0,.LC15
+	lla	a0,.LC17
 	call	panic
 .L114:
 	.loc 1 564 7
@@ -2829,7 +2847,7 @@ pipewrite:
 	ble	a4,a5,.L116
 .L115:
 	.loc 1 565 9
-	lla	a0,.LC15
+	lla	a0,.LC17
 	call	panic
 .L116:
 	.loc 1 567 33
@@ -2845,7 +2863,7 @@ pipewrite:
 	ld	a5,-32(s0)
 	bne	a5,zero,.L117
 	.loc 1 570 9
-	lla	a0,.LC15
+	lla	a0,.LC17
 	call	panic
 .L117:
 .LBB14:
@@ -3366,6 +3384,14 @@ fs_size:
 	.cfi_endproc
 .LFE24:
 	.size	fs_size, .-fs_size
+	.section	.rodata
+	.align	3
+.LC18:
+	.string	"PIPE FREE %p"
+	.align	3
+.LC19:
+	.string	"kfree %p\n"
+	.text
 	.align	1
 	.globl	fs_close
 	.type	fs_close, @function
@@ -3554,6 +3580,13 @@ fs_close:
 	lw	a5,528(a5)
 	.loc 1 724 15
 	bne	a5,zero,.L158
+	.loc 1 732 17
+	ld	a0,-56(s0)
+	call	kfree
+	.loc 1 733 1
+	ld	a1,-56(s0)
+	lla	a0,.LC18
+	call	printf
 	.loc 1 734 27
 	ld	a5,-32(s0)
 	slli	a5,a5,3
@@ -3572,19 +3605,29 @@ fs_close:
 	ld	a5,0(a5)
 	mv	a0,a5
 	call	kfree
-	.loc 1 739 19
+	.loc 1 739 32
 	ld	a5,-32(s0)
 	slli	a5,a5,3
 	ld	a4,-24(s0)
 	add	a5,a4,a5
-	.loc 1 739 25
+	.loc 1 739 1
+	ld	a5,0(a5)
+	mv	a1,a5
+	lla	a0,.LC19
+	call	printf
+	.loc 1 740 19
+	ld	a5,-32(s0)
+	slli	a5,a5,3
+	ld	a4,-24(s0)
+	add	a5,a4,a5
+	.loc 1 740 25
 	sd	zero,0(a5)
 .L155:
 .LBE17:
-	.loc 1 741 12
+	.loc 1 742 12
 	li	a5,0
 .L149:
-	.loc 1 742 1
+	.loc 1 743 1
 	mv	a0,a5
 	ld	ra,72(sp)
 	.cfi_restore 1
@@ -3602,7 +3645,7 @@ fs_close:
 	.type	fs_exit, @function
 fs_exit:
 .LFB26:
-	.loc 1 745 1
+	.loc 1 746 1
 	.cfi_startproc
 	addi	sp,sp,-48
 	.cfi_def_cfa_offset 48
@@ -3614,28 +3657,28 @@ fs_exit:
 	.cfi_def_cfa 8, 0
 	sd	a0,-40(s0)
 .LBB18:
-	.loc 1 746 13
+	.loc 1 747 13
 	sw	zero,-20(s0)
-	.loc 1 746 5
+	.loc 1 747 5
 	j	.L160
 .L161:
-	.loc 1 747 9
+	.loc 1 748 9
 	lw	a5,-20(s0)
 	li	a1,1
 	mv	a0,a5
 	call	fs_close
-	.loc 1 746 37 discriminator 3
+	.loc 1 747 37 discriminator 3
 	lw	a5,-20(s0)
 	addiw	a5,a5,1
 	sw	a5,-20(s0)
 .L160:
-	.loc 1 746 19 discriminator 1
+	.loc 1 747 19 discriminator 1
 	lw	a5,-20(s0)
 	sext.w	a4,a5
 	li	a5,15
 	ble	a4,a5,.L161
 .LBE18:
-	.loc 1 749 1
+	.loc 1 750 1
 	nop
 	nop
 	ld	ra,40(sp)
@@ -3651,7 +3694,7 @@ fs_exit:
 	.size	fs_exit, .-fs_exit
 	.section	.rodata
 	.align	3
-.LC16:
+.LC20:
 	.string	"PIPE LINKED MAX"
 	.text
 	.align	1
@@ -3659,7 +3702,7 @@ fs_exit:
 	.type	fs_dup_table, @function
 fs_dup_table:
 .LFB27:
-	.loc 1 752 1
+	.loc 1 753 1
 	.cfi_startproc
 	addi	sp,sp,-48
 	.cfi_def_cfa_offset 48
@@ -3672,99 +3715,99 @@ fs_dup_table:
 	sd	a0,-40(s0)
 	sd	a1,-48(s0)
 .LBB19:
-	.loc 1 754 13
+	.loc 1 755 13
 	sw	zero,-20(s0)
-	.loc 1 754 5
+	.loc 1 755 5
 	j	.L163
 .L166:
-	.loc 1 755 16
+	.loc 1 756 16
 	lw	a5,-20(s0)
 	slli	a5,a5,3
 	ld	a4,-48(s0)
 	add	a5,a4,a5
 	ld	a5,0(a5)
-	.loc 1 755 11
+	.loc 1 756 11
 	beq	a5,zero,.L164
-	.loc 1 756 29
+	.loc 1 757 29
 	lw	a5,-20(s0)
 	slli	a5,a5,3
 	ld	a4,-48(s0)
 	add	a4,a4,a5
-	.loc 1 756 19
+	.loc 1 757 19
 	lw	a5,-20(s0)
 	slli	a5,a5,3
 	ld	a3,-40(s0)
 	add	a5,a3,a5
-	.loc 1 756 29
+	.loc 1 757 29
 	ld	a4,0(a4)
-	.loc 1 756 23
+	.loc 1 757 23
 	sd	a4,0(a5)
-	.loc 1 757 19
+	.loc 1 758 19
 	lw	a5,-20(s0)
 	slli	a5,a5,3
 	ld	a4,-40(s0)
 	add	a5,a4,a5
 	ld	a5,0(a5)
-	.loc 1 757 22
+	.loc 1 758 22
 	lw	a4,80(a5)
-	.loc 1 757 28
+	.loc 1 758 28
 	addiw	a4,a4,1
 	sext.w	a4,a4
 	sw	a4,80(a5)
-	.loc 1 758 22
+	.loc 1 759 22
 	lw	a5,-20(s0)
 	slli	a5,a5,3
 	ld	a4,-40(s0)
 	add	a5,a4,a5
 	ld	a5,0(a5)
-	.loc 1 758 25
+	.loc 1 759 25
 	ld	a5,88(a5)
-	.loc 1 758 15
+	.loc 1 759 15
 	beq	a5,zero,.L164
 .LBB20:
-	.loc 1 759 43
+	.loc 1 760 43
 	lw	a5,-20(s0)
 	slli	a5,a5,3
 	ld	a4,-40(s0)
 	add	a5,a4,a5
 	ld	a5,0(a5)
-	.loc 1 759 31
+	.loc 1 760 31
 	ld	a5,88(a5)
 	sd	a5,-32(s0)
-	.loc 1 761 20
+	.loc 1 762 20
 	ld	a5,-32(s0)
 	lw	a5,528(a5)
-	.loc 1 761 26
+	.loc 1 762 26
 	addiw	a5,a5,1
 	sext.w	a4,a5
 	ld	a5,-32(s0)
 	sw	a4,528(a5)
-	.loc 1 765 23
+	.loc 1 766 23
 	ld	a5,-32(s0)
 	lw	a4,792(a5)
-	.loc 1 765 19
+	.loc 1 766 19
 	li	a5,31
 	ble	a4,a5,.L164
-	.loc 1 766 21
-	lla	a0,.LC16
+	.loc 1 767 21
+	lla	a0,.LC20
 	call	puts
 .L165:
-	.loc 1 767 26
+	.loc 1 768 26
 	j	.L165
 .L164:
 .LBE20:
-	.loc 1 754 37 discriminator 2
+	.loc 1 755 37 discriminator 2
 	lw	a5,-20(s0)
 	addiw	a5,a5,1
 	sw	a5,-20(s0)
 .L163:
-	.loc 1 754 19 discriminator 1
+	.loc 1 755 19 discriminator 1
 	lw	a5,-20(s0)
 	sext.w	a4,a5
 	li	a5,15
 	ble	a4,a5,.L166
 .LBE19:
-	.loc 1 773 1
+	.loc 1 774 1
 	nop
 	nop
 	ld	ra,40(sp)
@@ -3783,7 +3826,7 @@ fs_dup_table:
 	.type	free_fs_table, @function
 free_fs_table:
 .LFB28:
-	.loc 1 776 1
+	.loc 1 777 1
 	.cfi_startproc
 	addi	sp,sp,-32
 	.cfi_def_cfa_offset 32
@@ -3794,7 +3837,7 @@ free_fs_table:
 	addi	s0,sp,32
 	.cfi_def_cfa 8, 0
 	sd	a0,-24(s0)
-	.loc 1 798 1
+	.loc 1 794 1
 	nop
 	ld	ra,24(sp)
 	.cfi_restore 1
@@ -3812,7 +3855,7 @@ free_fs_table:
 	.type	fs_dup2, @function
 fs_dup2:
 .LFB29:
-	.loc 1 800 36
+	.loc 1 796 36
 	.cfi_startproc
 	addi	sp,sp,-48
 	.cfi_def_cfa_offset 48
@@ -3827,92 +3870,92 @@ fs_dup2:
 	sw	a5,-36(s0)
 	mv	a5,a4
 	sw	a5,-40(s0)
-	.loc 1 801 32
+	.loc 1 797 32
 	call	get_current_file_table
 	sd	a0,-24(s0)
-	.loc 1 804 20
+	.loc 1 800 20
 	lw	a5,-40(s0)
 	slli	a5,a5,3
 	ld	a4,-24(s0)
 	add	a5,a4,a5
 	ld	a5,0(a5)
-	.loc 1 804 9
+	.loc 1 800 9
 	beq	a5,zero,.L169
-	.loc 1 805 10
+	.loc 1 801 10
 	lw	a5,-40(s0)
 	li	a1,0
 	mv	a0,a5
 	call	fs_close
 .L169:
-	.loc 1 809 35
+	.loc 1 805 35
 	lw	a5,-36(s0)
 	slli	a5,a5,3
 	ld	a4,-24(s0)
 	add	a4,a4,a5
-	.loc 1 809 15
+	.loc 1 805 15
 	lw	a5,-40(s0)
 	slli	a5,a5,3
 	ld	a3,-24(s0)
 	add	a5,a3,a5
-	.loc 1 809 35
+	.loc 1 805 35
 	ld	a4,0(a4)
-	.loc 1 809 23
+	.loc 1 805 23
 	sd	a4,0(a5)
-	.loc 1 810 15
+	.loc 1 806 15
 	lw	a5,-40(s0)
 	slli	a5,a5,3
 	ld	a4,-24(s0)
 	add	a5,a4,a5
 	ld	a5,0(a5)
-	.loc 1 810 22
+	.loc 1 806 22
 	lw	a4,80(a5)
-	.loc 1 810 28
+	.loc 1 806 28
 	addiw	a4,a4,1
 	sext.w	a4,a4
 	sw	a4,80(a5)
-	.loc 1 811 18
+	.loc 1 807 18
 	lw	a5,-40(s0)
 	slli	a5,a5,3
 	ld	a4,-24(s0)
 	add	a5,a4,a5
 	ld	a5,0(a5)
-	.loc 1 811 25
+	.loc 1 807 25
 	ld	a5,88(a5)
-	.loc 1 811 7
+	.loc 1 807 7
 	beq	a5,zero,.L172
 .LBB21:
-	.loc 1 812 39
+	.loc 1 808 39
 	lw	a5,-40(s0)
 	slli	a5,a5,3
 	ld	a4,-24(s0)
 	add	a5,a4,a5
 	ld	a5,0(a5)
-	.loc 1 812 23
+	.loc 1 808 23
 	ld	a5,88(a5)
 	sd	a5,-32(s0)
-	.loc 1 814 12
+	.loc 1 810 12
 	ld	a5,-32(s0)
 	lw	a5,528(a5)
-	.loc 1 814 18
+	.loc 1 810 18
 	addiw	a5,a5,1
 	sext.w	a4,a5
 	ld	a5,-32(s0)
 	sw	a4,528(a5)
-	.loc 1 817 15
+	.loc 1 813 15
 	ld	a5,-32(s0)
 	lw	a4,792(a5)
-	.loc 1 817 11
+	.loc 1 813 11
 	li	a5,31
 	ble	a4,a5,.L172
-	.loc 1 818 13
-	lla	a0,.LC16
+	.loc 1 814 13
+	lla	a0,.LC20
 	call	puts
 .L171:
-	.loc 1 819 18
+	.loc 1 815 18
 	j	.L171
 .L172:
 .LBE21:
-	.loc 1 822 1
+	.loc 1 818 1
 	nop
 	ld	ra,40(sp)
 	.cfi_restore 1
@@ -4798,7 +4841,7 @@ fs_dup2:
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF93
-	.2byte	0x320
+	.2byte	0x31c
 	.8byte	.LFB29
 	.8byte	.LFE29-.LFB29
 	.uleb128 0x1
@@ -4806,7 +4849,7 @@ fs_dup2:
 	.4byte	0x78b
 	.uleb128 0x6
 	.4byte	.LASF90
-	.2byte	0x320
+	.2byte	0x31c
 	.byte	0x12
 	.4byte	0x48
 	.uleb128 0x2
@@ -4814,7 +4857,7 @@ fs_dup2:
 	.sleb128 -36
 	.uleb128 0x6
 	.4byte	.LASF91
-	.2byte	0x320
+	.2byte	0x31c
 	.byte	0x1d
 	.4byte	0x48
 	.uleb128 0x2
@@ -4822,7 +4865,7 @@ fs_dup2:
 	.sleb128 -40
 	.uleb128 0x3
 	.4byte	.LASF92
-	.2byte	0x321
+	.2byte	0x31d
 	.byte	0x13
 	.4byte	0x607
 	.uleb128 0x2
@@ -4833,7 +4876,7 @@ fs_dup2:
 	.8byte	.LBE21-.LBB21
 	.uleb128 0x2
 	.string	"pip"
-	.2byte	0x32c
+	.2byte	0x328
 	.byte	0x17
 	.4byte	0x33e
 	.uleb128 0x2
@@ -4844,7 +4887,7 @@ fs_dup2:
 	.uleb128 0x2d
 	.4byte	.LASF94
 	.byte	0x1
-	.2byte	0x307
+	.2byte	0x308
 	.byte	0x6
 	.8byte	.LFB28
 	.8byte	.LFE28-.LFB28
@@ -4853,7 +4896,7 @@ fs_dup2:
 	.4byte	0x7ba
 	.uleb128 0x6
 	.4byte	.LASF92
-	.2byte	0x307
+	.2byte	0x308
 	.byte	0x22
 	.4byte	0x607
 	.uleb128 0x2
@@ -4862,7 +4905,7 @@ fs_dup2:
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF95
-	.2byte	0x2ef
+	.2byte	0x2f0
 	.8byte	.LFB27
 	.8byte	.LFE27-.LFB27
 	.uleb128 0x1
@@ -4870,7 +4913,7 @@ fs_dup2:
 	.4byte	0x836
 	.uleb128 0x6
 	.4byte	.LASF96
-	.2byte	0x2ef
+	.2byte	0x2f0
 	.byte	0x21
 	.4byte	0x607
 	.uleb128 0x2
@@ -4878,7 +4921,7 @@ fs_dup2:
 	.sleb128 -40
 	.uleb128 0x6
 	.4byte	.LASF97
-	.2byte	0x2ef
+	.2byte	0x2f0
 	.byte	0x37
 	.4byte	0x607
 	.uleb128 0x2
@@ -4889,7 +4932,7 @@ fs_dup2:
 	.8byte	.LBE19-.LBB19
 	.uleb128 0x2
 	.string	"i"
-	.2byte	0x2f2
+	.2byte	0x2f3
 	.byte	0xd
 	.4byte	0x48
 	.uleb128 0x2
@@ -4900,7 +4943,7 @@ fs_dup2:
 	.8byte	.LBE20-.LBB20
 	.uleb128 0x2
 	.string	"pip"
-	.2byte	0x2f7
+	.2byte	0x2f8
 	.byte	0x1f
 	.4byte	0x33e
 	.uleb128 0x2
@@ -4911,7 +4954,7 @@ fs_dup2:
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF98
-	.2byte	0x2e8
+	.2byte	0x2e9
 	.8byte	.LFB26
 	.8byte	.LFE26-.LFB26
 	.uleb128 0x1
@@ -4919,7 +4962,7 @@ fs_dup2:
 	.4byte	0x882
 	.uleb128 0x6
 	.4byte	.LASF92
-	.2byte	0x2e8
+	.2byte	0x2e9
 	.byte	0x1c
 	.4byte	0x607
 	.uleb128 0x2
@@ -4930,7 +4973,7 @@ fs_dup2:
 	.8byte	.LBE18-.LBB18
 	.uleb128 0x2
 	.string	"i"
-	.2byte	0x2ea
+	.2byte	0x2eb
 	.byte	0xd
 	.4byte	0x48
 	.uleb128 0x2
@@ -7545,9 +7588,9 @@ fs_dup2:
 .LASF139:
 	.string	"first_entries"
 	.section	.debug_line_str,"MS",@progbits,1
+.LASF1:
+	.string	"/Users/ab25cq/minux9"
 .LASF0:
 	.string	"fs.c"
-.LASF1:
-	.string	"/Users/ab25cq/minux9-dev"
 	.ident	"GCC: (g04696df09) 14.2.0"
 	.section	.note.GNU-stack,"",@progbits

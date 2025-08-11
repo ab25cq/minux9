@@ -363,7 +363,7 @@ typedef int32_t ssize_t;
 struct spipe* pipealloc(void)
 {
     struct spipe *p = (struct spipe*)kalloc(); //1, sizeof(struct spipe));
-//printf("kalloc pipe %p\n", p);
+printf("kalloc pipe %p\n", p);
     if (p == 0)
         return 0;
     p->nread     = 0;
@@ -384,7 +384,7 @@ struct spipe* pipealloc(void)
 struct file* new_file_table()
 {
     struct file* result = (struct file*)kalloc(); //1, sizeof(struct file));
-//printf("kalloc file table %p\n", result);
+printf("kalloc file table %p\n", result);
     memset(result, 0, sizeof(struct file));
     
     return result;
@@ -729,13 +729,14 @@ int fs_close(long fd, int force_pipe_close) {
                     f->pipe = NULL;
                 }
             */
-//                kfree(p);
-//puts("PIPE FREE");
+                kfree(p);
+printf("PIPE FREE %p", p);
                 file_table[idx]->pipe = NULL;
             }
         }
 //        memset(file_table[idx], 0, sizeof(struct file));
         kfree(file_table[idx]);
+printf("kfree %p\n", file_table[idx]);
         file_table[idx] = NULL;
     }
     return 0;
@@ -780,16 +781,11 @@ void free_fs_table(struct file** file_table)
             if(file_table[i]->pipe) {
                 struct spipe* p = file_table[i]->pipe;
                 
-                for(int i=0; i<p->num_linked_file; i++) {
-                    struct file* f = p->linked_file[i];
-                    
-                    f->pipe = NULL;
-                }
                 kfree(file_table[i]->pipe);
-//printf("kfree %p\n", file_table[i]->pipe);
+printf("kfree %p\n", file_table[i]->pipe);
             }
             if(file_table[i]->used <= 0) {
-                kfree(file_table[i]);
+//                kfree(file_table[i]);
 //printf("kfree %p\n", file_table[i]);
             }
         }
