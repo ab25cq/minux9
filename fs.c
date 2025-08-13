@@ -576,6 +576,7 @@ int piperead(int fd, char *addr, int n)
         panic("piperead");
     }
     // データが来るまで待機
+printf("piperead write_open %d\n", p->write_open);
     while (p->nread == p->nwrite && p->write_open) {
        yield();
     }
@@ -598,7 +599,7 @@ int piperead(int fd, char *addr, int n)
         
         addr[i] = p->data[p->nread % PIPE_SIZE];
         p->nread++;
-//printf("(1)PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
+printf("(1)PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
 //        yield();
         j++;
 //printf("(2)PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
@@ -738,17 +739,11 @@ int fs_close(long fd, int force_pipe_close) {
         return -1;
     }
     
-/*
-    if(file_table[fd]->kind == FK_STDIN || file_table[fd]->kind == FK_STDOUT || file_table[fd]->kind == FK_STDERR)
-    {
-        return -1;
-    }
-*/
-    
     long idx = fd;
     if (idx < 0 || idx >= MAX_OPEN_FILES) // || file_table[idx] == NULL) // || !file_table[idx]->used)
         return -1;
     file_table[idx]->used--;
+/*
     if(force_pipe_close) {
         struct spipe* p = file_table[idx]->pipe;
         if(file_table[idx]->read_pipe) {
@@ -758,39 +753,28 @@ int fs_close(long fd, int force_pipe_close) {
             p->write_open = 0;
         }
     }
-    struct spipe* p = file_table[idx]->pipe;
-    if(p) {
-        p->used--;
-    }
+*/
     if(file_table[idx]->used <= 0) {
-//puts("FILE CLOSE");
         file_table[idx]->used = 0;
         
         struct spipe* p = file_table[idx]->pipe;
         if(file_table[idx]->read_pipe) {
             p->read_open = 0;
+printf("p->read_open %d\n", p->read_open);
         }
         if(file_table[idx]->write_pipe) {
             p->write_open = 0;
+printf("p->write_open %d\n", p->write_open);
         }
-//printf("pipe %p\n", p);
         if(p) {
-//printf("fs_close pipe used %d\n", p->used);
+            p->used--;
             
             if(p->used == 0) {
-            /*
-                for(int i=0; i<p->num_linked_file; i++) {
-                    struct file* f = p->linked_file[i];
-                    
-                    f->pipe = NULL;
-                }
-            */
                 free_pipe(p);
-//printf("PIPE FREE %p", p);
+printf("PIPE FREE %p", p);
                 file_table[idx]->pipe = NULL;
             }
         }
-//        memset(file_table[idx], 0, sizeof(struct file));
         free_file(file_table[idx]);
         file_table[idx] = NULL;
     }
