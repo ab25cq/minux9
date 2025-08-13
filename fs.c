@@ -363,6 +363,8 @@ typedef int32_t ssize_t;
 struct spipe* pipealloc(void)
 {
     struct spipe *p = (struct spipe*)kalloc(); //1, sizeof(struct spipe));
+    
+    memset(p, 0, sizeof(struct spipe));
 //printf("kalloc pipe %p\n", p);
     if (p == 0)
         return 0;
