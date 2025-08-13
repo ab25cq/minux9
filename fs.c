@@ -356,16 +356,70 @@ void dump_inode(uint32_t inum) {
 
 typedef int32_t ssize_t;
 
+struct spipe gPipes[MAX_OPEN_FILES];
+struct file gFiles[MAX_OPEN_FILES];
+
+struct spipe* gFreePipes;
+struct file* gFreeFiles;
+
+void file_system_init()
+{
+    memset(gPipes, 0, sizeof(struct spipe)*MAX_OPEN_FILES);
+    memset(gFiles, 0, sizeof(struct file)*MAX_OPEN_FILES);
+    
+    for(int i=0; i<MAX_OPEN_FILES; i++)  {
+        struct spipe* p = &gPipes[i];
+        
+        p->free_next = gFreePipes;
+        gFreePipes = p;
+    }
+    
+    for(int i=0; i<MAX_OPEN_FILES; i++)  {
+        struct file* p = &gFiles[i];
+        
+        p->free_next = gFreeFiles;
+        gFreeFiles = p;
+    }
+}
+
+struct spipe* alloc_pipe()
+{
+    struct spipe* p = gFreePipes;
+    
+    gFreePipes = gFreePipes->free_next;
+    
+    return p;
+}
+
+void free_pipe(struct spipe* p)
+{
+    p->free_next = gFreePipes;
+    gFreePipes = p;
+}
+
+struct file* alloc_file()
+{
+    struct file* p = gFreeFiles;
+    
+    gFreeFiles = gFreeFiles->free_next;
+    
+    return p;
+}
+
+void free_file(struct file* p)
+{
+    p->free_next = gFreeFiles;
+    gFreeFiles = p;
+}
 
 // ── pipealloc ──────────────────────────────────────────────────────────
 // パイプ構造体を確保・初期化して返す
 
 struct spipe* pipealloc(void)
 {
-    struct spipe *p = (struct spipe*)kalloc(); //1, sizeof(struct spipe));
+    struct spipe *p = (struct spipe*)alloc_pipe(); //1, sizeof(struct spipe));
     
     memset(p, 0, sizeof(struct spipe));
-//printf("kalloc pipe %p\n", p);
     if (p == 0)
         return 0;
     p->nread     = 0;
@@ -385,7 +439,7 @@ struct spipe* pipealloc(void)
 
 struct file* new_file_table()
 {
-    struct file* result = (struct file*)kalloc(); //1, sizeof(struct file));
+    struct file* result = (struct file*)alloc_file(); //1, sizeof(struct file));
 //printf("kalloc file table %p\n", result);
     memset(result, 0, sizeof(struct file));
     
@@ -731,14 +785,13 @@ int fs_close(long fd, int force_pipe_close) {
                     f->pipe = NULL;
                 }
             */
-                kfree(p);
+                free_pipe(p);
 //printf("PIPE FREE %p", p);
                 file_table[idx]->pipe = NULL;
             }
         }
 //        memset(file_table[idx], 0, sizeof(struct file));
-        kfree(file_table[idx]);
-//printf("kfree %p\n", file_table[idx]);
+        free_file(file_table[idx]);
         file_table[idx] = NULL;
     }
     return 0;

@@ -112,6 +112,8 @@ struct spipe {
     
     struct file* linked_file[PIPE_LINKED_MAX];
     int num_linked_file;
+    
+    struct spipe* free_next;
 };
 
 // ファイルテーブルエントリ
@@ -125,6 +127,8 @@ struct file {
     int pipe_used;
     int read_pipe;
     int write_pipe;
+    
+    struct file* free_next;
 };
 
 int is_pipe(int fd);
@@ -142,6 +146,8 @@ void fs_dup_table(struct file** result, struct file** orig);
 ssize_t fs_size(int fd);
 void fs_exit(struct file** file_table);
 void free_fs_table(struct file** file_table);
+
+void file_system_init();
 
 #define MAX_OPEN_FILES 16
 

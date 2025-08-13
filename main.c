@@ -1935,6 +1935,7 @@ int main()
     mmu_init();
     virtio_blk_init();
     read_superblock();
+    file_system_init();
     
     global_init();
     
