@@ -9,7 +9,6 @@ int main(int argc, char** argv) {
         while ((n = read(0, buf, 32)) > 0) {
             write(1, buf, n);
         }
-        exit(0);
     }
     else {
         int fd = open(argv[1], 0, 0);
@@ -19,7 +18,7 @@ int main(int argc, char** argv) {
     
         write(1, buf, size);
     
-        exit(0);
     }
+    exit(0);
 }
 

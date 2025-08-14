@@ -388,6 +388,8 @@ struct spipe* alloc_pipe()
     
     gFreePipes = gFreePipes->free_next;
     
+    memset(p, 0, sizeof(struct spipe));
+    
     return p;
 }
 
@@ -402,6 +404,8 @@ struct file* alloc_file()
     struct file* p = gFreeFiles;
     
     gFreeFiles = gFreeFiles->free_next;
+    
+    memset(p, 0, sizeof(struct file));
     
     return p;
 }
@@ -580,6 +584,7 @@ printf("piperead write_open %d\n", p->write_open);
     while (p->nread == p->nwrite && p->write_open) {
        yield();
     }
+printf("piperead write_open %d\n", p->write_open);
     // 書き側クローズかつバッファ空 → EOF
     if (p->nread == p->nwrite && !p->write_open) {
         return 0;
@@ -732,7 +737,8 @@ ssize_t fs_size(int fd) {
 
 // fs_close: fd を閉じる
 // 成功: 0, 失敗: -1
-int fs_close(long fd, int force_pipe_close) {
+
+int fs_close(long fd) {
     struct file** file_table = get_current_file_table();
     
     if(file_table[fd] == NULL) {
@@ -743,29 +749,10 @@ int fs_close(long fd, int force_pipe_close) {
     if (idx < 0 || idx >= MAX_OPEN_FILES) // || file_table[idx] == NULL) // || !file_table[idx]->used)
         return -1;
     file_table[idx]->used--;
-/*
-    if(force_pipe_close) {
-        struct spipe* p = file_table[idx]->pipe;
-        if(file_table[idx]->read_pipe) {
-            p->read_open = 0;
-        }
-        if(file_table[idx]->write_pipe) {
-            p->write_open = 0;
-        }
-    }
-*/
     if(file_table[idx]->used <= 0) {
         file_table[idx]->used = 0;
         
         struct spipe* p = file_table[idx]->pipe;
-        if(file_table[idx]->read_pipe) {
-            p->read_open = 0;
-printf("p->read_open %d\n", p->read_open);
-        }
-        if(file_table[idx]->write_pipe) {
-            p->write_open = 0;
-printf("p->write_open %d\n", p->write_open);
-        }
         if(p) {
             p->used--;
             
@@ -781,10 +768,35 @@ printf("PIPE FREE %p", p);
     return 0;
 }
 
+int fs_close_pipe(long fd) {
+    struct file** file_table = get_current_file_table();
+    
+    if(file_table[fd] == NULL) {
+        return -1;
+    }
+    
+    long idx = fd;
+    if (idx < 0 || idx >= MAX_OPEN_FILES) // || file_table[idx] == NULL) // || !file_table[idx]->used)
+        return -1;
+    
+    struct spipe* p = file_table[idx]->pipe;
+    if(file_table[idx]->read_pipe) {
+        p->read_open = 0;
+    }
+    if(file_table[idx]->write_pipe) {
+        p->write_open = 0;
+    }
+    return 0;
+}
+
 void fs_exit(struct file** file_table)
 {
+puts("fs_exit");
     for(int i=0; i<MAX_OPEN_FILES; i++) {
-        fs_close(i, 1/* force_pipe_close */);
+        fs_close_pipe(i);
+    }
+    for(int i=0; i<MAX_OPEN_FILES; i++) {
+        fs_close(i);
     }
 }
 
@@ -837,7 +849,7 @@ void fs_dup2(int oldfd, int newfd) {
      
      // newfdが既に開かれている場合、まず閉じる処理を追加します
      if (file_table[newfd] != NULL) {
-         fs_close(newfd, 0 /* force_pipe_close */);
+         fs_close(newfd);
      }
                          
     

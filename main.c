@@ -1497,7 +1497,7 @@ int Sys_execv()
     ssize_t size = fs_size(fd);
     char elf_buf[2048]; // = calloc(1, size);
     int ret = fs_read(fd, elf_buf, size);
-    fs_close(fd, 0/*force_pipe_close*/);
+    fs_close(fd);
     if (ret <= 0) {
         trapframe->a0 = -1;
         return -1;
@@ -1821,7 +1821,7 @@ uintptr_t syscall_handler()
         case SYS_close: {
             long fd = arg0;
             
-            int ret = fs_close(fd, 0 /*force_pipe_close*/);
+            int ret = fs_close(fd);
             
             result = ret;
             }
@@ -1829,6 +1829,19 @@ uintptr_t syscall_handler()
             
         case SYS_fork: {
             result = Sys_fork();
+            }
+            break;
+            
+        case SYS_clear: {
+            gNumProc = 1;
+            gActiveProc = 0;
+            memset(gKernelState, 0, sizeof(sKernelState)*MAX_KERNEL);
+            gNumKernelState = 0;
+
+            gKernelStateHead = 0;
+            gKernelStateTail = 0;
+            
+            result = 0;
             }
             break;
             

@@ -14,6 +14,7 @@ typedef int pid_t;
 #define SYS_dup2 72
 #define SYS_pipe 73
 #define SYS_brk 74
+#define SYS_clear 75
 
 
 #define write(fd, buf, len) ({                                       \
@@ -145,6 +146,17 @@ typedef int pid_t;
 #define fork()                                        \
     ({                                                    \
         register long _num asm("a7") = SYS_fork;          \
+        register long _ret asm("a0");                     \
+        asm volatile("ecall"                              \
+                     : "=r"(_ret)                         \
+                     : "r"(_num)                          \
+                     : "memory");                         \
+        _ret;                                             \
+    })
+    
+#define clear_proc()                                       \
+    ({                                                    \
+        register long _num asm("a7") = SYS_clear;         \
         register long _ret asm("a0");                     \
         asm volatile("ecall"                              \
                      : "=r"(_ret)                         \
