@@ -342,6 +342,7 @@ int main(void) {
         // プロンプト
         write(1, "$ ", 2);
         
+/*
         // キーボードから１行読み込み（改行込み）
         n = 0;
         while(1) {
@@ -368,8 +369,9 @@ int main(void) {
             }
         }
         buf[n] = '\0';
+*/
      
-//        strncpy(buf, "cat a.txt | cat", BUF_SIZE);
+        strncpy(buf, "cat a.txt | cat", BUF_SIZE);
         
         write(1, "\r\n", 2);
         
