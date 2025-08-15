@@ -2,8 +2,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "fs.h"
-
-#define MAX_OPEN_FILES 16
+#include "common.h"
 
 void * kalloc(void);
 void kfree(void *pa);
@@ -447,6 +446,9 @@ struct file* new_file_table()
 //printf("kalloc file table %p\n", result);
     memset(result, 0, sizeof(struct file));
     
+    result->owner_processes[0] = gProc[gActiveProc];
+    result->num_owner_process++;
+    
     return result;
 }
 
@@ -527,7 +529,13 @@ void pipe_open(int* fd1, int* fd2) {
             *fd1 = i;
             
             pip->used++;
-            //pip->linked_file[pip->num_linked_file++] = file_table[i];
+            pip->linked_file[pip->num_linked_file++] = file_table[i];
+            pip->nreader++;
+            
+            if(pip->num_linked_file >= PIPE_LINKED_MAX) {
+                puts("PIPE LINKED MAX");
+                while(1);
+            }
             
 //printf("pip->used %d\n", pip->used);
             break;
@@ -548,7 +556,13 @@ void pipe_open(int* fd1, int* fd2) {
             *fd2 = i;  // <- 3,4,5… を返す
             
             pip->used++;
-            //pip->linked_file[pip->num_linked_file++] = file_table[i];
+            pip->linked_file[pip->num_linked_file++] = file_table[i];
+            pip->nwriter++;
+            
+            if(pip->num_linked_file >= PIPE_LINKED_MAX) {
+                puts("PIPE LINKED MAX");
+                while(1);
+            }
             
 //printf("pip->used %d\n", pip->used);
             break;
@@ -580,11 +594,9 @@ int piperead(int fd, char *addr, int n)
         panic("piperead");
     }
     // データが来るまで待機
-printf("piperead write_open %d\n", p->write_open);
     while (p->nread == p->nwrite && p->write_open) {
        yield();
     }
-printf("piperead write_open %d\n", p->write_open);
     // 書き側クローズかつバッファ空 → EOF
     if (p->nread == p->nwrite && !p->write_open) {
         return 0;
@@ -599,12 +611,12 @@ printf("piperead write_open %d\n", p->write_open);
         
         // 書き側クローズかつバッファ空 → EOF
         if (p->nread == p->nwrite && !p->write_open) {
-            return 0;
+            break; //return 0;
         }
         
         addr[i] = p->data[p->nread % PIPE_SIZE];
         p->nread++;
-printf("(1)PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
+//printf("(1)PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
 //        yield();
         j++;
 //printf("(2)PIPEREAD PID %d %c i %d n %d p->nread %d p->nwrite %d\n", gActiveProc, addr[i], i, n, p->nread, p->nwrite);
@@ -639,7 +651,8 @@ int pipewrite(int fd, char *addr, int n)
       }
       // 読み側クローズ → SIGPIPE 相当
       if (!p->read_open) {
-          return -1;
+          //return -1;
+          return (i > 0) ? i : -1;   // ← 既に書けた分があればそれを返す
       }
       p->data[p->nwrite % PIPE_SIZE] = addr[i];
       p->nwrite++;
@@ -656,7 +669,6 @@ int pipewrite(int fd, char *addr, int n)
 // fs_open: パスから inode を開き、ファイル記述子を返す
 // 成功: [0, MAX_OPEN_FILES) の fd, 失敗: -1
 // 先頭に定義
-#define MAX_OPEN_FILES 16
 #define FD_OFFSET      3   // 返す FD は 3 からスタート
 int fs_open(const char *path) {
     struct file** file_table = get_current_file_table();
@@ -738,35 +750,158 @@ ssize_t fs_size(int fd) {
 // fs_close: fd を閉じる
 // 成功: 0, 失敗: -1
 
-int fs_close(long fd) {
+int fs_close(long fd, int massive) {
+    struct file** ft = get_current_file_table();
+
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return -1;
+    struct file *f = ft[fd];
+    if (f == NULL) return -1;
+
+    // ① このプロセスの FD を即座に切り離す（二重 close を無害化）
+    ft[fd] = NULL;
+
+    // ② 参照カウントを減らす（massive で owner を外すのはOKだが解放条件には使わない）
+    f->used--;
+
+    // ③ 参照がまだ残っているならここで終了（他プロセス/他FDが使っている）
+    if (f->used > 0) {
+        return 0;
+    }
+
+    // ④ ここに来たら “この open file を参照する FD が完全になくなった”
+    //     pipe の read/write カウントをここでだけ減らし、0 ならフラグを落とす
+    struct spipe* p = f->pipe;
+    if (p) {
+        if (f->read_pipe  && p->nreader > 0) { if (--p->nreader == 0) p->read_open  = 0; }
+        if (f->write_pipe && p->nwriter > 0) { if (--p->nwriter == 0) p->write_open = 0; }
+
+        // この open file が持っていた pipe 参照も解放
+        if (--p->used == 0) {
+            // free_pipe の前に逆参照を切る（解放後の p に触らない）
+            for (int i = 0; i < p->num_linked_file; i++) {
+                if (p->linked_file[i]) p->linked_file[i]->pipe = NULL;
+            }
+            free_pipe(p);
+        }
+    }
+
+    // ⑤ open file 自身をフリーリストへ
+    free_file(f);
+    return 0;
+}
+
+
+/*
+int fs_close(long fd, int massive) {
     struct file** file_table = get_current_file_table();
+    
+//printf("proc %d fs_close %d\n", gActiveProc, fd);
     
     if(file_table[fd] == NULL) {
         return -1;
+    }
+    
+    struct spipe* p = file_table[fd]->pipe;
+
+    if (file_table[fd]->read_pipe) {
+        if (p->nreader > 0) p->nreader--;
+        if (p->nreader == 0) p->read_open = 0;
+    }
+    if (file_table[fd]->write_pipe) {
+        if (p->nwriter > 0) p->nwriter--;
+        if (p->nwriter == 0) p->write_open = 0;
     }
     
     long idx = fd;
     if (idx < 0 || idx >= MAX_OPEN_FILES) // || file_table[idx] == NULL) // || !file_table[idx]->used)
         return -1;
     file_table[idx]->used--;
-    if(file_table[idx]->used <= 0) {
-        file_table[idx]->used = 0;
+    
+    int no_owner = 0;
+    if(massive) {
+        for (int i = 0; i < file_table[idx]->num_owner_process; i++) {
+             if (file_table[idx]->owner_processes[i] == gProc[gActiveProc]) {
+                file_table[idx]->owner_processes[i] = NULL;
+            }
+        }
+        for(int i=0; i<file_table[idx]->num_owner_process; i++) {
+            struct proc* o = file_table[idx]->owner_processes[i];
+            
+            if(o) {
+                if(o == gProc[gActiveProc]) {
+                    file_table[idx]->owner_processes[i] = NULL;
+                }
+            }
+        }
+        
+        int num_owner = 0;
+        for(int i=0; i<file_table[idx]->num_owner_process; i++) {
+            struct proc* o = file_table[idx]->owner_processes[i];
+            
+            if(o) {
+                num_owner++;
+            }
+        }
+printf("num_owner %d\n", num_owner);
+        
+        if(num_owner == 0) {
+            no_owner = 1;
+        }
+    }
+    if (file_table[idx]->used == 0) {
+            struct spipe* p = file_table[idx]->pipe;
+    
+            // pipe のカウントは “file を解放する瞬間だけ” 減らす
+            if (p) {
+                if (file_table[idx]->read_pipe  && p->nreader > 0) {
+                    if (--p->nreader == 0) p->read_open = 0;
+                }
+                if (file_table[idx]->write_pipe && p->nwriter > 0) {
+                    if (--p->nwriter == 0) p->write_open = 0;
+                }
+    
+                // この file が参照していた分だけ pipe の used を 1 減らす
+                if (--p->used == 0) {
+                    // ★ free_pipe の前に逆参照を切る
+                    for (int i = 0; i < p->num_linked_file; i++) {
+                        if (p->linked_file[i]) p->linked_file[i]->pipe = NULL;
+                    }
+                    free_pipe(p);
+                }
+            }
+    
+            // file をフリーリストへ
+            free_file(file_table[idx]);
+            file_table[idx] = NULL;
+        }
+        return 0;
+    }
+    if(file_table[idx]->used == 0 || no_owner) {
+        file_table[idx]->used = -1;
         
         struct spipe* p = file_table[idx]->pipe;
+//printf("p->used %d\n", p->used);
         if(p) {
+            // ★ ここで初めて減らす（早い段階では絶対に減らさない）
+            if (file_table[idx]->read_pipe  && p->nreader > 0) { p->nreader--; if (p->nreader == 0) p->read_open = 0; }
+            if (file_table[idx]->write_pipe && p->nwriter > 0) { p->nwriter--; if (p->nwriter == 0) p->write_open = 0; }
+                                
             p->used--;
             
             if(p->used == 0) {
+                for(int i=0; i<p->num_linked_file; i++) {
+                    p->linked_file[i]->pipe = NULL;
+                }
                 free_pipe(p);
-printf("PIPE FREE %p", p);
-                file_table[idx]->pipe = NULL;
             }
         }
+printf("FREE %d\n", idx);
         free_file(file_table[idx]);
-        file_table[idx] = NULL;
+        file_table[idx] = NULL;  
     }
     return 0;
 }
+*/
 
 int fs_close_pipe(long fd) {
     struct file** file_table = get_current_file_table();
@@ -780,45 +915,63 @@ int fs_close_pipe(long fd) {
         return -1;
     
     struct spipe* p = file_table[idx]->pipe;
-    if(file_table[idx]->read_pipe) {
-        p->read_open = 0;
+
+    if (file_table[idx]->read_pipe) {
+        if (p->nreader > 0) p->nreader--;
+        if (p->nreader == 0) p->read_open = 0;
     }
-    if(file_table[idx]->write_pipe) {
-        p->write_open = 0;
+    if (file_table[idx]->write_pipe) {
+        if (p->nwriter > 0) p->nwriter--;
+        if (p->nwriter == 0) p->write_open = 0;
     }
+
+
     return 0;
 }
 
 void fs_exit(struct file** file_table)
 {
-puts("fs_exit");
+/*
     for(int i=0; i<MAX_OPEN_FILES; i++) {
         fs_close_pipe(i);
     }
+*/
     for(int i=0; i<MAX_OPEN_FILES; i++) {
-        fs_close(i);
+        fs_close(i, 1 /* massive */);
     }
 }
 
-void fs_dup_table(struct file** result, struct file** orig)
+void fs_dup_table(struct proc* owner, struct file** result, struct file** orig)
 {
 //puts("fs_dup");
     for(int i=0; i<MAX_OPEN_FILES; i++) {
         if(orig[i]) {
             result[i] = orig[i];
             result[i]->used++;
+            
+            result[i]->owner_processes[result[i]->num_owner_process++] = owner;
+            
+/*
             if(result[i]->pipe) {
                 struct spipe* pip = result[i]->pipe;
                 
                 pip->used++;
-//printf("i %d pip->used %d\n", i, pip->used);
-                //pip->linked_file[pip->num_linked_file++] = result[i];
+                pip->linked_file[pip->num_linked_file++] = result[i];
+                
+                if(pip->read_open) {
+                    pip->nreader++;
+                }
+                
+                if(pip->write_open) {
+                    pip->nwriter++;
+                }
                 
                 if(pip->num_linked_file >= PIPE_LINKED_MAX) {
                     puts("PIPE LINKED MAX");
                     while(1);
                 }
             }
+*/
         }
     }
 //puts("fs_dup end");
@@ -846,20 +999,51 @@ printf("kfree %p\n", file_table[i]->pipe);
 
 void fs_dup2(int oldfd, int newfd) {
     struct file** file_table = get_current_file_table();
+
+    if (oldfd < 0 || oldfd >= MAX_OPEN_FILES) return;
+    if (newfd < 0 || newfd >= MAX_OPEN_FILES) return;
+    if (file_table[oldfd] == NULL) return;   // ★ oldfd 無効なら何もしない
+    if (oldfd == newfd) return;              // ★ 自分自身なら何もしない
+
+    if (file_table[newfd] != NULL) {
+        fs_close(newfd, 0);                  // newfd が開いていれば先に閉じる
+    }
+
+    // ★ dup2 は “同じ open file の別名” を作るだけ
+    file_table[newfd] = file_table[oldfd];
+    file_table[oldfd]->used++;
+}
+
+/*
+void fs_dup2(int oldfd, int newfd) {
+    struct file** file_table = get_current_file_table();
+    
+    if (oldfd == newfd) {
+        return;
+    }
      
-     // newfdが既に開かれている場合、まず閉じる処理を追加します
-     if (file_table[newfd] != NULL) {
-         fs_close(newfd);
-     }
+    // newfdが既に開かれている場合、まず閉じる処理を追加します
+    if (file_table[newfd] != NULL) {
+        fs_close(newfd, 0);
+    }
                          
     
     file_table[newfd] = file_table[oldfd];
-    file_table[newfd]->used++;
-    if(file_table[newfd]->pipe) {
+    file_table[oldfd]->used++;
+    
+    if(file_table[oldfd]->pipe) {
         struct spipe* pip = file_table[newfd]->pipe;
         
         pip->used++;
-        //pip->linked_file[pip->num_linked_file++] = file_table[newfd];
+        pip->linked_file[pip->num_linked_file++] = file_table[newfd];
+        
+        if(pip->read_open) {
+            pip->nreader++;
+        }
+        
+        if(pip->write_open) {
+            pip->nwriter++;
+        }
         
         if(pip->num_linked_file >= PIPE_LINKED_MAX) {
             puts("PIPE LINKED MAX");
@@ -867,4 +1051,5 @@ void fs_dup2(int oldfd, int newfd) {
         }
     }
 }
+*/
 

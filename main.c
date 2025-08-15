@@ -9,9 +9,12 @@
 #include "userprog2.h"
 #include "msh.h"
 #include "minux.h"
+#include "common.h"
 
 typedef unsigned long size_t;
 typedef long ptrdiff_t;
+
+pagetable_t kernel_pagetable;
 
 #define NULL ((void*)0)
 
@@ -98,79 +101,12 @@ void panic(char* str)
     puts("panic!");
 }
 
-struct context_t {
-    uint64_t ra;
-    uint64_t sp;
-    uint64_t gp;
-    uint64_t tp;
-    uint64_t t0;
-    uint64_t t1;
-    uint64_t t2;
-    uint64_t t3;
-    uint64_t t4;
-    uint64_t t5;
-    uint64_t t6;
-    uint64_t a0;
-    uint64_t a1;
-    uint64_t a2;
-    uint64_t a3;
-    uint64_t a4;
-    uint64_t a5;
-    uint64_t a6;
-    uint64_t a7;
-    uint64_t s0;
-    uint64_t s1;
-    uint64_t s2;
-    uint64_t s3;
-    uint64_t s4;
-    uint64_t s5;
-    uint64_t s6;
-    uint64_t s7;
-    uint64_t s8;
-    uint64_t s9;
-    uint64_t s10;
-    uint64_t s11;
-    uint64_t mepc;
-};
 
 
-typedef uint64_t pte_t;
-typedef uint64_t pde_t;
-typedef pte_t* pagetable_t; // 512
-
-pagetable_t kernel_pagetable;
 
 uint64_t make_satp(pagetable_t pagetable);
 
-#define MAX_OPEN_FILES 16
 
-#define NUM_PROC_VA_MAX 64
-
-struct proc {
-    context_t trapframe;
-    
-    context_t context;      // swtch() here to run process
-    proc *parent;         // Parent process
-//    char* stack;
-    char* stack_top;
-    uint64_t vaddr;
-    uint64_t memsz;
-    uint64_t sz; // Size of process memory (program break)
-    
-    int zombie; 
-    
-    pagetable_t pagetable;
-    
-    char* program;
-    int xstatus;                // exit
-    
-    struct file* file_table[MAX_OPEN_FILES];
-    
-    char* process_kalloc_address[NUM_PROC_VA_MAX];
-    int num_process_kalloc_address;
-    
-    int deleted;
-};
 
 struct cpu {
     proc *proc;          // The process running on this cpu, or null.
@@ -937,7 +873,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
         result->context.sp = stack_base + STACK_PAGES*PGSIZE;
         result->context.gp = parent->context.gp; // Inherit gp in fork
     
-        fs_dup_table(result->file_table, parent->file_table);
+        fs_dup_table(result, result->file_table, parent->file_table);
     }
     else {
         proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
@@ -1298,6 +1234,8 @@ int Sys_write()
         panic("copyinstr");
     }
     
+    struct file** file_table = get_current_file_table();
+
     if(is_pipe(fd)) {
         pipewrite(fd, kernel_buf, len);
     }
@@ -1497,7 +1435,7 @@ int Sys_execv()
     ssize_t size = fs_size(fd);
     char elf_buf[2048]; // = calloc(1, size);
     int ret = fs_read(fd, elf_buf, size);
-    fs_close(fd);
+    fs_close(fd, 0 /* massive */);
     if (ret <= 0) {
         trapframe->a0 = -1;
         return -1;
@@ -1737,6 +1675,8 @@ int Sys_read()
     
     char kernel_buf[256];
     int ret;
+    
+    struct file** file_table = get_current_file_table();
 
     if(is_stdin(fd)) {
         ret = uart_readn(kernel_buf, n);
@@ -1821,7 +1761,7 @@ uintptr_t syscall_handler()
         case SYS_close: {
             long fd = arg0;
             
-            int ret = fs_close(fd);
+            int ret = fs_close(fd, 0 /* massive */);
             
             result = ret;
             }

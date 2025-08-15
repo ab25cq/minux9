@@ -299,9 +299,9 @@ int run_command(int n, struct sCommand* commands, int num_commands)
         int pid = fork();
         
         if(pid == 0) {
-            close(pipes[1]);
             dup2(pipes[0], 0);
             close(pipes[0]);
+            close(pipes[1]);
             run_command(n+1, commands, num_commands);
         }
         else {
@@ -369,7 +369,7 @@ int main(void) {
         }
         buf[n] = '\0';
      
-//        strncpy(buf, "cat a.txt", BUF_SIZE);
+//        strncpy(buf, "cat a.txt | cat", BUF_SIZE);
         
         write(1, "\r\n", 2);
         

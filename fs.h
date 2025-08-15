@@ -91,65 +91,6 @@ void virtio_blk_init(void);
 
 typedef int32_t ssize_t;
 
-int fs_open(const char *path);
-ssize_t fs_read(int fd, void *buf, size_t count);
-int fs_close(long fd);
-
-// ── パイプ本体 ─────────────────────────────────────────────────────────
-#define PIPE_SIZE 512
-
-#define PIPE_LINKED_MAX 32
-
-struct file;
-
-struct spipe {
-    char data[PIPE_SIZE];      // リングバッファ
-    uint32_t nread;            // 読み出し済バイト数
-    uint32_t nwrite;           // 書き込み済バイト数
-    int read_open;             // 読み側 open フラグ
-    int write_open;            // 書き側 open フラグ
-    int used;
-    
-    struct file* linked_file[PIPE_LINKED_MAX];
-    int num_linked_file;
-    
-    struct spipe* free_next;
-};
-
-// ファイルテーブルエントリ
-struct file {
-    enum { FK_STDIN, FK_STDOUT, FK_STDERR, FK_FILE, FK_PIPE } kind;
-    uint32_t inum;        // inode 番号
-    struct dinode din;     // on-disk inode 情報
-    uint32_t off;         // 現在の読み込みオフセット
-    int used;             // 使用フラグ
-    struct spipe* pipe;
-    int pipe_used;
-    int read_pipe;
-    int write_pipe;
-    
-    struct file* free_next;
-};
-
-int is_pipe(int fd);
-int is_stdin(int fd);
-int is_stdout(int fd);
-
-void pipe_open(int* fd1, int* fd2);
-int piperead(int fd, char *addr, int n);
-int pipewrite(int fd, char *addr, int n);
-void fs_dup2(int oldfd, int newfd);
-
-void fs_init(struct file** file_table);
-struct file** get_current_file_table();
-void fs_dup_table(struct file** result, struct file** orig);
-ssize_t fs_size(int fd);
-void fs_exit(struct file** file_table);
-void free_fs_table(struct file** file_table);
-
-void file_system_init();
-
-#define MAX_OPEN_FILES 16
 
 #endif // FS_H
 

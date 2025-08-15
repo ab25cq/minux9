@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9-dev" "msh.c"
+	.file 0 "/Users/ab25cq/minux9" "msh.c"
 	.align	1
 	.globl	strncpy
 	.type	strncpy, @function
@@ -1138,9 +1138,10 @@ run_command:
 	bne	a5,zero,.L78
 .LBB23:
 	.loc 1 302 13
-	lw	a5,-44(s0)
+	lw	a5,-48(s0)
 	mv	a0,a5
-	li	a7,67
+	li	a1,0
+	li	a7,72
  #APP
 # 302 "msh.c" 1
 	ecall
@@ -1151,8 +1152,7 @@ run_command:
 	.loc 1 303 13
 	lw	a5,-48(s0)
 	mv	a0,a5
-	li	a1,0
-	li	a7,72
+	li	a7,67
  #APP
 # 303 "msh.c" 1
 	ecall
@@ -1161,7 +1161,7 @@ run_command:
 .LBE24:
 .LBB25:
 	.loc 1 304 13
-	lw	a5,-48(s0)
+	lw	a5,-44(s0)
 	mv	a0,a5
 	li	a7,67
  #APP
@@ -2408,7 +2408,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB23
 	.8byte	.LBE23-.LBB23
-	.4byte	0x604
+	.4byte	0x612
 	.uleb128 0x1
 	.string	"_a0"
 	.2byte	0x12e
@@ -2416,6 +2416,13 @@ main:
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x5a
+	.uleb128 0x1
+	.string	"_a1"
+	.2byte	0x12e
+	.byte	0xd
+	.4byte	0x66
+	.uleb128 0x1
+	.byte	0x5b
 	.uleb128 0x1
 	.string	"_a7"
 	.2byte	0x12e
@@ -2435,13 +2442,6 @@ main:
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x5a
-	.uleb128 0x1
-	.string	"_a1"
-	.2byte	0x12f
-	.byte	0xd
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x5b
 	.uleb128 0x1
 	.string	"_a7"
 	.2byte	0x12f
@@ -3722,7 +3722,7 @@ main:
 	.string	"negative"
 	.section	.debug_line_str,"MS",@progbits,1
 .LASF1:
-	.string	"/Users/ab25cq/minux9-dev"
+	.string	"/Users/ab25cq/minux9"
 .LASF0:
 	.string	"msh.c"
 	.ident	"GCC: (g04696df09) 14.2.0"
