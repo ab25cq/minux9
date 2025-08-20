@@ -1,15 +1,28 @@
-#include <comelang.h>
 #define nullptr ((void*)0)
 #include <stdint.h>
-//#include <stdarg.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include "elf.h"
 #include "fs.h"
 #include "userprog.h"
 #include "userprog2.h"
 #include "msh.h"
-#include "minux.h"
 #include "common.h"
+
+typedef int pid_t;
+
+#define SYS_write 64
+#define SYS_read 65
+#define SYS_open 66
+#define SYS_close 67
+#define SYS_fork 68
+#define SYS_execv 69
+#define SYS_exit 70
+#define SYS_wait 71
+#define SYS_dup2 72
+#define SYS_pipe 73
+#define SYS_brk 74
+#define SYS_clear 75
 
 typedef unsigned long size_t;
 typedef long ptrdiff_t;
@@ -34,16 +47,791 @@ static char* heap_limit = (char*)0x88000000;
 #define UART_LSR     (*(volatile uint8_t*)(UART0 + 0x05))  // Line Status Register
 #define UART_LSR_THRE 0x20                                // THR Empty ビット
 
-void putc(char c);
-void puts(const char *s);
+
+void* sbrk(ptrdiff_t incr) {
+    if (heap_end == 0)
+        heap_end = (char*)&_end;
+
+    if (heap_end + incr >= heap_limit) {
+        return (void*)-1;
+    }
+
+    void* prev = heap_end;
+    heap_end += incr;
+    return prev;
+}
+
+typedef struct mem_block {
+    size_t size;
+    struct mem_block *next;
+} mem_block_t;
+
+mem_block_t *free_list = NULL;
+
+void *malloc(size_t size) {
+    if (size == 0) {
+        return NULL;
+    }
+
+    if (size % 8 != 0) {
+        size += 8 - (size % 8);
+    }
+    size += sizeof(mem_block_t); 
+
+    mem_block_t *current = free_list;
+    mem_block_t *prev = NULL;
+
+    while (current != NULL) {
+        if (current->size >= size) {
+            if (prev == NULL) {
+                free_list = current->next;
+            } else {
+                prev->next = current->next;
+            }
+            return (void *)(current + 1); 
+        }
+        prev = current;
+        current = current->next;
+    }
+
+    mem_block_t *new_mem = (mem_block_t *)sbrk(size);
+    if (new_mem == (void *)-1) {
+        return NULL; 
+    }
+
+    new_mem->size = size;
+    new_mem->next = NULL;
+    return (void *)(new_mem + 1); 
+}
+
+void free(void *ptr) {
+    if (ptr == NULL) {
+        return;
+    }
+
+    mem_block_t *block = (mem_block_t *)ptr - 1;
+
+    block->next = free_list;
+    free_list = block;
+}
 
 void* memset(void *dst, int c, unsigned int n);
-void* memmove(void *dst, const void *src, unsigned int n);
-void* memcpy(void *dst, const void *src, unsigned int n);
+
+void *calloc(size_t nmemb, size_t size) {
+    size_t total_size = nmemb * size;
+    if (total_size == 0) {
+        return NULL;
+    }
+
+    void *ptr = malloc(total_size);
+    if (ptr != NULL) {
+        memset(ptr, 0, total_size);
+    }
+    return ptr;
+}
+
 int strlen(const char *s);
-int printf(const char* fmt, ...);
-void *calloc(size_t nmemb, size_t size);
-char* strdup(const char* s1);
+void* memcpy(void *dst, const void *src, unsigned int n);
+
+char* strdup(const char* s) {
+    char* s2 = s;
+    size_t len = strlen(s2) + 1;
+    char* p = malloc(len);
+    if (p)
+        memcpy(p, s2, len);
+    return p;
+}
+
+int strcmp(const char* s1, const char* s2) {
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+    }
+    return (unsigned char)*s1 - (unsigned char)*s2;
+}
+                            
+char* strstr(const char* haystack, const char* needle) {
+    if (!*needle)
+        return (char*)haystack;
+
+    for (; *haystack; haystack++) {
+        const char* h = haystack;
+        const char* n = needle;
+
+        while (*h && *n && (*h == *n)) {
+            h++;
+            n++;
+        }
+
+        if (!*n)  // needle 
+            return (char*)haystack;
+    }
+
+    return NULL;  
+}
+
+void* memset(void *dst, int c, unsigned int n) {
+    char *cdst = (char *) dst;
+    int i;
+    for(i = 0; i < n; i++){
+        cdst[i] = c;
+    }
+    return dst;
+}
+
+int memcmp(const void *v1, const void *v2, unsigned int n) {
+    const unsigned char *s1, *s2;
+
+    s1 = v1;
+    s2 = v2;
+    while(n-- > 0){
+        if(*s1 != *s2)
+            return *s1 - *s2;
+        s1++, s2++;
+    }
+
+    return 0;
+}
+
+void* memmove(void *dst, const void *src, unsigned int n) {
+  const char *s;
+  char *d;
+
+  if(n == 0)
+    return dst;
+  
+  s = src;
+  d = dst;
+  if(s < d && s + n > d){
+    s += n;
+    d += n;
+    while(n-- > 0)
+      *--d = *--s;
+  } else
+    while(n-- > 0) {
+      *d++ = *s++;
+    }
+
+  return dst;
+}
+
+void* memcpy(void *dst, const void *src, unsigned int n) {
+  return memmove(dst, src, n);
+}
+
+int strncmp(const char *p, const char *q, unsigned int n) {
+  while(n > 0 && *p && *p == *q)
+    n--, p++, q++;
+  if(n == 0)
+    return 0;
+  return (unsigned char)*p - (unsigned char)*q;
+}
+
+char* strncpy(char *s, const char *t, int n) {
+  char *os;
+
+  os = s;
+  while(n-- > 0 && (*s++ = *t++) != 0)
+    ;
+  while(n-- > 0)
+    *s++ = 0;
+  return os;
+}
+
+int strlen(const char *s) {
+  int n;
+
+  for(n = 0; s[n]; n++)
+    ;
+  return n;
+}
+
+// putcharは環境依存で外部定義
+extern void putchar(char c);
+
+void puts(const char *s) {
+    while (*s) {
+        putchar(*s++);
+    }
+}
+
+char* strncat(char* dest, const char* src, size_t n) {
+    char* d = dest;
+
+    // dest 
+    while (*d) d++;
+
+    //  n  src null 
+    while (n-- && *src) {
+        *d++ = *src++;
+    }
+
+    *d = '\0';
+
+    return dest;
+}
+
+
+// 自前実装の strtok
+// s が NULL でなければ、s の先頭から検索を始める。
+// s が NULL の場合は、前回の呼び出し時の位置から続きのトークンを返す。
+// delim に含まれるいずれかの文字で文字列を区切り、次のトークンを返す。
+// トークンがなくなったら NULL を返す。
+char *strtok(char *s, const char *delim) {
+    static char *next;    // 次のトークン探索開始位置を保持
+    char *start;
+    char *p;
+
+    // 呼び出し時に s が非 NULL なら、new string の検索を開始
+    if (s != NULL) {
+        next = s;
+    }
+
+    // 直前で末尾に達していれば NULL を返す
+    if (next == NULL) {
+        return NULL;
+    }
+
+    // 1) 先頭の区切り文字をスキップ
+    start = next;
+    while (*start != '\0') {
+        // delim に含まれるかどうか調べる
+        const char *d = delim;
+        int is_delim = 0;
+        while (*d != '\0') {
+            if (*start == *d) {
+                is_delim = 1;
+                break;
+            }
+            d++;
+        }
+        if (!is_delim) {
+            break;
+        }
+        start++;
+    }
+
+    // 終端まで区切り文字しかなかった → もうトークンはない
+    if (*start == '\0') {
+        next = NULL;
+        return NULL;
+    }
+
+    // 2) トークンの終端を見つける
+    p = start;
+    while (*p != '\0') {
+        const char *d = delim;
+        int is_delim = 0;
+        while (*d != '\0') {
+            if (*p == *d) {
+                is_delim = 1;
+                break;
+            }
+            d++;
+        }
+        if (is_delim) {
+            break;
+        }
+        p++;
+    }
+
+    // 3) トークン終端を '\0' に置き換え、next を次回呼び出し用にセット
+    if (*p == '\0') {
+        // 文字列の末尾に達したので、次回以降 s=NULL にして呼べば再び NULL が返る
+        next = NULL;
+    } else {
+        // 区切り文字を '\0' に置し、次の検索開始位置を p+1 にする
+        *p = '\0';
+        next = p + 1;
+    }
+
+    // トークンの先頭を返す
+    return start;
+}
+
+void exit(int n) {
+    while(1);
+}
+
+char* itoa(char* buf, unsigned long val_, int base, int is_signed) {
+    char* p = buf;
+    char tmp[32];
+    int i = 0;
+    int negative = 0;
+
+    if (base < 2 || base > 16) {
+        *p = '\0';
+        return p;
+    }
+
+    if (is_signed && (long)val_ < 0) {
+        negative = 1;
+        val_ = (unsigned long)(-(long)val_);
+    }
+
+    do {
+        int digit = val_ % base;
+        tmp[i++] = (digit < 10) ? '0' + digit : 'a' + digit - 10;
+        val_ /= base;
+    } while (val_);
+
+    if (negative)
+        *p++ = '-';
+
+    while (i--)
+        *p++ = tmp[i];
+    *p = '\0';
+    return buf;
+}
+
+int vasprintf(char** out, const char* fmt, va_list ap) {
+    char out2[512];
+    char* p = out2;
+    const char* s;
+    char buf[32];
+    unsigned long remaining = sizeof(out2);
+
+    for (; *fmt && remaining > 1; fmt++) {
+        if (*fmt != '%') {
+            *p++ = *fmt;
+            remaining--;
+            continue;
+        }
+
+        fmt++;  // skip '%'
+        switch (*fmt) {
+        case 'd':
+            itoa(buf, va_arg(ap, int), 10, 1);
+            s = buf;
+            break;
+        case 'u':
+            itoa(buf, va_arg(ap, unsigned int), 10, 0);
+            s = buf;
+            break;
+        case 'x':
+            itoa(buf, va_arg(ap, unsigned int), 16, 0);
+            s = buf;
+            break;
+        case 's':
+            s = va_arg(ap, const char*);
+            if (!s) s = "(null)";
+            break;
+        case 'c':
+            buf[0] = (char)va_arg(ap, int);  
+            buf[1] = '\0';
+            s = buf;
+            break;
+        case 'p':
+            strncpy(buf, "0x", 32);
+            itoa(buf + 2, (unsigned long)(uintptr_t)va_arg(ap, void*), 16, 0);
+            s = buf;
+            break;
+        case '%':
+            buf[0] = '%';
+            buf[1] = '\0';
+            s = buf;
+            break;
+        default:
+            buf[0] = '%';
+            buf[1] = *fmt;
+            buf[2] = '\0';
+            s = buf;
+            break;
+        }
+
+        while (*s && remaining > 1) {
+            *p++ = *s++;
+            remaining--;
+        }
+    }
+
+    *p = '\0';
+    *out = strdup(out2);
+    return p - out2;
+}
+
+int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+
+    char* p = out;
+    const char* s;
+    char buf[32];
+    unsigned long remaining = out_size;
+
+    if (remaining == 0) {
+        va_end(ap);
+        return 0;
+    }
+
+    for (; *fmt; fmt++) {
+        if (*fmt != '%') {
+            if (remaining > 1) {
+                *p++ = *fmt;
+                remaining--;
+            }
+            continue;
+        }
+
+        fmt++;
+        switch (*fmt) {
+        case 's':
+            s = va_arg(ap, const char*);
+            while (*s && remaining > 1) {
+                *p++ = *s++;
+                remaining--;
+            }
+            break;
+        case 'd':
+            itoa(buf, va_arg(ap, int), 10, 0);
+            s = buf;
+            while (*s && remaining > 1) {
+                *p++ = *s++;
+                remaining--;
+            }
+            break;
+        case 'x':
+            itoa(buf, (unsigned int)va_arg(ap, int), 16, 1);  
+            s = buf;
+            while (*s && remaining > 1) {
+                *p++ = *s++;
+                remaining--;
+            }
+            break;
+        case 'c':
+            if (remaining > 1) {
+                *p++ = (char)va_arg(ap, int);
+                remaining--;
+            }
+            break;
+        case 'p':
+            s = "0x";
+            while (*s && remaining > 1) {
+                *p++ = *s++;
+                remaining--;
+            }
+            itoa(buf, (long)va_arg(ap, void*), 16, 1);
+            s = buf;
+            while (*s && remaining > 1) {
+                *p++ = *s++;
+                remaining--;
+            }
+            break;
+        case 'l':
+            if (*(fmt + 1) == 'u') {
+                fmt++;
+                itoa(buf, va_arg(ap, long), 10, 1);
+                s = buf;
+                while (*s && remaining > 1) {
+                    *p++ = *s++;
+                    remaining--;
+                }
+            }
+            break;
+        default:
+            if (remaining > 1) {
+                *p++ = '%';
+                remaining--;
+                if (remaining > 1) {
+                    *p++ = *fmt;
+                    remaining--;
+                }
+            }
+            break;
+        }
+    }
+
+    *p = '\0';
+    va_end(ap);
+    return p - out;
+}
+
+int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+
+    char* p = out;
+    const char* s;
+    char buf[32];
+    unsigned long remaining = out_size;
+
+    if (remaining == 0) {
+        va_end(ap);
+        return 0;
+    }
+
+    for (; *fmt; fmt++) {
+        if (*fmt != '%') {
+            if (remaining > 1) {
+                *p++ = *fmt;
+                remaining--;
+            }
+            continue;
+        }
+
+        fmt++;
+        switch (*fmt) {
+        case 's':
+            s = va_arg(ap, const char*);
+            while (*s && remaining > 1) {
+                *p++ = *s++;
+                remaining--;
+            }
+            break;
+        case 'd':
+            itoa(buf, va_arg(ap, int), 10, 0);
+            s = buf;
+            while (*s && remaining > 1) {
+                *p++ = *s++;
+                remaining--;
+            }
+            break;
+        case 'x':
+            itoa(buf, (unsigned int)va_arg(ap, int), 16, 1);  
+            s = buf;
+            while (*s && remaining > 1) {
+                *p++ = *s++;
+                remaining--;
+            }
+            break;
+        case 'c':
+            if (remaining > 1) {
+                *p++ = (char)va_arg(ap, int);
+                remaining--;
+            }
+            break;
+        case 'p':
+            s = "0x";
+            while (*s && remaining > 1) {
+                *p++ = *s++;
+                remaining--;
+            }
+            itoa(buf, (long)va_arg(ap, void*), 16, 1);
+            s = buf;
+            while (*s && remaining > 1) {
+                *p++ = *s++;
+                remaining--;
+            }
+            break;
+        case 'l':
+            if (*(fmt + 1) == 'u') {
+                fmt++;
+                itoa(buf, va_arg(ap, long), 10, 1);
+                s = buf;
+                while (*s && remaining > 1) {
+                    *p++ = *s++;
+                    remaining--;
+                }
+            }
+            break;
+        default:
+            if (remaining > 1) {
+                *p++ = '%';
+                remaining--;
+                if (remaining > 1) {
+                    *p++ = *fmt;
+                    remaining--;
+                }
+            }
+            break;
+        }
+    }
+
+    *p = '\0';
+    va_end(ap);
+    return p - out;
+}
+
+void printint(int val_, int base, int sign) {
+    char buf[33];  
+    int i = 0;
+    int negative = 0;
+    unsigned int uval;
+
+    if (sign && val_ < 0) {
+        negative = 1;
+        uval = -val_;
+    } else {
+        uval = (unsigned int)val_;
+    }
+
+    if (uval == 0) {
+        putchar('0');
+        return;
+    }
+
+    while (uval > 0) {
+        int digit = uval % base;
+        buf[i++] = digit < 10 ? '0' + digit : 'a' + (digit - 10);
+        uval /= base;
+    }
+
+    if (negative) {
+        putchar('-');
+    }
+
+    while (--i >= 0) {
+        putchar(buf[i]);
+    }
+}
+
+void printlong(unsigned long val_, int base, int sign)  {
+    char buf[65];  
+    int i = 0;
+    int negative = 0;
+
+    if (sign && (long)val_ < 0) {
+        negative = 1;
+        val_ = -(long)val_;
+    }
+
+    if (val_ == 0) {
+        putchar('0');
+        return;
+    }
+
+    while (val_ > 0) {
+        int digit = val_ % base;
+        buf[i++] = digit < 10 ? '0' + digit : 'a' + (digit - 10);
+        val_ /= base;
+    }
+
+    if (negative) {
+        putchar('-');
+    }
+
+    while (--i >= 0) {
+        putchar(buf[i]);
+    }
+}
+
+void printlonglong(unsigned long long val_, int base, int sign)  {
+    char buf[65];
+    int i = 0;
+    int negative = 0;
+
+    if (sign && (long long)val_ < 0) {
+        negative = 1;
+        val_ = -(long long)val_;
+    }
+
+    if (val_ == 0) {
+        putchar('0');
+        return;
+    }
+
+    while (val_ > 0) {
+        int digit = val_ % base;
+        buf[i++] = digit < 10 ? '0' + digit : 'a' + (digit - 10);
+        val_ /= base;
+    }
+
+    if (negative) {
+        putchar('-');
+    }
+
+    while (--i >= 0) {
+        putchar(buf[i]);
+    }
+}
+
+int printf(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+
+    const char* p;
+    for (p = fmt; *p; p++) {
+        if (*p != '%') {
+            putchar(*p);
+            continue;
+        }
+
+        p++; 
+
+        if (*p == 'l') {
+            int lcount = 1;
+            if (*(p+1) == 'l') {
+                lcount = 2;
+                p++;
+            }
+            p++;
+
+            switch (*p) {
+                case 'x': {
+                    if (lcount == 1) {
+                        unsigned long val_ = va_arg(ap, unsigned long);
+                        printlong(val_, 16, 0);
+                    } else {
+                        unsigned long long val_ = va_arg(ap, unsigned long long);
+                        printlonglong(val_, 16, 0);
+                    }
+                    break;
+                }
+                case 'd': {
+                    if (lcount == 1) {
+                        long val_ = va_arg(ap, long);
+                        printlong(val_, 10, 1);
+                    } else {
+                        long long val_ = va_arg(ap, long long);
+                        printlonglong(val_, 10, 1);
+                    }
+                    break;
+                }
+                default: {
+                    putchar('%');
+                    for (int i=0; i<lcount; i++) putchar('l');
+                    putchar(*p);
+                    break;
+                }
+            }
+        } else {
+            switch (*p) {
+                case 'd': {
+                    int val_ = va_arg(ap, int);
+                    printint(val_, 10, 1);
+                    break;
+                }
+                case 'x': {
+                    unsigned int val_ = va_arg(ap, unsigned int);
+                    printint(val_, 16, 0);
+                    break;
+                }
+                case 'p': {
+                    unsigned long val_ = (unsigned long)va_arg(ap, void*);
+                    putchar('0'); putchar('x');
+                    printlong(val_, 16, 0);
+                    break;
+                }
+                case 's': {
+                    const char* s = va_arg(ap, const char*);
+                    if (!s) s = "(null)";
+                    while (*s) putchar(*s++);
+                    break;
+                }
+                case 'c': {
+                    char c = (char)va_arg(ap, int);
+                    putchar(c);
+                    break;
+                }
+                case '%': {
+                    putchar('%');
+                    break;
+                }
+                default: {
+                    putchar('%');
+                    putchar(*p);
+                    break;
+                }
+            }
+        }
+    }
+
+    va_end(ap);
+    return 0;
+}
+
+void kfree(void *pa);
+void freerange(void *pa_start, void *pa_end);
 
 // machine-mode cycle counter
 static inline uint64_t r_time()
@@ -109,8 +897,8 @@ uint64_t make_satp(pagetable_t pagetable);
 
 
 struct cpu {
-    proc *proc;          // The process running on this cpu, or null.
-    context_t context;     // swtch() here to enter scheduler().
+    struct proc *proc;          // The process running on this cpu, or null.
+    struct context_t context;     // swtch() here to enter scheduler().
     int noff;                   // Depth of push_off() nesting.
     int intena;                 // Were interrupts enabled before push_off()?
 };
@@ -139,9 +927,10 @@ struct cpu* mycpu() {
 #define PHYSTOP 0x81000000UL
 
 void* walkaddr(pagetable_t pagetable, uint64_t va);
+void free_pagetable(pagetable_t pagetable, int level);
 
 /// プロセスのユーザー空間を完全に解放
-void free_proc(proc *p) {
+void free_proc(struct proc *p) {
     uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
     for (int i = 0; i < STACK_PAGES; i++) {
         char* pa = walkaddr(p->pagetable, stack_base + i*PGSIZE);
@@ -161,14 +950,9 @@ void free_proc(proc *p) {
 
 #define HEAP_END (_end + PGSIZE * 256)
 
-#define PROC_MAX 1024
-
 struct proc* gProc[PROC_MAX];
 int gNumProc;
 int gActiveProc;
-
-void kfree(void *pa);
-void freerange(void *pa_start, void *pa_end);
 
 #define PTE_V (1L << 0)
 #define PTE_R (1L << 1)
@@ -342,7 +1126,7 @@ void pop_off(void)
 }
 
 struct {
-  struct spinlock lock;
+    struct spinlock lock;
     struct run *freelist;
 } kmem;
 
@@ -739,7 +1523,7 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t max)
 
 // ↑main.c の先頭あたりに追加
 
-void setting_user_pagetable(proc* proc, pagetable_t pagetable)
+void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
 {
     mappages(pagetable, (uint64_t)TRAMPOLINE, PGSIZE, (uint64_t)TRAMPOLINE, PTE_R | PTE_W | PTE_V | PTE_X);
     mappages(pagetable, (uint64_t)TRAPFRAME, PGSIZE, (uint64_t)TRAPFRAME, PTE_R | PTE_W | PTE_V | PTE_U | PTE_X);
@@ -756,7 +1540,7 @@ void setting_user_pagetable(proc* proc, pagetable_t pagetable)
 }
 
 void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_index) {
-    proc* result = kalloc();
+    struct proc* result = kalloc();
     
     result->program = elf_buf;
     
@@ -846,7 +1630,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
 
 
     if(fork_flag) {
-        proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
+        struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
         
         uint64_t parent_current    = parent->context.sp;
         uint64_t parent_stack_top   = (uint64_t)parent->stack_top;
@@ -876,7 +1660,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
         fs_dup_table(result, result->file_table, parent->file_table);
     }
     else {
-        proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
+        struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
         uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
         for (int i = 0; i < STACK_PAGES; i++) {
             char *pa = kalloc();
@@ -908,7 +1692,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
     result->context.mepc = eh->entry;
     
     if(exec_flag) {
-        proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
+        struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
         free_proc(parent);
         gProc[gActiveProc] = result;
         user_satp = MAKE_SATP(result->pagetable);
@@ -940,7 +1724,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
     }
 }
 
-static void free_pagetable(pagetable_t pagetable, int level) {
+void free_pagetable(pagetable_t pagetable, int level) {
     for(int i = 0; i < 512; i++) {
         pte_t pte = pagetable[i];
         if(!(pte & PTE_V))
@@ -962,7 +1746,7 @@ static void free_pagetable(pagetable_t pagetable, int level) {
 
 struct file** get_current_file_table()
 {
-    return gProc[gActiveProc].file_table;
+    return gProc[gActiveProc]->file_table;
 }
 
 void reset_watchdog();
@@ -1040,7 +1824,7 @@ void disable_timer_interrupts(void) {
     w_sie(r_sie() & ~SIE_STIE);
 }
 
-extern void swtch(context_t *new_);
+extern void swtch(struct context_t *new_);
 
 void timer_reset() {
     uint64_t next = r_time() + TIMER_INTERVAL;
@@ -1057,8 +1841,8 @@ char yield_stack[STACK_MAX] __attribute__((section(".common")));
 
 struct sKernelState
 {
-    context_t gYieldContext;
-    context_t gYieldReturnContext;
+    struct context_t gYieldContext;
+    struct context_t gYieldReturnContext;
     char gYieldStack[STACK_MAX];
 
     uint64_t gYieldUserSatp;
@@ -1066,7 +1850,7 @@ struct sKernelState
     uint64_t gYieldUserActiveProc;
 };
 
-sKernelState gKernelState[MAX_KERNEL] __attribute__((section(".common")));
+struct sKernelState gKernelState[MAX_KERNEL] __attribute__((section(".common")));
 int gNumKernelState __attribute__((section(".common")));
 
 int gKernelStateHead __attribute__((section(".common")));
@@ -1101,15 +1885,17 @@ void remove_kernel_state(int active_proc) {
     gNumKernelState--;
 }
 
+void timer_handler();
+
 void kernel_yield() {
     if(((gKernelStateTail + 1) % MAX_KERNEL) == gKernelStateHead) {
         panic("kernel state queue max");
     }
-    gKernelState[gKernelStateTail].gYieldReturnContext = *(context_t*)TRAPFRAME;
+    gKernelState[gKernelStateTail].gYieldReturnContext = *(struct context_t*)TRAPFRAME;
     gKernelState[gKernelStateTail].gYieldUserSatp = user_satp;
     gKernelState[gKernelStateTail].gYieldUserSP = user_sp;
     gKernelState[gKernelStateTail].gYieldUserActiveProc = gActiveProc;
-    gKernelState[gKernelStateTail].gYieldContext = *(context_t*)TRAPFRAME2;
+    gKernelState[gKernelStateTail].gYieldContext = *(struct context_t*)TRAPFRAME2;
     
     memmove(gKernelState[gKernelStateTail].gYieldStack, yield_stack, STACK_MAX);
     
@@ -1129,11 +1915,11 @@ void kernel_yield_return() {
     user_sp = gKernelState[gKernelStateHead].gYieldUserSP;
     
     gActiveProc = gKernelState[gKernelStateHead].gYieldUserActiveProc;
-    context_t* trapframe = (context_t*)TRAPFRAME2;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME2;
     
     *trapframe = gKernelState[gKernelStateHead].gYieldContext;
     
-    trapframe = (context_t*)TRAPFRAME;
+    trapframe = (struct context_t*)TRAPFRAME;
     *trapframe = gKernelState[gKernelStateHead].gYieldReturnContext;
     
     memmove(yield_stack, gKernelState[gKernelStateHead].gYieldStack, STACK_MAX);
@@ -1147,7 +1933,7 @@ void timer_handler() {
     disable_timer_interrupts();
     struct proc *p = gProc[gActiveProc];
 
-    context_t *tf = (context_t*)TRAPFRAME;
+    struct context_t *tf = (struct context_t*)TRAPFRAME;
     p->context = *tf;
 
     timer_reset(); 
@@ -1174,7 +1960,7 @@ void timer_handler() {
     if (new_ != old && new_->zombie == 0) {
         user_sp = new_->context.sp;
         user_satp = MAKE_SATP(new_->pagetable);
-        old->context = *(context_t*)TRAPFRAME;
+        old->context = *(struct context_t*)TRAPFRAME;
         //gCPU.proc = new_;
         uint64_t a0 = new_->context.a0;
         asm volatile("csrw sscratch, %0" : "=r" (a0));
@@ -1196,18 +1982,9 @@ void console_init(void) {
 // コンソール用スピロック
 static struct spinlock console_lock;
 
-// カーネル側の puts (UART 等に文字列を出力)
-void puts(const char *s) {
-    acquire(&console_lock);
-    while (*s) {
-        putchar(*s++);
-    }
-    release(&console_lock);
-}
-
 int Sys_write()
 {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -1254,7 +2031,7 @@ int Sys_write()
 
 int Sys_exit()
 {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -1277,7 +2054,7 @@ int Sys_exit()
 
 int Sys_wait()
 {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -1293,7 +2070,7 @@ int Sys_wait()
     int exit_status = 0;
     pid_t child_pid = -1;
     while(1) { // Keep searching until a zombie is found and handled
-        proc* zombie_proc = NULL;
+        struct proc* zombie_proc = NULL;
         for (int n=0; n<gNumProc; n++) {
             struct proc* it = gProc[n];
             
@@ -1330,7 +2107,7 @@ int Sys_wait()
 
 int Sys_open()
 {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -1354,7 +2131,7 @@ int Sys_open()
 
 int Sys_fork()
 {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -1369,7 +2146,7 @@ int Sys_fork()
     
     int fork_flag;
     int child_proc_index = -1;
-    alloc_prog((char*)p->program, fork_flag=1, exec_flag:0, &child_proc_index);
+    alloc_prog((char*)p->program, fork_flag=1, 0, &child_proc_index);
     struct proc* child_proc = gProc[child_proc_index];
     
     uint64_t sp = child_proc->context.sp;
@@ -1386,7 +2163,7 @@ int Sys_fork()
 
 int Sys_execv()
 {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -1557,7 +2334,7 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
 
 // In main.c, inside Sys_brk
 int Sys_brk() {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint64_t addr = trapframe->a0;
     struct proc *p = gProc[gActiveProc];
     uint64_t old_sz = p->sz;
@@ -1581,7 +2358,7 @@ int Sys_brk() {
 
 /*
 int Sys_brk() {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint64_t addr = trapframe->a0;
     struct proc *p = gProc[gActiveProc];
     uint64_t old_sz = p->sz;
@@ -1605,7 +2382,7 @@ int Sys_brk() {
 
 int Sys_dup2(void)
 {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -1626,7 +2403,7 @@ int Sys_dup2(void)
 
 int Sys_pipe(void)
 {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -1658,7 +2435,7 @@ int Sys_pipe(void)
 
 int Sys_read()
 {
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -1707,7 +2484,7 @@ uintptr_t syscall_handler()
 {
     disable_timer_interrupts();
     
-    context_t* trapframe = (context_t*)TRAPFRAME;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -1775,7 +2552,7 @@ uintptr_t syscall_handler()
         case SYS_clear: {
             gNumProc = 1;
             gActiveProc = 0;
-            memset(gKernelState, 0, sizeof(sKernelState)*MAX_KERNEL);
+            memset(gKernelState, 0, sizeof(struct sKernelState)*MAX_KERNEL);
             gNumKernelState = 0;
 
             gKernelStateHead = 0;
@@ -1896,7 +2673,7 @@ int main()
 
     int fork_flag;
     int child_proc_index = 0;
-    alloc_prog((char*)msh_elf, fork_flag=0, exec_flag:0, &child_proc_index);
+    alloc_prog((char*)msh_elf, fork_flag=0, 0, &child_proc_index);
 //free_fs_table(gProc[0]->file_table);
 //fs_exit(gProc[0]->file_table);
 //free_proc(gProc[0]);

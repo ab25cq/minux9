@@ -99,7 +99,7 @@ typedef int pid_t;
     (int)_a0;                                                   \
 })
 
-#define exit(status) ({  \
+#define exit(status) __extension__ ({  \
     register long _a0 asm("a0") = (long)(status);                 \
     register long _a7 asm("a7") = SYS_exit;                    \
     asm volatile("ecall"                                        \
@@ -107,7 +107,7 @@ typedef int pid_t;
                  : "r"(_a7)                          \
                  : "memory");                                  \
     while(1); \
-}) \
+}) 
 
 #define wait(status_ptr) ({                                    \
     register long _a0 asm("a0") = (long)(status_ptr);          \
