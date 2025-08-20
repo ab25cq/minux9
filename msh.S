@@ -1299,7 +1299,7 @@ run_command:
 	.string	"$ "
 	.align	3
 .LC2:
-	.string	"cat a.txt | cat"
+	.string	"cat a.txt | cat | cat"
 	.align	3
 .LC3:
 	.string	"\r\n"

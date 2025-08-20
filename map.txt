@@ -343,7 +343,7 @@ LOAD main.o
  *fill*         0x000000008001012a        0x6 
  .rodata        0x0000000080010130      0x738 main.o
 
-.data           0x0000000080010868     0x2d08
+.data           0x0000000080010868     0x2d10
  *(.data*)
  .data          0x0000000080010868        0x0 entry.o
  .data          0x0000000080010868        0x0 start.o
@@ -352,17 +352,17 @@ LOAD main.o
  .data          0x0000000080010868        0x0 fs.o
  .data          0x0000000080010868        0x0 plic.o
  .data          0x0000000080010868        0x0 trap_c.o
- .data          0x0000000080010868     0x2d08 main.o
+ .data          0x0000000080010868     0x2d10 main.o
                 0x0000000080010868                hello_elf
                 0x00000000800119a0                hello2_elf
                 0x0000000080012230                msh_elf
 
-.sdata          0x0000000080013570       0x18
+.sdata          0x0000000080013578       0x18
  *(.sdata*)
- .sdata         0x0000000080013570       0x18 main.o
-                0x0000000080013570                hello_elf_len
-                0x0000000080013574                hello2_elf_len
-                0x0000000080013578                msh_elf_len
+ .sdata         0x0000000080013578       0x18 main.o
+                0x0000000080013578                hello_elf_len
+                0x000000008001357c                hello2_elf_len
+                0x0000000080013580                msh_elf_len
 
 .bss            0x0000000080013600     0xa1dc
  *(.bss)
@@ -488,7 +488,7 @@ LOAD main.o
  .note.GNU-stack
                 0x0000000000000000        0x0 main.o
 
-.debug_info     0x0000000000000000     0xb067
+.debug_info     0x0000000000000000     0xaf7a
  *(.debug_info)
  .debug_info    0x0000000000000000       0x2e entry.o
  .debug_info    0x000000000000002e      0x3b1 start.o
@@ -496,7 +496,7 @@ LOAD main.o
  .debug_info    0x000000000000040d     0x199b fs.o
  .debug_info    0x0000000000001da8      0x240 plic.o
  .debug_info    0x0000000000001fe8      0x101 trap_c.o
- .debug_info    0x00000000000020e9     0x8f7e main.o
+ .debug_info    0x00000000000020e9     0x8e91 main.o
 
 .debug_abbrev   0x0000000000000000      0xbfb
  *(.debug_abbrev)
@@ -508,7 +508,7 @@ LOAD main.o
  .debug_abbrev  0x00000000000006c5       0xd6 trap_c.o
  .debug_abbrev  0x000000000000079b      0x460 main.o
 
-.debug_line     0x0000000000000000     0xd0c6
+.debug_line     0x0000000000000000     0xd0d4
  *(.debug_line)
  .debug_line    0x0000000000000000       0x43 entry.o
  .debug_line    0x0000000000000043      0x2e3 start.o
@@ -516,18 +516,18 @@ LOAD main.o
  .debug_line    0x0000000000000a42     0x1c71 fs.o
  .debug_line    0x00000000000026b3      0x251 plic.o
  .debug_line    0x0000000000002904       0xa5 trap_c.o
- .debug_line    0x00000000000029a9     0xa71d main.o
+ .debug_line    0x00000000000029a9     0xa72b main.o
 
-.debug_str      0x0000000000000000     0x4bd5
+.debug_str      0x0000000000000000     0x3bda
  *(.debug_str)
- .debug_str     0x0000000000000000     0x4bd5 entry.o
+ .debug_str     0x0000000000000000     0x3bda entry.o
                                          0x2b (size before relaxing)
- .debug_str     0x0000000000004bd5      0x1af start.o
- .debug_str     0x0000000000004bd5       0x2a trap.o
- .debug_str     0x0000000000004bd5      0x79f fs.o
- .debug_str     0x0000000000004bd5      0x177 plic.o
- .debug_str     0x0000000000004bd5      0x14b trap_c.o
- .debug_str     0x0000000000004bd5     0x486f main.o
+ .debug_str     0x0000000000003bda      0x1af start.o
+ .debug_str     0x0000000000003bda       0x2a trap.o
+ .debug_str     0x0000000000003bda      0x79f fs.o
+ .debug_str     0x0000000000003bda      0x177 plic.o
+ .debug_str     0x0000000000003bda      0x14b trap_c.o
+ .debug_str     0x0000000000003bda     0x3900 main.o
 
 .debug_line_str
                 0x0000000000000000       0xb6
