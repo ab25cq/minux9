@@ -1312,6 +1312,7 @@ extern char TRAPFRAME[];
 extern char TRAPFRAME2[];
 extern char TRAMPOLINE[];
 extern char COMMON[];
+
 uint64_t kernel_sp __attribute__((section(".common")));
 uint64_t user_sp __attribute__((section(".common")));
 
@@ -1510,16 +1511,6 @@ int copyinstr(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t max)
     return -1;
   }
 }
-
-
-
-
-//#include "userprog.h"
-//#include "userprog2.h"
-//uint8_t elf_program[5096+1];
-//uint8_t elf_program2[5048+1];
-
-// ↑main.c の先頭あたりに追加
 
 void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
 {
@@ -1969,6 +1960,7 @@ void timer_handler() {
     }
 }
 
+/*
 // コンソール用スピンロック
 static struct spinlock console_lock;
 
@@ -1979,6 +1971,7 @@ void console_init(void) {
 
 // コンソール用スピロック
 static struct spinlock console_lock;
+*/
 
 int Sys_write()
 {
@@ -2303,7 +2296,6 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
     uint64_t a = PGROUNDUP(old_sz);
     for(; a < new_sz; a += PGSIZE) {
         char *mem = kalloc();
-//printf("uvm kalloc %p\n", mem);
         
         p->process_kalloc_address[p->num_process_kalloc_address++] = mem;
         
@@ -2597,18 +2589,6 @@ static inline uint64_t r_sip()
   return x;
 }
 
-static inline uint64_t read_s_sp(void) {
-    uint64_t sp_val;
-    asm volatile(
-        "mv %0, sp\n"     // sp レジスタの値を出オペランド %0 に
-        : "=r"(sp_val)    // %0 は r• レジスタに出力
-        :                 // 入力オペランドなし
-        :                 // 破壊するレジスタなし
-    );
-    
-    return sp_val;
-}
-
 static inline void sfence_vma()
 {
   asm volatile("sfence.vma zero, zero");
@@ -2672,16 +2652,9 @@ int main()
     int fork_flag;
     int child_proc_index = 0;
     alloc_prog((char*)sh_elf, fork_flag=0, 0, &child_proc_index);
-//free_fs_table(gProc[0]->file_table);
-//fs_exit(gProc[0]->file_table);
-//free_proc(gProc[0]);
-//while(1);
-//    alloc_prog((char*)hello_elf, fork_flag=0);
-//    alloc_prog((char*)hello2_elf, fork_flag=0);
 
     /// カーネルページからユーザープロセスをアクセス可能にする
     asm volatile("csrs sstatus, %0" : : "r"(SSTATUS_SUM));
-    
     
     /// ユーザープロセスへ降りる
     w_stimecmp(r_time() + 10000000);
@@ -2698,7 +2671,6 @@ int main()
     
     gCPU.proc = p;
     
-    //kernel_sp = read_s_sp();
     asm volatile(
         "mv %0, sp\n"     // sp レジスタの値を出力オペランド %0 に
         : "=r"(kernel_sp)    // %0 は r レジスタに出力
