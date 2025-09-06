@@ -4,9 +4,7 @@
 #include <stddef.h>
 #include "elf.h"
 #include "fs.h"
-#include "userprog.h"
-#include "userprog2.h"
-#include "msh.h"
+#include "sh.h"
 #include "common.h"
 
 typedef int pid_t;
@@ -2673,7 +2671,7 @@ int main()
 
     int fork_flag;
     int child_proc_index = 0;
-    alloc_prog((char*)msh_elf, fork_flag=0, 0, &child_proc_index);
+    alloc_prog((char*)sh_elf, fork_flag=0, 0, &child_proc_index);
 //free_fs_table(gProc[0]->file_table);
 //fs_exit(gProc[0]->file_table);
 //free_proc(gProc[0]);

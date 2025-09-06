@@ -1,4 +1,4 @@
-	.file	"msh.c"
+	.file	"sh.c"
 	.option nopic
 	.attribute arch, "rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_zicsr2p0"
 	.attribute unaligned_access, 0
@@ -6,13 +6,13 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9" "msh.c"
+	.file 0 "/Users/ab25cq/minux9" "sh.c"
 	.align	1
 	.globl	strncpy
 	.type	strncpy, @function
 strncpy:
 .LFB0:
-	.file 1 "msh.c"
+	.file 1 "sh.c"
 	.loc 1 5 46
 	.cfi_startproc
 	addi	sp,sp,-64
@@ -116,7 +116,7 @@ putchar:
 	li	a2,1
 	li	a7,64
  #APP
-# 21 "msh.c" 1
+# 21 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1089,7 +1089,7 @@ run_command:
 	mv	a1,a5
 	li	a7,69
  #APP
-# 293 "msh.c" 1
+# 293 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1099,7 +1099,7 @@ run_command:
 	li	a0,127
 	li	a7,70
  #APP
-# 294 "msh.c" 1
+# 294 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1115,7 +1115,7 @@ run_command:
 	mv	a0,a5
 	li	a7,73
  #APP
-# 297 "msh.c" 1
+# 297 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1124,7 +1124,7 @@ run_command:
 	.loc 1 299 19
 	li	a7,68
  #APP
-# 299 "msh.c" 1
+# 299 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1143,7 +1143,7 @@ run_command:
 	li	a1,0
 	li	a7,72
  #APP
-# 302 "msh.c" 1
+# 302 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1154,7 +1154,7 @@ run_command:
 	mv	a0,a5
 	li	a7,67
  #APP
-# 303 "msh.c" 1
+# 303 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1165,7 +1165,7 @@ run_command:
 	mv	a0,a5
 	li	a7,67
  #APP
-# 304 "msh.c" 1
+# 304 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1188,7 +1188,7 @@ run_command:
 	mv	a0,a5
 	li	a7,67
  #APP
-# 308 "msh.c" 1
+# 308 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1200,7 +1200,7 @@ run_command:
 	li	a1,1
 	li	a7,72
  #APP
-# 309 "msh.c" 1
+# 309 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1211,7 +1211,7 @@ run_command:
 	mv	a0,a5
 	li	a7,67
  #APP
-# 310 "msh.c" 1
+# 310 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1258,7 +1258,7 @@ run_command:
 	mv	a1,a5
 	li	a7,69
  #APP
-# 319 "msh.c" 1
+# 319 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1268,7 +1268,7 @@ run_command:
 	li	a0,127
 	li	a7,70
  #APP
-# 320 "msh.c" 1
+# 320 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1337,7 +1337,7 @@ main:
 	li	a2,2
 	li	a7,64
  #APP
-# 343 "msh.c" 1
+# 343 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1354,7 +1354,7 @@ main:
 	li	a2,1
 	li	a7,65
  #APP
-# 348 "msh.c" 1
+# 348 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1368,7 +1368,7 @@ main:
 	li	a2,1
 	li	a7,64
  #APP
-# 349 "msh.c" 1
+# 349 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1407,7 +1407,7 @@ main:
 	li	a2,3
 	li	a7,64
  #APP
-# 357 "msh.c" 1
+# 357 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1462,7 +1462,7 @@ main:
 	li	a2,2
 	li	a7,64
  #APP
-# 374 "msh.c" 1
+# 374 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1695,7 +1695,7 @@ main:
 	.loc 1 437 15
 	li	a7,68
  #APP
-# 437 "msh.c" 1
+# 437 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -1729,7 +1729,7 @@ main:
 	mv	a0,a5
 	li	a7,71
  #APP
-# 445 "msh.c" 1
+# 445 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
@@ -3721,9 +3721,9 @@ main:
 .LASF35:
 	.string	"negative"
 	.section	.debug_line_str,"MS",@progbits,1
+.LASF0:
+	.string	"sh.c"
 .LASF1:
 	.string	"/Users/ab25cq/minux9"
-.LASF0:
-	.string	"msh.c"
 	.ident	"GCC: (g04696df09) 14.2.0"
 	.section	.note.GNU-stack,"",@progbits

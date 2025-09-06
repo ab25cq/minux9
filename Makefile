@@ -32,10 +32,10 @@ kernel.elf:
 	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello4.elf -g hello4.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello4.elf hello4.c $(CHILD_CFLAGS)
 
-	$(CCPREFIX)gcc -I. -nostdlib -S -O0 -static -o msh.S -g msh.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -I. -nostdlib -O0 -static -o msh.elf -I. -g msh.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o msh.elf msh.c $(CHILD_CFLAGS)
-	xxd -i msh.elf > msh.h  
+	$(CCPREFIX)gcc -I. -nostdlib -S -O0 -static -o sh.S -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -I. -nostdlib -O0 -static -o sh.elf -I. -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o sh.elf sh.c $(CHILD_CFLAGS)
+	xxd -i sh.elf > sh.h  
 
 	dd if=/dev/zero of=fs.img bs=1k count=512
 	dd if=cat of=fs.img bs=512 seek=0 conv=notrunc
