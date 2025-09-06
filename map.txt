@@ -20,7 +20,7 @@ LOAD main.o
                 0x0000000000010000                STACK_MAX = (0x1000 * STACK_PAGES)
                 0x0000000080000000                . = 0x80000000
 
-.text           0x0000000080000000     0x7836
+.text           0x0000000080000000     0x783e
  *(.text*)
  .text          0x0000000080000000       0x3e entry.o
                 0x0000000080000000                entry
@@ -70,7 +70,7 @@ LOAD main.o
  .text          0x0000000080002772       0x66 trap_c.o
                 0x0000000080002772                trap_init
                 0x0000000080002798                external_interrupt_handler
- .text          0x00000000800027d8     0x505e main.o
+ .text          0x00000000800027d8     0x5066 main.o
                 0x00000000800027d8                sbrk
                 0x000000008000285a                malloc
                 0x0000000080002932                free
@@ -146,18 +146,18 @@ LOAD main.o
                 0x00000000800068c8                Sys_open
                 0x000000008000698a                Sys_fork
                 0x0000000080006aac                Sys_execv
-                0x0000000080006e78                uvmunmap
-                0x0000000080006f30                uvm_dealloc
-                0x0000000080006f9a                uvm_alloc
-                0x00000000800070ac                Sys_brk
-                0x000000008000717e                Sys_dup2
-                0x000000008000720e                Sys_pipe
-                0x00000000800072e4                Sys_read
-                0x0000000080007452                syscall_handler
-                0x0000000080007614                timerinit
-                0x000000008000766c                get_current_proc
-                0x0000000080007696                global_init
-                0x0000000080007700                main
+                0x0000000080006e80                uvmunmap
+                0x0000000080006f38                uvm_dealloc
+                0x0000000080006fa2                uvm_alloc
+                0x00000000800070b4                Sys_brk
+                0x0000000080007186                Sys_dup2
+                0x0000000080007216                Sys_pipe
+                0x00000000800072ec                Sys_read
+                0x000000008000745a                syscall_handler
+                0x000000008000761c                timerinit
+                0x0000000080007674                get_current_proc
+                0x000000008000769e                global_init
+                0x0000000080007708                main
                 0x0000000080008000                . = ALIGN (0x1000)
 
 .rodata         0x0000000080008000      0x5d0
@@ -320,7 +320,7 @@ LOAD main.o
  .debug_abbrev  0x00000000000006c5       0xd6 trap_c.o
  .debug_abbrev  0x000000000000079b      0x5b5 main.o
 
-.debug_line     0x0000000000000000     0x70d2
+.debug_line     0x0000000000000000     0x70d8
  *(.debug_line)
  .debug_line    0x0000000000000000       0x43 entry.o
  .debug_line    0x0000000000000043      0x2e3 start.o
@@ -328,7 +328,7 @@ LOAD main.o
  .debug_line    0x0000000000000a42     0x1c71 fs.o
  .debug_line    0x00000000000026b3      0x251 plic.o
  .debug_line    0x0000000000002904       0xa5 trap_c.o
- .debug_line    0x00000000000029a9     0x4729 main.o
+ .debug_line    0x00000000000029a9     0x472f main.o
 
 .debug_str      0x0000000000000000     0x10d2
  *(.debug_str)

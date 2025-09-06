@@ -2205,6 +2205,7 @@ int Sys_execv()
     //char elf_buf[4096]; //048]; // = calloc(1, size);
     int ret = fs_read(fd, elf_buf, size);
     fs_close(fd, 0 /* massive */);
+    free(elf_buf);
     if (ret <= 0) {
         trapframe->a0 = -1;
         return -1;
