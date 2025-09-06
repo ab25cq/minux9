@@ -2201,7 +2201,7 @@ int Sys_execv()
         return -1;
     }
     ssize_t size = fs_size(fd);
-    char elf_buf[2048]; // = calloc(1, size);
+    char elf_buf[4096]; //048]; // = calloc(1, size);
     int ret = fs_read(fd, elf_buf, size);
     fs_close(fd, 0 /* massive */);
     if (ret <= 0) {
@@ -2639,7 +2639,7 @@ int main()
     
     uart_init();
     kinit();
-    console_init();
+    //console_init();
     mmu_init();
     virtio_blk_init();
     read_superblock();
