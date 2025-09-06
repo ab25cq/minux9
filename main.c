@@ -2201,7 +2201,8 @@ int Sys_execv()
         return -1;
     }
     ssize_t size = fs_size(fd);
-    char elf_buf[4096]; //048]; // = calloc(1, size);
+    char* elf_buf = calloc(1, size+32);
+    //char elf_buf[4096]; //048]; // = calloc(1, size);
     int ret = fs_read(fd, elf_buf, size);
     fs_close(fd, 0 /* massive */);
     if (ret <= 0) {
