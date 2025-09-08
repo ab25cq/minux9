@@ -20,6 +20,23 @@ extern void puts(const char* s);
 int strcmp(const char* s1, const char* s2);
 int strncmp(const char *p, const char *q, unsigned int n);
 
+// open flags shared via common.h
+#ifndef O_RDONLY
+#define O_RDONLY 0
+#endif
+#ifndef O_WRONLY
+#define O_WRONLY 1
+#endif
+#ifndef O_RDWR
+#define O_RDWR 2
+#endif
+#ifndef O_CREAT
+#define O_CREAT  (1<<9)
+#endif
+#ifndef O_TRUNC
+#define O_TRUNC  (1<<10)
+#endif
+
 // ────────────────────────────────────────────────────────────────────────
 // Virtio-ブロックデバイス（legacy MMIO）用簡易ドライバ
 // ────────────────────────────────────────────────────────────────────────
@@ -89,6 +106,7 @@ struct virtio_blk_req {
     uint64_t sector;
 } __attribute__((packed));
 #define VBLK_T_IN 0
+#define VBLK_T_OUT 1
 
 static uint64_t vbase = 0;
 static uint32_t Q     = 0;
@@ -195,6 +213,36 @@ void read_block(uint32_t blk, void *dst)
     virtio_blk_read(blk, dst);
 }
 
+static void virtio_blk_write(uint64_t sector, const void *src)
+{
+    req.type = VBLK_T_OUT;
+    req.sector = sector;
+    req.reserved = 0;
+    status_byte = 0xFF;
+
+    memcpy((void*)dma_buf, src, SECTOR_SIZE);
+
+    desc[0].addr = (uint64_t)&req;        desc[0].len = sizeof(req);    desc[0].next = 1;
+    desc[1].addr = (uint64_t)dma_buf;     desc[1].len = SECTOR_SIZE;    desc[1].next = 2;
+    desc[2].addr = (uint64_t)&status_byte; desc[2].len = 1;
+
+    set_flags(F_NEXT, F_NEXT, F_WRITE);
+
+    avail->ring[aidx % Q] = 0;
+    __sync_synchronize();
+    avail->idx = ++aidx;
+
+    mw32(vbase, R_Q_NOTIFY, 0);
+
+    while(status_byte == 0xFF)
+        __sync_synchronize();
+}
+
+void write_block(uint32_t blk, const void *src)
+{
+    virtio_blk_write(blk, src);
+}
+
 // ───────────────────────────────────────────────────────────────────────
 // ファイルシステム部
 // ────────────────────────────────────────────────────────────────────────
@@ -223,6 +271,61 @@ void read_inode(uint32_t inum, struct dinode *dest) {
     read_block(blkno, block_buf);
     struct dinode *dip = (struct dinode *)(block_buf + offset);
     *dest = *dip;
+}
+
+// 内部ヘルパー（書き込み側）
+#define IPB   (BSIZE / sizeof(struct dinode))
+#define BPB   (BSIZE * 8)
+static inline uint32_t BBLOCK(uint32_t b){ return sb.bmapstart + (b / BPB); }
+
+static void write_inode(uint32_t inum, const struct dinode *src)
+{
+    if (inum < 1 || inum > sb.ninodes) return;
+    uint32_t inodes_per_blk = BSIZE / sizeof(struct dinode);
+    uint32_t blkno = sb.inodestart + ((inum - 1) / inodes_per_blk);
+    uint32_t offset = ((inum - 1) % inodes_per_blk) * sizeof(struct dinode);
+
+    uint8_t buf[BSIZE];
+    read_block(blkno, buf);
+    struct dinode *dip = (struct dinode *)(buf + offset);
+    *dip = *src;
+    write_block(blkno, buf);
+}
+
+static int bitmap_test(uint32_t b)
+{
+    uint32_t bmapblk = BBLOCK(b);
+    uint8_t buf[BSIZE];
+    read_block(bmapblk, buf);
+    uint32_t bi = b % BPB;
+    return (buf[bi/8] >> (bi%8)) & 1;
+}
+
+static void bitmap_set(uint32_t b)
+{
+    uint32_t bmapblk = BBLOCK(b);
+    uint8_t buf[BSIZE];
+    read_block(bmapblk, buf);
+    uint32_t bi = b % BPB;
+    buf[bi/8] |= (1 << (bi%8));
+    write_block(bmapblk, buf);
+}
+
+static uint32_t alloc_data_block(void)
+{
+    uint32_t bmapblocks = (sb.size + BPB - 1) / BPB;
+    uint32_t datastart  = sb.bmapstart + bmapblocks;
+    for (uint32_t b = datastart; b < sb.size; b++) {
+        if (!bitmap_test(b)) {
+            bitmap_set(b);
+            // 新規ブロックをゼロクリア
+            uint8_t z[BSIZE];
+            memset(z, 0, BSIZE);
+            write_block(b, z);
+            return b;
+        }
+    }
+    return 0; // no space
 }
 
 static uint32_t inode_blockno(struct dinode *ip, uint32_t idx) {
@@ -255,6 +358,79 @@ static uint32_t inode_blockno(struct dinode *ip, uint32_t idx) {
         uint32_t *second_entries = (uint32_t *)block_buf;
         return second_entries[dbl_index1];
     }
+}
+
+static uint32_t inode_bmap_alloc(uint32_t inum, struct dinode *ip, uint32_t idx)
+{
+    if (idx < NDIRECT) {
+        if (ip->addrs[idx] == 0) {
+            uint32_t b = alloc_data_block();
+            if (!b) return 0;
+            ip->addrs[idx] = b;
+            write_inode(inum, ip);
+        }
+        return ip->addrs[idx];
+    }
+
+    if (idx < NDIRECT + NINDIRECT) {
+        uint32_t indirect_blk = ip->addrs[NDIRECT];
+        if (indirect_blk == 0) {
+            uint32_t nb = alloc_data_block();
+            if (!nb) return 0;
+            // ゼロ化ブロックは alloc_data_block が行う
+            ip->addrs[NDIRECT] = nb;
+            write_inode(inum, ip);
+            indirect_blk = nb;
+        }
+        uint8_t buf[BSIZE];
+        read_block(indirect_blk, buf);
+        uint32_t *entries = (uint32_t *)buf;
+        uint32_t i = idx - NDIRECT;
+        if (entries[i] == 0) {
+            uint32_t db = alloc_data_block();
+            if (!db) return 0;
+            entries[i] = db;
+            write_block(indirect_blk, buf);
+        }
+        return entries[i];
+    }
+
+    // double-indirect
+    uint32_t di = idx - (NDIRECT + NINDIRECT);
+    uint32_t idx1 = di / NINDIRECT;
+    uint32_t idx2 = di % NINDIRECT;
+
+    uint32_t dindirect_blk = ip->addrs[NDIRECT + 1];
+    if (dindirect_blk == 0) {
+        uint32_t nb = alloc_data_block();
+        if (!nb) return 0;
+        ip->addrs[NDIRECT + 1] = nb;
+        write_inode(inum, ip);
+        dindirect_blk = nb;
+    }
+
+    uint8_t firstbuf[BSIZE];
+    read_block(dindirect_blk, firstbuf);
+    uint32_t *first_entries = (uint32_t *)firstbuf;
+    uint32_t first_blk = first_entries[idx1];
+    if (first_blk == 0) {
+        uint32_t nb = alloc_data_block();
+        if (!nb) return 0;
+        first_entries[idx1] = nb;
+        write_block(dindirect_blk, firstbuf);
+        first_blk = nb;
+    }
+
+    uint8_t secondbuf[BSIZE];
+    read_block(first_blk, secondbuf);
+    uint32_t *second_entries = (uint32_t *)secondbuf;
+    if (second_entries[idx2] == 0) {
+        uint32_t db = alloc_data_block();
+        if (!db) return 0;
+        second_entries[idx2] = db;
+        write_block(first_blk, secondbuf);
+    }
+    return second_entries[idx2];
 }
 
 void read_data(struct dinode *ip, uint32_t offset, uint8_t *buf, uint32_t size) {
@@ -695,7 +871,135 @@ int pipewrite(int fd, char *addr, int n)
 // 成功: [0, MAX_OPEN_FILES) の fd, 失敗: -1
 // 先頭に定義
 #define FD_OFFSET      3   // 返す FD は 3 からスタート
+
+// ───────────────────────────────────────────────────────────────────────
+// Helper: split parent directory and leaf name from absolute path
+// return 1 on success, 0 on error
+static int path_parent_lookup_abs(const char *path, uint32_t *parent_inum, char *leafname)
+{
+    if (!path || path[0] != '/') return 0;
+    if (strcmp(path, "/") == 0) return 0; // no parent for root
+
+    // Make a modifiable copy
+    char copy[strlen(path) + 1];
+    strncpy(copy, path, sizeof(copy));
+
+    // Tokenize and walk to parent
+    char *save = copy;
+    char *last = NULL;
+    char *tok = strtok(save, "/");
+    uint32_t cur = ROOTINO;
+    struct dinode ip;
+    read_inode(cur, &ip);
+
+    while (tok) {
+        char *nexttok = strtok(NULL, "/");
+        if (!nexttok) {
+            // tok is the leaf name
+            last = tok;
+            break;
+        }
+        // descend into directory
+        if (ip.type != T_DIR) return 0;
+        uint32_t next_inum = dir_lookup(&ip, tok);
+        if (next_inum == 0) return 0;
+        read_inode(next_inum, &ip);
+        cur = next_inum;
+        tok = nexttok;
+    }
+
+    if (!last) return 0;
+    *parent_inum = cur;
+    // Copy leaf name (truncate to DIRSIZ)
+    int n = strlen(last);
+    if (n > DIRSIZ) n = DIRSIZ;
+    for (int i = 0; i < DIRSIZ; i++) leafname[i] = 0;
+    strncpy(leafname, last, n);
+    return 1;
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Helper: allocate a free inode (type=T_FILE, size=0)
+static uint32_t alloc_inode_T_FILE(void)
+{
+    struct dinode di;
+    for (uint32_t inum = 1; inum <= sb.ninodes; inum++) {
+        read_inode(inum, &di);
+        if (di.type == 0) {
+            // Initialize new file inode
+            struct dinode newi;
+            memset(&newi, 0, sizeof(newi));
+            newi.type = T_FILE;
+            newi.nlink = 1;
+            newi.size = 0;
+            write_inode(inum, &newi);
+            return inum;
+        }
+    }
+    return 0;
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Helper: add a directory entry to parent directory
+static int add_dirent(uint32_t parent_inum, const char *name, uint32_t child_inum)
+{
+    if (!name || name[0] == '\0') return -1;
+
+    struct dinode pdi;
+    read_inode(parent_inum, &pdi);
+    if (pdi.type != T_DIR) return -1;
+
+    // Prepare dirent
+    struct dirent de;
+    de.inum = (uint16_t)child_inum;
+    // name is fixed DIRSIZ bytes, pad/truncate
+    for (int i = 0; i < DIRSIZ; i++) de.name[i] = 0;
+    strncpy(de.name, name, DIRSIZ);
+
+    // 1) search for a free slot within current size
+    uint32_t off = 0;
+    while (off < pdi.size) {
+        read_data(&pdi, off, block_buf, BSIZE);
+        struct dirent *ents = (struct dirent *)block_buf;
+        int entries = BSIZE / sizeof(struct dirent);
+        for (int i = 0; i < entries; i++) {
+            if (ents[i].inum == 0) {
+                ents[i] = de;
+                // Write back the whole block
+                uint32_t blk_idx = (off / BSIZE);
+                uint32_t disk_blk = inode_bmap_alloc(parent_inum, &pdi, blk_idx);
+                if (!disk_blk) return -1;
+                write_block(disk_blk, (uint8_t*)ents);
+                return 0;
+            }
+        }
+        off += BSIZE;
+    }
+
+    // 2) append a new entry at the end (may allocate a new block)
+    uint32_t idx = pdi.size / sizeof(struct dirent);
+    uint32_t blk_idx = (idx * sizeof(struct dirent)) / BSIZE;
+    uint32_t blk_off = (idx * sizeof(struct dirent)) % BSIZE;
+    uint32_t disk_blk = inode_bmap_alloc(parent_inum, &pdi, blk_idx);
+    if (!disk_blk) return -1;
+
+    uint8_t buf[BSIZE];
+    read_block(disk_blk, buf);
+    struct dirent *ents = (struct dirent *)buf;
+    ents[(blk_off / sizeof(struct dirent))] = de;
+    write_block(disk_blk, buf);
+
+    pdi.size += sizeof(struct dirent);
+    write_inode(parent_inum, &pdi);
+    return 0;
+}
 int fs_open(const char *path) {
+    // backward-compatible wrapper: flags=0, mode=0
+    return fs_open2(path, 0, 0);
+}
+
+// fs_open2: flags/mode対応版
+int fs_open2(const char *path, int flags, int mode) {
     struct file** file_table = get_current_file_table();
 
     char path2[128];  // 余裕を持たせる
@@ -711,14 +1015,32 @@ int fs_open(const char *path) {
         // ここが重要：残りサイズを指定
         strncat(path2, path, sizeof(path2) - strlen(path2) - 1);
     }
-
+    
     uint32_t inum = path_lookup(path2);
+    struct dinode di;
+
     if (inum == 0) {
-        return -1;
+        // Not found
+        if (flags & O_CREAT) {
+            // Create in parent directory
+            uint32_t parent;
+            char leaf[DIRSIZ+1];
+            for (int i=0;i<DIRSIZ+1;i++) leaf[i]=0;
+            if (!path_parent_lookup_abs(path2, &parent, leaf)) {
+                return -1;
+            }
+            uint32_t new_inum = alloc_inode_T_FILE();
+            if (new_inum == 0) return -1;
+            if (add_dirent(parent, leaf, new_inum) != 0) return -1;
+            inum = new_inum;
+            read_inode(inum, &di);
+        } else {
+            return -1;
+        }
+    } else {
+        read_inode(inum, &di);
     }
 
-    struct dinode di;
-    read_inode(inum, &di);
     if (di.type != T_FILE && di.type != T_DIR) return -1;
 
     for (int i = 3; i < MAX_OPEN_FILES; i++) {
@@ -732,6 +1054,14 @@ int fs_open(const char *path) {
             file_table[i]->off   = 0;
             file_table[i]->read_pipe   = 0;
             file_table[i]->write_pipe   = 0;
+            file_table[i]->oflags = flags;
+
+            // O_TRUNC: if file, set size to 0
+            if ((flags & O_TRUNC) && file_table[i]->din.type == T_FILE) {
+                file_table[i]->din.size = 0;
+                write_inode(inum, &file_table[i]->din);
+                file_table[i]->off = 0;
+            }
             return i;  // <- 3,4,5… を返す
         }
     }
@@ -759,6 +1089,56 @@ ssize_t fs_read(int fd, void *buf, size_t count) {
     read_data(&f->din, f->off, buf, to_read);
     f->off += to_read;
     return to_read;
+}
+
+// fs_write: fd から指す既存ファイルに書き込む（サイズ拡張なし）
+// 成功: 書き込んだバイト数 (0 は EOF 相当), 失敗: -1
+ssize_t fs_write(int fd, const void *buf, size_t count) {
+    struct file** file_table = get_current_file_table();
+
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return -1;
+    if (file_table[fd] == NULL) return -1;
+
+    struct file *f = file_table[fd];
+    if (f->kind != FK_FILE) return -1;
+
+    // 書き込み総量（サイズ拡張を許可）
+    uint32_t to_total = count;
+
+    const uint8_t *src = (const uint8_t *)buf;
+    uint32_t left = to_total;
+    uint32_t off  = f->off;
+    uint32_t written = 0;
+
+    while (left > 0) {
+        uint32_t blk_idx = off / BSIZE;
+        uint32_t blk_off = off % BSIZE;
+        uint32_t to_write = BSIZE - blk_off;
+        if (to_write > left) to_write = left;
+
+        uint32_t disk_blk = inode_bmap_alloc(f->inum, &f->din, blk_idx);
+        if (disk_blk == 0) break; // ディスク満杯
+
+        // 部分書き込みに備えて既存ブロックを読み、差し替え後に書く
+        uint8_t bufblk[BSIZE];
+        read_block(disk_blk, bufblk);
+        memcpy(bufblk + blk_off, src, to_write);
+        write_block(disk_blk, bufblk);
+
+        left    -= to_write;
+        off     += to_write;
+        src     += to_write;
+        written += to_write;
+    }
+
+    f->off += written;
+    // サイズ拡張を反映
+    uint32_t newsize = f->off;
+    if (newsize > f->din.size) {
+        f->din.size = newsize;
+        write_inode(f->inum, &f->din);
+    }
+    return written;
 }
 
 ssize_t fs_size(int fd) {
@@ -893,6 +1273,3 @@ void fs_dup2(int oldfd, int newfd) {
     ft[oldfd]->used++;                           // 参照だけ増やす
     // ★ pipe のカウンタは触らない
 }
-
-
-

@@ -66,6 +66,23 @@ typedef int pid_t;
     (int)_a0;                                                   \
 })
 
+// open(2) flags (subset)
+#ifndef O_RDONLY
+#define O_RDONLY 0
+#endif
+#ifndef O_WRONLY
+#define O_WRONLY 1
+#endif
+#ifndef O_RDWR
+#define O_RDWR 2
+#endif
+#ifndef O_CREAT
+#define O_CREAT  (1<<9)
+#endif
+#ifndef O_TRUNC
+#define O_TRUNC  (1<<10)
+#endif
+
 #define close(fd) ({                                              \
     register long _a0 asm("a0") = (long)(fd);                     \
     register long _a7 asm("a7") = SYS_close;                      \

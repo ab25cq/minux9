@@ -2005,19 +2005,20 @@ int Sys_write()
     struct file** file_table = get_current_file_table();
 
     if(is_pipe(fd)) {
-        pipewrite(fd, kernel_buf, len);
+        int w = pipewrite(fd, kernel_buf, len);
+        return w;
     }
     else if(is_stdout(fd)) {
         for(int i=0; i<len; i++) {
             putchar(kernel_buf[i]);
         }
+        return len;
     }
     else {
-        return -1;
-        //panic("write(X)");
+        // 通常ファイルへの書き込み
+        ssize_t w = fs_write(fd, kernel_buf, len);
+        return (int)w;
     }
-
-    return 0;
 }
 
 int Sys_exit()
@@ -2101,8 +2102,8 @@ int Sys_open()
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
-    uintptr_t arg1 = trapframe->a1;
-    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg1 = trapframe->a1; // flags
+    uintptr_t arg2 = trapframe->a2; // mode
     uintptr_t arg3 = trapframe->a3;
     uintptr_t arg4 = trapframe->a4;
     uintptr_t arg5 = trapframe->a5;
@@ -2115,7 +2116,7 @@ int Sys_open()
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
     copyinstr(p->pagetable, kernel_buf, user_va, 256);
             
-    int result = fs_open(kernel_buf);
+    int result = fs_open2(kernel_buf, (int)arg1, (int)arg2);
     
     return result;
 }
@@ -2195,7 +2196,7 @@ int Sys_execv()
     kargv[argc] = NULL;
 
     // Read ELF file
-    int fd = fs_open(path);
+    int fd = fs_open2(path, 0, 0);
     if(fd < 0) {
         trapframe->a0 = -1;
         return -1;
@@ -2683,4 +2684,3 @@ int main()
     
     while (1); 
 }
-

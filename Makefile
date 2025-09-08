@@ -18,6 +18,10 @@ kernel.elf:
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o cat cat.c $(CHILD_CFLAGS)
 	xxd -i cat > cat.h  
 
+	$(CCPREFIX)gcc -O0 -nostdlib -static -o hello -g hello.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello hello.c $(CHILD_CFLAGS)
+	xxd -i hello > hello.h  
+
 	$(CCPREFIX)gcc -O0 -nostdlib -static -o echo -g echo.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o echo echo.c $(CHILD_CFLAGS)
 	xxd -i echo > echo.h  
@@ -38,6 +42,7 @@ kernel.elf:
 	xxd -i sh.elf > sh.h  
 
 	dd if=/dev/zero of=fs.img bs=1k count=512
+	dd if=hello of=fs.img bs=512 seek=0 conv=notrunc
 	dd if=cat of=fs.img bs=512 seek=0 conv=notrunc
 	dd if=echo of=fs.img bs=512 seek=0 conv=notrunc
 	dd if=grep of=fs.img bs=512 seek=128 conv=notrunc

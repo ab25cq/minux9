@@ -115,6 +115,9 @@ struct file {
     int read_pipe;
     int write_pipe;
     
+    // open() flags (subset) for this file; used for behavior like O_TRUNC
+    int oflags;
+    
     struct file* free_next;
     
     struct proc* owner_processes[PROC_MAX];
@@ -122,7 +125,10 @@ struct file {
 };
 
 int fs_open(const char *path);
+// New open with flags/mode
+int fs_open2(const char *path, int flags, int mode);
 ssize_t fs_read(int fd, void *buf, size_t count);
+ssize_t fs_write(int fd, const void *buf, size_t count);
 int fs_close(long fd, int massive);
 
 
@@ -147,5 +153,21 @@ void file_system_init();
 extern struct proc* gProc[PROC_MAX];
 
 extern int gActiveProc;
+
+#ifndef O_RDONLY
+#define O_RDONLY 0
+#endif
+#ifndef O_WRONLY
+#define O_WRONLY 1
+#endif
+#ifndef O_RDWR
+#define O_RDWR 2
+#endif
+#ifndef O_CREAT
+#define O_CREAT  (1<<9)
+#endif
+#ifndef O_TRUNC
+#define O_TRUNC  (1<<10)
+#endif
 
 #endif

@@ -562,6 +562,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("c.txt", 9);
     write_file_to_file_system("d.txt", 10);
     write_file_to_file_system("echo", 11);
+    write_file_to_file_system("hello", 12);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);
