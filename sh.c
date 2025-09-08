@@ -217,6 +217,27 @@ void puts(const char *s) {
     }
 }
 
+int xisalpha(char c)
+{
+    int result = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    return result;
+}
+
+int xisblank(char c)
+{
+    return c == ' ' || c == '\t';
+}
+
+int xisdigit(char c)
+{
+    return (c >= '0' && c <= '9');
+}
+
+int xisalnum(char c)
+{
+    return xisalpha(c) || xisdigit(c);
+}
+
 
 /*
 int main(void) {
@@ -270,10 +291,13 @@ int main(void) {
 #define MAX_ARG 16
 #define MAX_COMMAND 5
 
+#define PATH_MAX 32
+
 struct sCommand
 {
     char argv[MAX_ARGV][MAX_ARG];
     int num_arg;
+    char redirect_file[PATH_MAX];
 };
 
 int run_command(int n, struct sCommand* commands, int num_commands)
@@ -289,6 +313,18 @@ int run_command(int n, struct sCommand* commands, int num_commands)
            argv[j] = command->argv[j];
         }
         argv[j] = (void*)0;
+        
+        if(command->redirect_file[0] != '\0') {
+            int fd = open(command->redirect_file, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+            
+            if(fd < 0) {
+                puts("REDIRECT WRITE FILE CAN'T BE OPENED");
+                exit(1);
+            }
+            
+            dup2(fd, 1);
+            close(fd);
+        }
         
         execvp(argv[0], argv);
         exit(127);
@@ -382,42 +418,91 @@ int main(void) {
         p = buf;
         n = 0;
         
+        commands[num_commands].redirect_file[0] = '\0'; 
+        
         while(1) {
             if(*p == '|') {
+                // finalize pending token before pipe
+                if(n > 0) {
+                    commands[num_commands].argv[num_arg][n] = '\0';
+                    num_arg++;
+                    if(num_arg >= MAX_ARGV) {
+                        puts("ARG NUM ERROR");
+                        break;
+                    }
+                }
                 p++;
                 while(*p == ' ' || *p == '\t') {
                     p++;
                 }
-                
-                commands[num_commands].argv[num_arg][n] = '\0';
                 commands[num_commands].num_arg = num_arg;
             
                 num_commands++;
                 n = 0;
                 num_arg = 0;
+                // reset redirect target for the next command
+                commands[num_commands].redirect_file[0] = '\0';
                 
                 if(num_commands >= MAX_COMMAND) {
                     puts("ERR MAX COMMAND");
                     break;
                 }
             }
+            else if(*p == '>') {
+                // finalize pending token before redirection
+                if(n > 0) {
+                    commands[num_commands].argv[num_arg][n] = '\0';
+                    num_arg++;
+                    if(num_arg >= MAX_ARGV) {
+                        puts("ARG NUM ERROR");
+                        break;
+                    }
+                    n = 0;
+                }
+                p++;
+                while(*p == ' ' || *p == '\t') {
+                    p++;
+                }
+                
+                int i = 0;
+                // allow common filename characters
+                while(xisalnum(*p) || *p == '.' || *p == '_' || *p == '-' || *p == '/') {
+                    commands[num_commands].redirect_file[i++] = *p++;
+                    
+                    if(i-1 >= PATH_MAX) {
+                        puts("FILE NAME IS TOO LONG");
+                        exit(2);
+                    }
+                }
+                commands[num_commands].redirect_file[i] = '\0';
+                
+                while(*p == ' ' || *p == '\t') {
+                    p++;
+                }
+            }
             else if(*p == ' ' || *p == '\t') {
                 while(*p == ' ' || *p == '\t') {
                     p++;
                 }
-                commands[num_commands].argv[num_arg][n] = '\0';
-                num_arg++;
-                n = 0;
-                
-                if(num_arg >= MAX_ARGV) {
-                    puts("ARG NUM ERROR");
-                    break;
+                if(n > 0) {
+                    commands[num_commands].argv[num_arg][n] = '\0';
+                    num_arg++;
+                    n = 0;
+                    if(num_arg >= MAX_ARGV) {
+                        puts("ARG NUM ERROR");
+                        break;
+                    }
                 }
+                
             }
             else if(*p == '\0') {
-                commands[num_commands].argv[num_arg][n] = '\0';
-            
-                num_arg++;
+                // Finalize the last token only if there is one
+                if (n > 0) {
+                    commands[num_commands].argv[num_arg][n] = '\0';
+                    num_arg++;
+                    n = 0;
+                }
+
                 commands[num_commands].num_arg = num_arg;
                 num_commands++;
                 break;

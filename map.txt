@@ -169,7 +169,7 @@ LOAD main.o
  *fill*         0x000000008000912a        0x6 
  .rodata        0x0000000080009130      0x4a0 main.o
 
-.data           0x00000000800095d0     0x13f0
+.data           0x00000000800095d0     0x1850
  *(.data*)
  .data          0x00000000800095d0        0x0 entry.o
  .data          0x00000000800095d0        0x0 start.o
@@ -178,68 +178,68 @@ LOAD main.o
  .data          0x00000000800095d0        0x0 fs.o
  .data          0x00000000800095d0        0x0 plic.o
  .data          0x00000000800095d0        0x0 trap_c.o
- .data          0x00000000800095d0     0x13f0 main.o
+ .data          0x00000000800095d0     0x1850 main.o
                 0x00000000800095d0                sh_elf
 
-.sdata          0x000000008000a9c0       0x10
+.sdata          0x000000008000ae20       0x10
  *(.sdata*)
- .sdata         0x000000008000a9c0       0x10 main.o
-                0x000000008000a9c0                sh_elf_len
+ .sdata         0x000000008000ae20       0x10 main.o
+                0x000000008000ae20                sh_elf_len
 
-.bss            0x000000008000aa00     0x8599
+.bss            0x000000008000b000     0x8599
  *(.bss)
- .bss           0x000000008000aa00        0x0 entry.o
- .bss           0x000000008000aa00        0x0 start.o
- .bss           0x000000008000aa00        0x0 userret.o
- .bss           0x000000008000aa00        0x0 trap.o
- .bss           0x000000008000aa00     0x8030 fs.o
-                0x000000008000aa00                gPipes
-                0x000000008000dd00                gFiles
- .bss           0x0000000080012a30        0x0 plic.o
- .bss           0x0000000080012a30        0x0 trap_c.o
- .bss           0x0000000080012a30      0x540 main.o
-                0x0000000080012a30                gCPU
-                0x0000000080012b40                gProc
-                0x0000000080012f40                kmem
+ .bss           0x000000008000b000        0x0 entry.o
+ .bss           0x000000008000b000        0x0 start.o
+ .bss           0x000000008000b000        0x0 userret.o
+ .bss           0x000000008000b000        0x0 trap.o
+ .bss           0x000000008000b000     0x8030 fs.o
+                0x000000008000b000                gPipes
+                0x000000008000e300                gFiles
+ .bss           0x0000000080013030        0x0 plic.o
+ .bss           0x0000000080013030        0x0 trap_c.o
+ .bss           0x0000000080013030      0x540 main.o
+                0x0000000080013030                gCPU
+                0x0000000080013140                gProc
+                0x0000000080013540                kmem
  *(.bss.*)
  *(.sbss)
- .sbss          0x0000000080012f70       0x10 fs.o
-                0x0000000080012f70                gFreePipes
-                0x0000000080012f78                gFreeFiles
- .sbss          0x0000000080012f80       0x19 main.o
-                0x0000000080012f80                kernel_pagetable
-                0x0000000080012f88                free_list
-                0x0000000080012f90                gNumProc
-                0x0000000080012f94                gActiveProc
-                0x0000000080012f98                last_key
+ .sbss          0x0000000080013570       0x10 fs.o
+                0x0000000080013570                gFreePipes
+                0x0000000080013578                gFreeFiles
+ .sbss          0x0000000080013580       0x19 main.o
+                0x0000000080013580                kernel_pagetable
+                0x0000000080013588                free_list
+                0x0000000080013590                gNumProc
+                0x0000000080013594                gActiveProc
+                0x0000000080013598                last_key
  *(.sbss.*)
                 [!provide]                        PROVIDE (_code_end = .)
-                0x0000000080022f99                . = (. + STACK_MAX)
-                0x0000000080022f99                PROVIDE (stack_top = .)
-                0x0000000080023000                . = ALIGN (0x1000)
-                0x0000000080023000                TRAPFRAME = .
-                0x0000000080024000                . = (. + 0x1000)
+                0x0000000080023599                . = (. + STACK_MAX)
+                0x0000000080023599                PROVIDE (stack_top = .)
                 0x0000000080024000                . = ALIGN (0x1000)
-                0x0000000080024000                TRAPFRAME2 = .
+                0x0000000080024000                TRAPFRAME = .
                 0x0000000080025000                . = (. + 0x1000)
-                0x0000000080025000                PROVIDE (TRAMPOLINE = .)
+                0x0000000080025000                . = ALIGN (0x1000)
+                0x0000000080025000                TRAPFRAME2 = .
+                0x0000000080026000                . = (. + 0x1000)
+                0x0000000080026000                PROVIDE (TRAMPOLINE = .)
 
-.trampoline     0x0000000080025000      0x48a
+.trampoline     0x0000000080026000      0x48a
  *(.trampoline)
- .trampoline    0x0000000080025000      0x48a trap.o
-                0x0000000080025000                trapvec
-                0x00000000800251fc                swtch
-                0x00000000800252be                enter_user
-                0x00000000800252ec                mtvec
-                0x0000000080025306                asm_memmove
-                0x000000008002533c                yield
-                0x00000000800253e4                yield_return
+ .trampoline    0x0000000080026000      0x48a trap.o
+                0x0000000080026000                trapvec
+                0x00000000800261fc                swtch
+                0x00000000800262be                enter_user
+                0x00000000800262ec                mtvec
+                0x0000000080026306                asm_memmove
+                0x000000008002633c                yield
+                0x00000000800263e4                yield_return
 
-.rela.dyn       0x0000000080025490        0x0
- .rela.text     0x0000000080025490        0x0 entry.o
+.rela.dyn       0x0000000080026490        0x0
+ .rela.text     0x0000000080026490        0x0 entry.o
  .rela.trampoline
-                0x0000000080025490        0x0 entry.o
-                0x0000000080026000                . = ALIGN (0x1000)
+                0x0000000080026490        0x0 entry.o
+                0x0000000080027000                . = ALIGN (0x1000)
                 0x0000000080700000                . = 0x80700000
                 0x0000000080700000                PROVIDE (COMMON = .)
 
