@@ -169,5 +169,8 @@ extern int gActiveProc;
 #ifndef O_TRUNC
 #define O_TRUNC  (1<<10)
 #endif
+#ifndef O_APPEND
+#define O_APPEND (1<<11)
+#endif
 
 #endif

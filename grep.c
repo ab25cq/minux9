@@ -38,8 +38,6 @@ int main(int argc, char** argv) {
         buf[size] = '\0';
         p = buf;
         head = buf;
-        //write(1, buf, size);
-        //write(1, "a", 1); //strlen(buf)); //head, tail -head);
         while(*p) {
             if(*p == '\n') {
                 while(*p == '\n') {

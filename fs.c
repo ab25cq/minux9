@@ -36,6 +36,9 @@ int strncmp(const char *p, const char *q, unsigned int n);
 #ifndef O_TRUNC
 #define O_TRUNC  (1<<10)
 #endif
+#ifndef O_APPEND
+#define O_APPEND (1<<11)
+#endif
 
 // ────────────────────────────────────────────────────────────────────────
 // Virtio-ブロックデバイス（legacy MMIO）用簡易ドライバ
@@ -1062,6 +1065,10 @@ int fs_open2(const char *path, int flags, int mode) {
                 write_inode(inum, &file_table[i]->din);
                 file_table[i]->off = 0;
             }
+            // O_APPEND: start at end of file
+            if ((flags & O_APPEND) && file_table[i]->din.type == T_FILE) {
+                file_table[i]->off = file_table[i]->din.size;
+            }
             return i;  // <- 3,4,5… を返す
         }
     }
@@ -1107,7 +1114,11 @@ ssize_t fs_write(int fd, const void *buf, size_t count) {
 
     const uint8_t *src = (const uint8_t *)buf;
     uint32_t left = to_total;
-    uint32_t off  = f->off;
+    // Respect O_APPEND: each write begins at current end
+    uint32_t off  = (f->oflags & O_APPEND) ? f->din.size : f->off;
+    if (f->oflags & O_APPEND) {
+        f->off = off; // sync the file offset to end before writing
+    }
     uint32_t written = 0;
 
     while (left > 0) {

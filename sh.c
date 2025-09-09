@@ -298,6 +298,7 @@ struct sCommand
     char argv[MAX_ARGV][MAX_ARG];
     int num_arg;
     char redirect_file[PATH_MAX];
+    int redirect_append;
 };
 
 int run_command(int n, struct sCommand* commands, int num_commands)
@@ -315,7 +316,13 @@ int run_command(int n, struct sCommand* commands, int num_commands)
         argv[j] = (void*)0;
         
         if(command->redirect_file[0] != '\0') {
-            int fd = open(command->redirect_file, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+            int fd;
+            if(command->redirect_append) {
+                fd = open(command->redirect_file, O_APPEND|O_WRONLY|O_CREAT, 0644);
+            }
+            else {
+                fd = open(command->redirect_file, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+            }
             
             if(fd < 0) {
                 puts("REDIRECT WRITE FILE CAN'T BE OPENED");
@@ -448,7 +455,7 @@ int main(void) {
                     break;
                 }
             }
-            else if(*p == '>') {
+            else if(*p == '>' && *(p+1) != '>') {
                 // finalize pending token before redirection
                 if(n > 0) {
                     commands[num_commands].argv[num_arg][n] = '\0';
@@ -475,6 +482,41 @@ int main(void) {
                     }
                 }
                 commands[num_commands].redirect_file[i] = '\0';
+                commands[num_commands].redirect_append = 0;
+                
+                while(*p == ' ' || *p == '\t') {
+                    p++;
+                }
+            }
+            else if(*p == '>' && *(p+1) == '>') {
+                // finalize pending token before redirection
+                if(n > 0) {
+                    commands[num_commands].argv[num_arg][n] = '\0';
+                    num_arg++;
+                    if(num_arg >= MAX_ARGV) {
+                        puts("ARG NUM ERROR");
+                        break;
+                    }
+                    n = 0;
+                }
+                // consume both '>' characters for append redirection
+                p += 2;
+                while(*p == ' ' || *p == '\t') {
+                    p++;
+                }
+                
+                int i = 0;
+                // allow common filename characters
+                while(xisalnum(*p) || *p == '.' || *p == '_' || *p == '-' || *p == '/') {
+                    commands[num_commands].redirect_file[i++] = *p++;
+                    
+                    if(i-1 >= PATH_MAX) {
+                        puts("FILE NAME IS TOO LONG");
+                        exit(2);
+                    }
+                }
+                commands[num_commands].redirect_file[i] = '\0';
+                commands[num_commands].redirect_append = 1;
                 
                 while(*p == ' ' || *p == '\t') {
                     p++;

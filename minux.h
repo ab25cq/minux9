@@ -82,6 +82,9 @@ typedef int pid_t;
 #ifndef O_TRUNC
 #define O_TRUNC  (1<<10)
 #endif
+#ifndef O_APPEND
+#define O_APPEND (1<<11)
+#endif
 
 #define close(fd) ({                                              \
     register long _a0 asm("a0") = (long)(fd);                     \
