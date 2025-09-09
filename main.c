@@ -1254,14 +1254,14 @@ int mappages(pagetable_t pagetable, uint64_t va, uint64_t size, uint64_t pa, int
     uint64_t a, last;
     pte_t *pte;
 
-    if((va % PGSIZE) != 0)
-        puts("mappages: va not aligned");
+    // if((va % PGSIZE) != 0)
+    //     puts("mappages: va not aligned");
 
-    if((size % PGSIZE) != 0)
-        puts("mappages: size not aligned");
+    // if((size % PGSIZE) != 0)
+    //     puts("mappages: size not aligned");
 
-    if(size == 0)
-        puts("mappages: size");
+    // if(size == 0)
+    //     puts("mappages: size");
   
     a = va;
     last = va + size - PGSIZE;
@@ -1270,7 +1270,7 @@ int mappages(pagetable_t pagetable, uint64_t va, uint64_t size, uint64_t pa, int
             return -1;
         }
         if(*pte & PTE_V) {
-            printf("mappages: remap detected at va %p, existing pte flags 0x%lx, new perm 0x%x\n", va, *pte & 0x3FF, perm);
+            // printf("mappages: remap detected at va %p, existing pte flags 0x%lx, new perm 0x%x\n", va, *pte & 0x3FF, perm);
         }
         
         *pte = PA2PTE(pa) | perm | PTE_V;
@@ -1571,7 +1571,7 @@ void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
 }
 
 // Define DEBUG_CWD to enable cwd-related logs
-#define DEBUG_CWD 1
+// #define DEBUG_CWD 1
 
 void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_index) {
     struct proc* result = kalloc();
@@ -2241,6 +2241,7 @@ int Sys_getcwd()
 #endif
     // Defensive: ensure cwd is never empty when reported
     const char* src = p->cwd;
+puts(p->cwd);
     char fallback_root[2] = "/";
     if (len <= 0) { src = fallback_root; len = 1; }
     if (len + 1 > maxlen) {
@@ -3153,7 +3154,6 @@ uintptr_t syscall_handler()
             break;
             
         default:
-            printf("NO. %d\n", arg_syscall_no);
             panic("invalid syscall");
             while(1);
     }
