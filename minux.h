@@ -15,6 +15,23 @@ typedef int pid_t;
 #define SYS_pipe 73
 #define SYS_brk 74
 #define SYS_clear 75
+#define SYS_opendir 76
+#define SYS_readdir 77
+#define SYS_closedir 78
+// add cwd-related syscalls
+#define SYS_getcwd 79
+#define SYS_chdir 80
+#define SYS_mkdir 81
+#define SYS_rmdir 82
+#define SYS_unlink 83
+#define SYS_rename 84
+#define SYS_link   85
+#define SYS_symlink 86
+#define SYS_stat    87
+#define SYS_readlink 88
+#define SYS_lstat   89
+#define SYS_chmod   90
+#define SYS_chown   91
 
 
 #define write(fd, buf, len) ({                                       \
@@ -94,6 +111,196 @@ typedef int pid_t;
                  : "r"(_a7)                                      \
                  : "memory");                                    \
     (int)_a0;                                                     \
+})
+
+// opendir: open a directory and return fd (or -1)
+#define opendir(path) ({                                           \
+    register long _a0 asm("a0") = (long)(path);                    \
+    register long _a7 asm("a7") = SYS_opendir;                     \
+    asm volatile("ecall"                                           \
+                 : "+r"(_a0)                                      \
+                 : "r"(_a7)                                       \
+                 : "memory");                                     \
+    (int)_a0;                                                      \
+})
+
+// readdir: fetch up to max_entries dirents; returns number filled, 0 (EOF), or -1
+#define readdir(fd, dirents_ptr, max_entries) ({                    \
+    register long _a0 asm("a0") = (long)(fd);                      \
+    register long _a1 asm("a1") = (long)(dirents_ptr);             \
+    register long _a2 asm("a2") = (long)(max_entries);             \
+    register long _a7 asm("a7") = SYS_readdir;                     \
+    asm volatile("ecall"                                           \
+                 : "+r"(_a0)                                      \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                    \
+                 : "memory");                                     \
+    (int)_a0;                                                      \
+})
+
+// closedir: close directory fd; returns 0 or -1
+#define closedir(fd) ({                                             \
+    register long _a0 asm("a0") = (long)(fd);                      \
+    register long _a7 asm("a7") = SYS_closedir;                    \
+    asm volatile("ecall"                                           \
+                 : "+r"(_a0)                                      \
+                 : "r"(_a7)                                       \
+                 : "memory");                                     \
+    (int)_a0;                                                      \
+})
+
+// getcwd: write current directory into user buffer; returns length or -1
+#define getcwd_user(buf, size) ({                                    \
+    register long _a0 asm("a0") = (long)(buf);                      \
+    register long _a1 asm("a1") = (long)(size);                     \
+    register long _a7 asm("a7") = SYS_getcwd;                       \
+    asm volatile("ecall"                                            \
+                 : "+r"(_a0)                                       \
+                 : "r"(_a1), "r"(_a7)                               \
+                 : "memory");                                       \
+    (int)_a0;                                                       \
+})
+
+// chdir: change current process directory; returns 0 or -1
+#define chdir(path) ({                                               \
+    register long _a0 asm("a0") = (long)(path);                     \
+    register long _a7 asm("a7") = SYS_chdir;                        \
+    asm volatile("ecall"                                            \
+                 : "+r"(_a0)                                       \
+                 : "r"(_a7)                                         \
+                 : "memory");                                       \
+    (int)_a0;                                                       \
+})
+
+// mkdir: create directory at path; returns 0 or -1
+#define mkdir(path, mode) ({                                          \
+    register long _a0 asm("a0") = (long)(path);                      \
+    register long _a1 asm("a1") = (long)(mode);                      \
+    register long _a7 asm("a7") = SYS_mkdir;                         \
+    asm volatile("ecall"                                            \
+                 : "+r"(_a0)                                       \
+                 : "r"(_a1), "r"(_a7)                               \
+                 : "memory");                                       \
+    (int)_a0;                                                        \
+})
+
+// rmdir: remove empty directory at path; returns 0 or -1
+#define rmdir(path) ({                                                \
+    register long _a0 asm("a0") = (long)(path);                      \
+    register long _a7 asm("a7") = SYS_rmdir;                         \
+    asm volatile("ecall"                                            \
+                 : "+r"(_a0)                                       \
+                 : "r"(_a7)                                         \
+                 : "memory");                                       \
+    (int)_a0;                                                        \
+})
+
+// unlink: remove a file (not directory); returns 0 or -1
+#define unlink(path) ({                                                \
+    register long _a0 asm("a0") = (long)(path);                       \
+    register long _a7 asm("a7") = SYS_unlink;                          \
+    asm volatile("ecall"                                             \
+                 : "+r"(_a0)                                        \
+                 : "r"(_a7)                                          \
+                 : "memory");                                        \
+    (int)_a0;                                                         \
+})
+
+// rename: move/rename file or directory
+#define rename(oldp,newp) ({                                           \
+    register long _a0 asm("a0") = (long)(oldp);                       \
+    register long _a1 asm("a1") = (long)(newp);                       \
+    register long _a7 asm("a7") = SYS_rename;                          \
+    asm volatile("ecall"                                             \
+                 : "+r"(_a0)                                        \
+                 : "r"(_a1), "r"(_a7)                                 \
+                 : "memory");                                        \
+    (int)_a0;                                                         \
+})
+
+// link: create a hard link newp pointing to oldp
+#define link(oldp,newp) ({                                              \
+    register long _a0 asm("a0") = (long)(oldp);                        \
+    register long _a1 asm("a1") = (long)(newp);                        \
+    register long _a7 asm("a7") = SYS_link;                            \
+    asm volatile("ecall"                                              \
+                 : "+r"(_a0)                                         \
+                 : "r"(_a1), "r"(_a7)                                  \
+                 : "memory");                                         \
+    (int)_a0;                                                          \
+})
+
+// symlink: create a symbolic link
+#define symlink(target, linkpath) ({                                     \
+    register long _a0 asm("a0") = (long)(target);                       \
+    register long _a1 asm("a1") = (long)(linkpath);                     \
+    register long _a7 asm("a7") = SYS_symlink;                           \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a1), "r"(_a7)                                   \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+// stat: fill struct stat for path
+#define stat(path, stptr) ({                                             \
+    register long _a0 asm("a0") = (long)(path);                          \
+    register long _a1 asm("a1") = (long)(stptr);                         \
+    register long _a7 asm("a7") = SYS_stat;                              \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a1), "r"(_a7)                                   \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+// readlink: read symlink target into buf (no NUL), returns bytes copied
+#define readlink(path, buf, size) ({                                     \
+    register long _a0 asm("a0") = (long)(path);                          \
+    register long _a1 asm("a1") = (long)(buf);                           \
+    register long _a2 asm("a2") = (long)(size);                          \
+    register long _a7 asm("a7") = SYS_readlink;                          \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                        \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+// lstat: like stat but does not follow final symlink
+#define lstat(path, stptr) ({                                            \
+    register long _a0 asm("a0") = (long)(path);                          \
+    register long _a1 asm("a1") = (long)(stptr);                         \
+    register long _a7 asm("a7") = SYS_lstat;                             \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a1), "r"(_a7)                                   \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+// chmod: change file mode
+#define chmod(path, mode) ({                                             \
+    register long _a0 asm("a0") = (long)(path);                          \
+    register long _a1 asm("a1") = (long)(mode);                          \
+    register long _a7 asm("a7") = SYS_chmod;                             \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a1), "r"(_a7)                                   \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+// chown: change ownership
+#define chown(path, uid, gid) ({                                         \
+    register long _a0 asm("a0") = (long)(path);                          \
+    register long _a1 asm("a1") = (long)(uid);                           \
+    register long _a2 asm("a2") = (long)(gid);                           \
+    register long _a7 asm("a7") = SYS_chown;                             \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                        \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
 })
 
    
@@ -198,3 +405,135 @@ typedef int pid_t;
 #define __MINUX__ 1
 
 #endif
+#define SYS_settimeofday 92
+#define SYS_utimes 93
+#define SYS_umask 94
+#define SYS_gettimeofday 95
+#define SYS_getuid 96
+#define SYS_getgid 97
+#define SYS_setuid 98
+#define SYS_setgid 99
+// settimeofday: set base epoch seconds used by FS times
+#define settimeofday(sec) ({                                            \
+    register long _a0 asm("a0") = (long)(sec);                          \
+    register long _a7 asm("a7") = SYS_settimeofday;                     \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a7)                                            \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+// utimes: set atime/mtime; pass 0xFFFFFFFF to set to 'now'
+#define utimes(path, atime, mtime) ({                                   \
+    register long _a0 asm("a0") = (long)(path);                         \
+    register long _a1 asm("a1") = (long)(atime);                        \
+    register long _a2 asm("a2") = (long)(mtime);                        \
+    register long _a7 asm("a7") = SYS_utimes;                           \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                        \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+// umask: set new umask, return old
+#define umask(newmask) ({                                               \
+    register long _a0 asm("a0") = (long)(newmask);                      \
+    register long _a7 asm("a7") = SYS_umask;                            \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a7)                                            \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+// gettimeofday: returns epoch seconds
+#define gettimeofday() ({                                               \
+    register long _a7 asm("a7") = SYS_gettimeofday;                     \
+    register long _a0 asm("a0") = 0;                                    \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a7)                                            \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+// uid/gid syscalls
+#define getuid() ({                                                     \
+    register long _a7 asm("a7") = SYS_getuid;                           \
+    register long _a0 asm("a0") = 0;                                    \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a7)                                            \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+#define getgid() ({                                                     \
+    register long _a7 asm("a7") = SYS_getgid;                           \
+    register long _a0 asm("a0") = 0;                                    \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a7)                                            \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+#define setuid(uid) ({                                                  \
+    register long _a0 asm("a0") = (long)(uid);                          \
+    register long _a7 asm("a7") = SYS_setuid;                           \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a7)                                            \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+#define setgid(gid) ({                                                  \
+    register long _a0 asm("a0") = (long)(gid);                          \
+    register long _a7 asm("a7") = SYS_setgid;                           \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a7)                                            \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+#define SYS_realpath 101
+#define SYS_getlogin 103
+// realpath: resolve to canonical absolute path; returns 0 on success
+#define realpath_user(path, outbuf, outsz) ({                             \
+    register long _a0 asm("a0") = (long)(path);                          \
+    register long _a1 asm("a1") = (long)(outbuf);                        \
+    register long _a2 asm("a2") = (long)(outsz);                         \
+    register long _a7 asm("a7") = SYS_realpath;                          \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                        \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+
+// getlogin: write username into buf; returns length
+#define getlogin_user(buf, size) ({                                      \
+    register long _a0 asm("a0") = (long)(buf);                           \
+    register long _a1 asm("a1") = (long)(size);                          \
+    register long _a7 asm("a7") = SYS_getlogin;                          \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a1), "r"(_a7)                                   \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})
+#define SYS_login 102
+// login: authenticate and switch credentials
+#define login_user(name, pass) ({                                        \
+    register long _a0 asm("a0") = (long)(name);                         \
+    register long _a1 asm("a1") = (long)(pass);                         \
+    register long _a7 asm("a7") = SYS_login;                            \
+    asm volatile("ecall"                                               \
+                 : "+r"(_a0)                                          \
+                 : "r"(_a1), "r"(_a7)                                   \
+                 : "memory");                                          \
+    (int)_a0;                                                           \
+})

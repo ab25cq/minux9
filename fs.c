@@ -19,6 +19,8 @@ char *strtok(char *s, const char *delim);
 extern void puts(const char* s);
 int strcmp(const char* s1, const char* s2);
 int strncmp(const char *p, const char *q, unsigned int n);
+// forward decl
+static void build_abs_normalized(char *out, size_t outsz, const char *path);
 
 // open flags shared via common.h
 #ifndef O_RDONLY
@@ -252,6 +254,35 @@ void write_block(uint32_t blk, const void *src)
 
 static struct superblock sb;
 static uint8_t        block_buf[BSIZE];
+// Convert counter to coarse seconds for human readability.
+#define FS_TIME_HZ 1000000UL
+extern uint32_t g_time_offset;
+static inline uint32_t fs_now(void) { uint64_t x; asm volatile("csrr %0, time" : "=r"(x)); return g_time_offset + (uint32_t)(x / FS_TIME_HZ); }
+
+// Permission model helpers
+#define P_READ  4
+#define P_WRITE 2
+#define P_EXEC  1
+
+static int check_perm(struct dinode *ip, int want)
+{
+    struct proc *p = gProc[gActiveProc];
+    uint32_t mode = ip->mode & 0777;
+    int shift = 6; // owner by default
+    if (p->uid == ip->uid) shift = 6;
+    else if (p->gid == ip->gid) shift = 3;
+    else {
+        int member = 0;
+        for (int i=0;i<p->nsupp;i++) if (p->supp_gids[i] == ip->gid) { member=1; break; }
+        shift = member ? 3 : 0;
+    }
+    int perms = (mode >> shift) & 7;
+    // if want includes write, require write bit; if exec required, require x; if read required, require r
+    if ((want & P_READ)  && !(perms & 4)) return 0;
+    if ((want & P_WRITE) && !(perms & 2)) return 0;
+    if ((want & P_EXEC)  && !(perms & 1)) return 0;
+    return 1;
+}
 
 void read_superblock(void) {
     read_block(1, block_buf);
@@ -312,6 +343,64 @@ static void bitmap_set(uint32_t b)
     uint32_t bi = b % BPB;
     buf[bi/8] |= (1 << (bi%8));
     write_block(bmapblk, buf);
+}
+
+static void bitmap_clear(uint32_t b)
+{
+    if (b == 0) return;
+    uint32_t bmapblk = BBLOCK(b);
+    uint8_t buf[BSIZE];
+    read_block(bmapblk, buf);
+    uint32_t bi = b % BPB;
+    buf[bi/8] &= ~(1 << (bi%8));
+    write_block(bmapblk, buf);
+}
+
+// Free all data blocks referenced by an inode, including indirects
+static void free_inode_blocks(uint32_t inum, struct dinode *ip)
+{
+    // direct blocks
+    for (int i = 0; i < NDIRECT; i++) {
+        if (ip->addrs[i] != 0) {
+            bitmap_clear(ip->addrs[i]);
+            ip->addrs[i] = 0;
+        }
+    }
+
+    // single indirect
+    if (ip->addrs[NDIRECT] != 0) {
+        uint32_t iblk = ip->addrs[NDIRECT];
+        read_block(iblk, block_buf);
+        uint32_t *ents = (uint32_t*)block_buf;
+        for (int i = 0; i < NINDIRECT; i++) {
+            if (ents[i]) bitmap_clear(ents[i]);
+        }
+        bitmap_clear(iblk);
+        ip->addrs[NDIRECT] = 0;
+    }
+
+    // double indirect
+    if (ip->addrs[NDIRECT+1] != 0) {
+        uint32_t dblk = ip->addrs[NDIRECT+1];
+        read_block(dblk, block_buf);
+        uint32_t *first = (uint32_t*)block_buf;
+        for (int i = 0; i < NINDIRECT; i++) {
+            if (!first[i]) continue;
+            uint32_t sblk = first[i];
+            uint8_t sbuf[BSIZE];
+            read_block(sblk, sbuf);
+            uint32_t *second = (uint32_t*)sbuf;
+            for (int j = 0; j < NINDIRECT; j++) {
+                if (second[j]) bitmap_clear(second[j]);
+            }
+            bitmap_clear(sblk);
+        }
+        bitmap_clear(dblk);
+        ip->addrs[NDIRECT+1] = 0;
+    }
+
+    ip->size = 0;
+    write_inode(inum, ip);
 }
 
 static uint32_t alloc_data_block(void)
@@ -481,30 +570,117 @@ uint32_t dir_lookup(struct dinode *parent, const char *name) {
     return 0;
 }
 
+static uint32_t path_lookup_lim(const char *path, int depth);
+
 uint32_t path_lookup(const char *path) {
-    if (path[0] != '/') return 0;
-    if (strcmp(path, "/") == 0) {
-        return ROOTINO;
-    }
+    return path_lookup_lim(path, 8);
+}
+
+static uint32_t path_lookup_lim(const char *path, int depth) {
+    if (depth <= 0) return 0;
+    if (!path || path[0] != '/') return 0;
+    if (strcmp(path, "/") == 0) return ROOTINO;
 
     struct dinode ipr;
     read_inode(ROOTINO, &ipr);
     if (ipr.type != T_DIR) return 0;
 
-    char copy[strlen(path)+1];
-    strncpy(copy, path, strlen(path)+1);
-    char *token = strtok(copy, "/");
-    uint32_t current_inum = ROOTINO;
+    char buf[256];
+    strncpy(buf, path, sizeof(buf)-1); buf[sizeof(buf)-1] = '\0';
+    char *rest = buf;
+    char *tok;
+    uint32_t cur = ROOTINO;
+    char prefix[256]; prefix[0] = '/'; prefix[1] = '\0';
 
-    while (token != NULL) {
+    while ((tok = strtok(rest, "/")) != NULL) {
+        rest = NULL; // subsequent calls
         if (ipr.type != T_DIR) return 0;
-        uint32_t next_inum = dir_lookup(&ipr, token);
-        if (next_inum == 0) return 0;
-        read_inode(next_inum, &ipr);
-        current_inum = next_inum;
-        token = strtok(NULL, "/");
+        // traverse requires execute permission on directory
+        if (!check_perm(&ipr, P_EXEC)) return 0;
+        uint32_t next = dir_lookup(&ipr, tok);
+        if (next == 0) return 0;
+        struct dinode nxt; read_inode(next, &nxt);
+        if (nxt.type == T_SYMLINK) {
+            // read link target string
+            char lbuf[128];
+            int n = nxt.size; if (n >= (int)sizeof(lbuf)) n = sizeof(lbuf)-1;
+            read_data(&nxt, 0, (uint8_t*)lbuf, n);
+            lbuf[n] = '\0';
+            // Rebuild remaining path
+            char remain[256];
+            remain[0] = '\0';
+            char *p = strtok(NULL, "/");
+            while (p) {
+                if (remain[0]) strncat(remain, "/", sizeof(remain)-strlen(remain)-1);
+                strncat(remain, p, sizeof(remain)-strlen(remain)-1);
+                p = strtok(NULL, "/");
+            }
+            char joined[256];
+            if (lbuf[0] == '/') {
+                strncpy(joined, lbuf, sizeof(joined)-1);
+                joined[sizeof(joined)-1] = '\0';
+            } else {
+                // relative symlink resolves against prefix (dir containing link)
+                strncpy(joined, prefix, sizeof(joined)-1);
+                joined[sizeof(joined)-1] = '\0';
+                if (!(joined[0]=='/' && joined[1]=='\0')) strncat(joined, "/", sizeof(joined)-strlen(joined)-1);
+                strncat(joined, lbuf, sizeof(joined)-strlen(joined)-1);
+            }
+            if (remain[0]) {
+                strncat(joined, "/", sizeof(joined)-strlen(joined)-1);
+                strncat(joined, remain, sizeof(joined)-strlen(joined)-1);
+            }
+            return path_lookup_lim(joined, depth-1);
+        }
+        // advance
+        cur = next; ipr = nxt;
+        // update prefix with '/tok'
+        if (!(prefix[0]=='/' && prefix[1]=='\0')) strncat(prefix, "/", sizeof(prefix)-strlen(prefix)-1);
+        strncat(prefix, tok, sizeof(prefix)-strlen(prefix)-1);
     }
-    return current_inum;
+    return cur;
+}
+
+// Resolve path to canonical absolute path
+int fs_realpath(const char *path, char *out, int outsz)
+{
+    if (!out || outsz <= 0) return -1;
+    char abs[256]; build_abs_normalized(abs, sizeof(abs), path);
+    // Walk using path_lookup_lim-like logic accumulating canonical path
+    if (abs[0] != '/') return -1;
+    if (strcmp(abs, "/") == 0) { if (outsz >= 2){ out[0]='/'; out[1]='\0'; return 0;} return -1; }
+    struct dinode dir; read_inode(ROOTINO, &dir);
+    char buf[256]; strncpy(buf, abs, sizeof(buf)-1); buf[sizeof(buf)-1]='\0';
+    char *rest = buf, *tok;
+    int depth=8; int first=1; int n=0; out[n++]='/'; out[1]='\0';
+    while ((tok = strtok(rest, "/")) != NULL) {
+        rest = NULL;
+        if (dir.type != T_DIR) return -1;
+        if (!check_perm(&dir, P_EXEC)) return -1;
+        uint32_t next = dir_lookup(&dir, tok);
+        if (!next) return -1;
+        struct dinode nxt; read_inode(next, &nxt);
+        if (nxt.type == T_SYMLINK) {
+            if (--depth <= 0) return -1;
+            char lbuf[128]; int len=nxt.size; if(len>(int)sizeof(lbuf)-1) len=sizeof(lbuf)-1;
+            read_data(&nxt, 0, (uint8_t*)lbuf, len); lbuf[len]='\0';
+            char remain[256]; remain[0]='\0'; char *p=strtok(NULL, "/");
+            while(p){ if(remain[0]) strncat(remain, "/", sizeof(remain)-strlen(remain)-1); strncat(remain, p, sizeof(remain)-strlen(remain)-1); p=strtok(NULL, "/"); }
+            char joined[512]; if (lbuf[0]=='/') { strncpy(joined, lbuf, sizeof(joined)-1); }
+            else { // relative to current out
+                joined[0]='\0'; strncat(joined, out, sizeof(joined)-1); if (joined[strlen(joined)-1] != '/') strncat(joined, "/", sizeof(joined)-strlen(joined)-1); strncat(joined, lbuf, sizeof(joined)-strlen(joined)-1);
+            }
+            if (remain[0]) { if (joined[strlen(joined)-1] != '/') strncat(joined, "/", sizeof(joined)-strlen(joined)-1); strncat(joined, remain, sizeof(joined)-strlen(joined)-1); }
+            return fs_realpath(joined, out, outsz);
+        }
+        // append component to out
+        int l = strlen(tok);
+        if (n + l + 1 >= outsz) return -1; // overflow
+        if (!(n==1 && out[0]=='/')) out[n++]='/';
+        for(int i=0;i<l;i++) out[n++]=tok[i]; out[n]='\0';
+        dir = nxt;
+    }
+    return 0;
 }
 
 void dump_inode(uint32_t inum) {
@@ -935,6 +1111,7 @@ static uint32_t alloc_inode_T_FILE(void)
             newi.type = T_FILE;
             newi.nlink = 1;
             newi.size = 0;
+            newi.mode = 0644; newi.uid=0; newi.gid=0; newi.atime = newi.mtime = newi.ctime = fs_now();
             write_inode(inum, &newi);
             return inum;
         }
@@ -973,6 +1150,15 @@ static int add_dirent(uint32_t parent_inum, const char *name, uint32_t child_inu
                 uint32_t disk_blk = inode_bmap_alloc(parent_inum, &pdi, blk_idx);
                 if (!disk_blk) return -1;
                 write_block(disk_blk, (uint8_t*)ents);
+                // If we placed the entry beyond current logical end,
+                // extend directory size so readdir can see it.
+                uint32_t cur_entries = pdi.size / (uint32_t)sizeof(struct dirent);
+                uint32_t abs_idx = (off / (uint32_t)sizeof(struct dirent)) + (uint32_t)i;
+                if (abs_idx >= cur_entries) {
+                    pdi.size = (abs_idx + 1) * (uint32_t)sizeof(struct dirent);
+                    pdi.mtime = fs_now();
+                    write_inode(parent_inum, &pdi);
+                }
                 return 0;
             }
         }
@@ -993,7 +1179,428 @@ static int add_dirent(uint32_t parent_inum, const char *name, uint32_t child_inu
     write_block(disk_blk, buf);
 
     pdi.size += sizeof(struct dirent);
+    pdi.mtime = fs_now();
     write_inode(parent_inum, &pdi);
+    return 0;
+}
+
+// Remove a directory entry with given name from parent directory
+static int remove_dirent(uint32_t parent_inum, const char *name)
+{
+    struct dinode pdi;
+    read_inode(parent_inum, &pdi);
+    if (pdi.type != T_DIR) return -1;
+
+    uint32_t off = 0;
+    char namebuf[DIRSIZ+1];
+    while (off < pdi.size) {
+        read_block(inode_bmap_alloc(parent_inum, &pdi, off / BSIZE), block_buf);
+        struct dirent *de = (struct dirent *)block_buf;
+        int entries = BSIZE / sizeof(struct dirent);
+        for (int i = 0; i < entries; i++) {
+            if (de[i].inum == 0) continue;
+            memcpy(namebuf, de[i].name, DIRSIZ);
+            namebuf[DIRSIZ] = '\0';
+            if (strncmp(namebuf, name, DIRSIZ) == 0) {
+                de[i].inum = 0;
+                write_block(inode_bmap_alloc(parent_inum, &pdi, off / BSIZE), block_buf);
+                pdi.mtime = fs_now();
+                write_inode(parent_inum, &pdi);
+                return 0;
+            }
+        }
+        off += BSIZE;
+    }
+    return -1;
+}
+
+// Normalize a path using "." and ".." components, starting from cwd if path is relative
+static void build_abs_normalized(char *out, size_t outsz, const char *path)
+{
+    struct proc *p = gProc[gActiveProc];
+    char merged[256];
+    if (path && path[0] == '/') {
+        strncpy(merged, path, sizeof(merged)-1);
+        merged[sizeof(merged)-1] = '\0';
+    } else {
+        // join cwd + '/' + path
+        strncpy(merged, p->cwd, sizeof(merged)-1);
+        merged[sizeof(merged)-1] = '\0';
+        int n = strlen(merged);
+        if (!(n == 1 && merged[0] == '/')) {
+            if (n < (int)sizeof(merged)-1) { merged[n++] = '/'; merged[n] = '\0'; }
+        }
+        if (path && path[0]) strncat(merged, path, sizeof(merged)-strlen(merged)-1);
+    }
+
+    // tokenize and normalize
+    char tmp[256];
+    strncpy(tmp, merged, sizeof(tmp)-1);
+    tmp[sizeof(tmp)-1] = '\0';
+    const char *s = tmp;
+    const char *end = tmp + strlen(tmp);
+    const char *tok_start;
+    char comps[32][DIRSIZ+1];
+    int compn = 0;
+    while (s < end) {
+        while (*s == '/') s++;
+        if (*s == '\0') break;
+        tok_start = s;
+        while (*s && *s != '/') s++;
+        int len = s - tok_start;
+        if (len == 1 && tok_start[0] == '.') {
+            // skip
+        } else if (len == 2 && tok_start[0] == '.' && tok_start[1] == '.') {
+            if (compn > 0) compn--;
+        } else if (len > 0) {
+            int llen = len;
+            if (llen > DIRSIZ) llen = DIRSIZ;
+            for (int i=0;i<DIRSIZ+1;i++) comps[compn][i]=0;
+            for (int i=0;i<llen;i++) comps[compn][i] = tok_start[i];
+            comps[compn][llen] = '\0';
+            if (compn < 31) compn++;
+        }
+    }
+    // build output
+    int pos = 0;
+    if (outsz > 0) out[pos++]='/' ;
+    for (int i=0;i<compn;i++){
+        int need = (i?1:0) + strlen(comps[i]);
+        if ((size_t)pos + need >= outsz) break;
+        if (i) out[pos++] = '/';
+        for (int j=0; comps[i][j] && (size_t)pos < outsz-1; j++) out[pos++] = comps[i][j];
+    }
+    if (pos == 0) {
+        if (outsz >= 2) { out[0]='/'; out[1]='\0'; }
+        else if (outsz>=1) out[0]='\0';
+    } else {
+        out[pos]='\0';
+    }
+}
+
+// Create a directory at path (relative to cwd allowed)
+int fs_mkdir(const char *path, int mode)
+{
+    (void)mode;
+    char abs[128];
+    build_abs_normalized(abs, sizeof(abs), path);
+    if (strcmp(abs, "/") == 0) return -1;
+
+    // ensure not exists
+    if (path_lookup(abs) != 0) return -1;
+
+    // find parent and leaf
+    uint32_t parent;
+    char leaf[DIRSIZ+1]; for(int i=0;i<DIRSIZ+1;i++) leaf[i]=0;
+    if (!path_parent_lookup_abs(abs, &parent, leaf)) return -1;
+    // require write+exec on parent dir
+    struct dinode pdi; read_inode(parent, &pdi);
+    if (!check_perm(&pdi, P_WRITE|P_EXEC)) return -1;
+    if (leaf[0] == '\0') return -1;
+
+    // allocate directory inode
+    struct dinode di;
+    uint32_t inum = 0;
+    for (uint32_t i = 1; i <= sb.ninodes; i++) {
+        read_inode(i, &di);
+        if (di.type == 0) { inum = i; break; }
+    }
+    if (!inum) return -1;
+    struct dinode newi; memset(&newi, 0, sizeof(newi));
+    newi.type = T_DIR; newi.nlink = 1; newi.size = 0; newi.mtime = fs_now(); newi.ctime = newi.mtime;
+    // apply umask and SGID inheritance
+    unsigned short um = gProc[gActiveProc]->umask;
+    struct dinode pdi_inh; read_inode(parent, &pdi_inh);
+    newi.atime = newi.mtime; newi.uid = gProc[gActiveProc]->uid;
+    newi.gid = (pdi_inh.mode & S_ISGID) ? pdi_inh.gid : gProc[gActiveProc]->gid;
+    newi.mode = ((mode ? (mode & 0777) : 0755) & ~um);
+    if (pdi_inh.mode & S_ISGID) newi.mode |= S_ISGID; // propagate SGID on directories
+    write_inode(inum, &newi);
+
+    if (add_dirent(parent, leaf, inum) != 0) return -1;
+    return 0;
+}
+
+// Remove an empty directory at path (relative to cwd allowed)
+int fs_rmdir(const char *path)
+{
+    char abs[128];
+    build_abs_normalized(abs, sizeof(abs), path);
+    if (strcmp(abs, "/") == 0) return -1;
+
+    uint32_t inum = path_lookup(abs);
+    if (inum == 0) return -1;
+    struct dinode di; read_inode(inum, &di);
+    if (di.type != T_DIR) return -1;
+    // Only allow removing empty directory
+    if (di.size != 0) {
+        // check contents are all zero entries
+        uint32_t off=0; int has_entries=0;
+        while (off < di.size) {
+            read_data(&di, off, block_buf, BSIZE);
+            struct dirent *de = (struct dirent*)block_buf;
+            int entries = BSIZE/sizeof(struct dirent);
+            for(int i=0;i<entries;i++) if (de[i].inum) { has_entries=1; break; }
+            if(has_entries) break;
+            off += BSIZE;
+        }
+        if (has_entries) return -1;
+    }
+
+    uint32_t parent; char leaf[DIRSIZ+1]; for(int i=0;i<DIRSIZ+1;i++) leaf[i]=0;
+    if (!path_parent_lookup_abs(abs, &parent, leaf)) return -1;
+    // require write+exec on parent dir
+    struct dinode pdi2; read_inode(parent, &pdi2);
+    if (!check_perm(&pdi2, P_WRITE|P_EXEC)) return -1;
+    if (remove_dirent(parent, leaf) != 0) return -1;
+
+    // Free any blocks (should be none if empty, but for safety)
+    free_inode_blocks(inum, &di);
+    // mark inode free
+    struct dinode zero; memset(&zero, 0, sizeof(zero));
+    write_inode(inum, &zero);
+    return 0;
+}
+
+// Unlink (remove) a regular file at path
+int fs_unlink(const char *path)
+{
+    char abs[128];
+    build_abs_normalized(abs, sizeof(abs), path);
+    if (strcmp(abs, "/") == 0) return -1;
+
+    uint32_t inum = path_lookup(abs);
+    if (inum == 0) return -1;
+    struct dinode di; read_inode(inum, &di);
+    if (di.type != T_FILE) return -1; // refuse to unlink non-regular
+
+    // deny unlink if any process holds it open
+    for (int pi = 0; pi < PROC_MAX; pi++) {
+        if (!gProc[pi]) continue;
+        struct file** ft = gProc[pi]->file_table;
+        for (int i = 0; i < MAX_OPEN_FILES; i++) {
+            if (ft[i] && ft[i]->kind == FK_FILE && ft[i]->inum == inum) {
+                return -1; // busy
+            }
+        }
+    }
+
+    uint32_t parent; char leaf[DIRSIZ+1]; for(int i=0;i<DIRSIZ+1;i++) leaf[i]=0;
+    if (!path_parent_lookup_abs(abs, &parent, leaf)) return -1;
+    // require write+exec on parent dir
+    struct dinode pdi3; read_inode(parent, &pdi3);
+    if (!check_perm(&pdi3, P_WRITE|P_EXEC)) return -1;
+    // sticky bit on parent dir: only root, file owner, or dir owner can remove
+    struct dinode pdir; read_inode(parent, &pdir);
+    if (pdir.mode & S_ISVTX) {
+        struct proc *pr = gProc[gActiveProc];
+        if (!(pr->uid == 0 || pr->uid == di.uid || pr->uid == pdir.uid)) return -1;
+    }
+    if (remove_dirent(parent, leaf) != 0) return -1;
+
+    // free data blocks then mark inode free
+    free_inode_blocks(inum, &di);
+    struct dinode zero; memset(&zero, 0, sizeof(zero));
+    write_inode(inum, &zero);
+    return 0;
+}
+
+// Helper: write arbitrary data to inode (overwrite from offset 0)
+static int write_data_inode(uint32_t inum, struct dinode *ip, const uint8_t *src, uint32_t size)
+{
+    uint32_t left = size; uint32_t off = 0; const uint8_t *s = src;
+    while (left > 0) {
+        uint32_t blk_idx = off / BSIZE; uint32_t blk_off = off % BSIZE;
+        uint32_t to_write = BSIZE - blk_off; if (to_write > left) to_write = left;
+        uint32_t disk_blk = inode_bmap_alloc(inum, ip, blk_idx);
+        if (!disk_blk) return -1;
+        read_block(disk_blk, block_buf);
+        memcpy(block_buf + blk_off, s, to_write);
+        write_block(disk_blk, block_buf);
+        left -= to_write; off += to_write; s += to_write;
+    }
+    ip->size = size; ip->mtime = fs_now(); write_inode(inum, ip); return 0;
+}
+
+// Create a symlink inode with link target stored as data
+int fs_symlink(const char *target, const char *linkpath)
+{
+    char abs[128]; build_abs_normalized(abs, sizeof(abs), linkpath);
+    if (strcmp(abs, "/") == 0) return -1;
+    if (path_lookup(abs) != 0) return -1; // destination exists
+
+    uint32_t parent; char leaf[DIRSIZ+1]; for(int i=0;i<DIRSIZ+1;i++) leaf[i]=0;
+    if (!path_parent_lookup_abs(abs, &parent, leaf)) return -1;
+    if (leaf[0] == '\0') return -1;
+    // require write+exec on parent dir
+    struct dinode pdi; read_inode(parent, &pdi);
+    if (!check_perm(&pdi, P_WRITE|P_EXEC)) return -1;
+
+    // allocate inode
+    struct dinode di; uint32_t inum=0;
+    for (uint32_t i=1;i<=sb.ninodes;i++){ read_inode(i,&di); if(di.type==0){ inum=i; break; } }
+    if (!inum) return -1;
+    struct dinode ni; memset(&ni,0,sizeof(ni)); ni.type=T_SYMLINK; ni.nlink=1; ni.size=0; ni.mtime=fs_now(); ni.ctime=ni.mtime; write_inode(inum,&ni);
+
+    if (add_dirent(parent, leaf, inum) != 0) return -1;
+    // write target path as data
+    uint32_t tlen = strlen(target); if (tlen > 240) tlen = 240; // limit
+    uint8_t buf[240]; memset(buf,0,sizeof(buf)); strncpy((char*)buf, target, tlen);
+    read_inode(inum, &ni);
+    if (write_data_inode(inum, &ni, buf, tlen) != 0) return -1;
+    return 0;
+}
+
+// Rename or move a file or directory from oldpath to newpath
+int fs_rename(const char *oldpath, const char *newpath)
+{
+    char oldabs[128], newabs[128];
+    build_abs_normalized(oldabs, sizeof(oldabs), oldpath);
+    build_abs_normalized(newabs, sizeof(newabs), newpath);
+
+    if (strcmp(oldabs, newabs) == 0) return 0;
+    if (strcmp(oldabs, "/") == 0) return -1; // can't rename root
+
+    uint32_t inum = path_lookup(oldabs);
+    if (inum == 0) return -1;
+    if (path_lookup(newabs) != 0) return -1; // destination exists
+
+    uint32_t op, np; char oname[DIRSIZ+1]; char nname[DIRSIZ+1];
+    for(int i=0;i<DIRSIZ+1;i++){ oname[i]=0; nname[i]=0; }
+    if (!path_parent_lookup_abs(oldabs, &op, oname)) return -1;
+    if (!path_parent_lookup_abs(newabs, &np,  nname)) return -1;
+    if (oname[0] == '\0' || nname[0] == '\0') return -1;
+
+    struct dinode pdi; read_inode(np, &pdi);
+    if (pdi.type != T_DIR) return -1;
+    // perms: write+exec on both parents
+    struct dinode opd; read_inode(op, &opd);
+    if (!check_perm(&opd, P_WRITE|P_EXEC)) return -1;
+    if (!check_perm(&pdi, P_WRITE|P_EXEC)) return -1;
+
+    // sticky in old parent: only root, file owner, or dir owner may rename
+    struct dinode oldpd; read_inode(op, &oldpd);
+    struct dinode filedi; read_inode(inum, &filedi);
+    if (oldpd.mode & S_ISVTX) {
+        struct proc *pr = gProc[gActiveProc];
+        if (!(pr->uid == 0 || pr->uid == filedi.uid || pr->uid == oldpd.uid)) return -1;
+    }
+    if (add_dirent(np, nname, inum) != 0) return -1;
+    if (remove_dirent(op, oname) != 0) return -1;
+    return 0;
+}
+
+// Create a hard link newpath -> oldpath (files only)
+int fs_link(const char *oldpath, const char *newpath)
+{
+    char oldabs[128], newabs[128];
+    build_abs_normalized(oldabs, sizeof(oldabs), oldpath);
+    build_abs_normalized(newabs, sizeof(newabs), newpath);
+
+    if (strcmp(newabs, "/") == 0 || strcmp(oldabs, "/") == 0) return -1;
+    uint32_t inum = path_lookup(oldabs);
+    if (inum == 0) return -1;
+    if (path_lookup(newabs) != 0) return -1;
+
+    struct dinode di; read_inode(inum, &di);
+    if (di.type != T_FILE) return -1; // restrict to regular files
+
+    uint32_t parent; char leaf[DIRSIZ+1]; for (int i=0;i<DIRSIZ+1;i++) leaf[i]=0;
+    if (!path_parent_lookup_abs(newabs, &parent, leaf)) return -1;
+    if (leaf[0] == '\0') return -1;
+    // require write+exec on parent dir
+    struct dinode pdi; read_inode(parent, &pdi);
+    if (!check_perm(&pdi, P_WRITE|P_EXEC)) return -1;
+
+    if (add_dirent(parent, leaf, inum) != 0) return -1;
+    // inc link count
+    di.nlink++;
+    di.ctime = fs_now();
+    write_inode(inum, &di);
+    return 0;
+}
+
+int fs_stat(const char *path, struct stat *st)
+{
+    if (!st) return -1;
+    char abs[128]; build_abs_normalized(abs, sizeof(abs), path);
+    uint32_t inum = path_lookup(abs);
+    if (!inum) return -1;
+    struct dinode di; read_inode(inum, &di);
+    st->type = di.type; st->nlink = di.nlink; st->size = di.size; st->inum = inum;
+    st->mode = di.mode; st->uid = di.uid; st->gid = di.gid;
+    st->atime = di.atime; st->mtime = di.mtime; st->ctime = di.ctime;
+    return 0;
+}
+
+int fs_readlink(const char *path, char *buf, int bufsz)
+{
+    if (!buf || bufsz <= 0) return -1;
+    char abs[128]; build_abs_normalized(abs, sizeof(abs), path);
+    uint32_t parent; char leaf[DIRSIZ+1]; for(int i=0;i<DIRSIZ+1;i++) leaf[i]=0;
+    if (!path_parent_lookup_abs(abs, &parent, leaf)) return -1;
+    struct dinode pdi; read_inode(parent, &pdi); if (pdi.type != T_DIR) return -1;
+    uint32_t inum = dir_lookup(&pdi, leaf); if (!inum) return -1;
+    struct dinode di; read_inode(inum, &di);
+    if (di.type != T_SYMLINK) return -1;
+    int n = di.size; if (n > bufsz) n = bufsz; if (n < 0) n = 0;
+    if (n > 0) read_data(&di, 0, (uint8_t*)buf, n);
+    return n;
+}
+
+int fs_lstat(const char *path, struct stat *st)
+{
+    if (!st) return -1;
+    char abs[128]; build_abs_normalized(abs, sizeof(abs), path);
+    uint32_t parent; char leaf[DIRSIZ+1]; for(int i=0;i<DIRSIZ+1;i++) leaf[i]=0;
+    if (!path_parent_lookup_abs(abs, &parent, leaf)) return -1;
+    struct dinode pdi; read_inode(parent, &pdi); if (pdi.type != T_DIR) return -1;
+    uint32_t inum = dir_lookup(&pdi, leaf); if (!inum) return -1;
+    struct dinode di; read_inode(inum, &di);
+    st->type = di.type; st->nlink = di.nlink; st->size = di.size; st->inum = inum;
+    st->mode = di.mode; st->uid = di.uid; st->gid = di.gid;
+    st->atime = di.atime; st->mtime = di.mtime; st->ctime = di.ctime;
+    return 0;
+}
+
+int fs_chmod(const char *path, uint32_t mode)
+{
+    char abs[128]; build_abs_normalized(abs, sizeof(abs), path);
+    uint32_t inum = path_lookup(abs);
+    if (!inum) return -1;
+    struct dinode di; read_inode(inum, &di);
+    // only owner or root can chmod
+    struct proc *p = gProc[gActiveProc];
+    if (!(p->uid == 0 || p->uid == di.uid)) return -1;
+    di.mode = mode & 07777; di.ctime = fs_now();
+    write_inode(inum, &di);
+    return 0;
+}
+
+int fs_chown(const char *path, uint16_t uid, uint16_t gid)
+{
+    char abs[128]; build_abs_normalized(abs, sizeof(abs), path);
+    uint32_t inum = path_lookup(abs);
+    if (!inum) return -1;
+    struct dinode di; read_inode(inum, &di);
+    // only root can chown
+    if (gProc[gActiveProc]->uid != 0) return -1;
+    di.uid = uid; di.gid = gid; di.ctime = fs_now();
+    write_inode(inum, &di);
+    return 0;
+}
+
+int fs_utimes(const char *path, uint32_t atime, uint32_t mtime)
+{
+    char abs[128]; build_abs_normalized(abs, sizeof(abs), path);
+    uint32_t inum = path_lookup(abs);
+    if (!inum) return -1;
+    struct dinode di; read_inode(inum, &di);
+    uint32_t now = fs_now();
+    di.atime = (atime == 0xFFFFFFFFU) ? now : atime;
+    di.mtime = (mtime == 0xFFFFFFFFU) ? now : mtime;
+    di.ctime = now;
+    write_inode(inum, &di);
     return 0;
 }
 int fs_open(const char *path) {
@@ -1004,23 +1611,17 @@ int fs_open(const char *path) {
 // fs_open2: flags/mode対応版
 int fs_open2(const char *path, int flags, int mode) {
     struct file** file_table = get_current_file_table();
-
-    char path2[128];  // 余裕を持たせる
-
-    if (path[0] == '/') {
-        // full path
-        strncpy(path2, path, sizeof(path2) - 1);
-        path2[sizeof(path2) - 1] = '\0';
+    char path2[128];  // 最終的な絶対パス（正規化済）
+    if (!path || path[0] == '\0' || (path[0]=='.' && path[1]=='\0')) {
+        struct proc *p = gProc[gActiveProc];
+        build_abs_normalized(path2, sizeof(path2), p->cwd);
     } else {
-        // add leading '/'
-        path2[0] = '/';
-        path2[1] = '\0';
-        // ここが重要：残りサイズを指定
-        strncat(path2, path, sizeof(path2) - strlen(path2) - 1);
+        build_abs_normalized(path2, sizeof(path2), path);
     }
     
     uint32_t inum = path_lookup(path2);
     struct dinode di;
+    int created_new = 0;
 
     if (inum == 0) {
         // Not found
@@ -1037,6 +1638,23 @@ int fs_open2(const char *path, int flags, int mode) {
             if (add_dirent(parent, leaf, new_inum) != 0) return -1;
             inum = new_inum;
             read_inode(inum, &di);
+            // Set ownership/mode for newly created files immediately
+            // so that subsequent permission checks are evaluated against
+            // the creating user rather than default uid=0,mode=0644.
+            unsigned short um = gProc[gActiveProc]->umask;
+            // inherit gid from parent if SGID set
+            uint32_t pinum; char leafx[DIRSIZ+1]; for(int ii=0;ii<DIRSIZ+1;ii++) leafx[ii]=0;
+            uint16_t gid = gProc[gActiveProc]->gid;
+            if (path_parent_lookup_abs(path2, &pinum, leafx)) {
+                struct dinode pdi_inh; read_inode(pinum, &pdi_inh);
+                if (pdi_inh.mode & S_ISGID) gid = pdi_inh.gid;
+            }
+            di.uid = gProc[gActiveProc]->uid;
+            di.gid = gid;
+            di.mode = ((mode & 0777) ? (mode & 0777) : 0644) & ~um;
+            di.atime = di.mtime = di.ctime = fs_now();
+            write_inode(inum, &di);
+            created_new = 1;
         } else {
             return -1;
         }
@@ -1045,6 +1663,21 @@ int fs_open2(const char *path, int flags, int mode) {
     }
 
     if (di.type != T_FILE && di.type != T_DIR) return -1;
+
+    // permission checks
+    if (di.type == T_FILE) {
+        int want = 0;
+        if (flags == O_RDONLY) want |= P_READ;
+        if (flags & O_WRONLY) want |= P_WRITE;
+        if (flags & O_RDWR)   want |= (P_READ|P_WRITE);
+        // If we just created the file, we already assigned mode/uid/gid
+        // to the creating user above; proceed even if want==write.
+        if (!created_new) {
+            if (!check_perm(&di, want ? want : P_READ)) return -1;
+        }
+    } else if (di.type == T_DIR) {
+        if (!check_perm(&di, P_READ|P_EXEC)) return -1;
+    }
 
     for (int i = 3; i < MAX_OPEN_FILES; i++) {
         if (file_table[i] == NULL) {
@@ -1062,12 +1695,17 @@ int fs_open2(const char *path, int flags, int mode) {
             // O_TRUNC: if file, set size to 0
             if ((flags & O_TRUNC) && file_table[i]->din.type == T_FILE) {
                 file_table[i]->din.size = 0;
+                file_table[i]->din.mtime = fs_now();
                 write_inode(inum, &file_table[i]->din);
                 file_table[i]->off = 0;
             }
             // O_APPEND: start at end of file
             if ((flags & O_APPEND) && file_table[i]->din.type == T_FILE) {
                 file_table[i]->off = file_table[i]->din.size;
+            }
+            // If created now, din already updated above; keep cache in sync
+            if (created_new) {
+                file_table[i]->din = di;
             }
             return i;  // <- 3,4,5… を返す
         }
@@ -1095,6 +1733,9 @@ ssize_t fs_read(int fd, void *buf, size_t count) {
     uint32_t to_read = (count < remaining) ? count : remaining;
     read_data(&f->din, f->off, buf, to_read);
     f->off += to_read;
+    // Access updates atime
+    f->din.atime = fs_now();
+    write_inode(f->inum, &f->din);
     return to_read;
 }
 
@@ -1108,6 +1749,7 @@ ssize_t fs_write(int fd, const void *buf, size_t count) {
 
     struct file *f = file_table[fd];
     if (f->kind != FK_FILE) return -1;
+    if (!check_perm(&f->din, P_WRITE)) return -1;
 
     // 書き込み総量（サイズ拡張を許可）
     uint32_t to_total = count;
@@ -1147,8 +1789,9 @@ ssize_t fs_write(int fd, const void *buf, size_t count) {
     uint32_t newsize = f->off;
     if (newsize > f->din.size) {
         f->din.size = newsize;
-        write_inode(f->inum, &f->din);
     }
+    f->din.mtime = fs_now();
+    write_inode(f->inum, &f->din);
     return written;
 }
 

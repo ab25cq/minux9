@@ -7,12 +7,13 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 
 //──────────────────────────────────────────
 // ファイルシステム共通定数・構造体（fs.h と合わせる）
 //──────────────────────────────────────────
 #define BSIZE       512     // ブロックサイズ（バイト）
-#define NINODES     16      // イノード数（例として 16）
+#define NINODES     64      // イノード数（ファイル数に合わせて拡張）
 #define NBLOCKS     256     // 総ブロック数（例として 256）
 
 // 1 ブロックあたりに収まるイノード数
@@ -49,6 +50,12 @@ struct dinode {
     uint16_t minor;               // （未使用なら 0）
     uint16_t nlink;               // リンク数
     uint32_t size;                // ファイルサイズ（バイト）
+    uint32_t mode;                // パーミッション
+    uint16_t uid;                 // 所有者
+    uint16_t gid;                 // グループ
+    uint32_t atime;               // 最終アクセス
+    uint32_t mtime;               // 変更時刻
+    uint32_t ctime;               // 作成/変更時刻
     // [0..NDIRECT-1]: 直接ブロック (12)
     // [NDIRECT]     : 1次間接ブロックへのポインタ
     // [NDIRECT+1]   : 2次間接ブロックへのポインタ
@@ -365,10 +372,11 @@ bitmap_is_allocated(uint32_t blkno)
 
 void write_file_to_file_system(char* elfpath, uint32_t new_inum)
 {
-//    const char *elfpath = "b.txt";  
+    // progress log for debugging build failures
+    fprintf(stderr, "[mkfs] embed '%s' -> inum %u\n", elfpath, new_inum);
     struct stat st;
     if (stat(elfpath, &st) < 0) {
-        perror("stat b.txt");
+        perror(elfpath);
         exit(1);
     }
     size_t filesize = st.st_size;
@@ -383,10 +391,16 @@ void write_file_to_file_system(char* elfpath, uint32_t new_inum)
     file_ip.type  = T_FILE;
     file_ip.nlink = 1;
     file_ip.size  = filesize;
+    file_ip.mode  = 0755;
+    file_ip.uid   = 0;
+    file_ip.gid   = 0;
+    file_ip.atime = (uint32_t)time(NULL);
+    file_ip.mtime = (uint32_t)time(NULL);
+    file_ip.ctime = file_ip.mtime;
 
     int fd = open(elfpath, O_RDONLY);
     if (fd < 0) {
-        perror("open b.txt");
+        perror(elfpath);
         exit(1);
     }
 
@@ -426,7 +440,7 @@ void write_file_to_file_system(char* elfpath, uint32_t new_inum)
         uint32_t b = alloc_data_block();
         ssize_t r = read(fd, buf, BSIZE);
         if (r < 0) {
-            perror("read b.txt");
+            perror(elfpath);
             close(fd);
             exit(1);
         }
@@ -547,6 +561,12 @@ main(int argc, char *argv[])
     root_ip.type  = T_DIR;    // ディレクトリ
     root_ip.nlink = 1;
     root_ip.size  = 0;        // 後でデータブロック割当があれば設定される
+    root_ip.mode  = 0755;
+    root_ip.uid   = 0;
+    root_ip.gid   = 0;
+    root_ip.atime = (uint32_t)time(NULL);
+    root_ip.mtime = (uint32_t)time(NULL);
+    root_ip.ctime = root_ip.mtime;
     // addrs[] はゼロで初期化済み
     write_inode(ROOTINO, &root_ip);
 
@@ -563,6 +583,12 @@ main(int argc, char *argv[])
     write_file_to_file_system("d.txt", 10);
     write_file_to_file_system("echo", 11);
     write_file_to_file_system("hello", 12);
+    write_file_to_file_system("ls", 13);
+    write_file_to_file_system("pwd", 14);
+    write_file_to_file_system("passwd", 15);
+    write_file_to_file_system("group", 16);
+    write_file_to_file_system("login", 17);
+    write_file_to_file_system("sh.elf", 18);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);
@@ -580,4 +606,3 @@ main(int argc, char *argv[])
            argv[1], sizeof(img));
     return 0;
 }
-

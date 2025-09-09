@@ -36,6 +36,17 @@ kernel.elf:
 	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello4.elf -g hello4.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello4.elf hello4.c $(CHILD_CFLAGS)
 
+
+	$(CCPREFIX)gcc -O0 -nostdlib -static -o ls -g ls.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o ls ls.c $(CHILD_CFLAGS)
+
+	$(CCPREFIX)gcc -O0 -nostdlib -static -o pwd -g pwd.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o pwd pwd.c $(CHILD_CFLAGS)
+
+	# build login user program (required by mkfs)
+	$(CCPREFIX)gcc -O0 -nostdlib -static -o login -g login.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o login login.c $(CHILD_CFLAGS)
+
 	$(CCPREFIX)gcc -I. -nostdlib -S -O0 -static -o sh.S -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -I. -nostdlib -O0 -static -o sh.elf -I. -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o sh.elf sh.c $(CHILD_CFLAGS)
@@ -76,5 +87,4 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo
-
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login

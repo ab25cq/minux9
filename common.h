@@ -72,8 +72,19 @@ struct proc {
     int num_process_kalloc_address;
     
     int deleted;
-    
+
     struct proc* next;
+
+    // current working directory (absolute path)
+    char cwd[128];
+    unsigned short umask; // creation mask (e.g., 0022)
+
+    // credentials
+    uint16_t uid;
+    uint16_t gid;
+    uint16_t supp_gids[8];
+    int nsupp;
+    char username[32];
 };
 
 // ── パイプ本体 ─────────────────────────────────────────────────────────
@@ -130,6 +141,19 @@ int fs_open2(const char *path, int flags, int mode);
 ssize_t fs_read(int fd, void *buf, size_t count);
 ssize_t fs_write(int fd, const void *buf, size_t count);
 int fs_close(long fd, int massive);
+int fs_mkdir(const char *path, int mode);
+int fs_rmdir(const char *path);
+int fs_unlink(const char *path);
+int fs_link(const char *oldpath, const char *newpath);
+int fs_symlink(const char *target, const char *linkpath);
+int fs_stat(const char *path, struct stat *st);
+int fs_readlink(const char *path, char *buf, int bufsz);
+int fs_lstat(const char *path, struct stat *st);
+int fs_chmod(const char *path, uint32_t mode);
+int fs_chown(const char *path, uint16_t uid, uint16_t gid);
+int fs_realpath(const char *path, char *out, int outsz);
+int fs_rename(const char *oldpath, const char *newpath);
+int fs_utimes(const char *path, uint32_t atime, uint32_t mtime);
 
 
 int is_pipe(int fd);

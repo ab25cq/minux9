@@ -9,6 +9,10 @@
 
 typedef int pid_t;
 
+// forward declaration for time offset used by FS/time syscalls
+extern uint32_t g_time_offset;
+int Sys_login(void);
+
 #define SYS_write 64
 #define SYS_read 65
 #define SYS_open 66
@@ -21,6 +25,34 @@ typedef int pid_t;
 #define SYS_pipe 73
 #define SYS_brk 74
 #define SYS_clear 75
+#define SYS_opendir 76
+#define SYS_readdir 77
+#define SYS_closedir 78
+// cwd related
+#define SYS_getcwd 79
+#define SYS_chdir 80
+#define SYS_mkdir 81
+#define SYS_rmdir 82
+#define SYS_unlink 83
+#define SYS_rename 84
+#define SYS_link   85
+#define SYS_symlink 86
+#define SYS_stat    87
+#define SYS_readlink 88
+#define SYS_lstat   89
+#define SYS_chmod   90
+#define SYS_chown   91
+#define SYS_settimeofday 92
+#define SYS_utimes 93
+#define SYS_umask 94
+#define SYS_gettimeofday 95
+#define SYS_getuid 96
+#define SYS_getgid 97
+#define SYS_setuid 98
+#define SYS_setgid 99
+#define SYS_realpath 101
+#define SYS_login 102
+#define SYS_getlogin 103
 
 typedef unsigned long size_t;
 typedef long ptrdiff_t;
@@ -267,6 +299,15 @@ char* strncat(char* dest, const char* src, size_t n) {
     *d = '\0';
 
     return dest;
+}
+
+// minimal strchr implementation for kernel use
+char* strchr(const char* s, int c) {
+    while (*s) {
+        if (*s == (char)c) return (char*)s;
+        s++;
+    }
+    return (c == 0) ? (char*)s : 0;
 }
 
 
@@ -1473,40 +1514,41 @@ int copyin(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t len)
 int copyinstr(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t max)
 {
   uint64_t n, va0, pa0;
-  int got_null = 0;
-  
+  int found_null = 0;
+  uint64_t copied = 0; // number of bytes copied excluding the trailing NUL
+
   char* dst2 = dst;
 
-  while(got_null == 0 && max > 0){
+  while(!found_null && max > 0){
     va0 = PGROUNDDOWN(srcva);
     pa0 = (uint64_t)walkaddr(pagetable, va0);
-    if(pa0 == 0) {
+    if(pa0 == 0)
       return -1;
-    }
     n = PGSIZE - (srcva - va0);
     if(n > max)
       n = max;
 
-    char *p = (char *) (pa0 + (srcva - va0));
+    char *p = (char *)(pa0 + (srcva - va0));
     while(n > 0){
       if(*p == '\0'){
         *dst2 = '\0';
-        got_null = dst2 - dst;
+        found_null = 1;
         break;
       } else {
         *dst2 = *p;
+        dst2++;
+        p++;
+        copied++;
       }
       --n;
       --max;
-      p++;
-      dst2++;
     }
 
     srcva = va0 + PGSIZE;
   }
-  if(got_null){
-    dst2[got_null] = '\0';
-    return got_null;
+
+  if(found_null){
+    return (int)copied; // return length (0 is valid for empty string)
   } else {
     return -1;
   }
@@ -1528,10 +1570,19 @@ void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
     asm volatile("sfence.vma zero, zero"); 
 }
 
+// Define DEBUG_CWD to enable cwd-related logs
+#define DEBUG_CWD 1
+
 void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_index) {
     struct proc* result = kalloc();
     
     result->program = elf_buf;
+    // initialize default cwd to root
+    result->cwd[0] = '/';
+    result->cwd[1] = '\0';
+    result->umask = 0022;
+    result->uid = 0;
+    result->gid = 0;
     
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
@@ -1620,6 +1671,15 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
 
     if(fork_flag) {
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
+#ifdef DEBUG_CWD
+        printf("[fork] parent=%d cwd='%s'\n", gActiveProc, parent->cwd);
+#endif
+        // inherit cwd from parent on fork
+        int i=0; while (parent->cwd[i] && i < (int)sizeof(result->cwd)-1) { result->cwd[i] = parent->cwd[i]; i++; }
+        result->cwd[i] = '\0';
+        result->umask = parent->umask;
+        result->uid = parent->uid;
+        result->gid = parent->gid;
         
         uint64_t parent_current    = parent->context.sp;
         uint64_t parent_stack_top   = (uint64_t)parent->stack_top;
@@ -1647,6 +1707,9 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
         result->context.gp = parent->context.gp; // Inherit gp in fork
     
         fs_dup_table(result, result->file_table, parent->file_table);
+#ifdef DEBUG_CWD
+        printf("[fork] child inherited cwd='%s'\n", result->cwd);
+#endif
     }
     else {
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
@@ -1670,7 +1733,16 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
         asm volatile("sfence.vma zero, zero"); 
     
         if(exec_flag) {
+            // inherit file table and cwd across exec
             memcpy(result->file_table, parent->file_table, sizeof(struct file*)*MAX_OPEN_FILES);
+            result->umask = parent->umask;
+            result->uid = parent->uid;
+            result->gid = parent->gid;
+            int i=0; while (parent->cwd[i] && i < (int)sizeof(result->cwd)-1) { result->cwd[i] = parent->cwd[i]; i++; }
+            result->cwd[i] = '\0';
+#ifdef DEBUG_CWD
+            printf("[exec-prep] parent cwd='%s' -> new cwd='%s'\n", parent->cwd, result->cwd);
+#endif
         }
         else {
             fs_init(result->file_table);
@@ -1686,7 +1758,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
         gProc[gActiveProc] = result;
         user_satp = MAKE_SATP(result->pagetable);
         user_sp   = result->context.sp;
-        
+
         *child_proc_index = gActiveProc;
     }
     else {
@@ -2121,6 +2193,381 @@ int Sys_open()
     return result;
 }
 
+// Open a directory only; returns fd or -1
+int Sys_opendir()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+
+    uintptr_t arg0 = trapframe->a0; // const char* path (user VA)
+
+    char kernel_buf[256];
+    uint64_t user_va = arg0;
+
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kernel_buf, user_va, sizeof(kernel_buf)) < 0) {
+        return -1;
+    }
+
+    // Use fs_open2 with default flags/mode
+    int fd = fs_open2(kernel_buf, 0, 0);
+    if (fd < 0) {
+        return -1;
+    }
+
+    // Verify the target is a directory
+    struct file** file_table = get_current_file_table();
+    if (!file_table[fd]) {
+        return -1;
+    }
+    if (file_table[fd]->din.type != T_DIR) {
+        fs_close(fd, 0 /* massive */);
+        return -1;
+    }
+
+    return fd;
+}
+
+// getcwd: copy current working directory string into user buffer
+int Sys_getcwd()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t user_buf = trapframe->a0;
+    int maxlen = (int)trapframe->a1;
+    if (maxlen <= 0) return -1;
+    struct proc *p = gProc[gActiveProc];
+    int len = strlen(p->cwd);
+#ifdef DEBUG_CWD
+    printf("[getcwd] proc=%d cwd='%s' len=%d max=%d\n", gActiveProc, p->cwd, len, maxlen);
+#endif
+    // Defensive: ensure cwd is never empty when reported
+    const char* src = p->cwd;
+    char fallback_root[2] = "/";
+    if (len <= 0) { src = fallback_root; len = 1; }
+    if (len + 1 > maxlen) {
+        // truncate to fit, but keep null terminator
+        len = maxlen - 1;
+    }
+    if (copyout(p->pagetable, user_buf, (void*)src, len) < 0) return -1;
+    char nul = '\0';
+    if (copyout(p->pagetable, user_buf + len, &nul, 1) < 0) return -1;
+    return len;
+}
+
+// chdir: change current working directory
+int Sys_chdir()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t user_path = trapframe->a0;
+    char kpath[256];
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, user_path, sizeof(kpath)) < 0) return -1;
+
+    // If empty or ".", no-op success
+    if (kpath[0] == '\0' || (kpath[0]=='.' && kpath[1]=='\0')) {
+        return 0;
+    }
+
+    // build absolute normalized path supporting . and ..
+    char abs[256];
+    // inline normalize (duplicated logic to avoid sharing helper):
+    char merged[256];
+    if (kpath[0] == '/') { strncpy(merged, kpath, sizeof(merged)-1); merged[sizeof(merged)-1]='\0'; }
+    else { strncpy(merged, p->cwd, sizeof(merged)-1); merged[sizeof(merged)-1]='\0'; int n=strlen(merged); if(!(n==1&&merged[0]=='/')){ if(n<(int)sizeof(merged)-1){ merged[n++]='/'; merged[n]='\0'; }} strncat(merged, kpath, sizeof(merged)-strlen(merged)-1); }
+    { // normalize merged -> abs
+        char tmp[256]; strncpy(tmp, merged, sizeof(tmp)-1); tmp[sizeof(tmp)-1]='\0';
+        const char *s=tmp,*end=tmp+strlen(tmp),*tok; char comps[32][32]; int compn=0;
+        while(s<end){ while(*s=='/') s++; if(!*s) break; tok=s; while(*s && *s!='/') s++; int len=s-tok; if(len==1 && tok[0]=='.'){} else if(len==2 && tok[0]=='.'&&tok[1]=='.'){ if(compn>0) compn--; } else if(len>0){ int l=len; if(l>31) l=31; for(int i=0;i<32;i++) comps[compn][i]=0; for(int i=0;i<l;i++) comps[compn][i]=tok[i]; comps[compn][l]='\0'; if(compn<31) compn++; }}
+        int pos=0; abs[pos++]='/'; for(int i=0;i<compn;i++){ if(i && pos<(int)sizeof(abs)-1) abs[pos++]='/'; for(int j=0; comps[i][j] && pos<(int)sizeof(abs)-1; j++) abs[pos++]=comps[i][j]; } abs[pos]='\0'; if(pos==1) abs[1]='\0';
+    }
+
+    // Validate that abs points to a directory
+    uint32_t inum = path_lookup(abs);
+    if (inum == 0) return -1;
+    struct dinode di; read_inode(inum, &di);
+    if (di.type != T_DIR) return -1;
+
+    // Set as new cwd
+    strncpy(p->cwd, abs, sizeof(p->cwd));
+    p->cwd[sizeof(p->cwd)-1] = '\0';
+#ifdef DEBUG_CWD
+    printf("[chdir] proc=%d new cwd='%s'\n", gActiveProc, p->cwd);
+#endif
+    return 0;
+}
+
+// mkdir: create directory
+int Sys_mkdir()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t user_path = trapframe->a0; int mode = (int)trapframe->a1;
+    char kpath[256]; struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, user_path, sizeof(kpath)) < 0) return -1;
+    return fs_mkdir(kpath, mode);
+}
+
+// rmdir: remove directory
+int Sys_rmdir()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t user_path = trapframe->a0; char kpath[256];
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, user_path, sizeof(kpath)) < 0) return -1;
+    return fs_rmdir(kpath);
+}
+
+// unlink: remove file
+int Sys_unlink()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t user_path = trapframe->a0;
+    char kpath[256];
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, user_path, sizeof(kpath)) < 0) return -1;
+    return fs_unlink(kpath);
+}
+
+// rename: move/rename
+int Sys_rename()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_old = trapframe->a0;
+    uint64_t u_new = trapframe->a1;
+    char kold[256], knew[256];
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kold, u_old, sizeof(kold)) < 0) return -1;
+    if (copyinstr(p->pagetable, knew, u_new, sizeof(knew)) < 0) return -1;
+    return fs_rename(kold, knew);
+}
+
+// link: hard link
+int Sys_link()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_old = trapframe->a0;
+    uint64_t u_new = trapframe->a1;
+    char kold[256], knew[256];
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kold, u_old, sizeof(kold)) < 0) return -1;
+    if (copyinstr(p->pagetable, knew, u_new, sizeof(knew)) < 0) return -1;
+    return fs_link(kold, knew);
+}
+
+int Sys_symlink()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_tgt = trapframe->a0;
+    uint64_t u_lnk = trapframe->a1;
+    char ktgt[256], klnk[256];
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, ktgt, u_tgt, sizeof(ktgt)) < 0) return -1;
+    if (copyinstr(p->pagetable, klnk, u_lnk, sizeof(klnk)) < 0) return -1;
+    return fs_symlink(ktgt, klnk);
+}
+
+int Sys_stat()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_path = trapframe->a0;
+    uint64_t u_st   = trapframe->a1;
+    char kpath[256];
+    struct stat kst;
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
+    if (fs_stat(kpath, &kst) < 0) return -1;
+    if (copyout(p->pagetable, u_st, &kst, sizeof(kst)) < 0) return -1;
+    return 0;
+}
+
+int Sys_readlink()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_path = trapframe->a0;
+    uint64_t u_buf  = trapframe->a1;
+    int      sz     = (int)trapframe->a2;
+    char kpath[256];
+    char kbuf[256]; if (sz > (int)sizeof(kbuf)) sz = sizeof(kbuf);
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
+    int n = fs_readlink(kpath, kbuf, sz);
+    if (n < 0) return -1;
+    if (copyout(p->pagetable, u_buf, kbuf, n) < 0) return -1;
+    return n;
+}
+
+int Sys_lstat()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_path = trapframe->a0;
+    uint64_t u_st   = trapframe->a1;
+    char kpath[256];
+    struct stat kst;
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
+    if (fs_lstat(kpath, &kst) < 0) return -1;
+    if (copyout(p->pagetable, u_st, &kst, sizeof(kst)) < 0) return -1;
+    return 0;
+}
+
+int Sys_chmod()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_path = trapframe->a0; uint32_t mode = (uint32_t)trapframe->a1;
+    char kpath[256]; struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
+    return fs_chmod(kpath, mode);
+}
+
+int Sys_chown()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_path = trapframe->a0; uint16_t uid = (uint16_t)trapframe->a1; uint16_t gid = (uint16_t)trapframe->a2;
+    char kpath[256]; struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
+    return fs_chown(kpath, uid, gid);
+}
+
+int Sys_settimeofday()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint32_t sec = (uint32_t)trapframe->a0;
+    g_time_offset = sec;
+    return 0;
+}
+
+int Sys_utimes()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_path = trapframe->a0;
+    uint32_t at = (uint32_t)trapframe->a1;
+    uint32_t mt = (uint32_t)trapframe->a2;
+    char kpath[256];
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
+    return fs_utimes(kpath, at, mt);
+}
+
+int Sys_umask()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint32_t newmask = (uint32_t)trapframe->a0;
+    struct proc *p = gProc[gActiveProc];
+    uint32_t old = p->umask;
+    if (newmask != (uint32_t)-1) p->umask = (uint16_t)(newmask & 0777);
+    return old;
+}
+
+int Sys_gettimeofday()
+{
+    // seconds = g_time_offset + time/FS_TIME_HZ
+    extern uint32_t g_time_offset;
+    uint64_t t = r_time();
+    uint32_t sec = g_time_offset + (uint32_t)(t / 1000000UL);
+    return sec;
+}
+
+int Sys_getuid() { return gProc[gActiveProc]->uid; }
+int Sys_getgid() { return gProc[gActiveProc]->gid; }
+
+int Sys_setuid()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint16_t uid = (uint16_t)trapframe->a0;
+    // Policy: allow root to set; allow self to set to same (no-op)
+    struct proc *p = gProc[gActiveProc];
+    if (p->uid == 0 || uid == p->uid) { p->uid = uid; return 0; }
+    return -1;
+}
+
+int Sys_setgid()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint16_t gid = (uint16_t)trapframe->a0;
+    struct proc *p = gProc[gActiveProc];
+    if (p->uid == 0 || gid == p->gid) { p->gid = gid; return 0; }
+    return -1;
+}
+
+int Sys_realpath()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_path = trapframe->a0;
+    uint64_t u_out  = trapframe->a1;
+    int outsz       = (int)trapframe->a2;
+    char kpath[256]; char kout[256];
+    struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
+    if (fs_realpath(kpath, kout, sizeof(kout)) < 0) return -1;
+    int n = strlen(kout)+1; if (n>outsz) n=outsz;
+    if (copyout(p->pagetable, u_out, kout, n) < 0) return -1;
+    return 0;
+}
+
+int Sys_getlogin()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_buf = trapframe->a0; int sz = (int)trapframe->a1;
+    if (sz <= 0) return -1;
+    struct proc *p = gProc[gActiveProc];
+    const char* name = p->username[0] ? p->username : NULL;
+    char tmp[32];
+    if (!name) { // fallback uid numeric
+        int uid = p->uid; int n=0; char b[12]; if(uid==0){b[n++]='0';} else { int x=uid; char t[12]; int i=0; while(x){ t[i++]='0'+(x%10); x/=10; } while(i--) b[n++]=t[i]; } b[n]='\0';
+        int i=0; tmp[i++]='u'; tmp[i++]='i'; tmp[i++]='d'; tmp[i++]='_'; for(int j=0;b[j]&&i<31;j++) tmp[i++]=b[j]; tmp[i]='\0'; name = tmp;
+    }
+    int len = strlen(name)+1; if (len > sz) len = sz;
+    if (copyout(p->pagetable, u_buf, (void*)name, len) < 0) return -1;
+    return len;
+}
+
+// readdir: return next valid dirent for a directory fd.
+// args: a0=fd, a1=user_buf (struct dirent*)
+// ret: 1 on success, 0 on EOF, -1 on error
+int Sys_readdir()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    int fd = (int)trapframe->a0;
+    uint64_t user_buf = trapframe->a1;
+    int max_entries = (int)trapframe->a2;
+
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return -1;
+    struct file** ft = get_current_file_table();
+    struct file* f = ft[fd];
+    if (!f) return -1;
+    if (f->din.type != T_DIR) return -1;
+    if (max_entries <= 0) return -1;
+
+    int outcnt = 0;
+    struct proc *p = gProc[gActiveProc];
+    while (outcnt < max_entries && f->off < f->din.size) {
+        struct dirent de;
+        read_data(&f->din, f->off, (uint8_t*)&de, sizeof(struct dirent));
+        f->off += sizeof(struct dirent);
+        if (de.inum == 0)
+            continue; // skip empty slots
+        uint64_t dst = user_buf + (uint64_t)outcnt * sizeof(struct dirent);
+        if (copyout(p->pagetable, dst, &de, sizeof(de)) < 0) {
+            return -1;
+        }
+        outcnt++;
+    }
+    // If none copied and EOF reached, return 0; else number filled
+    return outcnt;
+}
+
+// closedir: close directory fd (wrapper separate from close)
+int Sys_closedir()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    int fd = (int)trapframe->a0;
+
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return -1;
+    struct file** ft = get_current_file_table();
+    struct file* f = ft[fd];
+    if (!f) return -1;
+    // Allow closing any regular file or directory opened via opendir/open
+    return fs_close(fd, 0 /* massive */);
+}
+
 int Sys_fork()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
@@ -2196,6 +2643,9 @@ int Sys_execv()
     kargv[argc] = NULL;
 
     // Read ELF file
+#ifdef DEBUG_CWD
+    printf("[execv] proc=%d path='%s' cwd(before)='%s'\n", gActiveProc, path, gProc[gActiveProc]->cwd);
+#endif
     int fd = fs_open2(path, 0, 0);
     if(fd < 0) {
         trapframe->a0 = -1;
@@ -2206,19 +2656,32 @@ int Sys_execv()
     //char elf_buf[4096]; //048]; // = calloc(1, size);
     int ret = fs_read(fd, elf_buf, size);
     fs_close(fd, 0 /* massive */);
-    free(elf_buf);
     if (ret <= 0) {
         trapframe->a0 = -1;
         return -1;
     }
     
+    // Check setuid/setgid on target
+    struct stat stx; int has_stat = (fs_stat(path, &stx) == 0);
+    uint16_t new_uid = gProc[gActiveProc]->uid;
+    uint16_t new_gid = gProc[gActiveProc]->gid;
+    if (has_stat && (stx.mode & S_ISUID)) new_uid = stx.uid;
+    if (has_stat && (stx.mode & S_ISGID)) new_gid = stx.gid;
+
     // alloc_prog with exec_flag=1 replaces the current process's page table etc.
     int child_proc_index = 0;
     alloc_prog(elf_buf, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index);
     
-    //free(elf_buf);
+    // elf_buf is no longer needed after alloc_prog; free it now.
+    free(elf_buf);
     
     struct proc* new_p = gProc[gActiveProc]; // gProc[gActiveProc] now points to the new process data
+    // Apply setuid/setgid semantics
+    new_p->uid = new_uid;
+    new_p->gid = new_gid;
+#ifdef DEBUG_CWD
+    printf("[execv] after replace proc=%d cwd(now)='%s'\n", gActiveProc, new_p->cwd);
+#endif
 
     // Set up the user stack
     uint64_t sp = new_p->context.sp; // Initial top of stack
@@ -2522,6 +2985,114 @@ uintptr_t syscall_handler()
             result = Sys_open();
             }
             break;
+        case SYS_opendir: {
+            result = Sys_opendir();
+            }
+            break;
+        case SYS_readdir: {
+            result = Sys_readdir();
+            }
+            break;
+        case SYS_closedir: {
+            result = Sys_closedir();
+            }
+            break;
+        case SYS_getcwd: {
+            result = Sys_getcwd();
+            }
+            break;
+        case SYS_chdir: {
+            result = Sys_chdir();
+            }
+            break;
+        case SYS_mkdir: {
+            result = Sys_mkdir();
+            }
+            break;
+        case SYS_rmdir: {
+            result = Sys_rmdir();
+            }
+            break;
+        case SYS_unlink: {
+            result = Sys_unlink();
+            }
+            break;
+        case SYS_rename: {
+            result = Sys_rename();
+            }
+            break;
+        case SYS_link: {
+            result = Sys_link();
+            }
+            break;
+        case SYS_symlink: {
+            result = Sys_symlink();
+            }
+            break;
+        case SYS_stat: {
+            result = Sys_stat();
+            }
+            break;
+        case SYS_readlink: {
+            result = Sys_readlink();
+            }
+            break;
+        case SYS_lstat: {
+            result = Sys_lstat();
+            }
+            break;
+        case SYS_chmod: {
+            result = Sys_chmod();
+            }
+            break;
+        case SYS_chown: {
+            result = Sys_chown();
+            }
+            break;
+        case SYS_settimeofday: {
+            result = Sys_settimeofday();
+            }
+            break;
+        case SYS_utimes: {
+            result = Sys_utimes();
+            }
+            break;
+        case SYS_umask: {
+            result = Sys_umask();
+            }
+            break;
+        case SYS_gettimeofday: {
+            result = Sys_gettimeofday();
+            }
+            break;
+        case SYS_getuid: {
+            result = Sys_getuid();
+            }
+            break;
+        case SYS_getgid: {
+            result = Sys_getgid();
+            }
+            break;
+        case SYS_setuid: {
+            result = Sys_setuid();
+            }
+            break;
+        case SYS_setgid: {
+            result = Sys_setgid();
+            }
+            break;
+        case SYS_realpath: {
+            result = Sys_realpath();
+            }
+            break;
+        case SYS_getlogin: {
+            result = Sys_getlogin();
+            }
+            break;
+        case SYS_login: {
+            result = Sys_login();
+            }
+            break;
             
         case SYS_read: {
             result = Sys_read();
@@ -2681,6 +3252,75 @@ int main()
         :                 // 破壊するレジスタなし
     );
     enter_user(entry, usersp, usersatp, TIMER_INTERVAL, gp);
-    
-    while (1); 
+
+    // should not return; stay idle if it does
+    while (1) { }
 }
+    
+#define MAX_USERS 4
+struct userrec { const char* name; const char* pass; uint16_t uid; uint16_t gid; };
+struct userrec gUsers[MAX_USERS] = {
+    {"root", "root", 0, 0},
+    {"user", "user", 1000, 100},
+};
+
+static int parse_uint(const char* s, uint32_t *out)
+{
+    uint32_t v=0; if(!s||!*s) return -1; while(*s){ if(*s<'0'||*s>'9') return -1; v = v*10 + (*s-'0'); s++; } *out=v; return 0;
+}
+
+int Sys_login()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t u_name = trapframe->a0; uint64_t u_pass = trapframe->a1;
+    char kname[32], kpass[32]; struct proc *p = gProc[gActiveProc];
+    if (copyinstr(p->pagetable, kname, u_name, sizeof(kname)) < 0) return -1;
+    if (copyinstr(p->pagetable, kpass, u_pass, sizeof(kpass)) < 0) return -1;
+    // 1) try /etc/passwd or /passwd
+    const char* paths[2] = { "/etc/passwd", "/passwd" };
+    char fbuf[1024]; int found=-1; uint32_t fsz=0;
+    for (int ip=0; ip<2; ip++) {
+        int fd = fs_open2(paths[ip], 0, 0);
+        if (fd >= 0) {
+            int n = fs_read(fd, fbuf, sizeof(fbuf)-1); if(n<0) n=0; fbuf[n]='\0'; found=ip; fs_close(fd,0); break;
+        }
+    }
+    if (found >= 0) {
+        // format: name:pass:uid:gid[:g1,g2,...]\n
+        char *s = fbuf;
+        while (*s) {
+            char *line = s; while (*s && *s!='\n' && *s!='\r') s++; if (*s) *s++='\0';
+            if (!*line) continue;
+            // split by ':'
+            char *name = line;
+            char *pass = strchr(line, ':'); if(!pass) continue; *pass++='\0';
+            char *uidp = strchr(pass, ':'); if(!uidp) continue; *uidp++='\0';
+            char *gidp = strchr(uidp, ':'); char *groups=NULL; if(gidp){ *gidp++='\0'; groups=gidp; }
+            // match
+            if (strcmp(name, kname)==0 && strcmp(pass, kpass)==0) {
+                uint32_t uidv,gidv; if(parse_uint(uidp,&uidv)<0||parse_uint(gidp?gidp:uidp,&gidv)<0) break;
+                p->uid = (uint16_t)uidv; p->gid = (uint16_t)gidv; p->nsupp=0; strncpy(p->username, name, sizeof(p->username)-1); p->username[sizeof(p->username)-1]='\0';
+                if (groups) {
+                    // parse comma-separated gids
+                    char *g = groups; while (*g) {
+                        char *e = g; while (*e && *e!=',') e++; char save=*e; *e='\0';
+                        uint32_t gv; if(parse_uint(g,&gv)==0 && p->nsupp < 8) p->supp_gids[p->nsupp++] = (uint16_t)gv;
+                        *e = save; if (save==',') g = e+1; else break;
+                    }
+                }
+                return 0;
+            }
+        }
+    }
+    // fallback hardcoded
+    for (int i=0;i<MAX_USERS;i++) {
+        if (!gUsers[i].name) continue;
+        if (strcmp(kname, gUsers[i].name)==0 && strcmp(kpass, gUsers[i].pass)==0) {
+            p->uid = gUsers[i].uid; p->gid = gUsers[i].gid; p->nsupp=0; strncpy(p->username, kname, sizeof(p->username)-1); p->username[sizeof(p->username)-1]='\0';
+            return 0;
+        }
+    }
+    return -1;
+}
+// Wall-clock base seconds set by settimeofday
+uint32_t g_time_offset = 0;

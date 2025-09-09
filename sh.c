@@ -2,6 +2,14 @@
 #include <stdarg.h>
 #include "minux.h"
 
+int strcmp(const char* s1, const char* s2) {
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+    }
+    return (unsigned char)*s1 - (unsigned char)*s2;
+}
+
 char* strncpy(char *s, const char *t, int n) {
   char *os;
 
@@ -236,6 +244,13 @@ int xisdigit(char c)
 int xisalnum(char c)
 {
     return xisalpha(c) || xisdigit(c);
+}
+
+// minimal helper: check if a path is an existing directory
+static int isdir(const char* path) {
+    int fd = opendir(path);
+    if (fd >= 0) { closedir(fd); return 1; }
+    return 0;
 }
 
 
@@ -561,6 +576,54 @@ int main(void) {
             }
         }
     
+        // built-in: cd [DIR]
+        if (num_commands == 1 && commands[0].num_arg >= 1 && strcmp(commands[0].argv[0], "cd") == 0) {
+            const char* target = "/";
+            if (commands[0].num_arg >= 2 && commands[0].argv[1][0]) {
+                target = commands[0].argv[1];
+            }
+            int rc = chdir(target);
+            if (rc < 0) {
+                puts("cd: failed\n");
+            }
+            continue;
+        }
+
+        // built-in: mkdir [-p] DIR [DIR...]
+        if (num_commands == 1 && commands[0].num_arg >= 1 && strcmp(commands[0].argv[0], "mkdir") == 0) {
+            if (commands[0].num_arg < 2) { puts("mkdir: missing operand\n"); continue; }
+            int argi = 1; int parents = 0;
+            if (commands[0].num_arg >= 2 && strcmp(commands[0].argv[1], "-p") == 0) { parents = 1; argi = 2; }
+            if (commands[0].num_arg <= argi) { puts("mkdir: missing operand\n"); continue; }
+
+            for (int ai = argi; ai < commands[0].num_arg; ai++) {
+                const char* path = commands[0].argv[ai];
+                if (!path || !path[0]) { puts("mkdir: invalid path\n"); continue; }
+                if (!parents) {
+                    int rc = mkdir(path, 0755);
+                    if (rc < 0) puts("mkdir: failed\n");
+                } else {
+                    // mkdir -p behavior
+                    char accum[256]; int ap = 0; accum[0] = '\0';
+                    const char* s = path;
+                    if (*s == '/') { accum[ap++] = '/'; accum[ap] = '\0'; while (*s=='/') s++; }
+                    while (*s) {
+                        char name[64]; int ni=0;
+                        while (s[0] && s[0] != '/' && ni < (int)sizeof(name)-1) { name[ni++] = *s++; }
+                        name[ni] = '\0';
+                        while (*s == '/') s++;
+                        if (ni == 0) continue;
+                        if (!(ap==1 && accum[0]=='/')) { if (ap < (int)sizeof(accum)-1) accum[ap++] = '/'; }
+                        for (int k=0; k<ni && ap < (int)sizeof(accum)-1; k++) accum[ap++] = name[k];
+                        accum[ap] = '\0';
+                        if (isdir(accum)) continue;
+                        if (mkdir(accum, 0755) < 0) { puts("mkdir: failed\n"); break; }
+                    }
+                }
+            }
+            continue;
+        }
+
         pid = fork();
         
         if(pid == 0) {

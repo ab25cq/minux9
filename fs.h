@@ -14,6 +14,18 @@
 #define ROOTINO    1     // ルートディレクトリの i-node 番号
 #define T_DIR      1
 #define T_FILE     2
+#define T_SYMLINK  3
+
+// mode bits (subset)
+#ifndef S_ISUID
+#define S_ISUID 04000
+#endif
+#ifndef S_ISGID
+#define S_ISGID 02000
+#endif
+#ifndef S_ISVTX
+#define S_ISVTX 01000
+#endif
 
 #define DIRSIZ     14    // ディレクトリエントリ名の最大長
 
@@ -34,11 +46,17 @@ struct superblock {
 
 // on-disk i-node 構造体
 struct dinode {
-    uint16_t type;             // 0=空き, 1=ファイル, 2=ディレクトリ
+    uint16_t type;             // 0=空き, 1=ディレクトリ, 2=ファイル, 3=シンボリックリンク
     uint16_t major;            // デバイス番号（未使用時は 0）
     uint16_t minor;            // デバイス番号（未使用時は 0）
     uint16_t nlink;            // ハードリンク数
     uint32_t size;             // ファイルサイズ（バイト）
+    uint32_t mode;             // パーミッション/種別ビット（簡易）
+    uint16_t uid;              // 所有者
+    uint16_t gid;              // グループ
+    uint32_t atime;            // 最終アクセス
+    uint32_t mtime;            // 最終更新
+    uint32_t ctime;            // メタデータ変更
     /* 直接ポインタ[0..NDIRECT-1], 1次インデクス=addrs[NDIRECT], 2次インデクス=addrs[NDIRECT+1] */
     uint32_t addrs[NDIRECT + 2];
 };
@@ -47,6 +65,20 @@ struct dinode {
 struct dirent {
     uint16_t inum;           // ファイル/ディレクトリの i-node 番号
     char     name[DIRSIZ];   // ファイル名（固定長14バイト、ヌル終端なし）
+};
+
+// 簡易 stat 構造体（ユーザー/カーネル共用）
+struct stat {
+    uint16_t type;  // T_DIR / T_FILE / T_SYMLINK
+    uint16_t nlink; // ハードリンク数
+    uint32_t size;  // バイト数
+    uint32_t inum;  // i-node number
+    uint32_t mode;  // パーミッション
+    uint16_t uid;   // 所有者
+    uint16_t gid;   // グループ
+    uint32_t atime; // アクセス
+    uint32_t mtime; // 更新
+    uint32_t ctime; // 変更
 };
 
 //──────────────────────────────────────────
@@ -93,4 +125,3 @@ typedef int32_t ssize_t;
 
 
 #endif // FS_H
-
