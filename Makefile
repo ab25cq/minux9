@@ -43,6 +43,10 @@ kernel.elf:
 	$(CCPREFIX)gcc -O0 -nostdlib -static -o pwd -g pwd.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o pwd pwd.c $(CHILD_CFLAGS)
 
+	# touch user program
+	$(CCPREFIX)gcc -O0 -nostdlib -static -o touch -g touch.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o touch touch.c $(CHILD_CFLAGS)
+
 	# build login user program (required by mkfs)
 	$(CCPREFIX)gcc -O0 -nostdlib -static -o login -g login.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o login login.c $(CHILD_CFLAGS)

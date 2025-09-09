@@ -2646,6 +2646,16 @@ int Sys_execv()
 #ifdef DEBUG_CWD
     printf("[execv] proc=%d path='%s' cwd(before)='%s'\n", gActiveProc, path, gProc[gActiveProc]->cwd);
 #endif
+
+    // Preserve current working directory across exec explicitly.
+    // Although alloc_prog(exec_flag=1) copies it, keep a backup to be safe.
+    char cwd_backup[128];
+    {
+        struct proc *par = gProc[gActiveProc];
+        int i = 0; while (par->cwd[i] && i < (int)sizeof(cwd_backup)-1) { cwd_backup[i] = par->cwd[i]; i++; }
+        cwd_backup[i] = '\0';
+        if (i == 0) { cwd_backup[0] = '/'; cwd_backup[1] = '\0'; }
+    }
     int fd = fs_open2(path, 0, 0);
     if(fd < 0) {
         trapframe->a0 = -1;
@@ -2682,6 +2692,12 @@ int Sys_execv()
 #ifdef DEBUG_CWD
     printf("[execv] after replace proc=%d cwd(now)='%s'\n", gActiveProc, new_p->cwd);
 #endif
+
+    // Final safeguard: if cwd became empty or root handling broke, restore backup
+    if (!(new_p->cwd[0])) {
+        int i = 0; while (cwd_backup[i] && i < (int)sizeof(new_p->cwd)-1) { new_p->cwd[i] = cwd_backup[i]; i++; }
+        new_p->cwd[i] = '\0';
+    }
 
     // Set up the user stack
     uint64_t sp = new_p->context.sp; // Initial top of stack

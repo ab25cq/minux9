@@ -2,12 +2,19 @@
 #include <stdarg.h>
 #include "minux.h"
 
+#define NULL ((void*)0)
+
 int strcmp(const char* s1, const char* s2) {
     while (*s1 && (*s1 == *s2)) {
         s1++;
         s2++;
     }
     return (unsigned char)*s1 - (unsigned char)*s2;
+}
+
+static const char* s_strchr(const char* s, int ch) {
+    while (*s) { if (*s == (char)ch) return s; s++; }
+    return NULL;
 }
 
 char* strncpy(char *s, const char *t, int n) {
@@ -348,7 +355,16 @@ int run_command(int n, struct sCommand* commands, int num_commands)
             close(fd);
         }
         
+        // Try exec as given; if no slash and fails, try "/cmd"
         execvp(argv[0], argv);
+        if (argv[0] && argv[0][0] && !s_strchr(argv[0], '/')) {
+            char abuf[64];
+            abuf[0] = '/';
+            int i=0; while (argv[0][i] && i < (int)sizeof(abuf)-2) { abuf[i+1] = argv[0][i]; i++; }
+            abuf[i+1] = '\0';
+            argv[0] = abuf; // safe: we exit on failure anyway
+            execvp(argv[0], argv);
+        }
         exit(127);
     }
     else {
@@ -375,6 +391,14 @@ int run_command(int n, struct sCommand* commands, int num_commands)
             argv[j] = (void*)0;
             
             execvp(argv[0], argv);
+            if (argv[0] && argv[0][0] && !s_strchr(argv[0], '/')) {
+                char abuf[64];
+                abuf[0] = '/';
+                int i=0; while (argv[0][i] && i < (int)sizeof(abuf)-2) { abuf[i+1] = argv[0][i]; i++; }
+                abuf[i+1] = '\0';
+                argv[0] = abuf;
+                execvp(argv[0], argv);
+            }
             exit(127);
         }
     }
@@ -623,6 +647,8 @@ int main(void) {
             }
             continue;
         }
+
+        // note: touch moved to external command
 
         pid = fork();
         

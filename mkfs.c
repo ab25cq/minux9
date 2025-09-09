@@ -589,6 +589,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("group", 16);
     write_file_to_file_system("login", 17);
     write_file_to_file_system("sh.elf", 18);
+    write_file_to_file_system("touch", 19);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);
