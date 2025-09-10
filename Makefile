@@ -14,54 +14,57 @@ kernel.elf:
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o trap_c.o trap.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o plic.o plic.c
 
-	$(CCPREFIX)gcc -O0 -nostdlib -static -o cat -g cat.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o cat cat.c $(CHILD_CFLAGS)
+	# build minimal userland crt0 that calls exit(main())
+	$(CCPREFIX)gcc $(CFLAGS) -c -o crt0.o crt0.S
+
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cat -g cat.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cat crt0.o cat.c $(CHILD_CFLAGS)
 	xxd -i cat > cat.h  
 
-	$(CCPREFIX)gcc -O0 -nostdlib -static -o hello -g hello.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello hello.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o hello -g hello.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o hello crt0.o hello.c $(CHILD_CFLAGS)
 	xxd -i hello > hello.h  
 
-	$(CCPREFIX)gcc -O0 -nostdlib -static -o echo -g echo.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o echo echo.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o echo -g echo.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o echo crt0.o echo.c $(CHILD_CFLAGS)
 	xxd -i echo > echo.h  
 
 #	comelang -S -bare grep.c
-#	$(CCPREFIX)gcc -Tuser.ld -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o grep grep.c.c $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o grep grep.c $(CHILD_CFLAGS)
+#	$(CCPREFIX)gcc -Tuser.ld -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o grep grep.c.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o grep crt0.o grep.c $(CHILD_CFLAGS)
 
-	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello3.elf -g hello3.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello3.elf hello3.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -O0 -static -o hello3.elf -g hello3.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o hello3.elf crt0.o hello3.c $(CHILD_CFLAGS)
 
-	$(CCPREFIX)gcc -nostdlib -O0 -static -o hello4.elf -g hello4.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o hello4.elf hello4.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -O0 -static -o hello4.elf -g hello4.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o hello4.elf crt0.o hello4.c $(CHILD_CFLAGS)
 
 
-	$(CCPREFIX)gcc -O0 -nostdlib -static -o ls -g ls.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o ls ls.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o ls -g ls.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o ls crt0.o ls.c $(CHILD_CFLAGS)
 
 	# mkdir user program
-	$(CCPREFIX)gcc -O0 -nostdlib -static -o mkdir -g mkdir.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o mkdir mkdir.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o mkdir -g mkdir.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o mkdir crt0.o mkdir.c $(CHILD_CFLAGS)
 
 	# rmdir user program
-	$(CCPREFIX)gcc -O0 -nostdlib -static -o rmdir -g rmdir.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o rmdir rmdir.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o rmdir -g rmdir.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o rmdir crt0.o rmdir.c $(CHILD_CFLAGS)
 
-	$(CCPREFIX)gcc -O0 -nostdlib -static -o pwd -g pwd.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o pwd pwd.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o pwd -g pwd.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o pwd crt0.o pwd.c $(CHILD_CFLAGS)
 
 	# touch user program
-	$(CCPREFIX)gcc -O0 -nostdlib -static -o touch -g touch.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o touch touch.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o touch -g touch.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o touch crt0.o touch.c $(CHILD_CFLAGS)
 
 	# build login user program (required by mkfs)
-	$(CCPREFIX)gcc -O0 -nostdlib -static -o login -g login.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o login login.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o login -g login.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o login crt0.o login.c $(CHILD_CFLAGS)
 
-	$(CCPREFIX)gcc -I. -nostdlib -S -O0 -static -o sh.S -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -I. -nostdlib -O0 -static -o sh.elf -I. -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o sh.elf sh.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -I. -nostdlib -S -O0 -static -o sh.S -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -I. -nostdlib -O0 -static -o sh.elf -I. -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o sh.elf crt0.o sh.c $(CHILD_CFLAGS)
 	xxd -i sh.elf > sh.h  
 
 	dd if=/dev/zero of=fs.img bs=1k count=512

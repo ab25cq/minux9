@@ -326,6 +326,22 @@ typedef int pid_t;
     (int)_a0;                                                   \
 })
 
+// execve: exec with environment (envp = array of "KEY=VAL" strings)
+#ifndef SYS_execve
+#define SYS_execve 100
+#endif
+#define execve(path, argv, envp) ({                               \
+    register long _a0 asm("a0") = (long)(path);                  \
+    register long _a1 asm("a1") = (long)(argv);                  \
+    register long _a2 asm("a2") = (long)(envp);                  \
+    register long _a7 asm("a7") = SYS_execve;                    \
+    asm volatile("ecall"                                         \
+                 : "+r"(_a0)                                    \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                 \
+                 : "memory");                                   \
+    (int)_a0;                                                    \
+})
+
 #define exit(status) __extension__ ({  \
     register long _a0 asm("a0") = (long)(status);                 \
     register long _a7 asm("a7") = SYS_exit;                    \

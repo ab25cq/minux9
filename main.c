@@ -50,6 +50,7 @@ int Sys_login(void);
 #define SYS_getgid 97
 #define SYS_setuid 98
 #define SYS_setgid 99
+#define SYS_execve 100
 #define SYS_realpath 101
 #define SYS_login 102
 #define SYS_getlogin 103
@@ -2775,6 +2776,146 @@ int Sys_execv()
     return argc;
 }
 
+int Sys_execve()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0; // path
+    uintptr_t arg1 = trapframe->a1; // argv
+    uintptr_t arg2 = trapframe->a2; // envp
+    
+    // path
+    char kernel_buf[256];
+    uint64_t user_va = arg0;
+    
+    struct proc *p = gProc[gActiveProc];
+    if(copyinstr(p->pagetable, kernel_buf, user_va, 256) < 0) {
+        trapframe->a0 = -1;
+        return -1;
+    }
+    char* path = kernel_buf;
+
+    // argv
+    char argv_storage[32][32];
+    char* kargv[32];
+    uint64_t user_argv = arg1;
+    int argc = 0;
+    for (argc = 0; argc < 32; argc++) {
+        uintptr_t uargp;
+        if (copyin(p->pagetable, (char*)&uargp, user_argv + argc * sizeof(uintptr_t), sizeof(uintptr_t)) < 0) {
+            trapframe->a0 = -1;
+            return -1;
+        }
+        if (uargp == 0) break;
+        if (copyinstr(p->pagetable, argv_storage[argc], uargp, sizeof(argv_storage[0])) < 0) {
+            trapframe->a0 = -1;
+            return -1;
+        }
+        kargv[argc] = argv_storage[argc];
+    }
+    kargv[argc] = NULL;
+
+    // envp
+    char env_storage[16][128];
+    char* kenv[16];
+    uint64_t user_envp = arg2;
+    int envc = 0;
+    for (envc = 0; envc < 16; envc++) {
+        uintptr_t uenvp;
+        if (copyin(p->pagetable, (char*)&uenvp, user_envp + envc * sizeof(uintptr_t), sizeof(uintptr_t)) < 0) {
+            trapframe->a0 = -1;
+            return -1;
+        }
+        if (uenvp == 0) break;
+        if (copyinstr(p->pagetable, env_storage[envc], uenvp, sizeof(env_storage[0])) < 0) {
+            trapframe->a0 = -1;
+            return -1;
+        }
+        kenv[envc] = env_storage[envc];
+    }
+
+    // open and load program
+    int fd = fs_open2(path, 0, 0);
+    if(fd < 0) { trapframe->a0 = -1; return -1; }
+    ssize_t size = fs_size(fd);
+    char* elf_buf = calloc(1, size+32);
+    int ret = fs_read(fd, elf_buf, size);
+    fs_close(fd, 0);
+    if (ret <= 0) { trapframe->a0 = -1; return -1; }
+
+    // setuid/gid checks
+    struct stat stx; int has_stat = (fs_stat(path, &stx) == 0);
+    uint16_t new_uid = gProc[gActiveProc]->uid;
+    uint16_t new_gid = gProc[gActiveProc]->gid;
+    if (has_stat && (stx.mode & S_ISUID)) new_uid = stx.uid;
+    if (has_stat && (stx.mode & S_ISGID)) new_gid = stx.gid;
+
+    int child_proc_index = 0;
+    alloc_prog(elf_buf, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index);
+    free(elf_buf);
+
+    struct proc* new_p = gProc[gActiveProc];
+    new_p->uid = new_uid;
+    new_p->gid = new_gid;
+
+    // Setup user stack with argv strings
+    uint64_t sp = new_p->context.sp;
+    uint64_t str_addrs[32];
+    for (int i = argc - 1; i >= 0; i--) {
+        size_t len = strlen(kargv[i]) + 1;
+        sp -= len;
+        if (copyout(new_p->pagetable, sp, kargv[i], len) < 0) {
+            panic("execve: copyout argv string failed");
+        }
+        str_addrs[i] = sp;
+    }
+    sp -= (argc + 1) * sizeof(uint64_t);
+    sp &= ~7ULL;
+    uint64_t argv_base = sp;
+    for (int i = 0; i < argc; i++) {
+        uint64_t ptr = str_addrs[i];
+        if (copyout(new_p->pagetable, argv_base + i * sizeof(uint64_t), &ptr, sizeof(uint64_t)) < 0) {
+            panic("execve: copyout argv ptr failed");
+        }
+    }
+    uint64_t nullp = 0;
+    if (copyout(new_p->pagetable, argv_base + argc * sizeof(uint64_t), &nullp, sizeof(uint64_t)) < 0) {
+        panic("execve: copyout argv null failed");
+    }
+
+    // Setup env strings and envp
+    uint64_t env_addrs[16];
+    for (int i = envc - 1; i >= 0; i--) {
+        size_t len = strlen(kenv[i]) + 1;
+        sp -= len;
+        if (copyout(new_p->pagetable, sp, kenv[i], len) < 0) {
+            panic("execve: copyout env string failed");
+        }
+        env_addrs[i] = sp;
+    }
+    sp -= (envc + 1) * sizeof(uint64_t);
+    sp &= ~7ULL;
+    uint64_t envp_base = sp;
+    for (int i = 0; i < envc; i++) {
+        uint64_t ptr = env_addrs[i];
+        if (copyout(new_p->pagetable, envp_base + i * sizeof(uint64_t), &ptr, sizeof(uint64_t)) < 0) {
+            panic("execve: copyout env ptr failed");
+        }
+    }
+    if (copyout(new_p->pagetable, envp_base + envc * sizeof(uint64_t), &nullp, sizeof(uint64_t)) < 0) {
+        panic("execve: copyout env null failed");
+    }
+
+    // Set registers for new program
+    trapframe->a0 = argc;
+    trapframe->a1 = argv_base;
+    trapframe->a2 = envp_base;
+    trapframe->sp = sp;
+    trapframe->mepc = new_p->context.mepc - 4; // compensate sepc+4 in trap
+    user_sp = sp;
+    return argc;
+}
+
 void uvmunmap(pagetable_t pagetable, uint64_t va, uint64_t npages, int do_free) {
     if((va % PGSIZE) != 0)
         panic("uvmunmap: not aligned");
@@ -3169,6 +3310,10 @@ uintptr_t syscall_handler()
             
         case SYS_execv: {
             result = Sys_execv();
+            }
+            break;
+        case SYS_execve: {
+            result = Sys_execve();
             }
             break;
             

@@ -226,6 +226,8 @@ int printf(const char* fmt, ...) {
 
 #define BUF_SIZE 64
 
+static char g_cmdline[BUF_SIZE];
+
 void puts(const char *s) {
     while (*s) {
         putchar(*s++);
@@ -289,6 +291,14 @@ int run_command(int n, struct sCommand* commands, int num_commands)
            argv[j] = command->argv[j];
         }
         argv[j] = (void*)0;
+
+        char envbuf[BUF_SIZE + 16];
+        int ei = 0;
+        const char* prefix = "MINUX_CMDLINE=";
+        for (int k=0; prefix[k]; k++) envbuf[ei++] = prefix[k];
+        for (int k=0; g_cmdline[k] && ei < (int)sizeof(envbuf)-1; k++) envbuf[ei++] = g_cmdline[k];
+        envbuf[ei] = '\0';
+        char* envp[2]; envp[0] = envbuf; envp[1] = 0;
         
         if(command->redirect_file[0] != '\0') {
             int fd;
@@ -309,14 +319,14 @@ int run_command(int n, struct sCommand* commands, int num_commands)
         }
         
         // Try exec as given; if no slash and fails, try "/cmd"
-        execvp(argv[0], argv);
+        execve(argv[0], argv, envp);
         if (argv[0] && argv[0][0] && !s_strchr(argv[0], '/')) {
             char abuf[64];
             abuf[0] = '/';
             int i=0; while (argv[0][i] && i < (int)sizeof(abuf)-2) { abuf[i+1] = argv[0][i]; i++; }
             abuf[i+1] = '\0';
             argv[0] = abuf; // safe: we exit on failure anyway
-            execvp(argv[0], argv);
+            execve(argv[0], argv, envp);
         }
         exit(127);
     }
@@ -343,14 +353,22 @@ int run_command(int n, struct sCommand* commands, int num_commands)
             }
             argv[j] = (void*)0;
             
-            execvp(argv[0], argv);
+            char envbuf[BUF_SIZE + 16];
+            int ei = 0;
+            const char* prefix = "MINUX_CMDLINE=";
+            for (int k=0; prefix[k]; k++) envbuf[ei++] = prefix[k];
+            for (int k=0; g_cmdline[k] && ei < (int)sizeof(envbuf)-1; k++) envbuf[ei++] = g_cmdline[k];
+            envbuf[ei] = '\0';
+            char* envp[2]; envp[0] = envbuf; envp[1] = 0;
+
+            execve(argv[0], argv, envp);
             if (argv[0] && argv[0][0] && !s_strchr(argv[0], '/')) {
                 char abuf[64];
                 abuf[0] = '/';
                 int i=0; while (argv[0][i] && i < (int)sizeof(abuf)-2) { abuf[i+1] = argv[0][i]; i++; }
                 abuf[i+1] = '\0';
                 argv[0] = abuf;
-                execvp(argv[0], argv);
+                execve(argv[0], argv, envp);
             }
             exit(127);
         }
@@ -407,6 +425,8 @@ int main(void) {
 //        strncpy(buf, "cat a.txt | cat | cat", BUF_SIZE);
         
         write(1, "\r\n", 2);
+        // save whole command line into global for MINUX_CMDLINE
+        int gi = 0; while (buf[gi] && gi < BUF_SIZE-1) { g_cmdline[gi] = buf[gi]; gi++; } g_cmdline[gi] = '\0';
         
         if(buf[0] == '\0') {
             continue;

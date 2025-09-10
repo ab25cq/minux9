@@ -53,13 +53,10 @@ int main(int argc, char** argv)
 
     for (int i = first_path; i < argc; i++) {
         const char* path = argv[i];
-puts(path);
         if (!path || !path[0]) { prints("mkdir: invalid path\n"); errs = 1; continue; }
-puts("1");
         int rc = parents ? mkdir_p(path, 0755) : mkdir(path, 0755);
-puts("2");
         if (rc < 0) { prints("mkdir: failed\n"); errs = 1; }
     }
-    exit(errs ? 1 : 0);
+    return errs ? 1 : 0;
 }
 
