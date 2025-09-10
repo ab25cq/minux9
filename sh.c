@@ -566,43 +566,6 @@ int main(void) {
             continue;
         }
 
-        // built-in: mkdir [-p] DIR [DIR...]
-        if (num_commands == 1 && commands[0].num_arg >= 1 && strcmp(commands[0].argv[0], "mkdir") == 0) {
-            if (commands[0].num_arg < 2) { puts("mkdir: missing operand\n"); continue; }
-            int argi = 1; int parents = 0;
-            if (commands[0].num_arg >= 2 && strcmp(commands[0].argv[1], "-p") == 0) { parents = 1; argi = 2; }
-            if (commands[0].num_arg <= argi) { puts("mkdir: missing operand\n"); continue; }
-
-            for (int ai = argi; ai < commands[0].num_arg; ai++) {
-                const char* path = commands[0].argv[ai];
-                if (!path || !path[0]) { puts("mkdir: invalid path\n"); continue; }
-                if (!parents) {
-                    int rc = mkdir(path, 0755);
-                    if (rc < 0) puts("mkdir: failed\n");
-                } else {
-                    // mkdir -p behavior
-                    char accum[256]; int ap = 0; accum[0] = '\0';
-                    const char* s = path;
-                    if (*s == '/') { accum[ap++] = '/'; accum[ap] = '\0'; while (*s=='/') s++; }
-                    while (*s) {
-                        char name[64]; int ni=0;
-                        while (s[0] && s[0] != '/' && ni < (int)sizeof(name)-1) { name[ni++] = *s++; }
-                        name[ni] = '\0';
-                        while (*s == '/') s++;
-                        if (ni == 0) continue;
-                        if (!(ap==1 && accum[0]=='/')) { if (ap < (int)sizeof(accum)-1) accum[ap++] = '/'; }
-                        for (int k=0; k<ni && ap < (int)sizeof(accum)-1; k++) accum[ap++] = name[k];
-                        accum[ap] = '\0';
-                        if (isdir(accum)) continue;
-                        if (mkdir(accum, 0755) < 0) { puts("mkdir: failed\n"); break; }
-                    }
-                }
-            }
-            continue;
-        }
-
-        // note: touch moved to external command
-
         pid = fork();
         
         if(pid == 0) {

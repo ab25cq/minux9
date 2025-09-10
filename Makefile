@@ -40,6 +40,14 @@ kernel.elf:
 	$(CCPREFIX)gcc -O0 -nostdlib -static -o ls -g ls.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o ls ls.c $(CHILD_CFLAGS)
 
+	# mkdir user program
+	$(CCPREFIX)gcc -O0 -nostdlib -static -o mkdir -g mkdir.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o mkdir mkdir.c $(CHILD_CFLAGS)
+
+	# rmdir user program
+	$(CCPREFIX)gcc -O0 -nostdlib -static -o rmdir -g rmdir.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o rmdir rmdir.c $(CHILD_CFLAGS)
+
 	$(CCPREFIX)gcc -O0 -nostdlib -static -o pwd -g pwd.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,main -o pwd pwd.c $(CHILD_CFLAGS)
 
@@ -91,11 +99,11 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir
 
 # Always (re)build the filesystem image so updated userland like pwd is included
 .PHONY: fsimg
-fsimg:
+fsimg: cat echo grep hello ls pwd login touch mkdir rmdir sh.elf hello3.elf hello4.elf
 	dd if=/dev/zero of=fs.img bs=1k count=512
 	dd if=hello of=fs.img bs=512 seek=0 conv=notrunc
 	dd if=cat of=fs.img bs=512 seek=0 conv=notrunc
