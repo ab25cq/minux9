@@ -13,8 +13,10 @@
 // ファイルシステム共通定数・構造体（fs.h と合わせる）
 //──────────────────────────────────────────
 #define BSIZE       512     // ブロックサイズ（バイト）
-#define NINODES     64      // イノード数（ファイル数に合わせて拡張）
-#define NBLOCKS     256     // 総ブロック数（例として 256）
+//#define NINODES     64      // イノード数（ファイル数に合わせて拡張）
+//#define NBLOCKS     256     // 総ブロック数（例として 256）
+#define NINODES     128     // 余裕を持たせる
+#define NBLOCKS     4096    // 512B×4096=約2MiBのFSイメージ
 
 // 1 ブロックあたりに収まるイノード数
 #define IPB         (BSIZE / sizeof(struct dinode))
@@ -597,6 +599,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("toycc", 24);
     write_file_to_file_system("toyvm", 25);
     write_file_to_file_system("a.c", 26);
+    write_file_to_file_system("rvcc", 27);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);
