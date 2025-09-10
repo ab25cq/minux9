@@ -219,7 +219,7 @@ LOAD syscall.o
  *fill*         0x000000008000e51c        0x4 
  .rodata        0x000000008000e520      0x1a0 syscall.o
 
-.data           0x000000008000e6c0     0x1e70
+.data           0x000000008000e6c0     0x21a8
  *(.data*)
  .data          0x000000008000e6c0        0x0 entry.o
  .data          0x000000008000e6c0        0x0 start.o
@@ -228,75 +228,75 @@ LOAD syscall.o
  .data          0x000000008000e6c0        0x0 fs.o
  .data          0x000000008000e6c0        0x0 plic.o
  .data          0x000000008000e6c0        0x0 trap_c.o
- .data          0x000000008000e6c0     0x1e70 main.o
+ .data          0x000000008000e6c0     0x21a8 main.o
                 0x000000008000e6c0                sh_elf
-                0x00000000800104d0                gUsers
- .data          0x0000000080010530        0x0 sub.o
- .data          0x0000000080010530        0x0 syscall.o
+                0x0000000080010808                gUsers
+ .data          0x0000000080010868        0x0 sub.o
+ .data          0x0000000080010868        0x0 syscall.o
 
-.sdata          0x0000000080010530       0x10
+.sdata          0x0000000080010868       0x10
  *(.sdata*)
- .sdata         0x0000000080010530       0x10 main.o
-                0x0000000080010530                sh_elf_len
+ .sdata         0x0000000080010868       0x10 main.o
+                0x0000000080010868                sh_elf_len
 
-.bss            0x0000000080010600     0x87a0
+.bss            0x0000000080010a00     0x87a0
  *(.bss)
- .bss           0x0000000080010600        0x0 entry.o
- .bss           0x0000000080010600        0x0 start.o
- .bss           0x0000000080010600        0x0 userret.o
- .bss           0x0000000080010600        0x0 trap.o
- .bss           0x0000000080010600     0x8230 fs.o
-                0x0000000080010600                gPipes
-                0x0000000080013900                gFiles
- .bss           0x0000000080018830        0x0 plic.o
- .bss           0x0000000080018830        0x0 trap_c.o
- .bss           0x0000000080018830      0x538 main.o
-                0x0000000080018830                gCPU
-                0x0000000080018940                gProc
-                0x0000000080018d40                kmem
- .bss           0x0000000080018d68        0x8 sub.o
- .bss           0x0000000080018d70        0x0 syscall.o
+ .bss           0x0000000080010a00        0x0 entry.o
+ .bss           0x0000000080010a00        0x0 start.o
+ .bss           0x0000000080010a00        0x0 userret.o
+ .bss           0x0000000080010a00        0x0 trap.o
+ .bss           0x0000000080010a00     0x8230 fs.o
+                0x0000000080010a00                gPipes
+                0x0000000080013d00                gFiles
+ .bss           0x0000000080018c30        0x0 plic.o
+ .bss           0x0000000080018c30        0x0 trap_c.o
+ .bss           0x0000000080018c30      0x538 main.o
+                0x0000000080018c30                gCPU
+                0x0000000080018d40                gProc
+                0x0000000080019140                kmem
+ .bss           0x0000000080019168        0x8 sub.o
+ .bss           0x0000000080019170        0x0 syscall.o
  *(.bss.*)
  *(.sbss)
- .sbss          0x0000000080018d70       0x10 fs.o
-                0x0000000080018d70                gFreePipes
-                0x0000000080018d78                gFreeFiles
- .sbss          0x0000000080018d80       0x18 main.o
-                0x0000000080018d80                kernel_pagetable
-                0x0000000080018d88                gNumProc
-                0x0000000080018d8c                gActiveProc
-                0x0000000080018d90                last_key
-                0x0000000080018d94                g_time_offset
- .sbss          0x0000000080018d98        0x8 sub.o
-                0x0000000080018d98                free_list
+ .sbss          0x0000000080019170       0x10 fs.o
+                0x0000000080019170                gFreePipes
+                0x0000000080019178                gFreeFiles
+ .sbss          0x0000000080019180       0x18 main.o
+                0x0000000080019180                kernel_pagetable
+                0x0000000080019188                gNumProc
+                0x000000008001918c                gActiveProc
+                0x0000000080019190                last_key
+                0x0000000080019194                g_time_offset
+ .sbss          0x0000000080019198        0x8 sub.o
+                0x0000000080019198                free_list
  *(.sbss.*)
                 [!provide]                        PROVIDE (_code_end = .)
-                0x0000000080028da0                . = (. + STACK_MAX)
-                0x0000000080028da0                PROVIDE (stack_top = .)
-                0x0000000080029000                . = ALIGN (0x1000)
-                0x0000000080029000                TRAPFRAME = .
-                0x000000008002a000                . = (. + 0x1000)
+                0x00000000800291a0                . = (. + STACK_MAX)
+                0x00000000800291a0                PROVIDE (stack_top = .)
                 0x000000008002a000                . = ALIGN (0x1000)
-                0x000000008002a000                TRAPFRAME2 = .
+                0x000000008002a000                TRAPFRAME = .
                 0x000000008002b000                . = (. + 0x1000)
-                0x000000008002b000                PROVIDE (TRAMPOLINE = .)
+                0x000000008002b000                . = ALIGN (0x1000)
+                0x000000008002b000                TRAPFRAME2 = .
+                0x000000008002c000                . = (. + 0x1000)
+                0x000000008002c000                PROVIDE (TRAMPOLINE = .)
 
-.trampoline     0x000000008002b000      0x48a
+.trampoline     0x000000008002c000      0x48a
  *(.trampoline)
- .trampoline    0x000000008002b000      0x48a trap.o
-                0x000000008002b000                trapvec
-                0x000000008002b1fc                swtch
-                0x000000008002b2be                enter_user
-                0x000000008002b2ec                mtvec
-                0x000000008002b306                asm_memmove
-                0x000000008002b33c                yield
-                0x000000008002b3e4                yield_return
+ .trampoline    0x000000008002c000      0x48a trap.o
+                0x000000008002c000                trapvec
+                0x000000008002c1fc                swtch
+                0x000000008002c2be                enter_user
+                0x000000008002c2ec                mtvec
+                0x000000008002c306                asm_memmove
+                0x000000008002c33c                yield
+                0x000000008002c3e4                yield_return
 
-.rela.dyn       0x000000008002b490        0x0
- .rela.text     0x000000008002b490        0x0 entry.o
+.rela.dyn       0x000000008002c490        0x0
+ .rela.text     0x000000008002c490        0x0 entry.o
  .rela.trampoline
-                0x000000008002b490        0x0 entry.o
-                0x000000008002c000                . = ALIGN (0x1000)
+                0x000000008002c490        0x0 entry.o
+                0x000000008002d000                . = ALIGN (0x1000)
                 0x0000000080700000                . = 0x80700000
                 0x0000000080700000                PROVIDE (COMMON = .)
 
