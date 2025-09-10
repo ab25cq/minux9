@@ -1,6 +1,19 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <stdarg.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "elf.h"
+#include "fs.h"
+
+#define nullptr ((void*)0)
+
+typedef unsigned long size_t;
+typedef int32_t ssize_t;
+typedef long ptrdiff_t;
+typedef int pid_t;
+
 #define MAX_OPEN_FILES 16
 
 typedef uint64_t pte_t;
@@ -197,5 +210,36 @@ extern int gActiveProc;
 #ifndef O_APPEND
 #define O_APPEND (1<<11)
 #endif
+
+void *malloc(size_t size);
+void free(void *ptr);
+void* memset(void *dst, int c, unsigned int n);
+void *calloc(size_t nmemb, size_t size);
+int strlen(const char *s);
+void* memcpy(void *dst, const void *src, unsigned int n);
+char* strdup(const char* s);
+int strcmp(const char* s1, const char* s2);
+char* strstr(const char* haystack, const char* needle);
+void* memset(void *dst, int c, unsigned int n);
+int memcmp(const void *v1, const void *v2, unsigned int n);
+void* memmove(void *dst, const void *src, unsigned int n);
+void* memcpy(void *dst, const void *src, unsigned int n);
+int strncmp(const char *p, const char *q, unsigned int n);
+char* strncpy(char *s, const char *t, int n);
+int strlen(const char *s);
+void puts(const char *s);
+char* strncat(char* dest, const char* src, size_t n);
+char* strchr(const char* s, int c);
+char *strtok(char *s, const char *delim);
+void exit(int n);
+char* itoa(char* buf, unsigned long val_, int base, int is_signed);
+int vasprintf(char** out, const char* fmt, va_list ap);
+int snprintf(char* out, unsigned long out_size, const char* fmt, ...);
+int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...);
+void printint(int val_, int base, int sign);
+void printlong(unsigned long val_, int base, int sign);
+void printlonglong(unsigned long long val_, int base, int sign);
+int printf(const char* fmt, ...);
+void* sbrk(ptrdiff_t incr);
 
 #endif
