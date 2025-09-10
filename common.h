@@ -8,6 +8,7 @@
 #include "fs.h"
 
 #define nullptr ((void*)0)
+#define NULL ((void*)0)
 
 typedef unsigned long size_t;
 typedef int32_t ssize_t;
@@ -241,5 +242,79 @@ void printlong(unsigned long val_, int base, int sign);
 void printlonglong(unsigned long long val_, int base, int sign);
 int printf(const char* fmt, ...);
 void* sbrk(ptrdiff_t incr);
+int Sys_execve();
+int Sys_execv();
+int Sys_fork();
+int Sys_closedir();
+int Sys_readdir();
+int Sys_getlogin();
+int Sys_realpath();
+int Sys_setgid();
+int Sys_setuid();
+int Sys_getuid();
+int Sys_getgid();
+int Sys_gettimeofday();
+int Sys_umask();
+int Sys_utimes();
+int Sys_settimeofday();
+int Sys_chmod();
+int Sys_lstat();
+int Sys_readlink();
+int Sys_write();
+int Sys_exit();
+int Sys_wait();
+int Sys_isatty();
+int Sys_open();
+int Sys_opendir();
+int Sys_getcwd();
+int Sys_chdir();
+int Sys_mkdir();
+int Sys_rmdir();
+int Sys_unlink();
+int Sys_rename();
+int Sys_link();
+int Sys_symlink();
+int Sys_stat();
+int Sys_chown();
+
+extern char TRAPFRAME[];
+extern char TRAPFRAME2[];
+extern char TRAMPOLINE[];
+extern char COMMON[];
+
+void panic(char* str);
+
+extern uint64_t kernel_sp __attribute__((section(".common")));
+extern uint64_t user_sp __attribute__((section(".common")));
+
+extern uint64_t kernel_satp __attribute__((section(".common")));    // trap.S から参照する
+extern uint64_t user_satp __attribute__((section(".common")));
+
+int copyin(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t len);
+int copyinstr(pagetable_t pagetable, char *dst, uint64_t srcva, uint64_t max);
+int copyout(pagetable_t pagetable, uint64_t dstva, void *src, uint64_t len);
+void putchar(char c);
+
+static inline uint64_t r_time()
+{
+    uint64_t x;
+    asm volatile("csrr %0, time" : "=r" (x) );
+    return x;
+}
+
+static inline void w_stimecmp(uint64_t x)
+{
+  asm volatile("csrw 0x14d, %0" : : "r" (x));
+}
+
+extern int gNumProc;
+
+void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_index);
+void free_proc(struct proc *p);
+void remove_kernel_state(int active_proc);
+
+void yield();
+
+extern uint32_t g_time_offset;
 
 #endif
