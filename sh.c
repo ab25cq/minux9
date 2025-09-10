@@ -292,6 +292,7 @@ int run_command(int n, struct sCommand* commands, int num_commands)
         }
         argv[j] = (void*)0;
 
+/*
         char envbuf[BUF_SIZE + 16];
         int ei = 0;
         const char* prefix = "MINUX_CMDLINE=";
@@ -299,6 +300,7 @@ int run_command(int n, struct sCommand* commands, int num_commands)
         for (int k=0; g_cmdline[k] && ei < (int)sizeof(envbuf)-1; k++) envbuf[ei++] = g_cmdline[k];
         envbuf[ei] = '\0';
         char* envp[2]; envp[0] = envbuf; envp[1] = 0;
+*/
         
         if(command->redirect_file[0] != '\0') {
             int fd;
@@ -319,7 +321,9 @@ int run_command(int n, struct sCommand* commands, int num_commands)
         }
         
         // Try exec as given; if no slash and fails, try "/cmd"
-        execve(argv[0], argv, envp);
+        //execve(argv[0], argv, envp);
+        execv(argv[0], argv);
+/*
         if (argv[0] && argv[0][0] && !s_strchr(argv[0], '/')) {
             char abuf[64];
             abuf[0] = '/';
@@ -328,6 +332,7 @@ int run_command(int n, struct sCommand* commands, int num_commands)
             argv[0] = abuf; // safe: we exit on failure anyway
             execve(argv[0], argv, envp);
         }
+*/
         exit(127);
     }
     else {
@@ -353,6 +358,7 @@ int run_command(int n, struct sCommand* commands, int num_commands)
             }
             argv[j] = (void*)0;
             
+/*
             char envbuf[BUF_SIZE + 16];
             int ei = 0;
             const char* prefix = "MINUX_CMDLINE=";
@@ -362,6 +368,9 @@ int run_command(int n, struct sCommand* commands, int num_commands)
             char* envp[2]; envp[0] = envbuf; envp[1] = 0;
 
             execve(argv[0], argv, envp);
+*/
+            execv(argv[0], argv);
+/*
             if (argv[0] && argv[0][0] && !s_strchr(argv[0], '/')) {
                 char abuf[64];
                 abuf[0] = '/';
@@ -370,6 +379,7 @@ int run_command(int n, struct sCommand* commands, int num_commands)
                 argv[0] = abuf;
                 execve(argv[0], argv, envp);
             }
+*/
             exit(127);
         }
     }

@@ -856,12 +856,20 @@ int is_pipe(int fd)
 {
     struct file** file_table = get_current_file_table();
     
+/*
     if (file_table[fd] && file_table[fd]->used) {
         if(file_table[fd]->pipe) {
             return 1;
         }
     }
-    
+*/
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return 0;
+    if (!file_table[fd]) return 0;
+    if (!file_table[fd]->used) return 0;
+    /* FK_PIPE かつ pipe ポインタ非NULLのみをパイプとみなす */
+    if (file_table[fd]->kind == FK_PIPE && file_table[fd]->pipe != NULL) {
+        return 1;
+    }
     return 0;
 }
 

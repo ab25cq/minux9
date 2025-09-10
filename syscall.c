@@ -1,5 +1,79 @@
 #include "common.h"
 
+char uart_getc();
+size_t uart_readline(char *buf, size_t maxlen);
+size_t uart_readn(char *buf, size_t len) ;
+
+int Sys_write() {
+    struct context_t* tf = (struct context_t*)TRAPFRAME;
+    int fd = (int)tf->a0;
+    uint64_t u = tf->a1;
+    int len = (int)tf->a2;
+
+    char kbuf[256];
+    struct proc *p = gProc[gActiveProc];
+    int left = len, total = 0;
+
+    while (left > 0) {
+        int n = left > (int)sizeof(kbuf) ? (int)sizeof(kbuf) : left;
+        if (copyin(p->pagetable, kbuf, u, n) < 0) return -1;
+        
+        /* まず TTY/STDOUT を優先して処理する */
+        if (is_stdout(fd) || is_tty(fd)) {
+            for (int i = 0; i < n; i++) putchar(kbuf[i]);
+            total += n;
+        }
+        else if (is_pipe(fd)) {
+            // パイプの内部バッファに配慮して 16B スライスで書く
+            int off = 0;
+            while (off < n) {
+                int m = n - off;
+                if (m > 16) m = 16;
+                int w = pipewrite(fd, kbuf + off, m);
+                if (w < 0) return (total > 0) ? total : w;
+                off   += w;
+                total += w;
+            }
+        }
+        else {
+            ssize_t w = fs_write(fd, kbuf, n);
+            if (w < 0) return (total > 0) ? total : (int)w;
+            total += w;
+        }
+        u += n;
+        left -= n;
+
+/*
+        if (is_pipe(fd)) {
+            int w = pipewrite(fd, kbuf, n);
+            if (w < 0) return w;
+        if (is_pipe(fd)) {
+             // パイプの内部バッファ（例: 32B）を越えないように
+            // さらに細かく分割して書き込む
+            int off = 0;
+            while (off < n) {
+                int m = n - off;
+                // PIPE_SIZE を知らなくても安全なように 16B スライスに制限
+                if (m > 16) m = 16;
+                int w = pipewrite(fd, kbuf + off, m);
+                if (w < 0) return w;
+                off   += w;
+                total += w;
+            }
+        } else if (is_stdout(fd) || is_tty(fd)) {
+            for (int i = 0; i < n; i++) putchar(kbuf[i]);
+        } else {
+            ssize_t w = fs_write(fd, kbuf, n);
+            if (w < 0) return (int)w;
+        }
+        u += n; left -= n; total += n;
+*/
+    }
+    return total;
+}
+
+
+/*
 int Sys_write()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
@@ -53,6 +127,7 @@ int Sys_write()
         return (int)w;
     }
 }
+*/
 
 int Sys_exit()
 {
@@ -205,6 +280,26 @@ int Sys_opendir()
 int Sys_getcwd()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+
+    uint64_t destva = (uint64_t)trapframe->a0;
+    int      maxlen = (int)trapframe->a1;
+    if (maxlen <= 0) return -1;
+
+    struct proc *p = gProc[gActiveProc];
+    const char *cwd = p->cwd ? p->cwd : "/";
+
+    int src_len  = (int)strlen(cwd);
+    int copy_len = src_len;
+    if (copy_len > maxlen - 1) copy_len = maxlen - 1;
+
+    if (copyout(p->pagetable, destva, (void*)cwd, copy_len) < 0) return -1;
+    char nul = '\0';
+    if (copyout(p->pagetable, destva + copy_len, &nul, 1) < 0) return -1;
+
+    return copy_len;
+
+/*
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
     uintptr_t arg1 = trapframe->a1;
@@ -228,28 +323,17 @@ int Sys_getcwd()
 #endif
     // Defensive: ensure cwd is never empty when reported
     const char* src = p->cwd;
-/*
-    char fallback_root[2] = "/";
-    if (len <= 0) { src = fallback_root; len = 1; }
-    if (len + 1 > maxlen) {
-        // truncate to fit, but keep null terminator
-        len = maxlen - 1;
-    }
-    if (copyout(p->pagetable, user_buf, (void*)src, len) < 0) return -1;
-    char nul = '\0';
-    if (copyout(p->pagetable, user_buf + len, &nul, 1) < 0) return -1;
-*/
     
     char kernel_buf[256];
     strncpy(kernel_buf, p->cwd, 256);
     int ret = strlen(p->cwd);
 
-    /* copyout を使ってまとめてコピー */
     if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
         panic("read: copyout failed");
     }
 
     return ret;
+*/
 }
 
 // chdir: change current working directory
@@ -887,4 +971,155 @@ int Sys_execve()
     trapframe->mepc = new_p->context.mepc - 4; // compensate sepc+4 in trap
     user_sp = sp;
     return argc;
+}
+
+// In main.c, inside Sys_brk
+int Sys_brk() {
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t addr = trapframe->a0;
+    struct proc *p = gProc[gActiveProc];
+    uint64_t old_sz = p->sz;
+
+    if (addr == 0) {
+        return old_sz;
+    }
+
+    if (addr > old_sz) {
+        if(uvm_alloc(p, p->pagetable, old_sz, addr) < 0) {
+            printf("Sys_brk: uvm_alloc failed!\n");
+            return -1; 
+        }
+    } else if (addr < old_sz) {
+        uvm_dealloc(p->pagetable, old_sz, addr);
+    }
+
+    p->sz = addr;
+    return p->sz;
+}
+
+/*
+int Sys_brk() {
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    uint64_t addr = trapframe->a0;
+    struct proc *p = gProc[gActiveProc];
+    uint64_t old_sz = p->sz;
+
+    if (addr == 0) {
+        return old_sz;
+    }
+
+    if (addr > old_sz) {
+        if(uvm_alloc(p->pagetable, old_sz, addr) < 0) {
+            return -1; 
+        }
+    } else if (addr < old_sz) {
+        uvm_dealloc(p->pagetable, old_sz, addr);
+    }
+
+    p->sz = addr;
+    return p->sz;
+}
+*/
+
+int Sys_dup2(void)
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    int oldfd = arg0;
+    int newfd = arg1;
+    
+    fs_dup2(oldfd, newfd);
+    
+    return 0;
+}
+
+int Sys_pipe(void)
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    char* kernel_buf;
+    uint64_t user_va = arg0;
+    
+    int pipe_fds[2];
+    int* fd = (int*)pipe_fds;
+    
+    pipe_open(&fd[0], &fd[1]);
+    
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+    
+    if(copyout(p->pagetable, (uint64_t)user_va, (char*)fd, sizeof(int)*2) < 0)
+    {
+        panic("copyout");
+    }
+    
+    return 0;
+}
+
+int Sys_read()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    int fd   = arg0;
+    uint64_t destva = arg1;
+    size_t   n     = arg2;
+    
+    char kernel_buf[256];
+    int ret;
+    
+    struct file** file_table = get_current_file_table();
+
+    if(is_stdin(fd)) {
+        ret = uart_readn(kernel_buf, n);
+    }
+    else if(is_tty(fd)) {
+        ret = uart_readn(kernel_buf, n);
+    }
+    else if(is_pipe(fd)) {
+        ret = piperead(fd, kernel_buf, n);
+    }
+    else {
+        ret = fs_read(fd, kernel_buf, n);
+        if (ret < 0) {
+            trapframe->a0 = ret;
+            return 0;
+        }
+        //kernel_buf[ret] = '\0';
+        if (ret < (int)sizeof(kernel_buf)) kernel_buf[ret] = '\0';
+    }
+    
+    struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
+
+    /* copyout を使ってまとめてコピー */
+    if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
+        panic("read: copyout failed");
+    }
+
+    return ret;
 }
