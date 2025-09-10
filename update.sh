@@ -6,7 +6,7 @@ git config --global user.name ab25cq
 
 #sh remove_all_build.sh
 
-(cd rvcc-src/; make clean)
+(cd rvcc-src; make clean)
 
 make clean
 
