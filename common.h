@@ -46,7 +46,7 @@ struct context_t {
 
 struct file;
 
-#define NUM_PROC_VA_MAX 64
+#define NUM_PROC_VA_MAX 128
 
 struct proc {
     struct context_t trapframe;
@@ -116,7 +116,7 @@ struct proc;
 #define PROC_MAX 128
 
 struct file {
-    enum { FK_STDIN, FK_STDOUT, FK_STDERR, FK_FILE, FK_PIPE } kind;
+    enum { FK_STDIN, FK_STDOUT, FK_STDERR, FK_FILE, FK_PIPE, FK_TTY } kind;
     uint32_t inum;        // inode 番号
     struct dinode din;     // on-disk inode 情報
     uint32_t off;         // 現在の読み込みオフセット
@@ -159,6 +159,7 @@ int fs_utimes(const char *path, uint32_t atime, uint32_t mtime);
 int is_pipe(int fd);
 int is_stdin(int fd);
 int is_stdout(int fd);
+int is_tty(int fd);
 
 void pipe_open(int* fd1, int* fd2);
 int piperead(int fd, char *addr, int n);

@@ -62,6 +62,20 @@ kernel.elf:
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o login -g login.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o login crt0.o login.c $(CHILD_CFLAGS)
 
+	# more user program
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o more -g more.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o more crt0.o more.c $(CHILD_CFLAGS)
+
+	# vi user program (very minimal)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o vi -g vi.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o vi crt0.o vi.c $(CHILD_CFLAGS)
+
+	# toy C: compiler + VM
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o toycc -g toycc.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o toycc crt0.o toycc.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o toyvm -g toyvm.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o toyvm crt0.o toyvm.c $(CHILD_CFLAGS)
+
 	$(CCPREFIX)gcc $(CFLAGS) -I. -nostdlib -S -O0 -static -o sh.S -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -I. -nostdlib -O0 -static -o sh.elf -I. -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o sh.elf crt0.o sh.c $(CHILD_CFLAGS)
@@ -102,11 +116,11 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm
 
 # Always (re)build the filesystem image so updated userland like pwd is included
 .PHONY: fsimg
-fsimg: cat echo grep hello ls pwd login touch mkdir rmdir sh.elf hello3.elf hello4.elf
+fsimg: cat echo grep hello ls pwd login touch mkdir rmdir more vi toycc toyvm sh.elf hello3.elf hello4.elf
 	dd if=/dev/zero of=fs.img bs=1k count=512
 	dd if=hello of=fs.img bs=512 seek=0 conv=notrunc
 	dd if=cat of=fs.img bs=512 seek=0 conv=notrunc

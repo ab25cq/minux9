@@ -890,6 +890,15 @@ int is_stdout(int fd)
     return 0;
 }
 
+int is_tty(int fd)
+{
+    struct file** file_table = get_current_file_table();
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return 0;
+    if (!file_table[fd]) return 0;
+    int k = file_table[fd]->kind;
+    return (k == FK_STDIN || k == FK_STDOUT || k == FK_STDERR || k == FK_TTY);
+}
+
 void pipe_open(int* fd1, int* fd2) {
     struct file** file_table = get_current_file_table();
     
@@ -1619,6 +1628,24 @@ int fs_open2(const char *path, int flags, int mode) {
         build_abs_normalized(path2, sizeof(path2), path);
     }
     
+    // Special device: /dev/tty maps to console (read: UART, write: console)
+    if (strcmp(path2, "/dev/tty") == 0) {
+        for (int i = 3; i < MAX_OPEN_FILES; i++) {
+            if (file_table[i] == NULL) {
+                file_table[i] = new_file_table();
+                file_table[i]->kind = FK_TTY;
+                file_table[i]->used = 1;
+                file_table[i]->inum = (uint32_t)-1;
+                file_table[i]->off = 0;
+                file_table[i]->read_pipe = 0;
+                file_table[i]->write_pipe = 0;
+                file_table[i]->oflags = flags;
+                return i;
+            }
+        }
+        return -1;
+    }
+
     uint32_t inum = path_lookup(path2);
     struct dinode di;
     int created_new = 0;

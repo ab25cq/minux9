@@ -54,6 +54,7 @@ int Sys_login(void);
 #define SYS_realpath 101
 #define SYS_login 102
 #define SYS_getlogin 103
+#define SYS_isatty 104
 
 typedef unsigned long size_t;
 typedef long ptrdiff_t;
@@ -2087,6 +2088,12 @@ int Sys_write()
         }
         return len;
     }
+    else if(is_tty(fd)) {
+        for(int i=0; i<len; i++) {
+            putchar(kernel_buf[i]);
+        }
+        return len;
+    }
     else {
         // 通常ファイルへの書き込み
         ssize_t w = fs_write(fd, kernel_buf, len);
@@ -2168,6 +2175,19 @@ int Sys_wait()
     }
     
     return child_pid;
+}
+
+int Sys_isatty()
+{
+    struct context_t* tf = (struct context_t*)TRAPFRAME;
+    int fd = (int)tf->a0;
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return 0;
+    if (is_pipe(fd)) return 0;
+    if (is_stdin(fd) || is_stdout(fd) || is_tty(fd)) return 1;
+    // treat stderr as tty as well
+    struct file** ft = get_current_file_table();
+    if (ft[fd] && ft[fd]->kind == FK_STDERR) return 1;
+    return 0;
 }
 
 int Sys_open()
@@ -3096,6 +3116,9 @@ int Sys_read()
     if(is_stdin(fd)) {
         ret = uart_readn(kernel_buf, n);
     }
+    else if(is_tty(fd)) {
+        ret = uart_readn(kernel_buf, n);
+    }
     else if(is_pipe(fd)) {
         ret = piperead(fd, kernel_buf, n);
     }
@@ -3314,6 +3337,10 @@ uintptr_t syscall_handler()
             break;
         case SYS_execve: {
             result = Sys_execve();
+            }
+            break;
+        case SYS_isatty: {
+            result = Sys_isatty();
             }
             break;
             

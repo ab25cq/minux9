@@ -517,6 +517,7 @@ typedef int pid_t;
 })
 #define SYS_realpath 101
 #define SYS_getlogin 103
+#define SYS_isatty 104
 // realpath: resolve to canonical absolute path; returns 0 on success
 #define realpath_user(path, outbuf, outsz) ({                             \
     register long _a0 asm("a0") = (long)(path);                          \
@@ -528,6 +529,17 @@ typedef int pid_t;
                  : "r"(_a1), "r"(_a2), "r"(_a7)                        \
                  : "memory");                                          \
     (int)_a0;                                                           \
+})
+
+// isatty: return 1 if fd refers to a TTY (stdin/stdout/stderr/tty), else 0
+#define isatty(fd) ({                                              \
+    register long _a0 asm("a0") = (long)(fd);                      \
+    register long _a7 asm("a7") = SYS_isatty;                      \
+    asm volatile("ecall"                                           \
+                 : "+r"(_a0)                                      \
+                 : "r"(_a7)                                       \
+                 : "memory");                                     \
+    (int)_a0;                                                      \
 })
 
 // getlogin: write username into buf; returns length
