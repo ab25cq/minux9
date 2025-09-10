@@ -2231,17 +2231,30 @@ int Sys_opendir()
 int Sys_getcwd()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
-    uint64_t user_buf = trapframe->a0;
-    int maxlen = (int)trapframe->a1;
+    
+    uintptr_t arg0 = trapframe->a0;
+    uintptr_t arg1 = trapframe->a1;
+    uintptr_t arg2 = trapframe->a2;
+    uintptr_t arg3 = trapframe->a3;
+    uintptr_t arg4 = trapframe->a4;
+    uintptr_t arg5 = trapframe->a5;
+    uintptr_t arg6 = trapframe->a6;
+    uintptr_t arg_syscall_no = trapframe->a7;
+    
+    uint64_t destva = arg0;
+    
+    int maxlen = arg1;
     if (maxlen <= 0) return -1;
+    
     struct proc *p = gProc[gActiveProc];
+    
     int len = strlen(p->cwd);
 #ifdef DEBUG_CWD
     printf("[getcwd] proc=%d cwd='%s' len=%d max=%d\n", gActiveProc, p->cwd, len, maxlen);
 #endif
     // Defensive: ensure cwd is never empty when reported
     const char* src = p->cwd;
-puts(p->cwd);
+/*
     char fallback_root[2] = "/";
     if (len <= 0) { src = fallback_root; len = 1; }
     if (len + 1 > maxlen) {
@@ -2251,7 +2264,18 @@ puts(p->cwd);
     if (copyout(p->pagetable, user_buf, (void*)src, len) < 0) return -1;
     char nul = '\0';
     if (copyout(p->pagetable, user_buf + len, &nul, 1) < 0) return -1;
-    return len;
+*/
+    
+    char kernel_buf[256];
+    strncpy(kernel_buf, p->cwd, 256);
+    int ret = strlen(p->cwd);
+
+    /* copyout を使ってまとめてコピー */
+    if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
+        panic("read: copyout failed");
+    }
+
+    return ret;
 }
 
 // chdir: change current working directory

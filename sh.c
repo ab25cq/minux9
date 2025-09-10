@@ -261,53 +261,6 @@ static int isdir(const char* path) {
 }
 
 
-/*
-int main(void) {
-    int fd[2];
-    pid_t pid1, pid2;
-    char buf[4];
-    int status;
-
-    pipe(fd);
-    
-    pid1 = fork();
-    if (pid1 == 0) {
-        close(fd[0]);
-        dup2(fd[1], 1);
-        close(fd[1]);
-        
-        char* argv[] = { "/hello.elf", "aaa", "bbb", (void*)0 };
-
-        execv("/hello.elf", (void*)argv);
-        exit(6);
-    }
-    
-
-    pid2 = fork();
-    if (pid2 == 0) {
-        dup2(fd[0], 0);
-        close(fd[1]);               // 書き側は不要
-        close(fd[0]);
-        
-        char* argv[] = { "/hello2.elf", "aaa", "bbb", (void*)0 };
-
-        execv("/hello2.elf", (void*)argv);
-        exit(6);
-    }
-    
-    status = 0;
-    wait(&status);
-    status = 0;
-    wait(&status);
-
-    // 親プロセスはパイプを閉じて子の終了を待つ
-    close(fd[0]);
-    close(fd[1]);
-    while(1);
-
-    return 0;
-}
-*/
 
 #define MAX_ARGV 3
 #define MAX_ARG 16
