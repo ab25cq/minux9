@@ -1,5 +1,7 @@
 #include "minux.h"
 
+int errno;
+
 typedef struct mem_block {
     size_t size;
     struct mem_block *next;
@@ -393,24 +395,6 @@ int isalnum(int c) {
     return (isalpha(c) || isdigit(c)) ? 1 : 0;
 }
 
-char* strerror(int errnum) {
-    switch (errnum) {
-      case 0:  return "Success";
-      case 1:  return "Operation not permitted";
-      case 2:  return "No such file or directory";
-      case 5:  return "I/O error";
-      case 9:  return "Bad file descriptor";
-      case 12: return "Out of memory";
-      case 13: return "Permission denied";
-      case 17: return "File exists";
-      case 20: return "Not a directory";
-      case 21: return "Is a directory";
-      case 22: return "Invalid argument";
-      case 32: return "Broken pipe";
-      case 38: return "Function not implemented"; // ENOSYS
-      default: return "Unknown error";
-    }
-}
 
 void puts(const char *s) {
     while (*s) {
@@ -765,9 +749,9 @@ void printint(int val_, int base, int sign) {
 // Minimal stdio (FILE, fopen/fclose/fseek, vfprintf/fprintf, fscanf)
 // ───────────────────────────────────────────
 
-static FILE __stdin  = { .fd = 0, .flags = 1, .pos = 0 };
-static FILE __stdout = { .fd = 1, .flags = 2, .pos = 0 };
-static FILE __stderr = { .fd = 2, .flags = 2, .pos = 0 };
+FILE __stdin  = { .fd = 0, .flags = 1, .pos = 0 };
+FILE __stdout = { .fd = 1, .flags = 2, .pos = 0 };
+FILE __stderr = { .fd = 2, .flags = 2, .pos = 0 };
 FILE* stdin  = &__stdin;
 FILE* stdout = &__stdout;
 FILE* stderr = &__stderr;
@@ -1213,4 +1197,149 @@ int printf(const char* fmt, ...) {
 
     va_end(ap);
     return 0;
+}
+
+int fputc(int c, FILE* fp) {
+    unsigned char ch = (unsigned char)c;
+    return (fwrite(&ch, 1, 1, fp) == 1) ? (int)ch : EOF;
+}
+
+double strtod(const char* nptr, char** endptr) {
+    const char* s = nptr;
+    while (isspace(*s)) s++;
+    int neg = 0; if (*s=='+'||*s=='-'){ neg = (*s=='-'); s++; }
+    double ip = 0.0;
+    int any = 0;
+    while (*s >= '0' && *s <= '9') { ip = ip*10.0 + (*s - '0'); s++; any=1; }
+    double fp = 0.0, scale = 1.0;
+    if (*s == '.') { s++; while (*s>='0' && *s<='9') { fp = fp*10.0 + (*s-'0'); scale *= 10.0; s++; any=1; } }
+    double val = ip + (scale>1.0 ? fp/scale : 0.0);
+    if (*s=='e' || *s=='E') {
+        s++;
+        int esign = 0; if (*s=='+'||*s=='-'){ esign = (*s=='-'); s++; }
+        int exp = 0; while (*s>='0'&&*s<='9'){ exp = exp*10 + (*s-'0'); s++; }
+        double pow10 = 1.0; while (exp-- > 0) pow10 *= 10.0;
+        val = esign ? (val / pow10) : (val * pow10);
+        any = 1;
+    }
+    if (endptr) *endptr = (char*)(any ? s : nptr);
+    return neg ? -val : val;
+}
+
+unsigned long strtoul(const char* nptr, char** endptr, int base) {
+    const char* s = nptr;
+    while (isspace(*s)) s++;
+    int neg = 0;
+    if (*s == '+') s++; else if (*s == '-') { neg = 1; s++; }
+    if (base == 0) {
+        if (s[0]=='0' && (s[1]=='x' || s[1]=='X')) { base = 16; s += 2; }
+        else if (s[0]=='0') { base = 8; s += 1; }
+        else base = 10;
+    } else if (base == 16) {
+        if (s[0]=='0' && (s[1]=='x' || s[1]=='X')) s += 2;
+    }
+    unsigned long val = 0;
+    int any = 0;
+    for (;;) {
+        int c = *s;
+        int d;
+        if (c >= '0' && c <= '9') d = c - '0';
+        else if (c >= 'a' && c <= 'z') d = c - 'a' + 10;
+        else if (c >= 'A' && c <= 'Z') d = c - 'A' + 10;
+        else break;
+        if (d >= base) break;
+        any = 1;
+        val = val * (unsigned long)base + (unsigned long)d;
+        s++;
+    }
+    if (endptr) *endptr = (char*)(any ? s : nptr);
+    if (neg) val = (unsigned long)(-(long)val);
+    return val;
+}
+
+static int __tolower(int c) {
+    if (c >= 'A' && c <= 'Z') return c - 'A' + 'a';
+    return c;
+}
+
+int strncasecmp(const char* a, const char* b, size_t n) {
+    for (size_t i=0; i<n; i++) {
+        unsigned char ca = (unsigned char)a[i];
+        unsigned char cb = (unsigned char)b[i];
+        if (ca == 0 || cb == 0) return (int)ca - (int)cb;
+        int da = __tolower(ca);
+        int db = __tolower(cb);
+        if (da != db) return da - db;
+    }
+    return 0;
+}
+
+time_t time(time_t* tloc) {
+    struct timeval tv; tv.tv_sec = 0; tv.tv_usec = 0;
+    // If gettimeofday is available it could be used; return epoch by default
+    if (tloc) *tloc = tv.tv_sec;
+    return tv.tv_sec;
+}
+
+struct tm* localtime(const time_t* timep) {
+    static struct tm tm;
+    (void)timep;
+    tm.tm_sec=0; tm.tm_min=0; tm.tm_hour=0; tm.tm_mday=1; tm.tm_mon=0; tm.tm_year=70; tm.tm_wday=4; tm.tm_yday=0; tm.tm_isdst=0;
+    return &tm;
+}
+
+char* ctime_r(const time_t* timep, char* buf) {
+    (void)timep;
+    const char* s = "Thu Jan  1 00:00:00 1970\n";
+    char* p = buf; while (*s) *p++ = *s++; *p = '\0';
+    return buf;
+}
+
+char* strerror(int errnum) {
+    switch (errnum) {
+      case 0:  return "Success";
+      case 1:  return "Operation not permitted";
+      case 2:  return "No such file or directory";
+      case 5:  return "I/O error";
+      case 9:  return "Bad file descriptor";
+      case 12: return "Out of memory";
+      case 13: return "Permission denied";
+      case 17: return "File exists";
+      case 20: return "Not a directory";
+      case 21: return "Is a directory";
+      case 22: return "Invalid argument";
+      case 32: return "Broken pipe";
+      case 38: return "Function not implemented"; // ENOSYS
+      default: return "Unknown error";
+    }
+}
+
+int ispunct(int c) {
+    // Printable ASCII that is not alnum and not space
+    return (c >= 0x21 && c <= 0x7e) && !isalnum(c);
+}
+
+static char* __strtok_save;
+char *strtok(char *s, const char *delim) {
+    if (!s) s = __strtok_save;
+    if (!s) return 0;
+    // skip leading delimiters
+    const char *d;
+    while (*s) {
+        int isdelim = 0;
+        for (d = delim; *d; d++) if (*d == *s) { isdelim = 1; break; }
+        if (!isdelim) break;
+        s++;
+    }
+    if (*s == '\0') { __strtok_save = 0; return 0; }
+    char *start = s;
+    while (*s) {
+        for (d = delim; *d; d++) if (*d == *s) { *s = '\0'; __strtok_save = s+1; return start; }
+        s++;
+    }
+    __strtok_save = 0; return start;
+}
+
+int isxdigit(int c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }

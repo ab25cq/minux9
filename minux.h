@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include "fs.h"
 
+#define assert
+
 typedef long time_t;
 typedef long suseconds_t;
 struct timeval { time_t tv_sec; suseconds_t tv_usec; };
@@ -64,6 +66,7 @@ typedef int pid_t;
 #define SYS_chown   91
 #define SYS_lseek   92
 
+extern int errno;
 
 #define write(fd, buf, len) ({                                       \
     long _ret;                                                       \
@@ -671,3 +674,14 @@ void *realloc(void *ptr, size_t size);
 void *calloc(size_t nmemb, size_t size);
 void free(void *ptr);
 void *malloc(size_t size);
+int fputc(int c, FILE* fp);
+double strtod(const char* nptr, char** endptr);
+unsigned long strtoul(const char* nptr, char** endptr, int base);
+int strncasecmp(const char* a, const char* b, size_t n);
+time_t time(time_t* tloc);
+struct tm* localtime(const time_t* timep);
+char* ctime_r(const time_t* timep, char* buf);
+char* strerror(int errnum);
+int ispunct(int c);
+char *strtok(char *s, const char *delim);
+int isxdigit(int c);

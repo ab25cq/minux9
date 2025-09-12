@@ -8,7 +8,7 @@ crt0.o: crt0.S
 	# build minimal userland crt0 that calls exit(main())
 	$(CCPREFIX)gcc $(CFLAGS) -c -o crt0.o crt0.S
 
-kernel.elf: crt0.o
+kernel.elf: crt0.o cc
 	$(CCPREFIX)as -g $(CFLAGS) -o entry.o entry.S
 	$(CCPREFIX)as -g $(CFLAGS) -o trap.o trap.S
 	$(CCPREFIX)as -g $(CFLAGS) -o userret.o userret.S
@@ -134,3 +134,9 @@ fsimg: cat echo grep hello ls pwd login touch mkdir rmdir more vi toycc toyvm sh
 	dd if=grep of=fs.img bs=512 seek=128 conv=notrunc
 	gcc -o mkfs mkfs.c
 	./mkfs fs.img
+
+cc: crt0.o
+	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc \
+		crt0.o cc-main.c cc-codegen.c cc-parse.c cc-preprocess.c \
+		cc-tokenize.c cc-type.c cc-hashmap.c cc-string.c \
+		cc-unicode.c minux.c -I. -fno-omit-frame-pointer -DCC_S_ONLY -lgcc

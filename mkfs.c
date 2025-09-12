@@ -595,11 +595,10 @@ main(int argc, char *argv[])
     write_file_to_file_system("mkdir", 20);
     write_file_to_file_system("rmdir", 21);
     write_file_to_file_system("more", 22);
-    write_file_to_file_system("vi", 23);
-    write_file_to_file_system("toycc", 24);
-    write_file_to_file_system("toyvm", 25);
-    write_file_to_file_system("a.c", 26);
-    write_file_to_file_system("rvcc", 27);
+    write_file_to_file_system("toycc", 23);
+    write_file_to_file_system("toyvm", 24);
+    write_file_to_file_system("a.c", 25);
+    write_file_to_file_system("cc", 26);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);
