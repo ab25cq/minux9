@@ -1,27 +1,4 @@
 #include "minux.h"
-#include <stdarg.h>
-
-int strlen(const char *s) {
-  int n;
-
-  for(n = 0; s[n]; n++)
-    ;
-  return n;
-}
-
-int memcmp(const void *v1, const void *v2, unsigned int n) {
-    const unsigned char *s1, *s2;
-
-    s1 = v1;
-    s2 = v2;
-    while(n-- > 0){
-        if(*s1 != *s2)
-            return *s1 - *s2;
-        s1++, s2++;
-    }
-
-    return 0;
-}
             
 int main(int argc, char** argv) {
     char* candidate;

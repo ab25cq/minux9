@@ -1,10 +1,14 @@
 CCPREFIX=riscv64-unknown-elf-
 CFLAGS=-march=rv64gc -mabi=lp64
-CHILD_CFLAGS=-I. -fno-omit-frame-pointer #-momit-leaf-frame-pointer #-mstack-alignment=16
+CHILD_CFLAGS=-I. -fno-omit-frame-pointer minux.o #-momit-leaf-frame-pointer #-mstack-alignment=16
 
 all: kernel.elf fsimg
 
-kernel.elf:
+crt0.o: crt0.S
+	# build minimal userland crt0 that calls exit(main())
+	$(CCPREFIX)gcc $(CFLAGS) -c -o crt0.o crt0.S
+
+kernel.elf: crt0.o
 	$(CCPREFIX)as -g $(CFLAGS) -o entry.o entry.S
 	$(CCPREFIX)as -g $(CFLAGS) -o trap.o trap.S
 	$(CCPREFIX)as -g $(CFLAGS) -o userret.o userret.S
@@ -13,6 +17,7 @@ kernel.elf:
 	$(CCPREFIX)gcc $(CFLAGS) -S -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs.S fs.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o trap_c.o trap.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o plic.o plic.c
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux.o minux.c
 
 	# build minimal userland crt0 that calls exit(main())
 	$(CCPREFIX)gcc $(CFLAGS) -c -o crt0.o crt0.S

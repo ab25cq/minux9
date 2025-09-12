@@ -4,8 +4,6 @@
 #include "fs.h"
 #include "common.h"
 
-//typedef int32_t ssize_t;
-
 void * kalloc(void);
 void kfree(void *pa);
 void timer_handler();
@@ -738,6 +736,7 @@ static void owner_remove(struct file *f, struct proc *o) {
 #define FD_OFFSET 3
 
 
+typedef int32_t ssize_t;
 
 struct spipe gPipes[MAX_OPEN_FILES];
 struct file gFiles[MAX_OPEN_FILES];

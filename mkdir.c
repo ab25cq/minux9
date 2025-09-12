@@ -1,5 +1,4 @@
 #include "minux.h"
-#include "fs.h"
 
 static int ustrlen(const char* s) { int n=0; if(!s) return 0; while(s[n]) n++; return n; }
 static void putc1(char c) { write(1, &c, 1); }
@@ -29,11 +28,6 @@ static int mkdir_p(const char* path, int mode)
         if (mkdir(accum, mode) < 0) return -1;
     }
     return 0;
-}
-
-void puts(char* p)
-{
-    while(*p) { write(1, p, 1); p++; }
 }
 
 int main(int argc, char** argv)

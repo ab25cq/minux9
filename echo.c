@@ -1,24 +1,4 @@
 #include "minux.h"
-#include <stdarg.h>
-
-int strlen(const char *s) {
-  int n;
-
-  for(n = 0; s[n]; n++)
-    ;
-  return n;
-}
-
-void putchar(char c)
-{
-    write(1, &c, 1);
-}
-
-void puts(const char *s) {
-    while (*s) {
-        putchar(*s++);
-    }
-}
             
 // hello.c
 int main(int argc, char** argv) {

@@ -10,48 +10,7 @@ uint64_t user_sp __attribute__((section(".common")));
 uint64_t kernel_satp __attribute__((section(".common")));    // trap.S から参照する
 uint64_t user_satp __attribute__((section(".common")));
 
-#define SYS_write 64
-#define SYS_read 65
-#define SYS_open 66
-#define SYS_close 67
-#define SYS_fork 68
-#define SYS_execv 69
-#define SYS_exit 70
-#define SYS_wait 71
-#define SYS_dup2 72
-#define SYS_pipe 73
-#define SYS_brk 74
-#define SYS_clear 75
-#define SYS_opendir 76
-#define SYS_readdir 77
-#define SYS_closedir 78
-// cwd related
-#define SYS_getcwd 79
-#define SYS_chdir 80
-#define SYS_mkdir 81
-#define SYS_rmdir 82
-#define SYS_unlink 83
-#define SYS_rename 84
-#define SYS_link   85
-#define SYS_symlink 86
-#define SYS_stat    87
-#define SYS_readlink 88
-#define SYS_lstat   89
-#define SYS_chmod   90
-#define SYS_chown   91
-#define SYS_settimeofday 92
-#define SYS_utimes 93
-#define SYS_umask 94
-#define SYS_gettimeofday 95
-#define SYS_getuid 96
-#define SYS_getgid 97
-#define SYS_setuid 98
-#define SYS_setgid 99
-#define SYS_execve 100
-#define SYS_realpath 101
-#define SYS_login 102
-#define SYS_getlogin 103
-#define SYS_isatty 104
+#include "minux.h"
 
 
 pagetable_t kernel_pagetable;

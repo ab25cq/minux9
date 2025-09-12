@@ -1,6 +1,36 @@
 #ifndef MINUX_H
 #define MINUX_H
 
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include "fs.h"
+
+typedef long time_t;
+typedef long suseconds_t;
+struct timeval { time_t tv_sec; suseconds_t tv_usec; };
+struct tm { int tm_sec, tm_min, tm_hour, tm_mday, tm_mon, tm_year, tm_wday, tm_yday, tm_isdst; };
+
+typedef struct __minux_FILE {
+  int fd;
+  int flags;   // 1=readable, 2=writable, 4=append
+  long pos;
+  int eof;
+  int err;
+  int have_push;
+  unsigned char push_ch;
+  // memory stream support (fd < 0 if memory stream)
+  int is_mem;
+  char **ms_bufp;
+  size_t *ms_sizep;
+  char *ms_buf;    // internal buffer
+  size_t ms_cap;   // capacity of ms_buf
+  size_t ms_len;   // valid length
+} FILE;
+
+#define EOF (-1)
+
 typedef int pid_t;
 
 #define SYS_write 64
@@ -32,6 +62,7 @@ typedef int pid_t;
 #define SYS_lstat   89
 #define SYS_chmod   90
 #define SYS_chown   91
+#define SYS_lseek   92
 
 
 #define write(fd, buf, len) ({                                       \
@@ -565,3 +596,78 @@ typedef int pid_t;
                  : "memory");                                          \
     (int)_a0;                                                           \
 })
+
+#ifndef SEEK_SET
+#define SEEK_SET 0
+#endif
+#ifndef SEEK_CUR
+#define SEEK_CUR 1
+#endif
+#ifndef SEEK_END
+#define SEEK_END 2
+#endif
+#define lseek(fd, offset, whence) ({                                 \
+    register long _a0 asm("a0") = (long)(fd);                        \
+    register long _a1 asm("a1") = (long)(offset);                    \
+    register long _a2 asm("a2") = (long)(whence);                    \
+    register long _a7 asm("a7") = SYS_lseek;                         \
+    asm volatile("ecall"                                            \
+                 : "+r"(_a0)                                        \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                      \
+                 : "memory");                                        \
+    (long)_a0;                                                       \
+})
+
+typedef struct {
+  size_t gl_pathc;   // count of paths matched
+  char **gl_pathv;   // NULL-terminated vector of strings
+} glob_t;
+
+extern FILE* stdin;
+extern FILE* stdout;
+extern FILE* stderr;
+int printf(const char* fmt, ...);
+int fflush(FILE* fp);
+FILE* open_memstream(char **bufp, size_t *sizep);
+int fscanf(FILE* fp, const char* fmt, ...);
+int fprintf(FILE* fp, const char* fmt, ...);
+int vfprintf(FILE* fp, const char* fmt, va_list ap);
+size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* fp);
+size_t fread(void* ptr, size_t size, size_t nmemb, FILE* fp);
+int ungetc(int c, FILE* fp);
+int fgetc(FILE* fp);
+int fseek(FILE* fp, long offset, int whence);
+int fclose(FILE* fp);
+FILE* fopen(const char* path, const char* mode);
+void putchar(char c);
+int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...);
+int snprintf(char* out, unsigned long out_size, const char* fmt, ...);
+int vasprintf(char** out, const char* fmt, va_list ap);
+char* strncat(char* dest, const char* src, size_t n);
+void puts(const char *s);
+char* strerror(int errnum);
+int isalnum(int c);
+int isdigit(int c);
+int isalpha(int c);
+int isspace(int c);
+int isprint(int c);
+void globfree(glob_t* pglob);
+int glob(const char* pattern, int flags, void* errfunc, glob_t* pglob);
+int mkstemp(char* template);
+char* strndup(const char* s, size_t n);
+char* strrchr(const char* s, int c);
+char* strchr(const char* s, int c);
+int strlen(const char *s);
+char* strncpy(char *s, const char *t, int n);
+int strncmp(const char *p, const char *q, unsigned int n);
+void* memcpy(void *dst, const void *src, unsigned int n);
+void* memmove(void *dst, const void *src, unsigned int n);
+int memcmp(const void *v1, const void *v2, unsigned int n);
+void* memset(void *dst, int c, unsigned int n);
+char* strstr(const char* haystack, const char* needle);
+int strcmp(const char* s1, const char* s2);
+char* strdup(const char* s);
+void *realloc(void *ptr, size_t size);
+void *calloc(size_t nmemb, size_t size);
+void free(void *ptr);
+void *malloc(size_t size);
