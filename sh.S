@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9-dev" "sh.c"
+	.file 0 "/Users/ab25cq/minux9" "sh.c"
 	.local	g_cmdline
 	.comm	g_cmdline,64,8
 	.align	1
@@ -4274,6 +4274,6 @@ main:
 .LASF0:
 	.string	"sh.c"
 .LASF1:
-	.string	"/Users/ab25cq/minux9-dev"
+	.string	"/Users/ab25cq/minux9"
 	.ident	"GCC: (g04696df09) 14.2.0"
 	.section	.note.GNU-stack,"",@progbits
