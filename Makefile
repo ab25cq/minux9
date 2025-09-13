@@ -2,7 +2,7 @@ CCPREFIX=riscv64-unknown-elf-
 CFLAGS=-march=rv64gc -mabi=lp64
 CHILD_CFLAGS=-I. -fno-omit-frame-pointer minux.o #-momit-leaf-frame-pointer #-mstack-alignment=16
 
-all: kernel.elf fsimg
+all: kernel.elf 
 
 crt0.o: crt0.S
 	# build minimal userland crt0 that calls exit(main())
@@ -86,6 +86,9 @@ kernel.elf: crt0.o cc
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o sh.elf crt0.o sh.c $(CHILD_CFLAGS)
 	xxd -i sh.elf > sh.h  
 
+	gcc -o mkfs mkfs.c
+	./mkfs fs.img
+
 	dd if=/dev/zero of=fs.img bs=1k count=512
 	dd if=hello of=fs.img bs=512 seek=0 conv=notrunc
 	dd if=cat of=fs.img bs=512 seek=0 conv=notrunc
@@ -104,8 +107,7 @@ kernel.elf: crt0.o cc
 #QEMU_OPTION=-machine virt -bios none -nographic -m 512M -kernel kernel.elf -nic none
 QEMU_OPTION=-machine virt -bios none -nographic -m 512M -kernel kernel.elf -drive file=fs.img,if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -nic none
 
-run: kernel.elf fsimg
-#	./temu kernel.cfg
+run: kernel.elf 
 	qemu-system-riscv64 $(QEMU_OPTION)
 
 log: kernel.elf
@@ -125,15 +127,6 @@ clean:
 	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm
 
 # Always (re)build the filesystem image so updated userland like pwd is included
-.PHONY: fsimg
-fsimg: cat echo grep hello ls pwd login touch mkdir rmdir more vi toycc toyvm sh.elf hello3.elf hello4.elf
-	dd if=/dev/zero of=fs.img bs=1k count=512
-	dd if=hello of=fs.img bs=512 seek=0 conv=notrunc
-	dd if=cat of=fs.img bs=512 seek=0 conv=notrunc
-	dd if=echo of=fs.img bs=512 seek=0 conv=notrunc
-	dd if=grep of=fs.img bs=512 seek=128 conv=notrunc
-	gcc -o mkfs mkfs.c
-	./mkfs fs.img
 
 cc: crt0.o
 	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc \
