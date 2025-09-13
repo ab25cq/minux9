@@ -219,7 +219,7 @@ LOAD syscall.o
  *fill*         0x000000008000e52c        0x4 
  .rodata        0x000000008000e530      0x1a0 syscall.o
 
-.data           0x000000008000e6d0    0x10428
+.data           0x000000008000e6d0     0x2170
  *(.data*)
  .data          0x000000008000e6d0        0x0 entry.o
  .data          0x000000008000e6d0        0x0 start.o
@@ -228,75 +228,75 @@ LOAD syscall.o
  .data          0x000000008000e6d0        0x0 fs.o
  .data          0x000000008000e6d0        0x0 plic.o
  .data          0x000000008000e6d0        0x0 trap_c.o
- .data          0x000000008000e6d0    0x10428 main.o
+ .data          0x000000008000e6d0     0x2170 main.o
                 0x000000008000e6d0                sh_elf
-                0x000000008001ea98                gUsers
- .data          0x000000008001eaf8        0x0 sub.o
- .data          0x000000008001eaf8        0x0 syscall.o
+                0x00000000800107e0                gUsers
+ .data          0x0000000080010840        0x0 sub.o
+ .data          0x0000000080010840        0x0 syscall.o
 
-.sdata          0x000000008001eaf8       0x10
+.sdata          0x0000000080010840       0x10
  *(.sdata*)
- .sdata         0x000000008001eaf8       0x10 main.o
-                0x000000008001eaf8                sh_elf_len
+ .sdata         0x0000000080010840       0x10 main.o
+                0x0000000080010840                sh_elf_len
 
-.bss            0x000000008001ec00     0x87a0
+.bss            0x0000000080010a00     0x87a0
  *(.bss)
- .bss           0x000000008001ec00        0x0 entry.o
- .bss           0x000000008001ec00        0x0 start.o
- .bss           0x000000008001ec00        0x0 userret.o
- .bss           0x000000008001ec00        0x0 trap.o
- .bss           0x000000008001ec00     0x8230 fs.o
-                0x000000008001ec00                gPipes
-                0x0000000080021f00                gFiles
- .bss           0x0000000080026e30        0x0 plic.o
- .bss           0x0000000080026e30        0x0 trap_c.o
- .bss           0x0000000080026e30      0x538 main.o
-                0x0000000080026e30                gCPU
-                0x0000000080026f40                gProc
-                0x0000000080027340                kmem
- .bss           0x0000000080027368        0x8 sub.o
- .bss           0x0000000080027370        0x0 syscall.o
+ .bss           0x0000000080010a00        0x0 entry.o
+ .bss           0x0000000080010a00        0x0 start.o
+ .bss           0x0000000080010a00        0x0 userret.o
+ .bss           0x0000000080010a00        0x0 trap.o
+ .bss           0x0000000080010a00     0x8230 fs.o
+                0x0000000080010a00                gPipes
+                0x0000000080013d00                gFiles
+ .bss           0x0000000080018c30        0x0 plic.o
+ .bss           0x0000000080018c30        0x0 trap_c.o
+ .bss           0x0000000080018c30      0x538 main.o
+                0x0000000080018c30                gCPU
+                0x0000000080018d40                gProc
+                0x0000000080019140                kmem
+ .bss           0x0000000080019168        0x8 sub.o
+ .bss           0x0000000080019170        0x0 syscall.o
  *(.bss.*)
  *(.sbss)
- .sbss          0x0000000080027370       0x10 fs.o
-                0x0000000080027370                gFreePipes
-                0x0000000080027378                gFreeFiles
- .sbss          0x0000000080027380       0x18 main.o
-                0x0000000080027380                kernel_pagetable
-                0x0000000080027388                gNumProc
-                0x000000008002738c                gActiveProc
-                0x0000000080027390                last_key
-                0x0000000080027394                g_time_offset
- .sbss          0x0000000080027398        0x8 sub.o
-                0x0000000080027398                free_list
+ .sbss          0x0000000080019170       0x10 fs.o
+                0x0000000080019170                gFreePipes
+                0x0000000080019178                gFreeFiles
+ .sbss          0x0000000080019180       0x18 main.o
+                0x0000000080019180                kernel_pagetable
+                0x0000000080019188                gNumProc
+                0x000000008001918c                gActiveProc
+                0x0000000080019190                last_key
+                0x0000000080019194                g_time_offset
+ .sbss          0x0000000080019198        0x8 sub.o
+                0x0000000080019198                free_list
  *(.sbss.*)
                 [!provide]                        PROVIDE (_code_end = .)
-                0x00000000800373a0                . = (. + STACK_MAX)
-                0x00000000800373a0                PROVIDE (stack_top = .)
-                0x0000000080038000                . = ALIGN (0x1000)
-                0x0000000080038000                TRAPFRAME = .
-                0x0000000080039000                . = (. + 0x1000)
-                0x0000000080039000                . = ALIGN (0x1000)
-                0x0000000080039000                TRAPFRAME2 = .
-                0x000000008003a000                . = (. + 0x1000)
-                0x000000008003a000                PROVIDE (TRAMPOLINE = .)
+                0x00000000800291a0                . = (. + STACK_MAX)
+                0x00000000800291a0                PROVIDE (stack_top = .)
+                0x000000008002a000                . = ALIGN (0x1000)
+                0x000000008002a000                TRAPFRAME = .
+                0x000000008002b000                . = (. + 0x1000)
+                0x000000008002b000                . = ALIGN (0x1000)
+                0x000000008002b000                TRAPFRAME2 = .
+                0x000000008002c000                . = (. + 0x1000)
+                0x000000008002c000                PROVIDE (TRAMPOLINE = .)
 
-.trampoline     0x000000008003a000      0x48a
+.trampoline     0x000000008002c000      0x48a
  *(.trampoline)
- .trampoline    0x000000008003a000      0x48a trap.o
-                0x000000008003a000                trapvec
-                0x000000008003a1fc                swtch
-                0x000000008003a2be                enter_user
-                0x000000008003a2ec                mtvec
-                0x000000008003a306                asm_memmove
-                0x000000008003a33c                yield
-                0x000000008003a3e4                yield_return
+ .trampoline    0x000000008002c000      0x48a trap.o
+                0x000000008002c000                trapvec
+                0x000000008002c1fc                swtch
+                0x000000008002c2be                enter_user
+                0x000000008002c2ec                mtvec
+                0x000000008002c306                asm_memmove
+                0x000000008002c33c                yield
+                0x000000008002c3e4                yield_return
 
-.rela.dyn       0x000000008003a490        0x0
- .rela.text     0x000000008003a490        0x0 entry.o
+.rela.dyn       0x000000008002c490        0x0
+ .rela.text     0x000000008002c490        0x0 entry.o
  .rela.trampoline
-                0x000000008003a490        0x0 entry.o
-                0x000000008003b000                . = ALIGN (0x1000)
+                0x000000008002c490        0x0 entry.o
+                0x000000008002d000                . = ALIGN (0x1000)
                 0x0000000080700000                . = 0x80700000
                 0x0000000080700000                PROVIDE (COMMON = .)
 
@@ -370,7 +370,7 @@ LOAD syscall.o
  .note.GNU-stack
                 0x0000000000000000        0x0 syscall.o
 
-.debug_info     0x0000000000000000     0xa2ff
+.debug_info     0x0000000000000000     0xa2fd
  *(.debug_info)
  .debug_info    0x0000000000000000       0x2e entry.o
  .debug_info    0x000000000000002e      0x3b1 start.o
@@ -378,11 +378,11 @@ LOAD syscall.o
  .debug_info    0x000000000000040d     0x38d6 fs.o
  .debug_info    0x0000000000003ce3      0x240 plic.o
  .debug_info    0x0000000000003f23      0x101 trap_c.o
- .debug_info    0x0000000000004024     0x2b27 main.o
- .debug_info    0x0000000000006b4b      0xdbe sub.o
- .debug_info    0x0000000000007909     0x29f6 syscall.o
+ .debug_info    0x0000000000004024     0x2b25 main.o
+ .debug_info    0x0000000000006b49      0xdbe sub.o
+ .debug_info    0x0000000000007907     0x29f6 syscall.o
 
-.debug_abbrev   0x0000000000000000     0x135c
+.debug_abbrev   0x0000000000000000     0x1353
  *(.debug_abbrev)
  .debug_abbrev  0x0000000000000000       0x14 entry.o
  .debug_abbrev  0x0000000000000014      0x149 start.o
@@ -390,9 +390,9 @@ LOAD syscall.o
  .debug_abbrev  0x0000000000000171      0x431 fs.o
  .debug_abbrev  0x00000000000005a2      0x13b plic.o
  .debug_abbrev  0x00000000000006dd       0xd6 trap_c.o
- .debug_abbrev  0x00000000000007b3      0x622 main.o
- .debug_abbrev  0x0000000000000dd5      0x29e sub.o
- .debug_abbrev  0x0000000000001073      0x2e9 syscall.o
+ .debug_abbrev  0x00000000000007b3      0x619 main.o
+ .debug_abbrev  0x0000000000000dcc      0x29e sub.o
+ .debug_abbrev  0x000000000000106a      0x2e9 syscall.o
 
 .debug_line     0x0000000000000000     0xd89b
  *(.debug_line)

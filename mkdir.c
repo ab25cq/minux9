@@ -30,6 +30,11 @@ static int mkdir_p(const char* path, int mode)
     return 0;
 }
 
+void puts(const char* p)
+{
+    while(*p) { write(1, p, 1); p++; }
+}
+
 int main(int argc, char** argv)
 {
     int parents = 0; int first_path = 1; int errs = 0;

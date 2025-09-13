@@ -1,6 +1,3 @@
-#ifndef MINUX_H
-#define MINUX_H
-
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -30,6 +27,15 @@ typedef struct __minux_FILE {
   size_t ms_cap;   // capacity of ms_buf
   size_t ms_len;   // valid length
 } FILE;
+
+typedef struct {
+  size_t gl_pathc;   // count of paths matched
+  char **gl_pathv;   // NULL-terminated vector of strings
+} glob_t;
+
+extern FILE* stdin;
+extern FILE* stdout;
+extern FILE* stderr;
 
 #define EOF (-1)
 
@@ -451,9 +457,6 @@ extern int errno;
     (int)_a0;                                                   \
 })
     
-#define __MINUX__ 1
-
-#endif
 #define SYS_settimeofday 92
 #define SYS_utimes 93
 #define SYS_umask 94
@@ -621,14 +624,6 @@ extern int errno;
     (long)_a0;                                                       \
 })
 
-typedef struct {
-  size_t gl_pathc;   // count of paths matched
-  char **gl_pathv;   // NULL-terminated vector of strings
-} glob_t;
-
-extern FILE* stdin;
-extern FILE* stdout;
-extern FILE* stderr;
 int printf(const char* fmt, ...);
 int fflush(FILE* fp);
 FILE* open_memstream(char **bufp, size_t *sizep);
