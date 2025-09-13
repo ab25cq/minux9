@@ -64,7 +64,6 @@ typedef int pid_t;
 #define SYS_lstat   89
 #define SYS_chmod   90
 #define SYS_chown   91
-#define SYS_lseek   92
 
 extern int errno;
 
@@ -588,6 +587,7 @@ extern int errno;
     (int)_a0;                                                           \
 })
 #define SYS_login 102
+#define SYS_lseek 103
 // login: authenticate and switch credentials
 #define login_user(name, pass) ({                                        \
     register long _a0 asm("a0") = (long)(name);                         \

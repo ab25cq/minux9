@@ -1452,7 +1452,7 @@ uintptr_t syscall_handler()
             break;
             
         default:
-            panic("invalid syscall");
+            printf("invalid syscall. syscall number %d", arg_syscall_no);
             while(1);
     }
     
