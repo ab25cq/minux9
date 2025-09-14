@@ -1,149 +1,147 @@
-// 本文件是对开放寻址哈希表（Open Addressing Hash Table）的一种实现。
+// 本ファイルはオープンアドレッシング方式のハッシュ表の実装です。
 
 #include "cc.h"
 
-// 初始哈希表的大小，即哈希表一开始能存储16个键值对
+// 初期ハッシュ表サイズ（16 個のエントリ）
 #define INIT_SIZE 16
 
-// 高容量线，超过70%重新进行哈希计算
+// 高水位: 使用率 70% 超で再ハッシュ
 #define HIGH_WATERMARK 70
 
-// 低容量线，超过后会需要扩充空间
+// 低水位: 超過で容量拡張が必要
 #define LOW_WATERMARK 50
 
-// 表示一个删除掉的哈希键值对
-// 插入新元素时，优先选择标记删除的键值对，可以尽量避免增加哈希表的容量
+// 削除済みスロットを表す
+// 挿入時は墓石スロットを優先利用して容量増加を抑制
 #define TOMBSTONE ((void *)-1)
 
-// 64位FNV-1哈希算法
-// 能对字符串进行高效的哈希值计算
+// 64 ビット FNV-1 ハッシュ
+// 文字列のハッシュ計算に高効率
 static uint64_t fnvHash(char *S, int Len) {
-  // FNV初始偏移值（FNV_offset_basis）
+  // FNV 初期オフセット (FNV_offset_basis)
   uint64_t Hash = 0xCBF29CE484222325;
-  // 遍历字符串中的每个字节进行计算
+  // 各バイトを走査して計算
   for (int I = 0; I < Len; I++) {
-    // 哈希值乘以FNV质数（FNV_prime，此处为64位的）
+    // ハッシュ値に FNV 素数（64 ビット）を乗算
     Hash *= 0x100000001B3;
-    // 哈希值与该字节的值进行异或
+    // ハッシュ値とバイト値を XOR
     Hash ^= (unsigned char)S[I];
   }
-  // 返回最后计算出的哈希值
+  // 計算したハッシュ値を返す
   return Hash;
 }
 
-// 通过删除墓碑标记，为新的键值对开辟空间，并有可能拓展桶大小
+// 墓石の除去と必要に応じた容量拡張を行い、挿入先を確保
 static void rehash(HashMap *Map) {
-  // 计算新哈希表的大小
-  // 记录当前哈希表中使用的键值对数量
+  // 新しいテーブル容量を計算
+  // 使用中エントリ数を数える
   int NKeys = 0;
-  // 遍历当前哈希表的每个桶
+  // 全バケットを走査
   for (int I = 0; I < Map->Capacity; I++)
-    // 如果当前桶中使用的键值对并且未被标记删除
+    // 有効（非墓石）のエントリなら
     if (Map->Buckets[I].Key && Map->Buckets[I].Key != TOMBSTONE)
       NKeys++;
 
-  // Cap存储新的容量，初始值为当前哈希表的容量
+  // Cap に新容量（初期は現容量）
   int Cap = Map->Capacity;
-  // 如果键值对使用数量超过了LOW_WATERMARK，则
+  // 使用率が LOW_WATERMARK を超える間
   while ((NKeys * 100) / Cap >= LOW_WATERMARK)
-    // 将Cap的值乘以2，这样就能翻倍哈希表的容量
+    // 容量を 2 倍に拡張
     Cap = Cap * 2;
-  // 若Cap的值不大于0，则终止程序
+  // Cap が 0 以下なら異常終了
   assert(Cap > 0);
 
-  // 定义一个新的哈希表Map2，并拷贝所有的键值对
+  // 新しいテーブル Map2 を作成し全エントリを再配置
   HashMap Map2 = {};
-  // 为Map2分配足够的内存来存储Cap个桶
+  // Cap 個のバケットを確保
   Map2.Buckets = calloc(Cap, sizeof(HashEntry));
-  // 设置Map2的容量为Cap
+  // Map2 の容量を Cap に設定
   Map2.Capacity = Cap;
 
-  // 遍历当前哈希表的每个桶
+  // 全バケットを走査
   for (int I = 0; I < Map->Capacity; I++) {
-    // 指向当前桶
+    // 現在のバケットへのポインタ
     HashEntry *Ent = &Map->Buckets[I];
-    // 如果当前桶中存在键值对并且未被标记删除
+    // 有効（非墓石）のエントリなら
     if (Ent->Key && Ent->Key != TOMBSTONE)
-      // 将该键值对放入新的哈希表Map2中
+      // エントリを Map2 に再挿入
       hashmapPut2(&Map2, Ent->Key, Ent->KeyLen, Ent->Val);
   }
 
-  // 断言Map2中的键值对数量等于NKeys
+  // Map2 の使用数が NKeys と一致することを確認
   assert(Map2.Used == NKeys);
-  // 用新的哈希表Map2替换旧的哈希表
+  // 古いテーブルを Map2 で置き換える
   *Map = Map2;
 }
 
-// 判断指定键是否匹配给定的键值对
+// 指定キーがエントリと一致するか判定
 static bool match(HashEntry *Ent, char *Key, int KeyLen) {
-  // 键值对不为空，键值对未被标记删除，键值对与指定键长相同
-  // 键值对的键与指定键相同
+  // 非空・非墓石・キー長一致
+  // かつキー内容が一致
   return Ent->Key && Ent->Key != TOMBSTONE && Ent->KeyLen == KeyLen &&
          memcmp(Ent->Key, Key, KeyLen) == 0;
 }
 
-// 获取给定的键在哈希表中的键值对
+// キーに対応するエントリを取得
 static HashEntry *getEntry(HashMap *Map, char *Key, int KeyLen) {
-  // 如果没有桶，则为空
+  // バケット未確保なら NULL
   if (!Map->Buckets)
     return NULL;
 
-  // 计算键对应的哈希值
+  // キーのハッシュ値を計算
   uint64_t Hash = fnvHash(Key, KeyLen);
 
-  // 遍历哈希表中的所有桶
+  // 全バケットを走査
   for (int I = 0; I < Map->Capacity; I++) {
-    // 开放寻址，当前位置存不下时，会在相邻位置存储
-    // 如果当前位置没有匹配到，则加上I的偏移量，进行测试
+    // オープンアドレッシング: 衝突時は隣接を探索
+    // 位置が不一致なら I のオフセットで試行
     HashEntry *Ent = &Map->Buckets[(Hash + I) % Map->Capacity];
-    // 若当前键值对的键，与所查找的键和键长相同
+    // 一致するキー/長なら返す
     if (match(Ent, Key, KeyLen))
       return Ent;
-    // 所有的键值对都遍历完了，则返回空
+    // 空スロットに到達したら NULL
     if (Ent->Key == NULL)
       return NULL;
   }
   unreachable();
 }
 
-// 若获取到键值对则返回，否则插入键值对后返回
+// 存在すれば返し、なければ挿入して返す
 static HashEntry *getOrInsertEntry(HashMap *Map, char *Key, int KeyLen) {
   if (!Map->Buckets) {
-    // 如果哈希表没有初始化，则初始化INIT_SIZE个
+    // 未初期化なら INIT_SIZE で確保
     Map->Buckets = calloc(INIT_SIZE, sizeof(HashEntry));
     Map->Capacity = INIT_SIZE;
   } else if ((Map->Used * 100) / Map->Capacity >= HIGH_WATERMARK) {
-    // 如果哈希表使用量超过了HIGH_WATERMARK，则重新进行哈希计算
+    // 使用率が HIGH_WATERMARK 超なら再ハッシュ
     rehash(Map);
   }
 
-  // 计算指定键的哈希值
+  // 指定キーのハッシュ値を計算
   uint64_t Hash = fnvHash(Key, KeyLen);
 
-  // 遍历所有的桶
+  // 全バケットを走査
   for (int I = 0; I < Map->Capacity; I++) {
-    // 开放寻址，当前位置存不下时，会在相邻位置存储
-    // 如果当前位置没有匹配到，则加上I的偏移量，进行测试
+    // オープンアドレッシング: 衝突時は隣接を探索
+    // 位置が不一致なら I のオフセットで試行
     HashEntry *Ent = &Map->Buckets[(Hash + I) % Map->Capacity];
 
-    // 若当前键值对的键，与所查找的键和键长相同
+    // 一致するキー/長なら返す
     if (match(Ent, Key, KeyLen))
       return Ent;
 
-    // 若当前键值对的键，被标记删除
-    // 则赋值后使用该键值对
+    // 墓石スロットなら再利用（キーと長を設定）
     if (Ent->Key == TOMBSTONE) {
       Ent->Key = Key;
       Ent->KeyLen = KeyLen;
       return Ent;
     }
 
-    // 若当前键值对的键，为空
-    // 则赋值后使用该键值对
+    // 空スロットならキーと長を設定して使用
     if (Ent->Key == NULL) {
       Ent->Key = Key;
       Ent->KeyLen = KeyLen;
-      // 增加已使用量的计数
+      // 使用数をインクリメント
       Map->Used++;
       return Ent;
     }
@@ -151,50 +149,50 @@ static HashEntry *getOrInsertEntry(HashMap *Map, char *Key, int KeyLen) {
   unreachable();
 }
 
-// 查找哈希表中的键值对
+// ハッシュ表からキーを検索
 void *hashmapGet(HashMap *Map, char *Key) {
   return hashmapGet2(Map, Key, strlen(Key));
 }
 
 void *hashmapGet2(HashMap *Map, char *Key, int KeyLen) {
-  // 获取键值对
+  // エントリを取得
   HashEntry *Ent = getEntry(Map, Key, KeyLen);
-  // 如果查找到键值对则返回，否则为空
+  // 見つかれば値を返し、なければ NULL
   return Ent ? Ent->Val : NULL;
 }
 
-// 插入指定的键值对
+// 指定キーを挿入
 void hashmapPut(HashMap *Map, char *Key, void *Val) {
   hashmapPut2(Map, Key, strlen(Key), Val);
 }
 
 void hashmapPut2(HashMap *Map, char *Key, int KeyLen, void *Val) {
-  // 返回或创建键值对
+  // 既存または新規のエントリを取得
   HashEntry *Ent = getOrInsertEntry(Map, Key, KeyLen);
-  // 修改键值对的值
+  // 値を設定
   Ent->Val = Val;
 }
 
-// 标记删除哈希表中的键值对
+// エントリを削除（墓石設定）
 void hashmapDelete(HashMap *Map, char *Key) {
   hashmapDelete2(Map, Key, strlen(Key));
 }
 
 void hashmapDelete2(HashMap *Map, char *Key, int KeyLen) {
-  // 查找指定的键值对
+  // 指定キーのエントリを検索
   HashEntry *Ent = getEntry(Map, Key, KeyLen);
-  // 若键值对存在，则标记删除
+  // 存在すれば墓石を設定
   if (Ent)
     Ent->Key = TOMBSTONE;
 }
 
-// 用于哈希功能测试的函数
+// ハッシュ機能のテスト用関数
 void hashmapTest(void) {
-  // 新建一个容量为0的哈希表
+  // 空のハッシュ表を作成
   HashMap *Map = calloc(1, sizeof(HashMap));
 
   // 0  -  1000  -  1500  -  1600  -  2000  -  5000  -  6000  -  7000
-  // ｜ 存在 ｜  删除  ｜  存在  ｜  删除  ｜  存在  ｜   空   ｜  存在   ｜
+  // ｜ 有り ｜ 削除 ｜ 有り ｜ 削除 ｜ 有り ｜ 空 ｜ 有り ｜
   for (int I = 0; I < 5000; I++)
     hashmapPut(Map, format("key %d", I), (void *)(size_t)I);
   for (int I = 1000; I < 2000; I++)

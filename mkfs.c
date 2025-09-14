@@ -598,8 +598,9 @@ main(int argc, char *argv[])
     write_file_to_file_system("toycc", 23);
     write_file_to_file_system("toyvm", 24);
     write_file_to_file_system("a.c", 25);
-    write_file_to_file_system("cc", 26);
-    write_file_to_file_system("vi", 27);
+    write_file_to_file_system("b.c", 26);
+    write_file_to_file_system("cc", 27);
+    write_file_to_file_system("vi", 28);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);

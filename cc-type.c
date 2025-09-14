@@ -1,6 +1,6 @@
 #include "cc.h"
 
-// (Type){...}构造了一个复合字面量，相当于Type的匿名变量。
+// (Type){...} は複合リテラル（型の無名オブジェクト）を構築
 Type *TyVoid = &(Type){TY_VOID, 1, 1};
 Type *TyBool = &(Type){TY_BOOL, 1, 1};
 
@@ -26,94 +26,94 @@ static Type *newType(TypeKind Kind, int Size, int Align) {
   return Ty;
 }
 
-// 判断Type是否为整数
+// 整数型か
 bool isInteger(Type *Ty) {
   TypeKind K = Ty->Kind;
   return K == TY_BOOL || K == TY_CHAR || K == TY_SHORT || K == TY_INT ||
          K == TY_LONG || K == TY_ENUM;
 }
 
-// 判断Type是否为浮点数
+// 浮動小数点型か
 bool isFloNum(Type *Ty) {
   return Ty->Kind == TY_FLOAT || Ty->Kind == TY_DOUBLE ||
          Ty->Kind == TY_LDOUBLE;
 }
 
-// 判断是否为float或double，而非long double
+// long double 以外の float/double か
 bool isSFloNum(Type *Ty) {
   return Ty->Kind == TY_FLOAT || Ty->Kind == TY_DOUBLE;
 }
 
-// 判断是否为数字
+// 数値型か
 bool isNumeric(Type *Ty) { return isInteger(Ty) || isFloNum(Ty); }
 
-// 类型兼容检测函数
+// 型の互換性判定
 bool isCompatible(Type *T1, Type *T2) {
-  // 类型1、2完全相同，则直接返回true
+  // 同一ポインタなら互換
   if (T1 == T2)
     return true;
 
-  // 类型1存在原始类型，则检测该原始类型和类型2的兼容性
+  // T1 に Origin があればそちらと比較
   if (T1->Origin)
     return isCompatible(T1->Origin, T2);
 
-  // 类型2存在原始类型，则检测该原始类型和类型1的兼容性
+  // T2 に Origin があればそちらと比較
   if (T2->Origin)
     return isCompatible(T1, T2->Origin);
 
-  // 不存在原始类型时，二类型不相等则直接返回false
+  // 種別が異なれば非互換
   if (T1->Kind != T2->Kind)
     return false;
 
-  // 遍历类型1（此时，与类型2相同）
+  // 種別ごとの比較
   switch (T1->Kind) {
   case TY_CHAR:
   case TY_SHORT:
   case TY_INT:
   case TY_LONG:
-    // 二者 都为 或 都不为 无符号类型，则为真
+    // 符号の一致で判定
     return T1->IsUnsigned == T2->IsUnsigned;
   case TY_FLOAT:
   case TY_DOUBLE:
   case TY_LDOUBLE:
-    // 浮点类型直接返回真
+    // 浮動小数点は互換
     return true;
   case TY_PTR:
-    // 指针，则比较二者所指向的基础类型
+    // ポインタは指す型の互換性で判定
     return isCompatible(T1->Base, T2->Base);
   case TY_FUNC: {
-    // 比较二者的返回类型，有异则为假
+    // 戻り値が非互換なら非互換
     if (!isCompatible(T1->ReturnTy, T2->ReturnTy))
       return false;
-    // 比较二者是否 都为 或 都不为 可变参数函数，有异则为假
+    // 可変長かどうかが異なれば非互換
     if (T1->IsVariadic != T2->IsVariadic)
       return false;
 
     Type *P1 = T1->Params;
     Type *P2 = T2->Params;
-    // 遍历两个函数的参数，有异则为假
+    // パラメータ列を順に比較し、非互換があれば非互換
     for (; P1 && P2; P1 = P1->Next, P2 = P2->Next)
       if (!isCompatible(P1, P2))
         return false;
-    // 比较两个函数的参数个数，有异则为假，无异则为真
+    // 個数が一致すれば互換
     return P1 == NULL && P2 == NULL;
   }
   case TY_ARRAY:
-    // 比较数组的基础类型，有异则为假
+    // 配列の要素型が非互換なら非互換
     if (!isCompatible(T1->Base, T2->Base))
       return false;
-    // 比较数组的个数，有异则为假，无异则为真
+    // 要素数が一致（未定長同士または等値）なら互換
     return T1->ArrayLen < 0 && T2->ArrayLen < 0 && T1->ArrayLen == T2->ArrayLen;
   default:
     return false;
   }
 }
 
-// 复制类型
+// 型をコピー
 Type *copyType(Type *Ty) {
   Type *Ret = calloc(1, sizeof(Type));
   *Ret = *Ty;
-  // 记录原始类型
+  // 元の型を保持
   Ret->Origin = Ty;
   return Ret;
 }

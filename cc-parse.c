@@ -1,86 +1,83 @@
 #include "cc.h"
 
-// 局部变量，全局变量，typedef，enum常量的域
+// 局所変数・大域変数・typedef・enum 定数のスコープ
 typedef struct {
-  Obj *Var;      // 对应的变量
-  Type *Typedef; // 别名
-  Type *EnumTy;  // 枚举的类型
-  int EnumVal;   // 枚举的值
+  Obj *Var;      // 対応する変数
+  Type *Typedef; // 別名
+  Type *EnumTy;  // 列挙の型
+  int EnumVal;   // 列挙の値
 } VarScope;
 
-// 表示一个块域
+// ブロックスコープを表す
 typedef struct Scope Scope;
 struct Scope {
-  Scope *Next; // 指向上一级的域
+  Scope *Next; // 外側スコープへのポインタ
 
-  // C有两个域：变量（或类型别名）域，结构体（或联合体，枚举）标签域
-  HashMap Vars; // 指向当前域内的变量
-  HashMap Tags; // 指向当前域内的结构体标签
+  // C には2種のスコープがある: 変数/別名のスコープ、構造体/共用体/列挙のタグスコープ
+  HashMap Vars; // このスコープ内の変数
+  HashMap Tags; // このスコープ内のタグ
 };
 
-// 变量属性
+// 変数属性
 typedef struct {
-  bool IsTypedef; // 是否为类型别名
-  bool IsStatic;  // 是否为文件域内
-  bool IsExtern;  // 是否为外部变量
-  bool IsInline;  // 是否为内联
-  bool IsTLS;     // 是否为线程局部存储，Thread Local Storage
-  int Align;      // 对齐量
+  bool IsTypedef; // 型別名か
+  bool IsStatic;  // ファイルスコープ static か
+  bool IsExtern;  // extern か
+  bool IsInline;  // inline か
+  bool IsTLS;     // TLS（Thread Local Storage）か
+  int Align;      // アラインメント
 } VarAttr;
 
-// 可变的初始化器。此处为树状结构。
-// 因为初始化器可以是嵌套的，
-// 类似于 int x[2][2] = {{1, 2}, {3, 4}} ，
+// 可変な初期化子（木構造）。
+// 初期化子は入れ子になり得る（例: int x[2][2] = {{1,2},{3,4}}）。
 typedef struct Initializer Initializer;
 struct Initializer {
-  Initializer *Next; // 下一个
-  Type *Ty;          // 原始类型
-  Token *Tok;        // 终结符
-  bool IsFlexible;   // 可调整的，表示需要重新构造
+  Initializer *Next; // 次要素
+  Type *Ty;          // 元の型
+  Token *Tok;        // 対応トークン
+  bool IsFlexible;   // 可変（後で再構築が必要）
 
-  // 如果不是聚合类型，并且有一个初始化器，Expr 有对应的初始化表达式。
+  // 非集約型かつ単一の初期化子がある場合，Expr に式が入る
   Node *Expr;
 
-  // 如果是聚合类型（如数组或结构体），Children有子节点的初始化器
+  // 集約型（配列・構造体）の場合，Children に子初期化子
   Initializer **Children;
 
-  // 联合体中只有一个成员能被初始化，此处用来标记是哪个成员被初始化
+  // 共用体では 1 メンバのみ初期化可。どのメンバかを保持
   Member *Mem;
 };
 
-// 指派初始化，用于局部变量的初始化器
+// 指定子（designator）初期化（局所変数用）
 typedef struct InitDesig InitDesig;
 struct InitDesig {
-  InitDesig *Next; // 下一个
-  int Idx;         // 数组中的索引
-  Member *Mem;     // 成员变量
-  Obj *Var;        // 对应的变量
+  InitDesig *Next; // 次の指定子
+  int Idx;         // 配列のインデックス
+  Member *Mem;     // メンバ
+  Obj *Var;        // 対応する変数
 };
 
-// 在解析时，全部的变量实例都被累加到这个列表里。
-Obj *Locals;  // 局部变量
-Obj *Globals; // 全局变量
+// 解析中に現れる変数をリスト化
+Obj *Locals;  // 局所変数
+Obj *Globals; // 大域変数
 
-// 所有的域的链表
+// すべてのスコープのリスト
 static Scope *Scp = &(Scope){};
 
-// 指向当前正在解析的函数
+// 現在解析中の関数
 static Obj *CurrentFn;
 
-// 当前函数内的goto和标签列表
+// 現在の関数内の goto とラベル一覧
 static Node *Gotos;
 static Node *Labels;
 
-// 当前goto跳转的目标
+// 現在の break/continue 先
 static char *BrkLabel;
-// 当前continue跳转的目标
 static char *ContLabel;
 
-// 如果我们正在解析switch语句，则指向表示switch的节点。
-// 否则为空。
+// switch 解析中はそのノードを指す（それ以外は NULL）
 static Node *CurrentSwitch;
 
-// 内建的Alloca函数
+// ビルトイン alloca
 static Obj *BuiltinAlloca;
 
 // program = (typedef | functionDefinition | globalVariable)*

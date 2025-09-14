@@ -1,84 +1,85 @@
 #include "cc.h"
+
 // Note: Do NOT include Minux9 syscall macros here to avoid
 // macro redefinitions of libc calls. Syscall glue is isolated in syscalls.c.
 
 // 【注意】
-// 如果是交叉编译，请把这个路径改为$RISCV对应的路径
-// 注意 ~ 应替换为具体的 /home/用户名 的路径
+// クロスコンパイルの場合は、このパスを $RISCV に合わせて変更してください
+// 注意: ~ は具体的な /home/ユーザー名 のパスに置き換えてください
 static char *RVPath = "";
 
-// 文件类型
+// ファイル種別
 typedef enum {
-  FILE_NONE, // 空类型
-  FILE_C,    // C语言源代码类型
-  FILE_ASM,  // 汇编代码类型
-  FILE_OBJ,  // 可重定位文件类型
-  FILE_AR,   // 静态库文件类型
-  FILE_DSO,  // 动态库文件类型
+  FILE_NONE, // 空の種別
+  FILE_C,    // C言語ソース
+  FILE_ASM,  // アセンブリソース
+  FILE_OBJ,  // 再配置可能オブジェクト
+  FILE_AR,   // 静的ライブラリ
+  FILE_DSO,  // 共有ライブラリ
 } FileType;
 
-// 引入路径区
+// インクルードパス領域
 StringArray IncludePaths;
-// common块默认生成
+// common セクションをデフォルトで生成
 bool OptFCommon = true;
-// 位置无关代码的标记
+// 位置非依存コードのフラグ
 bool OptFPIC;
 
-// -x选项
+// -x オプション
 static FileType OptX;
-// -include所引入的文件
+// -include で読み込むファイル
 static StringArray OptInclude;
-// -E选项
+// -E オプション
 static bool OptE;
-// -M选项
+// -M オプション
 static bool OptM;
-// -MD选项
+// -MD オプション
 static bool OptMD;
-// -MMD选项
+// -MMD オプション
 static bool OptMMD;
-// -MP选项
+// -MP オプション
 static bool OptMP;
-// -S选项
+// -S オプション
 static bool OptS;
-// -c选项
+// -c オプション
 static bool OptC;
-// cc1选项
+// cc1 オプション
 static bool OptCC1;
-// ###选项
+// ### オプション
 static bool OptHashHashHash;
-//-static选项
+// -static オプション
 static bool OptStatic;
-// -shared选项
+// -shared オプション
 static bool OptShared;
-// -MF选项
+// -MF オプション
 static char *OptMF;
-// -MT选项
+// -MT オプション
 static char *OptMT;
-// 目标文件的路径
+// 出力ファイルのパス
 static char *OptO;
 
-// 链接器额外参数
+// リンカ追加引数
 static StringArray LdExtraArgs;
-// 标准库所引入的路径，用于-MMD选项
+// 標準ライブラリのインクルードパス（-MMD 用）
 static StringArray StdIncludePaths;
 
-// 输入文件名
+// 入力ファイル名
 char *BaseFile;
-// 输出文件名
+// 出力ファイル名
 static char *OutputFile;
 
-// 输入文件区
+// 入力ファイル領域
 static StringArray InputPaths;
-// 临时文件区
+// 一時ファイル領域
 static StringArray TmpFiles;
 
-// 输出程序的使用说明
+// プログラムの使用法を表示
 static void usage(int Status) {
   fprintf(stderr, "rvcc [ -o <path> ] <file>\n");
   exit(Status);
 }
 
-// 判断需要一个参数的选项，是否具有一个参数
+// 引数を要するオプションに値があるか確認
 static bool takeArg(char *Arg) {
   char *X[] = {"-o", "-I",  "-idirafter", "-include",
                "-x", "-MF", "-MT",        "-Xlinker"};
@@ -89,7 +90,7 @@ static bool takeArg(char *Arg) {
   return false;
 }
 
-// 增加默认引入路径
+// デフォルトのインクルードパスを追加
 static void addDefaultIncludePaths(char *Argv0) {
 #ifndef CC_S_ONLY
   // rvcc特定の引入先 + 標準パス（Minux9 以外）
@@ -103,37 +104,37 @@ static void addDefaultIncludePaths(char *Argv0) {
     strArrayPush(&StdIncludePaths, IncludePaths.Data[I]);
 }
 
-// 定义宏
+// マクロを定義
 static void define(char *Str) {
   char *Eq = strchr(Str, '=');
   if (Eq)
-    // 存在赋值，使用该值
+    // 値の指定があればその値を使用
     defineMacro(strndup(Str, Eq - Str), Eq + 1);
   else
-    // 不存在赋值，则设为1
+    // 値がなければ 1 を設定
     defineMacro(Str, "1");
 }
 
-// 解析-x选项
+// -x オプションを解析
 static FileType parseOptX(char *S) {
-  // -xc，解析为C语言源代码
+  // -xc は C ソースとして解釈
   if (!strcmp(S, "c"))
     return FILE_C;
-  // -xassembler，解析为汇编源代码
+  // -xassembler はアセンブリとして解釈
   if (!strcmp(S, "assembler"))
     return FILE_ASM;
-  // -xnone，解析为空类型
+  // -xnone は空の種別とする
   if (!strcmp(S, "none"))
     return FILE_NONE;
   error("<command line>: unknown argument for -x: %s", S);
 }
 
-// 对Make的目标中的特殊字符进行处理
+// Make のターゲット中の特殊文字を処理
 static char *quoteMakefile(char *S) {
-  // 新字符串，确保即使S的全部字符都处理，加上'\0'也能够存储下
+  // 新しい文字列バッファ（全変換＋終端分を確保）
   char *Buf = calloc(1, strlen(S) * 2 + 1);
 
-  // 遍历字符串，对特殊字符进行处理
+  // 文字列を走査し特殊文字を処理
   for (int I = 0, J = 0; S[I]; I++) {
     switch (S[I]) {
     case '$':
@@ -146,7 +147,7 @@ static char *quoteMakefile(char *S) {
       break;
     case ' ':
     case '\t':
-      // 反向遍历反斜杠字符
+      // 直前のバックスラッシュを逆順に走査
       for (int K = I - 1; K >= 0 && S[K] == '\\'; K--)
         Buf[J++] = '\\';
       Buf[J++] = '\\';
@@ -157,265 +158,265 @@ static char *quoteMakefile(char *S) {
       break;
     }
   }
-  // 返回新字符串
+  // 新しい文字列を返す
   return Buf;
 }
 
-// 解析传入程序的参数
+// コマンドライン引数を解析
 static void parseArgs(int Argc, char **Argv) {
-  // 确保需要一个参数的选项，存在一个参数
+  // 値が必要なオプションに値があることを確認
   for (int I = 1; I < Argc; I++)
-    // 如果需要一个参数
+    // 値を要する場合
     if (takeArg(Argv[I]))
-      // 如果不存在一个参数，则打印出使用说明
+      // 値がなければ使用法を表示
       if (!Argv[++I])
         usage(1);
 
-  // 存储-idirafter的路径参数
+  // -idirafter のパスを一時保存
   StringArray Idirafter = {};
 
-  // 遍历所有传入程序的参数
+  // 引数を順に解析
   for (int I = 1; I < Argc; I++) {
-    // 解析-###
+    // -### を解析
     if (!strcmp(Argv[I], "-###")) {
       OptHashHashHash = true;
       continue;
     }
 
-    // 解析-cc1
+    // -cc1 を解析
     if (!strcmp(Argv[I], "-cc1")) {
       OptCC1 = true;
       continue;
     }
 
-    // 如果存在help，则直接显示用法说明
+    // --help なら使用法を表示
     if (!strcmp(Argv[I], "--help"))
       usage(0);
 
-    // 解析-o XXX的参数
+    // -o XXX を解析
     if (!strcmp(Argv[I], "-o")) {
-      // 目标文件的路径
+      // 出力ファイルのパス
       OptO = Argv[++I];
       continue;
     }
 
-    // 解析-oXXX的参数
+    // -oXXX を解析
     if (!strncmp(Argv[I], "-o", 2)) {
-      // 目标文件的路径
+      // 出力ファイルのパス
       OptO = Argv[I] + 2;
       continue;
     }
 
-    // 解析-S
+    // -S を解析
     if (!strcmp(Argv[I], "-S")) {
       OptS = true;
       continue;
     }
 
-    // // 解析-fcommon
+    // // -fcommon を解析
     if (!strcmp(Argv[I], "-fcommon")) {
       OptFCommon = true;
       continue;
     }
 
-    // 解析-fno-common
+    // -fno-common を解析
     if (!strcmp(Argv[I], "-fno-common")) {
       OptFCommon = false;
       continue;
     }
 
-    // 解析-c
+    // -c を解析
     if (!strcmp(Argv[I], "-c")) {
       OptC = true;
       continue;
     }
 
-    // 解析-E
+    // -E を解析
     if (!strcmp(Argv[I], "-E")) {
       OptE = true;
       continue;
     }
 
-    // 解析-I
+    // -I を解析
     if (!strncmp(Argv[I], "-I", 2)) {
       strArrayPush(&IncludePaths, Argv[I] + 2);
       continue;
     }
 
-    // 解析-D
+    // -D を解析
     if (!strcmp(Argv[I], "-D")) {
       define(Argv[++I]);
       continue;
     }
 
-    // 解析-D
+    // -D を解析
     if (!strncmp(Argv[I], "-D", 2)) {
       define(Argv[I] + 2);
       continue;
     }
 
-    // 解析-U
+    // -U を解析
     if (!strcmp(Argv[I], "-U")) {
       undefMacro(Argv[++I]);
       continue;
     }
 
-    // 解析-U
+    // -U を解析
     if (!strncmp(Argv[I], "-U", 2)) {
       undefMacro(Argv[I] + 2);
       continue;
     }
 
-    // 解析-include
+    // -include を解析
     if (!strcmp(Argv[I], "-include")) {
       strArrayPush(&OptInclude, Argv[++I]);
       continue;
     }
 
-    // 解析-x
+    // -x を解析
     if (!strcmp(Argv[I], "-x")) {
       OptX = parseOptX(Argv[++I]);
       continue;
     }
 
-    // 解析-x
+    // -x を解析
     if (!strncmp(Argv[I], "-x", 2)) {
       OptX = parseOptX(Argv[I] + 2);
       continue;
     }
 
-    // 解析-l、-Wl,
+    // -l と -Wl, を解析
     if (!strncmp(Argv[I], "-l", 2) || !strncmp(Argv[I], "-Wl,", 4)) {
       strArrayPush(&InputPaths, Argv[I]);
       continue;
     }
 
-    // 解析-Xlinker
+    // -Xlinker を解析
     if (!strcmp(Argv[I], "-Xlinker")) {
       strArrayPush(&LdExtraArgs, Argv[++I]);
       continue;
     }
 
-    // 解析-s（リンカへ渡す strip 指定として扱う）
+    // -s を解析（リンカへ渡す strip 指定として扱う）
     if (!strcmp(Argv[I], "-s")) {
       strArrayPush(&LdExtraArgs, "-s");
       continue;
     }
 
-    // 解析-M
+    // -M を解析
     if (!strcmp(Argv[I], "-M")) {
       OptM = true;
       continue;
     }
 
-    // 解析-MF
+    // -MF を解析
     if (!strcmp(Argv[I], "-MF")) {
       OptMF = Argv[++I];
       continue;
     }
 
-    // 解析-MP
+    // -MP を解析
     if (!strcmp(Argv[I], "-MP")) {
       OptMP = true;
       continue;
     }
 
-    // 解析-MT
-    // `-MT File`，指定File为依赖规则中的目标
+    // -MT を解析
+    // `-MT File` で依存規則のターゲットを指定
     if (!strcmp(Argv[I], "-MT")) {
       if (OptMT == NULL)
-        // 无依赖规则中的目标
+        // 依存規則のターゲットが未設定
         OptMT = Argv[++I];
       else
-        // 合并依赖规则中的目标
+        // 依存規則のターゲットを結合
         OptMT = format("%s %s", OptMT, Argv[++I]);
       continue;
     }
 
-    // 解析-MD
+    // -MD を解析
     if (!strcmp(Argv[I], "-MD")) {
       OptMD = true;
       continue;
     }
 
-    // 解析-MQ
+    // -MQ を解析
     if (!strcmp(Argv[I], "-MQ")) {
       if (OptMT == NULL)
-        // 无依赖规则中的目标
+        // 依存規則のターゲットが未設定
         OptMT = quoteMakefile(Argv[++I]);
       else
-        // 合并依赖规则中的目标
+        // 依存規則のターゲットを結合
         OptMT = format("%s %s", OptMT, quoteMakefile(Argv[++I]));
       continue;
     }
 
-    // 解析-MMD
+    // -MMD を解析
     if (!strcmp(Argv[I], "-MMD")) {
-      // 同时启用-MD选项
+      // -MD も同時に有効化
       OptMD = OptMMD = true;
       continue;
     }
 
-    // 解析-fpic或-fPIC
+    // -fpic または -fPIC を解析
     if (!strcmp(Argv[I], "-fpic") || !strcmp(Argv[I], "-fPIC")) {
       OptFPIC = true;
       continue;
     }
 
-    // 解析-cc1-input
+    // -cc1-input を解析
     if (!strcmp(Argv[I], "-cc1-input")) {
       BaseFile = Argv[++I];
       continue;
     }
 
-    // 解析-cc1-output
+    // -cc1-output を解析
     if (!strcmp(Argv[I], "-cc1-output")) {
       OutputFile = Argv[++I];
       continue;
     }
 
-    // 解析-idirafter
-    // 将参数存入Idirafter
+    // -idirafter を解析
+    // 引数を Idirafter に格納
     if (!strcmp(Argv[I], "-idirafter")) {
       strArrayPush(&Idirafter, Argv[I++]);
       continue;
     }
 
-    // 解析-static
+    // -static を解析
     if (!strcmp(Argv[I], "-static")) {
       OptStatic = true;
       strArrayPush(&LdExtraArgs, "-static");
       continue;
     }
 
-    // 解析-shared
+    // -shared を解析
     if (!strcmp(Argv[I], "-shared")) {
       OptShared = true;
       strArrayPush(&LdExtraArgs, "-shared");
       continue;
     }
 
-    // 解析-L
+    // -L を解析
     if (!strcmp(Argv[I], "-L")) {
       strArrayPush(&LdExtraArgs, "-L");
       strArrayPush(&LdExtraArgs, Argv[++I]);
       continue;
     }
 
-    // 解析-L
+    // -L を解析
     if (!strncmp(Argv[I], "-L", 2)) {
       strArrayPush(&LdExtraArgs, "-L");
       strArrayPush(&LdExtraArgs, Argv[I] + 2);
       continue;
     }
 
-    // 哈希表测试
+    // ハッシュマップのテスト
     if (!strcmp(Argv[I], "-hashmap-test")) {
       hashmapTest();
       exit(0);
     }
 
-    // 忽略多个选项
+    // 複数のオプションは無視
     if (!strncmp(Argv[I], "-O", 2) || !strncmp(Argv[I], "-W", 2) ||
         !strncmp(Argv[I], "-g", 2) || !strncmp(Argv[I], "-std=", 5) ||
         !strcmp(Argv[I], "-ffreestanding") ||
@@ -427,214 +428,214 @@ static void parseArgs(int Argc, char **Argv) {
         !strcmp(Argv[I], "-march=native"))
       continue;
 
-    // 解析为-的参数
+    // 単独の '-' を解析
     if (Argv[I][0] == '-' && Argv[I][1] != '\0')
       error("unknown argument: %s", Argv[I]);
 
-    // 其他情况则匹配为输入文件
+    // それ以外は入力ファイルとして扱う
     strArrayPush(&InputPaths, Argv[I]);
   }
 
-  // 将所用Idirafter内的路径，都存入引用路径区中
+  // Idirafter のパスをインクルードパスに追加
   for (int I = 0; I < Idirafter.Len; I++)
     strArrayPush(&IncludePaths, Idirafter.Data[I]);
 
-  // 不存在输入文件时报错
+  // 入力ファイルがなければエラー
   if (InputPaths.Len == 0)
     error("no input files");
 
-  // -E隐式包含输入是C语言的宏
+  // -E の場合は入力を C として扱う
   if (OptE)
     OptX = FILE_C;
 }
 
-// 打开需要写入的文件
+// 書き込み対象のファイルを開く
 static FILE *openFile(char *Path) {
   if (!Path || strcmp(Path, "-") == 0)
     return stdout;
 
-  // 以写入模式打开文件
+  // 書き込みモードで開く
   FILE *Out = fopen(Path, "w");
   if (!Out)
     error("cannot open output file: %s: %s", Path, strerror(errno));
   return Out;
 }
 
-// 判断字符串P是否以字符串Q结尾
+// 文字列 P が Q で終わるか判定
 static bool endsWith(char *P, char *Q) {
   int len1 = strlen(P);
   int len2 = strlen(Q);
-  // P比Q长且P最后Len2长度的字符和Q相等，则为真
+  // P が十分に長く末尾 len2 文字が Q と等しい
   return (len1 >= len2) && !strcmp(P + len1 - len2, Q);
 }
 
-// 替换文件的后缀名
+// ファイル拡張子を置き換え
 static char *replaceExtn(char *Tmpl, char *Extn) {
-  // 去除路径，返回基础文件名
+  // パスを除去しベース名を取得
   char *Filename = Tmpl; //basename(strdup(Tmpl));
   //char *Filename = basename(strdup(Tmpl));
-  // 最后一次字符出现的位置
+  // 最後に現れる文字の位置
   char *Dot = strrchr(Filename, '.');
-  // 如果存在'.'，清除此后的内容
+  // '.' があれば以降を削除
   if (Dot)
     *Dot = '\0';
-  // 将新后缀写入文件名中
+  // 新しい拡張子を書き込む
   return format("%s%s", Filename, Extn);
 }
 
-// 清理临时文件区
+// 一時ファイル領域を掃除
 static void cleanup(void) {
-  // 遍历删除临时文件
+  // 一時ファイルを順に削除
   for (int I = 0; I < TmpFiles.Len; I++)
     unlink(TmpFiles.Data[I]);
 }
 
-// 创建临时文件
+// 一時ファイルを作成
 static char *createTmpFile(void) {
-  // 临时文件的路径格式
+  // 一時ファイルのパス形式
   char *Path = strdup("/tmp/rvcc-XXXXXX");
-  // 创建临时文件
+  // 一時ファイルを作成
   int FD = mkstemp(Path);
-  // 临时文件创建失败
+  // 一時ファイルの作成に失敗
   if (FD == -1)
     error("mkstemp failed: %s", strerror(errno));
-  // 关闭文件
+  // ファイルを閉じる
   close(FD);
 
-  // 将文件路径存入临时文件区中
+  // パスを一時ファイル領域に記録
   strArrayPush(&TmpFiles, Path);
   return Path;
 }
 
-// 开辟子进程
+// 子プロセスを生成
 static void runSubprocess(char **Argv) {
 #ifdef CC_S_ONLY
   // Minux9 cc wrapper must never spawn subprocesses
   fprintf(stderr, "cc: subprocess disabled in -S-only mode\n");
   exit(1);
 #endif
-  // 打印出子进程所有的命令行参数
+  // 子プロセス実行コマンドを出力
   if (OptHashHashHash) {
-    // 程序名
+    // プログラム名
     fprintf(stderr, "%s", Argv[0]);
-    // 程序参数
+    // プログラム引数
     for (int I = 1; Argv[I]; I++)
       fprintf(stderr, " %s", Argv[I]);
-    // 换行
+    // 改行
     fprintf(stderr, "\n");
   }
 
-  // Fork–exec模型
-  // 创建当前进程的副本，这里开辟了一个子进程
-  // 返回-1表示错位，为0表示成功
+  // fork-exec モデル
+  // 現在のプロセスを複製して子プロセスを生成
+  // 返り値 -1 は失敗、0 は成功
   if (fork() == 0) {
-    // 执行文件rvcc，没有斜杠时搜索环境变量，此时会替换子进程
+    // rvcc を実行（スラッシュなしなら PATH 検索）。子プロセスを置き換える
     execvp(Argv[0], Argv);
-    // 如果exec函数返回，表明没有正常执行命令
+    // exec が戻った場合は実行失敗
     fprintf(stderr, "exec failed: %s: %s\n", Argv[0], strerror(errno));
     exit(1);
   }
 
-  // 父进程， 等待子进程结束
+  // 親プロセスは子の終了を待つ
   int Status;
   while (wait(&Status) > 0)
     ;
-  // 处理子进程返回值
+  // 子プロセスの終了コードを処理
   if (Status != 0)
     exit(1);
 }
 
-// 执行调用cc1程序
-// 因为rvcc自身就是cc1程序
-// 所以调用自身，并传入-cc1参数作为子进程
+// cc1 を起動して実行
+// rvcc 自身が cc1 であるため
+// 自プロセスを -cc1 付きで起動する
 static void runCC1(int Argc, char **Argv, char *Input, char *Output) {
-  // 多开辟10个字符串的位置，用于传递需要新传入的参数
+  // 追加引数用に 10 個分多めに確保
   char **Args = calloc(Argc + 10, sizeof(char *));
-  // 将传入程序的参数全部写入Args
+  // 既存の引数を Args にコピー
   memcpy(Args, Argv, Argc * sizeof(char *));
-  // 在选项最后新加入"-cc1"选项
+  // 末尾に "-cc1" を追加
   Args[Argc++] = "-cc1";
 
-  // 存入输入文件的参数
+  // 入力ファイルの指定を追加
   if (Input) {
     Args[Argc++] = "-cc1-input";
     Args[Argc++] = Input;
   }
 
-  // 存入输出文件的参数
+  // 出力ファイルの指定を追加
   if (Output) {
     Args[Argc++] = "-cc1-output";
     Args[Argc++] = Output;
   }
 
-  // 运行自身作为子进程，同时传入选项
+  // 自プロセスを子として起動し引数を渡す
   runSubprocess(Args);
 }
 
-// 当指定-E选项时，打印出所有终结符
+// -E 指定時は全トークンを出力
 static void printTokens(Token *Tok) {
-  // 输出文件，默认为stdout
+  // 出力先（デフォルトは stdout）
   FILE *Out = openFile(OptO ? OptO : "-");
 
-  // 记录行数
+  // 行番号を記録
   int Line = 1;
-  // 遍历读取终结符
+  // トークンを順に処理
   for (; Tok->Kind != TK_EOF; Tok = Tok->Next) {
-    // 位于行首打印出换行符
+    // 行頭では改行を出力
     if (Line > 1 && Tok->AtBOL)
       fprintf(Out, "\n");
-    // 打印出需要空格的位置
+    // 必要な箇所に空白を出力
     if (Tok->HasSpace && !Tok->AtBOL)
       fprintf(Out, " ");
-    // 打印出终结符
+    // トークン文字列を出力
     fprintf(Out, "%.*s", Tok->Len, Tok->Loc);
     Line++;
   }
-  // 文件以换行符结尾
+  // 末尾に改行を付加
   fprintf(Out, "\n");
 }
 
-// 判断是否为标准库路径
+// 標準ライブラリのパスか判定
 static bool inStdIncludePath(char *Path) {
   for (int I = 0; I < StdIncludePaths.Len; I++) {
     char *Dir = StdIncludePaths.Data[I];
     int Len = strlen(Dir);
-    // 与库路径相同，且以斜杠结尾
+    // ライブラリパスと一致し、その直後が '/' なら真
     if (strncmp(Dir, Path, Len) == 0 && Path[Len] == '/')
       return true;
   }
   return false;
 }
 
-// 输出可用于Make的规则，自动化文件依赖管理
+// Make 用の依存関係ルールを出力
 static void printDependencies(void) {
   char *Path;
   if (OptMF)
-    // 将Make的规则写入`-MF File`的File中
+    // `-MF File` で指定されたファイルへ書き出す
     Path = OptMF;
   else if (OptMD)
-    // 相当于`-M -MF File.d`，将Make的规则写入.d文件
+    // `-M -MF File.d` と同等で .d に出力
     Path = replaceExtn(OptO ? OptO : BaseFile, ".d");
   else if (OptO)
     Path = OptO;
   else
     Path = "-";
 
-  // 输出文件
+  // 出力先ファイル
   FILE *Out = openFile(Path);
-  // 如果未指定-MT，默认需要目标名中的特殊字符处理
+  // MT 未指定ならターゲット名の特殊文字を処理
   if (OptMT)
     fprintf(Out, "%s:", OptMT);
   else
-    // -MF指定依赖规则中的目标，否则替换后缀为.o
+    // MT があればそれを、なければ拡張子を .o に置換
     fprintf(Out, "%s:", quoteMakefile(replaceExtn(BaseFile, ".o")));
 
-  // 获取输入文件
+  // 入力ファイルを取得
   File **Files = getInputFiles();
 
-  // 遍历输入文件，并将格式化的结果写入输出文件
+  // 入力ファイルを走査して整形結果を出力
   for (int I = 0; Files[I]; I++) {
-    // 不输出标准库内的文件
+    // 標準ライブラリ内のファイルは出力しない
     if (OptMMD && inStdIncludePath(Files[I]->Name))
       continue;
     fprintf(Out, " \\\n  %s", Files[I]->Name);
@@ -642,117 +643,116 @@ static void printDependencies(void) {
 
   fprintf(Out, "\n\n");
 
-  // 如果指定了-MP，则为头文件生成伪目标
+  // -MP 指定時はヘッダに擬似ターゲットを生成
   if (OptMP) {
     for (int I = 1; Files[I]; I++) {
-      // 不输出标准库内的文件
+      // 標準ライブラリ内のファイルは出力しない
       if (OptMMD && inStdIncludePath(Files[I]->Name))
         continue;
-      // 处理头文件中的特殊字符
+      // ヘッダ名の特殊文字を処理
       fprintf(Out, "%s:\n\n", quoteMakefile(Files[I]->Name));
     }
   }
 }
 
-// 解析文件，生成终结符流
+// ファイルを解析してトークン列を生成
 static Token *mustTokenizeFile(char *Path) {
   Token *Tok = tokenizeFile(Path);
-  // 终结符流生成失败，对应文件报错
+  // トークン化に失敗したら当該ファイルをエラーにする
   if (!Tok)
     error("%s: %s", Path, strerror(errno));
   return Tok;
 }
 
-// 拼接终结符链表
+// トークン列を連結
 static Token *appendTokens(Token *Tok1, Token *Tok2) {
-  // Tok1为空时直接返回Tok2
+  // Tok1 が空なら Tok2 を返す
   if (!Tok1 || Tok1->Kind == TK_EOF)
     return Tok2;
-
-  // 链表指针T
+  // 連結リスト用のポインタ T
   Token *T = Tok1;
-  // T指向遍历到Tok1链表中最后一个
+  // T を Tok1 の末尾まで進める
   while (T->Next->Kind != TK_EOF)
     T = T->Next;
-  // T->Next指向Tok2
+  // T->Next を Tok2 に接続
   T->Next = Tok2;
-  // 返回拼接好的Tok1
+  // 連結後の Tok1 を返す
   return Tok1;
 }
 
-// 编译C文件到汇编文件
+// C ファイルをアセンブリにコンパイル
 static void cc1(void) {
   Token *Tok = NULL;
 
-  // 处理-include选项
+  // -include オプションを処理
   for (int I = 0; I < OptInclude.Len; I++) {
-    // 需要引入的文件
+    // 取り込むファイル
     char *Incl = OptInclude.Data[I];
 
     char *Path;
     if (fileExists(Incl)) {
-      // 如果文件存在，则直接使用路径
+      // 存在すればそのパスを使用
       Path = Incl;
     } else {
-      // 否则搜索引入路径区
+      // なければインクルードパスから検索
       Path = searchIncludePaths(Incl);
       if (!Path)
         error("-include: %s: %s", Incl, strerror(errno));
     }
 
-    // 解析文件，生成终结符流
+    // ファイルを解析してトークン列を生成
     Token *Tok2 = mustTokenizeFile(Path);
     Tok = appendTokens(Tok, Tok2);
   }
 
-  // 解析文件，生成终结符流
+  // ファイルを解析してトークン列を生成
   Token *Tok2 = mustTokenizeFile(BaseFile);
   Tok = appendTokens(Tok, Tok2);
 
-  // 预处理
+  // 前処理
   Tok = preprocess(Tok);
 
-  // 如果指定了-M，打印出文件的依赖关系
+  // -M 指定時は依存関係を出力
   if (OptM || OptMD) {
     printDependencies();
     if (OptM)
       return;
   }
 
-  // 如果指定了-E那么打印出预处理过的C代码
+  // -E 指定時は前処理済み C を出力
   if (OptE) {
     printTokens(Tok);
     return;
   }
 
-  // 解析终结符流
+  // トークン列を構文解析
   Obj *Prog = parse(Tok);
 
-  // 生成代码
+  // コード生成
 
-  // 防止编译器在编译途中退出，而只生成了部分的文件
-  // 开启临时输出缓冲区
+  // 途中終了で不完全な出力にならないように
+  // 一時出力バッファを開く
   char *Buf;
   size_t BufLen;
   FILE *OutputBuf = open_memstream(&Buf, &BufLen);
 
-  // 输出汇编到缓冲区中
+  // アセンブリをバッファへ出力
   codegen(Prog, OutputBuf);
   fclose(OutputBuf);
 
-  // 从缓冲区中写入到文件中
+  // バッファからファイルへ書き込む
   FILE *Out = openFile(OutputFile);
   fwrite(Buf, BufLen, 1, Out);
   fclose(Out);
 }
 
-// 调用汇编器
+// アセンブラを呼び出す
 static void assemble(char *Input, char *Output) {
 #ifdef CC_S_ONLY
   fprintf(stderr, "cc: assembler disabled in -S-only mode\n");
   exit(1);
 #endif
-  // 选择对应环境内的汇编器
+  // 環境に応じたアセンブラを選択
   char *As = strlen(RVPath)
                  ? format("%s/bin/riscv64-unknown-linux-gnu-as", RVPath)
                  : "as";
@@ -760,23 +760,23 @@ static void assemble(char *Input, char *Output) {
   runSubprocess(Cmd);
 }
 
-// 查找文件
+// ファイルを検索
 static char *findFile(char *Pattern) {
   char *Path = NULL;
-  // Linux文件系统中路径名称的模式匹配
+  // Linux のパス名パターンマッチ
   glob_t Buf = {};
-  // 参数：用来模式匹配的路径，标记（例如是否排序结果），错误处理函数，结果存放缓冲区
+  // 引数: パターン, フラグ, エラー処理, 結果バッファ
   glob(Pattern, 0, NULL, &Buf);
-  // gl_pathc匹配到的路径计数
-  // 复制最后的一条匹配结果到Path中
+  // 一致したパス数 gl_pathc
+  // 最後の一致結果を Path にコピー
   if (Buf.gl_pathc > 0)
     Path = strdup(Buf.gl_pathv[Buf.gl_pathc - 1]);
-  // 释放内存
+  // メモリを解放
   globfree(&Buf);
   return Path;
 }
 
-// 文件存在时，为真
+// ファイルが存在すれば真
 bool fileExists(char *Path) {
 #ifdef CC_S_ONLY
   int fd = open(Path, O_RDONLY, 0);
@@ -788,7 +788,7 @@ bool fileExists(char *Path) {
 #endif
 }
 
-// 查找库路径
+// ライブラリパスを検索
 static char *findLibPath(void) {
   if (fileExists("/usr/lib/riscv64-linux-gnu/crti.o"))
     return "/usr/lib/riscv64-linux-gnu";
@@ -809,7 +809,7 @@ static char *findLibPath(void) {
 //      format("%s/lib/gcc/riscv64-unknown-linux-gnu/*/crtbegin.o", RVPath),
 //  };
 //
-//  // 遍历以查找gcc库的路径
+//  // GCC ライブラリのパスを走査して探索
 //  for (int I = 0; I < sizeof(paths) / sizeof(*paths); I++) {
 //    char *path = findFile(paths[I]);
 //    if (path)
@@ -820,18 +820,18 @@ static char *findLibPath(void) {
 //  return NULL;
 //}
 
-// 运行链接器ld
+// リンカ ld を起動
 static void runLinker(StringArray *Inputs, char *Output) {
-  // 需要传递ld子进程的参数
+  // ld 子プロセスへ渡す引数
   StringArray Arr = {};
 
-  // 链接器
+  // リンカ
   char *Ld = strlen(RVPath)
                  ? format("%s/bin/riscv64-unknown-linux-gnu-ld", RVPath)
                  : "ld";
   strArrayPush(&Arr, Ld);
 
-  // 输出文件
+  // 出力ファイル
   strArrayPush(&Arr, "-o");
   strArrayPush(&Arr, Output);
   strArrayPush(&Arr, "-m");
@@ -881,11 +881,11 @@ static void runLinker(StringArray *Inputs, char *Output) {
     strArrayPush(&Arr, "-L/lib");
   }
 
-  // 链接器额外参数存入到链接器参数中
+  // 追加のリンカ引数を追加
   for (int I = 0; I < LdExtraArgs.Len; I++)
     strArrayPush(&Arr, LdExtraArgs.Data[I]);
 
-  // 输入文件，存入到链接器参数中
+  // 入力ファイルをリンカ引数に追加
   for (int I = 0; I < Inputs->Len; I++)
     strArrayPush(&Arr, Inputs->Data[I]);
 
@@ -912,57 +912,98 @@ static void runLinker(StringArray *Inputs, char *Output) {
   strArrayPush(&Arr, format("%s/crtn.o", LibPath));
   strArrayPush(&Arr, NULL);
 
-  // 开辟的链接器子进程
+  // リンカの子プロセスを起動
   runSubprocess(Arr.Data);
 }
 
-// 获取文件的类型
+// ファイル種別を取得
 static FileType getFileType(char *Filename) {
-  // 若-x指定了不为空的类型，使用该类型
+  // -x が指定済みならその種別を使用
   if (OptX != FILE_NONE)
     return OptX;
 
-  // 以.a结尾的文件，解析为静态库文件类型
+  // 拡張子 .a は静的ライブラリ
   if (endsWith(Filename, ".a"))
     return FILE_AR;
-  // 以.so结尾的文件，解析为动态库文件类型
+  // .so は共有ライブラリ
   if (endsWith(Filename, ".so"))
     return FILE_DSO;
-  // 以.o结尾的文件，解析为空重定位文件类型
+  // .o は再配置可能オブジェクト
   if (endsWith(Filename, ".o"))
     return FILE_OBJ;
-  // 以.c结尾的文件，解析为C语言源代码类型
+  // .c は C ソース
   if (endsWith(Filename, ".c"))
     return FILE_C;
-  // 以.s结尾的文件，解析为汇编类型
+  // .s/.S はアセンブリ
   if (endsWith(Filename, ".s") || endsWith(Filename, ".S"))
     return FILE_ASM;
 
   error("<command line>: unknown file extension: %s", Filename);
 }
 
-// 编译器驱动流程
+// コンパイラドライバのフロー
 //
-// 源文件
+// ソースファイル
 //   ↓
-// 预处理器预处理后的文件
+// 前処理後のファイル
 //   ↓
-// cc1编译为汇编文件
+// cc1 がアセンブリへコンパイル
 //   ↓
-// as编译为可重定位文件
+// as がオブジェクトへコンパイル
 //   ↓
-// ld链接为可执行文件
+// ld が実行ファイルへリンク
+void strArrayPush(StringArray *Arr, char *S) {
+}
+char *format(char *Fmt, ...) {
+}
+//static void runLinker(StringArray *Inputs, char *Output) {
+//}
+void error(char *Fmt, ...) {
+}
+void undefMacro(char *Name) {
+}
+File **getInputFiles(void) { }
+char *searchIncludePaths(char *Filename) {}
+void hashmapTest(void) { }
+Token *tokenizeFile(char *Path) { }
+void codegen(Obj *Prog, FILE *Out) { }
+Token *preprocess(Token *Tok) { }
+Obj *parse(Token *Tok) { }
 
-// rvcc的程序入口函数
+File *newFile(char *Name, int FileNo, char *Contents) {
+write(1, "LLL", 3);
+  File *FP = calloc(1, sizeof(File));
+write(1, "LLG", 3);
+  FP->Name = Name;
+  FP->DisplayName = FP->Name;
+  FP->FileNo = FileNo;
+  FP->Contents = Contents;
+  return FP;
+}
+
+void defineMacro(char *Name, char *Buf) {
+write(1, "Y", 1);
+  newFile("<built-in>", 1, Buf);
+write(1, "SI", 1);
+  //Token *Tok = tokenize(newFile("<built-in>", 1, Buf));
+}
+
+void initMacros(void) {
+write(1, "X", 1);
+  defineMacro("_LP64", "1");
+}
+
+// rvcc のエントリポイント
 int main(int Argc, char **Argv) {
 write(1, "ABC", 3);
-  // 在程序退出时，执行cleanup函数
+  // 終了時に cleanup を実行
   //atexit(cleanup);
-puts("YYY");
-  // 初始化预定义的宏
+write(1, "DEF", 3);
+  // あらかじめ定義されたマクロを初期化
   initMacros();
-  // 解析传入程序的参数
-puts("LLLl");
+/*
+  // コマンドライン引数を解析
+write(1, "FGH", 3);
   parseArgs(Argc, Argv);
   
 puts("1");
@@ -974,44 +1015,44 @@ puts("1");
   OptE = false;
 #endif
 
-  // 如果指定了-cc1选项
-  // 直接编译C文件到汇编文件
+  // -cc1 が指定された場合
+  // C を直接アセンブリにコンパイル
   if (OptCC1) {
-    // 增加默认引入路径
+    // デフォルトのインクルードパスを追加
     addDefaultIncludePaths(Argv[0]);
     cc1();
     return 0;
   }
 puts("2");
 
-  // 当前不能指定-c、-S、-E后，将多个输入文件，输出到一个文件中
+  // -c/-S/-E と -o の併用で複数入力は不可
   if (InputPaths.Len > 1 && OptO && (OptC || OptS || OptE))
     error("cannot specify '-o' with '-c', '-S' or '-E' with multiple files");
 
-  // 链接器参数
+  // リンカ引数
   StringArray LdArgs = {};
 puts("3");
 
-  // 遍历每个输入文件
+  // 各入力ファイルを処理
   for (int I = 0; I < InputPaths.Len; I++) {
-    // 读取输入文件
+    // 入力ファイル名を取得
     char *Input = InputPaths.Data[I];
 
-    // 链接时搜索指定的库文件
+    // リンク時に指定されたライブラリを検索
     if (!strncmp(Input, "-l", 2)) {
       strArrayPush(&LdArgs, Input);
       continue;
     }
 
-    // 匹配到 -Wl, 将后续参数存入链接器选项
+    // -Wl, の後続をリンカ引数に展開
     if (!strncmp(Input, "-Wl,", 4)) {
-      // 以 , 分割开的参数字符串
+      // カンマ区切りの引数列
       char *S = strdup(Input + 4);
-      // 以 , 分割字符串，并返回一个参数
+      // カンマで分割して1件ずつ取得
       char *Arg = strtok(S, ",");
-      // 循环遍历剩余的参数
+      // 残りを順に処理
       while (Arg) {
-        // 加入到链接器参数
+        // リンカ引数に追加
         strArrayPush(&LdArgs, Arg);
         Arg = strtok(NULL, ",");
       }
@@ -1019,15 +1060,15 @@ puts("3");
     }
 puts("4");
 
-    // 输出文件
+    // 出力ファイル
     char *Output;
-    // 如果指定了输出文件，则直接使用
+    // 出力が指定されていればそれを使用
     if (OptO)
       Output = OptO;
-    // 若未指定输出的汇编文件名，则输出到后缀为.s的同名文件中
+    // 未指定で -S の場合は .s に出力
     else if (OptS)
       Output = replaceExtn(Input, ".s");
-    // 若未指定输出的可重定位文件名，则输出到后缀为.o的同名文件中
+    // それ以外は .o に出力
     else
       Output = replaceExtn(Input, ".o");
 
@@ -1074,41 +1115,42 @@ puts("8");
       continue;
     }
 
-    // 编译并汇编
+    // コンパイルしてアセンブル
     if (OptC) {
 puts("9");
-      // 临时文件Tmp作为cc1输出的汇编文件
+      // 一時ファイル Tmp は cc1 の出力（アセンブリ）
       char *Tmp = createTmpFile();
-      // cc1，编译C文件为汇编文件
+      // cc1 で C をアセンブリにコンパイル
       runCC1(Argc, Argv, Input, Tmp);
 puts("10");
-      // as，编译汇编文件为可重定位文件
+      // as でアセンブリをオブジェクトに
       assemble(Tmp, Output);
 puts("11");
       continue;
     }
 
-    // 否则运行cc1和as
-    // 临时文件Tmp1作为cc1输出的汇编文件
-    // 临时文件Tmp2作为as输出的可重定位文件
+    // それ以外は cc1 と as を実行
+    // 一時ファイル Tmp1 は cc1 の出力（アセンブリ）
+    // 一時ファイル Tmp2 は as の出力（オブジェクト）
 puts("12");
     char *Tmp1 = createTmpFile();
     char *Tmp2 = createTmpFile();
-    // cc1，编译C文件为汇编文件
+    // cc1 で C をアセンブリにコンパイル
     runCC1(Argc, Argv, Input, Tmp1);
-    // as，编译汇编文件为可重定位文件
+    // as でアセンブリをオブジェクトに
     assemble(Tmp1, Tmp2);
-    // 将Tmp2存入链接器选项
+    // Tmp2 をリンカ引数に追加
     strArrayPush(&LdArgs, Tmp2);
     continue;
   }
 puts("13");
 
-  // 需要链接的情况
-  // 未指定文件名时，默认为a.out
+  // リンクが必要な場合
+  // 出力名未指定なら a.out
   if (LdArgs.Len > 0)
     runLinker(&LdArgs, OptO ? OptO : "a.out");
 puts("14");
 
+*/
   return 0;
 }

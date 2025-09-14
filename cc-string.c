@@ -1,40 +1,40 @@
 #include "cc.h"
 
-// 压入字符串数组
+// 文字列配列に追加する
 void strArrayPush(StringArray *Arr, char *S) {
-  // 如果为空，没有数据
+  // 空ならデータがない
   if (!Arr->Data) {
-    // 开辟8个字符串的位置
+    // 文字列8個分の領域を確保
     Arr->Data = calloc(8, sizeof(char *));
-    // 将容量设为8
+    // 容量を8に設定
     Arr->Capacity = 8;
   }
 
-  // 如果存满了，开辟一倍的空间
+  // 満杯なら容量を倍に確保
   if (Arr->Capacity == Arr->Len) {
-    // 再开辟当前容量一倍的空间
+    // 現在容量の倍の領域を再確保
     Arr->Data = realloc(Arr->Data, sizeof(char *) * Arr->Capacity * 2);
-    // 容量翻倍
+    // 容量を倍増
     Arr->Capacity *= 2;
-    // 清空新开辟的空间
+    // 新しく確保した領域をクリア
     for (int I = Arr->Len; I < Arr->Capacity; I++)
       Arr->Data[I] = NULL;
   }
 
-  // 存入字符串
+  // 文字列を格納
   Arr->Data[Arr->Len++] = S;
 }
 
-// 格式化后返回字符串
+// 整形して文字列を返す
 char *format(char *Fmt, ...) {
   char *Buf;
   size_t BufLen;
-  // 将字符串对应的内存作为I/O流
+  // 文字列用のメモリをI/Oストリームとして開く
   FILE *Out = open_memstream(&Buf, &BufLen);
 
   va_list VA;
   va_start(VA, Fmt);
-  // 向流中写入数据
+  // ストリームへ書き込む
   vfprintf(Out, Fmt, VA);
   va_end(VA);
 

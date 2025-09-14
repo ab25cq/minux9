@@ -3,23 +3,23 @@
 #define GP_MAX 8
 #define FP_MAX 8
 
-// 输出文件
+// 出力ファイル
 static FILE *OutputFile;
-// 记录栈深度
+// スタックの深さ
 static int Depth;
-// 记录大结构体的深度
+// 大きな構造体の深さ
 static int BSDepth;
-// 当前的函数
+// 現在の関数
 static Obj *CurrentFn;
 
-// 我们将fs0～fs11两两组对形成6个寄存器对
-// 用于long double类型的存储，每次+2
+// fs0〜fs11 を2本ずつのペアにして6組使用
+// long double の保存に用い、操作ごとに2本増減
 static int LDSP;
 
 static void genExpr(Node *Nd);
 static void genStmt(Node *Nd);
 
-// 输出字符串到目标文件并换行
+// 出力先へ文字列を書き出して改行
 __attribute__((format(printf, 1, 2))) static void printLn(char *Fmt, ...) {
   va_list VA;
 
@@ -30,50 +30,49 @@ __attribute__((format(printf, 1, 2))) static void printLn(char *Fmt, ...) {
   fprintf(OutputFile, "\n");
 }
 
-// 代码段计数
+// コード片のカウンタ
 static int count(void) {
   static int I = 1;
   return I++;
 }
 
-// 压栈，将结果临时压入栈中备用
-// sp为栈指针，栈反向向下增长，64位下，8个字节为一个单位，所以sp-8
-// 当前栈指针的地址就是sp，将a0的值压入栈
-// 不使用寄存器存储的原因是因为需要存储的值的数量是变化的。
+// プッシュ: 結果を一時的にスタックへ
+// sp はスタックポインタ。64bit では 8B 単位で下方向に成長。
+// 現在の sp 先頭へ a0 を保存。保持数が可変のためレジスタではなくスタックを使う。
 static void push(void) {
-  printLn("  # 压栈，将a0的值存入栈顶");
+  printLn("  # プッシュ: a0 の値をスタック先頭へ");
   printLn("  addi sp, sp, -8");
   printLn("  sd a0, 0(sp)");
   Depth++;
 }
 
-// 弹栈，将sp指向的地址的值，弹出到a1
+// ポップ: スタック先頭の値を a1 へ
 static void pop(int Reg) {
-  printLn("  # 弹栈，将栈顶的值存入a%d", Reg);
+  printLn("  # ポップ: スタック先頭の値を a%d へ", Reg);
   printLn("  ld a%d, 0(sp)", Reg);
   printLn("  addi sp, sp, 8");
   Depth--;
 }
 
-// 对于浮点类型进行压栈
+// 浮動小数点のプッシュ
 static void pushF(void) {
-  printLn("  # 压栈，将fa0的值存入栈顶");
+  printLn("  # プッシュ: fa0 の値をスタック先頭へ");
   printLn("  addi sp, sp, -8");
   printLn("  fsd fa0, 0(sp)");
   Depth++;
 }
 
-// 对于浮点类型进行弹栈
+// 浮動小数点のポップ
 static void popF(int Reg) {
-  printLn("  # 弹栈，将栈顶的值存入fa%d", Reg);
+  printLn("  # ポップ: スタック先頭の値を fa%d へ", Reg);
   printLn("  fld fa%d, 0(sp)", Reg);
   printLn("  addi sp, sp, 8");
   Depth--;
 }
 
-// 对于long double类型进行压栈
+// long double のプッシュ
 static void pushLD(void) {
-  printLn("  # LD压栈，将a0,a1的值存入LD栈顶");
+  printLn("  # LD プッシュ: a0,a1 を LD スタックへ");
   printLn("  fmv.d.x fs%d, a1", LDSP + 1);
   printLn("  fmv.d.x fs%d, a0", LDSP);
   LDSP += 2;
@@ -81,129 +80,129 @@ static void pushLD(void) {
     error("LDSP can't be larger than 10!");
 }
 
-// 对于long double类型进行弹栈
+// long double のポップ
 static void popLD(int Reg) {
   LDSP -= 2;
   if (LDSP < 0)
     error("LDSP can't be less than 0!");
-  printLn("  # LD弹栈，将LD栈顶的值存入a%d,a%d", Reg, Reg + 1);
+  printLn("  # LD ポップ: LD スタック先頭を a%d,a%d へ", Reg, Reg + 1);
   printLn("  fmv.x.d a%d, fs%d", Reg + 1, LDSP + 1);
   printLn("  fmv.x.d a%d, fs%d", Reg, LDSP);
 }
 
-// 对齐到Align的整数倍
+// Align の倍数にアライン
 int alignTo(int N, int Align) {
-  // (0,Align]返回Align
+  // (0,Align] は Align を返す
   return (N + Align - 1) / Align * Align;
 }
 
-// 计算给定节点的绝对地址
-// 如果报错，说明节点不在内存中
+// 指定ノードの絶対アドレスを計算
+// エラーならメモリ上にない
 static void genAddr(Node *Nd) {
   switch (Nd->Kind) {
-  // 变量
+  // 変数
   case ND_VAR:
-    // VLA可变长度数组是局部变量
+    // VLA（可変長配列）はローカル変数
     if (Nd->Var->Ty->Kind == TY_VLA) {
-      printLn("  # 为VLA生成局部变量");
+      printLn("  # VLA 用のローカル変数を生成");
       printLn("  li t0, %d", Nd->Var->Offset);
       printLn("  add t0, t0, fp");
       printLn("  ld a0, 0(t0)");
       return;
     }
 
-    // 局部变量
-    if (Nd->Var->IsLocal) { // 偏移量是相对于fp的
-      printLn("  # 获取局部变量%s的栈内地址为%d(fp)", Nd->Var->Name,
+    // ローカル変数
+    if (Nd->Var->IsLocal) { // オフセットは fp 基準
+      printLn("  # ローカル変数 %s のスタック内アドレス %d(fp) を取得", Nd->Var->Name,
               Nd->Var->Offset);
       printLn("  li t0, %d", Nd->Var->Offset);
       printLn("  add a0, fp, t0");
       return;
     }
 
-    // 生成位置无关代码
+    // 位置非依存コード (PIC) を生成
     if (OptFPIC) {
       int C = count();
       printLn(".Lpcrel_hi%d:", C);
-      // 线程局部变量
+      // スレッドローカル変数
       if (Nd->Var->IsTLS) {
-        printLn("  # 获取PIC中TLS%s的地址", Nd->Var->Name);
-        // 计算TLS高20位地址
+        printLn("  # PIC 中の TLS %s のアドレスを取得", Nd->Var->Name);
+        // TLS の上位 20bit アドレスを計算
         printLn("  auipc a0, %%tls_gd_pcrel_hi(%s)", Nd->Var->Name);
-        // 计算TLS低12位地址
+        // TLS の下位 12bit アドレスを計算
         printLn("  addi a0, a0, %%pcrel_lo(.Lpcrel_hi%d)", C);
-        // 获取地址
+        // アドレスを取得
         printLn("  call __tls_get_addr@plt");
         return;
       }
 
-      // 函数或者全局变量
-      printLn("  # 获取PIC中%s%s的地址",
-              Nd->Ty->Kind == TY_FUNC ? "函数" : "全局变量", Nd->Var->Name);
-      // 高20位地址，存到a0中
+      // 関数またはグローバル変数
+      printLn("  # PIC 中の %s%s のアドレスを取得",
+              Nd->Ty->Kind == TY_FUNC ? "関数" : "グローバル変数", Nd->Var->Name);
+      // 上位 20bit を a0 に
       printLn("  auipc a0, %%got_pcrel_hi(%s)", Nd->Var->Name);
-      // 低12位地址，加到a0中
+      // 下位 12bit を a0 に加算
       printLn("  ld a0, %%pcrel_lo(.Lpcrel_hi%d)(a0)", C);
       return;
     }
 
-    // 线程局部变量
+    // スレッドローカル変数
     if (Nd->Var->IsTLS) {
-      // 计算TLS高20位地址
+      // TLS の上位 20bit アドレスを計算
       printLn("  lui a0, %%tprel_hi(%s)", Nd->Var->Name);
-      // 计算TLS低12位地址
+      // TLS の下位 12bit アドレスを計算
       printLn("  addi a0, a0, %%tprel_lo(%s)", Nd->Var->Name);
       return;
     }
 
-    // 函数
+    // 関数
     if (Nd->Ty->Kind == TY_FUNC) {
-      // 定义的函数
+      // 定義された関数
       if (Nd->Var->IsDefinition) {
-        printLn("  # 获取函数%s的地址", Nd->Var->Name);
+        printLn("  # 関数 %s のアドレスを取得", Nd->Var->Name);
         printLn("  la a0, %s", Nd->Var->Name);
       }
-      // 外部函数
+      // 外部関数
       else {
         int C = count();
-        printLn("  # 获取外部函数的绝对地址");
+        printLn("  # 外部関数の絶対アドレスを取得");
         printLn(".Lpcrel_hi%d:", C);
-        // 高20位地址，存到a0中
+        // 上位 20bit を a0 に
         printLn("  auipc a0, %%got_pcrel_hi(%s)", Nd->Var->Name);
-        // 低12位地址，加到a0中
+        // 下位 12bit を a0 に加算
         printLn("  ld a0, %%pcrel_lo(.Lpcrel_hi%d)(a0)", C);
       }
       return;
     }
 
-    // 全局变量
+    // グローバル変数
     int C = count();
-    printLn("  # 获取全局变量的绝对地址");
+    printLn("  # グローバル変数の絶対アドレスを取得");
     printLn(".Lpcrel_hi%d:", C);
-    // 高20位地址，存到a0中
+    // 上位 20bit を a0 に
     printLn("  auipc a0, %%got_pcrel_hi(%s)", Nd->Var->Name);
-    // 低12位地址，加到a0中
+    // 下位 12bit を a0 に加算
     printLn("  ld a0, %%pcrel_lo(.Lpcrel_hi%d)(a0)", C);
     return;
-  // 解引用*
+  // 間接参照 *
   case ND_DEREF:
     genExpr(Nd->LHS);
     return;
-  // 逗号
+  // カンマ
   case ND_COMMA:
     genExpr(Nd->LHS);
     genAddr(Nd->RHS);
     return;
-  // 结构体成员
+  // 構造体メンバ
   case ND_MEMBER:
     genAddr(Nd->LHS);
-    printLn("  # 计算成员变量的地址偏移量");
+    printLn("  # メンバのオフセットを加算");
     printLn("  li t0, %d", Nd->Mem->Offset);
     printLn("  add a0, a0, t0");
     return;
-  // 函数调用
+  // 関数呼び出し
   case ND_FUNCALL:
-    // 如果存在返回值缓冲区
+    // 戻り先バッファがある場合
     if (Nd->RetBuffer) {
       genExpr(Nd);
       return;
@@ -211,15 +210,15 @@ static void genAddr(Node *Nd) {
     break;
   case ND_ASSIGN:
   case ND_COND:
-    // 使结构体成员可以通过=或?:访问
+    // 構造体メンバを = や ?: で扱えるようにする
     if (Nd->Ty->Kind == TY_STRUCT || Nd->Ty->Kind == TY_UNION) {
       genExpr(Nd);
       return;
     }
     break;
   case ND_VLA_PTR:
-    // VLA的指针
-    printLn("  # 生成VLA的指针");
+    // VLA のポインタ
+    printLn("  # VLA のポインタを生成");
     printLn("  li t0, %d", Nd->Var->Offset);
     printLn("  add a0, t0, fp");
     return;
@@ -230,7 +229,7 @@ static void genAddr(Node *Nd) {
   errorTok(Nd->Tok, "not an lvalue");
 }
 
-// 加载a0指向的值
+// a0 の指す値をロード
 static void load(Type *Ty) {
   switch (Ty->Kind) {
   case TY_ARRAY:
@@ -240,15 +239,15 @@ static void load(Type *Ty) {
   case TY_VLA:
     return;
   case TY_FLOAT:
-    printLn("  # 访问a0中存放的地址，取得的值存入fa0");
+    printLn("  # a0 の指すアドレスから値を fa0 へ");
     printLn("  flw fa0, 0(a0)");
     return;
   case TY_DOUBLE:
-    printLn("  # 访问a0中存放的地址，取得的值存入fa0");
+    printLn("  # a0 の指すアドレスから値を fa0 へ");
     printLn("  fld fa0, 0(a0)");
     return;
   case TY_LDOUBLE:
-    printLn("  # 访问a0中存放的地址，取得的值存入LD栈当中");
+    printLn("  # a0 の指すアドレスから値を LD スタックへ");
     printLn("  fld fs%d, 8(a0)", LDSP + 1);
     printLn("  fld fs%d, 0(a0)", LDSP);
     LDSP += 2;
@@ -257,10 +256,10 @@ static void load(Type *Ty) {
     break;
   }
 
-  // 添加无符号类型的后缀u
+  // 符号なし型には接尾辞 u を付与
   char *Suffix = Ty->IsUnsigned ? "u" : "";
 
-  printLn("  # 读取a0中存放的地址，得到的值存入a0");
+  printLn("  # a0 の指すアドレスから値を a0 へ");
   if (Ty->Size == 1)
     printLn("  lb%s a0, 0(a0)", Suffix);
   else if (Ty->Size == 2)
@@ -271,14 +270,14 @@ static void load(Type *Ty) {
     printLn("  ld a0, 0(a0)");
 }
 
-// 将栈顶值(为一个地址)存入a0
+// スタック先頭（アドレス）を a0 に
 static void store(Type *Ty) {
   pop(1);
 
   switch (Ty->Kind) {
   case TY_STRUCT:
   case TY_UNION:
-    printLn("  # 对%s进行赋值", Ty->Kind == TY_STRUCT ? "结构体" : "联合体");
+    printLn("  # %s へ代入", Ty->Kind == TY_STRUCT ? "構造体" : "共用体");
     for (int I = 0; I < Ty->Size; ++I) {
       printLn("  li t0, %d", I);
       printLn("  add t0, a0, t0");
@@ -290,15 +289,15 @@ static void store(Type *Ty) {
     }
     return;
   case TY_FLOAT:
-    printLn("  # 将fa0的值，写入到a1中存放的地址");
+    printLn("  # fa0 の値を a1 の指すアドレスへ");
     printLn("  fsw fa0, 0(a1)");
     return;
   case TY_DOUBLE:
-    printLn("  # 将fa0的值，写入到a1中存放的地址");
+    printLn("  # fa0 の値を a1 の指すアドレスへ");
     printLn("  fsd fa0, 0(a1)");
     return;
   case TY_LDOUBLE:
-    printLn("  # 将LD栈顶值，写入到a1中存放地址");
+    printLn("  # LD スタック先頭の値を a1 の指すアドレスへ");
     LDSP -= 2;
     printLn("  fsd fs%d, 8(a1)", LDSP + 1);
     printLn("  fsd fs%d, 0(a1)", LDSP);
@@ -307,7 +306,7 @@ static void store(Type *Ty) {
     break;
   }
 
-  printLn("  # 将a0的值，写入到a1中存放的地址");
+  printLn("  # a0 の値を a1 の指すアドレスへ");
   if (Ty->Size == 1)
     printLn("  sb a0, 0(a1)");
   else if (Ty->Size == 2)
@@ -318,23 +317,23 @@ static void store(Type *Ty) {
     printLn("  sd a0, 0(a1)");
 };
 
-// 与0进行比较，不等于0则置1
+// 0 と比較し、非 0 なら 1 に
 static void notZero(Type *Ty) {
   switch (Ty->Kind) {
   case TY_FLOAT:
-    printLn("  # 判断fa1是否不为0，为0置0，非0置1");
+    printLn("  # fa1 が 0 か判定（0→0, 非0→1）");
     printLn("  fmv.s.x fa1, zero");
     printLn("  feq.s a0, fa0, fa1");
     printLn("  xori a0, a0, 1");
     return;
   case TY_DOUBLE:
-    printLn("  # 判断fa1是否不为0，为0置0，非0置1");
+    printLn("  # fa1 が 0 か判定（0→0, 非0→1）");
     printLn("  fmv.d.x fa1, zero");
     printLn("  feq.d a0, fa0, fa1");
     printLn("  xori a0, a0, 1");
     return;
   case TY_LDOUBLE:
-    printLn("  # 判断fa1是否不为0，为0置0，非0置1");
+    printLn("  # fa1 が 0 か判定（0→0, 非0→1）");
     popLD(0);
     printLn("  mv a2, zero");
     printLn("  mv a3, zero");
@@ -346,10 +345,10 @@ static void notZero(Type *Ty) {
   }
 }
 
-// 类型枚举
+// 型の列挙
 enum { I8, I16, I32, I64, U8, U16, U32, U64, F32, F64, F128 };
 
-// 获取类型对应的枚举值
+// 型に対応する列挙値を取得
 static int getTypeId(Type *Ty) {
   switch (Ty->Kind) {
   case TY_CHAR:
@@ -371,216 +370,216 @@ static int getTypeId(Type *Ty) {
   }
 }
 
-// 类型映射表
-// 有符号整型转换
-static char i32f32[] = "  # i32转换为f32类型\n"
+// 型変換テーブル
+// 符号付き整数の変換
+static char i32f32[] = "  # i32 を f32 に変換\n"
                        "  fcvt.s.w fa0, a0";
-static char i32f64[] = "  # i32转换为f64类型\n"
+static char i32f64[] = "  # i32 を f64 に変換\n"
                        "  fcvt.d.w fa0, a0";
-static char i32f128[] = "  # i32转换为f128类型\n"
+static char i32f128[] = "  # i32 を f128 に変換\n"
                         "  call __floatsitf@plt";
 
 // 先逻辑左移N位，再算术右移N位，就实现了将64位有符号数转换为64-N位的有符号数
-static char i64i8[] = "  # 转换为i8类型\n"
+static char i64i8[] = "  # i8 に変換\n"
                       "  slli a0, a0, 56\n"
                       "  srai a0, a0, 56";
-static char i64i16[] = "  # 转换为i16类型\n"
+static char i64i16[] = "  # i16 に変換\n"
                        "  slli a0, a0, 48\n"
                        "  srai a0, a0, 48";
-static char i64i32[] = "  # 转换为i32类型\n"
+static char i64i32[] = "  # i32 に変換\n"
                        "  slli a0, a0, 32\n"
                        "  srai a0, a0, 32";
 
 // 先逻辑左移N位，再逻辑右移N位，就实现了将64位无符号数转换为64-N位的无符号数
-static char i64u8[] = "  # 转换为u8类型\n"
+static char i64u8[] = "  # u8 に変換\n"
                       "  slli a0, a0, 56\n"
                       "  srli a0, a0, 56";
-static char i64u16[] = "  # 转换为u16类型\n"
+static char i64u16[] = "  # u16 に変換\n"
                        "  slli a0, a0, 48\n"
                        "  srli a0, a0, 48";
-static char i64u32[] = "  # 转换为u32类型\n"
+static char i64u32[] = "  # u32 に変換\n"
                        "  slli a0, a0, 32\n"
                        "  srli a0, a0, 32";
 
 // 有符号整型转换为浮点数
-static char i64f32[] = "  # i64转换为f32类型\n"
+static char i64f32[] = "  # i64 を f32 に変換\n"
                        "  fcvt.s.l fa0, a0";
-static char i64f64[] = "  # i64转换为f64类型\n"
+static char i64f64[] = "  # i64 を f64 に変換\n"
                        "  fcvt.d.l fa0, a0";
-static char i64f128[] = "  # i64转换为f128类型\n"
+static char i64f128[] = "  # i64 を f128 に変換\n"
                         "  call __floatditf@plt";
 
 // 无符号整型转换
-static char u32f32[] = "  # u32转换为f32类型\n"
+static char u32f32[] = "  # u32 を f32 に変換\n"
                        "  fcvt.s.wu fa0, a0";
-static char u32f64[] = "  # u32转换为f64类型\n"
+static char u32f64[] = "  # u32 を f64 に変換\n"
                        "  fcvt.d.wu fa0, a0";
-static char u32f128[] = "  # u32转换为f128类型\n"
+static char u32f128[] = "  # u32 を f128 に変換\n"
                         "  call __floatunsitf@plt";
 
-static char u32i64[] = "  # u32转换为i64类型\n"
+static char u32i64[] = "  # u32 を i64 に変換\n"
                        "  slli a0, a0, 32\n"
                        "  srli a0, a0, 32";
 
 // 无符号整型转换为浮点数
-static char u64f32[] = "  # u64转换为f32类型\n"
+static char u64f32[] = "  # u64 を f32 に変換\n"
                        "  fcvt.s.lu fa0, a0";
-static char u64f64[] = "  # u64转换为f64类型\n"
+static char u64f64[] = "  # u64 を f64 に変換\n"
                        "  fcvt.d.lu fa0, a0";
-static char u64f128[] = "  # u64转换为f128类型\n"
+static char u64f128[] = "  # u64 を f128 に変換\n"
                         "  call __floatunditf@plt";
 
 // 单精度浮点数转换为整型
-static char f32i8[] = "  # f32转换为i8类型\n"
+static char f32i8[] = "  # f32 を i8 に変換\n"
                       "  fcvt.w.s a0, fa0, rtz\n"
                       "  slli a0, a0, 56\n"
                       "  srai a0, a0, 56";
-static char f32i16[] = "  # f32转换为i16类型\n"
+static char f32i16[] = "  # f32 を i16 に変換\n"
                        "  fcvt.w.s a0, fa0, rtz\n"
                        "  slli a0, a0, 48\n"
                        "  srai a0, a0, 48";
-static char f32i32[] = "  # f32转换为i32类型\n"
+static char f32i32[] = "  # f32 を i32 に変換\n"
                        "  fcvt.w.s a0, fa0, rtz\n"
                        "  slli a0, a0, 32\n"
                        "  srai a0, a0, 32";
-static char f32i64[] = "  # f32转换为i64类型\n"
+static char f32i64[] = "  # f32 を i64 に変換\n"
                        "  fcvt.l.s a0, fa0, rtz";
 
 // 单精度浮点数转换为无符号浮点数
-static char f32u8[] = "  # f32转换为u8类型\n"
+static char f32u8[] = "  # f32 を u8 に変換\n"
                       "  fcvt.wu.s a0, fa0, rtz\n"
                       "  slli a0, a0, 56\n"
                       "  srli a0, a0, 56";
-static char f32u16[] = "  # f32转换为u16类型\n"
+static char f32u16[] = "  # f32 を u16 に変換\n"
                        "  fcvt.wu.s a0, fa0, rtz\n"
                        "  slli a0, a0, 48\n"
                        "  srli a0, a0, 48\n";
-static char f32u32[] = "  # f32转换为u32类型\n"
+static char f32u32[] = "  # f32 を u32 に変換\n"
                        "  fcvt.wu.s a0, fa0, rtz\n"
                        "  slli a0, a0, 32\n"
                        "  srai a0, a0, 32";
-static char f32u64[] = "  # f32转换为u64类型\n"
+static char f32u64[] = "  # f32 を u64 に変換\n"
                        "  fcvt.lu.s a0, fa0, rtz";
 
 // 单精度转换为双精度浮点数
-static char f32f64[] = "  # f32转换为f64类型\n"
+static char f32f64[] = "  # f32 を f64 に変換\n"
                        "  fcvt.d.s fa0, fa0";
-static char f32f128[] = "  # f32转换为f128类型\n"
+static char f32f128[] = "  # f32 を f128 に変換\n"
                         "  call __extendsftf2@plt";
 
 // 双精度浮点数转换为整型
-static char f64i8[] = "  # f64转换为i8类型\n"
+static char f64i8[] = "  # f64 を i8 に変換\n"
                       "  fcvt.w.d a0, fa0, rtz\n"
                       "  slli a0, a0, 56\n"
                       "  srai a0, a0, 56";
-static char f64i16[] = "  # f64转换为i16类型\n"
+static char f64i16[] = "  # f64 を i16 に変換\n"
                        "  fcvt.w.d a0, fa0, rtz\n"
                        "  slli a0, a0, 48\n"
                        "  srai a0, a0, 48";
-static char f64i32[] = "  # f64转换为i32类型\n"
+static char f64i32[] = "  # f64 を i32 に変換\n"
                        "  fcvt.w.d a0, fa0, rtz\n"
                        "  slli a0, a0, 32\n"
                        "  srai a0, a0, 32";
-static char f64i64[] = "  # f64转换为i64类型\n"
+static char f64i64[] = "  # f64 を i64 に変換\n"
                        "  fcvt.l.d a0, fa0, rtz";
 
 // 双精度浮点数转换为无符号整型
-static char f64u8[] = "  # f64转换为u8类型\n"
+static char f64u8[] = "  # f64 を u8 に変換\n"
                       "  fcvt.wu.d a0, fa0, rtz\n"
                       "  slli a0, a0, 56\n"
                       "  srli a0, a0, 56";
-static char f64u16[] = "  # f64转换为u16类型\n"
+static char f64u16[] = "  # f64 を u16 に変換\n"
                        "  fcvt.wu.d a0, fa0, rtz\n"
                        "  slli a0, a0, 48\n"
                        "  srli a0, a0, 48";
-static char f64u32[] = "  # f64转换为u32类型\n"
+static char f64u32[] = "  # f64 を u32 に変換\n"
                        "  fcvt.wu.d a0, fa0, rtz\n"
                        "  slli a0, a0, 32\n"
                        "  srai a0, a0, 32";
-static char f64u64[] = "  # f64转换为u64类型\n"
+static char f64u64[] = "  # f64 を u64 に変換\n"
                        "  fcvt.lu.d a0, fa0, rtz";
 
 // 双精度转换为单精度浮点数
-static char f64f32[] = "  # f64转换为f32类型\n"
+static char f64f32[] = "  # f64 を f32 に変換\n"
                        "  fcvt.s.d fa0, fa0";
 
-static char f64f128[] = "  # f64转换为f128类型\n"
+static char f64f128[] = "  # f64 を f128 に変換\n"
                         "  call __extenddftf2@plt";
 
 // long double转换
-static char f128i8[] = "  # f128转换为i8类型\n"
+static char f128i8[] = "  # f128 を i8 に変換\n"
                        "  call __fixtfsi@plt\n"
                        "  slli a0, a0, 56\n"
                        "  srai a0, a0, 56";
 
-static char f128i16[] = "  # f128转换为i16类型\n"
+static char f128i16[] = "  # f128 を i16 に変換\n"
                         "  call __fixtfsi@plt\n"
                         "  slli a0, a0, 48\n"
                         "  srai a0, a0, 48";
 
-static char f128i32[] = "  # f128转换为i32类型\n"
+static char f128i32[] = "  # f128 を i32 に変換\n"
                         "  call __fixtfsi@plt\n"
                         "  slli a0, a0, 32\n"
                         "  srai a0, a0, 32";
 
-static char f128i64[] = "  # f128转换为i64类型\n"
+static char f128i64[] = "  # f128 を i64 に変換\n"
                         "  call __fixtfdi@plt";
 
-static char f128u8[] = "  # f128转换为u8类型\n"
+static char f128u8[] = "  # f128 を u8 に変換\n"
                        "  call __fixunstfsi@plt\n"
                        "  slli a0, a0, 56\n"
                        "  srli a0, a0, 56";
 
-static char f128u16[] = "  # f128转换为u16类型\n"
+static char f128u16[] = "  # f128 を u16 に変換\n"
                         "  call __fixunstfsi@plt\n"
                         "  slli a0, a0, 48\n"
                         "  srli a0, a0, 48";
 
-static char f128u32[] = "  # f128转换为u32类型\n"
+static char f128u32[] = "  # f128 を u32 に変換\n"
                         "  call __fixunstfsi@plt\n"
                         "  slli a0, a0, 32\n"
                         "  srai a0, a0, 32";
 
-static char f128u64[] = "  # f128转换为u64类型\n"
+static char f128u64[] = "  # f128 を u64 に変換\n"
                         "  call __fixunstfdi@plt";
 
-static char f128f32[] = "  # f128转换为f32类型\n"
+static char f128f32[] = "  # f128 を f32 に変換\n"
                         "  call __trunctfsf2@plt";
 
-static char f128f64[] = "  # f128转换为f64类型\n"
+static char f128f64[] = "  # f128 を f64 に変換\n"
                         "  call __trunctfdf2@plt";
 
-// 所有类型转换表
+// すべての型変換表
 static char *castTable[11][11] = {
     // clang-format off
 
-  // 被映射到
+  // マッピング先
   // {i8,  i16,     i32,     i64,     u8,     u16,     u32,     u64,     f32,     f64,     f128}
-  {NULL,   NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64,  i32f128}, // 从i8转换
-  {i64i8,  NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64,  i32f128}, // 从i16转换
-  {i64i8,  i64i16,  NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64,  i32f128}, // 从i32转换
-  {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    i64f32,  i64f64,  i64f128}, // 从i64转换
+  {NULL,   NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64,  i32f128}, // from i8
+  {i64i8,  NULL,    NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64,  i32f128}, // from i16
+  {i64i8,  i64i16,  NULL,    NULL,    i64u8,  i64u16,  i64u32,  NULL,    i32f32,  i32f64,  i32f128}, // from i32
+  {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    i64f32,  i64f64,  i64f128}, // from i64
 
-  {i64i8,  NULL,    NULL,    NULL,    NULL,   NULL,    NULL,    NULL,    u32f32,  u32f64,  u32f128}, // 从u8转换
-  {i64i8,  i64i16,  NULL,    NULL,    i64u8,  NULL,    NULL,    NULL,    u32f32,  u32f64,  u32f128}, // 从u16转换
-  {i64i8,  i64i16,  i64i32,  u32i64,  i64u8,  i64u16,  NULL,    u32i64,  u32f32,  u32f64,  u32f128}, // 从u32转换
-  {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    u64f32,  u64f64,  u64f128}, // 从u64转换
+  {i64i8,  NULL,    NULL,    NULL,    NULL,   NULL,    NULL,    NULL,    u32f32,  u32f64,  u32f128}, // from u8
+  {i64i8,  i64i16,  NULL,    NULL,    i64u8,  NULL,    NULL,    NULL,    u32f32,  u32f64,  u32f128}, // from u16
+  {i64i8,  i64i16,  i64i32,  u32i64,  i64u8,  i64u16,  NULL,    u32i64,  u32f32,  u32f64,  u32f128}, // from u32
+  {i64i8,  i64i16,  i64i32,  NULL,    i64u8,  i64u16,  i64u32,  NULL,    u64f32,  u64f64,  u64f128}, // from u64
 
-  {f32i8,  f32i16,  f32i32,  f32i64,  f32u8,  f32u16,  f32u32,  f32u64,  NULL,    f32f64,  f32f128}, // 从f32转换
-  {f64i8,  f64i16,  f64i32,  f64i64,  f64u8,  f64u16,  f64u32,  f64u64,  f64f32,  NULL,    f64f128}, // 从f64转换
-  {f128i8, f128i16, f128i32, f128i64, f128u8, f128u16, f128u32, f128u64, f128f32, f128f64, NULL},    // 从f128转换
+  {f32i8,  f32i16,  f32i32,  f32i64,  f32u8,  f32u16,  f32u32,  f32u64,  NULL,    f32f64,  f32f128}, // from f32
+  {f64i8,  f64i16,  f64i32,  f64i64,  f64u8,  f64u16,  f64u32,  f64u64,  f64f32,  NULL,    f64f128}, // from f64
+  {f128i8, f128i16, f128i32, f128i64, f128u8, f128u16, f128u32, f128u64, f128f32, f128f64, NULL},    // from f128
 
     // clang-format on
 };
 
-// 类型转换
+// 型変換
 static void cast(Type *From, Type *To) {
   if (To->Kind == TY_VOID)
     return;
 
   if (To->Kind == TY_BOOL) {
     notZero(From);
-    printLn("  # 转为bool类型：为0置0，非0置1");
+    printLn("  # bool へ変換（0→0, 非0→1）");
     printLn("  snez a0, a0");
     return;
   }
@@ -589,7 +588,7 @@ static void cast(Type *From, Type *To) {
   int T1 = getTypeId(From);
   int T2 = getTypeId(To);
   if (castTable[T1][T2]) {
-    printLn("  # 转换函数");
+    printLn("  # 変換関数");
     if (T1 == F128)
       popLD(0);
     printLn("%s", castTable[T1][T2]);
@@ -628,33 +627,33 @@ void getFloStMemsTy(Type *Ty, Type **RegsTy, int *Idx) {
   }
 }
 
-// 是否为一或两个含浮点成员变量的结构体
+// 浮動メンバを1つ/2つ含む構造体か
 void setFloStMemsTy(Type **Ty, int GP, int FP) {
   Type *T = *Ty;
   T->FSReg1Ty = TyVoid;
   T->FSReg2Ty = TyVoid;
 
-  // 联合体不通过浮点寄存器传递
+  // 共用体は浮動レジスタで渡さない
   if (T->Kind == TY_UNION)
     return;
 
-  // RTy：RegsType，结构体的第一、二个寄存器的类型
+  // RTy: RegsType（第1/第2レジスタの型）
   Type *RTy[2] = {TyVoid, TyVoid};
-  // 记录可以使用的寄存器的索引值
+  // 使用可能なレジスタのインデックス
   int RegsTyIdx = 0;
-  // 获取浮点结构体的寄存器类型，如果不是则为TyVoid
+  // 浮動構造体のレジスタ型（なければ TyVoid）
   getFloStMemsTy(T, RTy, &RegsTyIdx);
 
-  // 不是浮点结构体，直接退出
+  // 浮動構造体でないなら終了
   if (RegsTyIdx > 2)
     return;
 
-  if ( // 只有一个浮点成员的结构体，使用1个FP
+  if ( // 浮動1メンバ→FP1つ
       (isSFloNum(RTy[0]) && RTy[1] == TyVoid && FP < FP_MAX) ||
-      // 一个浮点成员和一个整型成员的结构体，使用1个FP和1个GP
+      // 浮動+整数→FP1つ+GP1つ
       (isSFloNum(RTy[0]) && isInteger(RTy[1]) && FP < FP_MAX && GP < GP_MAX) ||
       (isInteger(RTy[0]) && isSFloNum(RTy[1]) && FP < FP_MAX && GP < GP_MAX) ||
-      // 两个浮点成员的结构体，使用2个FP
+      // 浮動2メンバ→FP2つ
       (isSFloNum(RTy[0]) && isSFloNum(RTy[1]) && FP + 1 < FP_MAX)) {
     T->FSReg1Ty = RTy[0];
     T->FSReg2Ty = RTy[1];
@@ -666,9 +665,9 @@ static int createBSSpace(Node *Args) {
   int BSStack = 0;
   for (Node *Arg = Args; Arg; Arg = Arg->Next) {
     Type *Ty = Arg->Ty;
-    // 大于16字节的结构体
+    // 16バイト超の構造体
     if (Ty->Size > 16 && Ty->Kind == TY_STRUCT) {
-      printLn("  # 大于16字节的结构体，先开辟相应的栈空间");
+      printLn("  # 16バイト超の構造体のためスタック領域を確保");
       int Sz = alignTo(Ty->Size, 8);
       printLn("  addi sp, sp, -%d", Sz);
       // t6指向了最终的 大结构体空间的起始位置
@@ -683,63 +682,62 @@ static int createBSSpace(Node *Args) {
 
 // 传递结构体的指针
 static void pushStruct(Type *Ty) {
-  // 大于16字节的结构体
+  // 16バイト超の構造体
   if (Ty->Size > 16) {
-    // 将结构体复制一份到栈中，然后通过寄存器或栈传递被复制结构体的地址
+    // 構造体をスタックへコピーし，そのアドレスをレジスタ/スタックで渡す
     // ---------------------------------
-    //             大结构体      ←
+    //             大構造体      ←
     // --------------------------------- <- t6
-    //      栈传递的   其他变量
+    //      スタック渡し  その他の変数
     // ---------------------------------
-    //            大结构体的指针  ↑
+    //            大構造体へのポインタ  ↑
     // --------------------------------- <- sp
 
-    // 计算大结构体的偏移量
+    // 大構造体のオフセットを計算
     int Sz = alignTo(Ty->Size, 8);
-    // BSDepth记录了剩余 大结构体的字节数
+    // BSDepth は残りバイト数（8B 単位）
     BSDepth -= Sz / 8;
-    // t6存储了，大结构体空间的起始位置
+    // t6 は大構造体領域の先頭
     int BSOffset = BSDepth * 8;
 
-    printLn("  # 复制%d字节的大结构体到%d(t6)的位置", Sz, BSOffset);
+    printLn("  # 大構造体 %d バイトを %d(t6) にコピー", Sz, BSOffset);
     for (int I = 0; I < Sz; I++) {
       printLn("  lb t0, %d(a0)", I);
       printLn("  sb t0, %d(t6)", BSOffset + I);
     }
 
-    printLn("  # 大于16字节的结构体，对该结构体地址压栈");
+    printLn("  # 16バイト超の構造体：そのアドレスをプッシュ");
     printLn("  addi a0, t6, %d", BSOffset);
     push();
     return;
   }
 
-  // 含有两个成员（含浮点）的结构体
-  // 展开到栈内的两个8字节的空间
+  // 2メンバ（浮動含む）の構造体
+  // スタック内の 8 バイト×2 に展開
   if ((isSFloNum(Ty->FSReg1Ty) && Ty->FSReg2Ty != TyVoid) ||
       isSFloNum(Ty->FSReg2Ty)) {
-    printLn("  # 对含有两个成员（含浮点）结构体进行压栈");
+    printLn("  # 2メンバ（浮動含む）構造体をプッシュ");
     printLn("  addi sp, sp, -16");
     Depth += 2;
 
     printLn("  ld t0, 0(a0)");
     printLn("  sd t0, 0(sp)");
 
-    // 计算第二部分在结构体中的偏移量，为两个成员间的最大尺寸
+    // 第2部のオフセット（2 メンバ間の最大サイズ）
     int Off = MAX(Ty->FSReg1Ty->Size, Ty->FSReg2Ty->Size);
     printLn("  ld t0, %d(a0)", Off);
     printLn("  sd t0, 8(sp)");
 
     return;
   }
-  // 处理只有一个浮点成员的结构体
-  // 或者是小于16字节的结构体
-  char *Str = isSFloNum(Ty->FSReg1Ty) ? "只有一个浮点" : "小于16字节";
+  // 浮動1メンバのみ，または 16 バイト以下
+  char *Str = isSFloNum(Ty->FSReg1Ty) ? "浮動1個のみ" : "16バイト以下";
   int Sz = alignTo(Ty->Size, 8);
-  printLn("  # 为%s的结构体开辟%d字节的空间，", Str, Sz);
+  printLn("  # 構造体（%s）に %d バイトの領域を確保", Str, Sz);
   printLn("  addi sp, sp, -%d", Sz);
   Depth += Sz / 8;
 
-  printLn("  # 开辟%d字节的空间，复制%s的内存", Sz, Str);
+  printLn("  # %d バイト確保し %s のメモリをコピー", Sz, Str);
   for (int I = 0; I < Ty->Size; I++) {
     printLn("  lb t0, %d(a0)", I);
     printLn("  sb t0, %d(sp)", I);
@@ -747,25 +745,25 @@ static void pushStruct(Type *Ty) {
   return;
 }
 
-// 将函数实参计算后压入栈中
+// 関数実引数を評価してプッシュ
 static void pushArgs2(Node *Args, bool FirstPass) {
-  // 参数为空直接返回
+  // 引数が空ならそのまま返る
   if (!Args)
     return;
 
-  // 递归到最后一个实参进行
+  // 最後の実引数まで再帰
   pushArgs2(Args->Next, FirstPass);
 
-  // 第一遍对栈传递的变量进行压栈
-  // 第二遍对寄存器传递的变量进行压栈
+  // 1回目: スタック渡しをプッシュ
+  // 2回目: レジスタ渡しをプッシュ
   if ((FirstPass && !Args->PassByStack) ||
       (!FirstPass && Args->PassByStack))
     return;
 
-  printLn("\n  # ↓对表达式进行计算，然后压栈↓");
-  // 计算出表达式
+  printLn("\n  # ↓式を評価してプッシュ↓");
+  // 式を評価
   genExpr(Args);
-  // 根据表达式结果的类型进行压栈
+  // 型に応じてプッシュ
   switch (Args->Ty->Kind) {
   case TY_STRUCT:
   case TY_UNION:
@@ -776,7 +774,7 @@ static void pushArgs2(Node *Args, bool FirstPass) {
     pushF();
     break;
   case TY_LDOUBLE:
-    printLn("  # 对long double参数表达式进行计算后压栈");
+    printLn("  # long double 実引数を評価してプッシュ");
     LDSP -= 2;
     printLn("  addi sp, sp, -16");
     printLn("  fsd fs%d, 8(sp)", LDSP + 1);
@@ -786,38 +784,38 @@ static void pushArgs2(Node *Args, bool FirstPass) {
   default:
     push();
   }
-  printLn("  # ↑结束压栈↑");
+  printLn("  # ↑プッシュ完了↑");
 }
 
-// 处理参数后进行压栈
+// 引数処理後にプッシュ
 static int pushArgs(Node *Nd) {
   int Stack = 0, GP = 0, FP = 0;
 
-  // 如果是超过16字节的结构体，则通过第一个寄存器传递结构体的指针
+  // 16バイト超の構造体なら第1レジスタでポインタ渡し
   if (Nd->RetBuffer && Nd->Ty->Size > 16)
     GP++;
 
-  // 遍历所有参数，优先使用寄存器传递，然后是栈传递
+  // 全引数を走査（優先: レジスタ → スタック）
   Type *CurArg = Nd->FuncType->Params;
   for (Node *Arg = Nd->Args; Arg; Arg = Arg->Next) {
-    // 如果是可变参数的参数，只使用整型寄存器和栈传递
+    // 可変部の引数は整数レジスタ/スタックのみ使用
     if (Nd->FuncType->IsVariadic && CurArg == NULL) {
       int64_t Val = Arg->Val ? Arg->Val : Arg->FVal;
       if (GP < GP_MAX) {
-        printLn("  # 可变参数%ld值通过a%d传递", Val, GP);
+    printLn("  # 可変引数 %ld を a%d で渡す", Val, GP);
         GP++;
       } else {
-        printLn("  # 可变参数%ld值通过栈传递", Val);
+    printLn("  # 可変引数 %ld をスタックで渡す", Val);
         Arg->PassByStack = true;
         Stack++;
       }
       continue;
     }
 
-    // 遍历相应的实参，用于检查是不是到了可变参数
+    // 実引数を進め，可変部に入ったか確認
     CurArg = CurArg->Next;
 
-    // 读取实参的类型
+    // 実引数の型を取得
     Type *Ty = Arg->Ty;
 
     switch (Ty->Kind) {
@@ -853,13 +851,13 @@ static int pushArgs(Node *Nd) {
     case TY_DOUBLE:
       // 浮点优先使用FP，而后是GP，最后是栈传递
       if (FP < FP_MAX) {
-        printLn("  # 浮点%Lf值通过fa%d传递", Arg->FVal, FP);
+        printLn("  # 浮動 %Lf を fa%d で渡す", Arg->FVal, FP);
         FP++;
       } else if (GP < GP_MAX) {
-        printLn("  # 浮点%Lf值通过a%d传递", Arg->FVal, GP);
+        printLn("  # 浮動 %Lf を a%d で渡す", Arg->FVal, GP);
         GP++;
       } else {
-        printLn("  # 浮点%Lf值通过栈传递", Arg->FVal);
+        printLn("  # 浮動 %Lf をスタックで渡す", Arg->FVal);
         Arg->PassByStack = true;
         Stack++;
       }
@@ -867,10 +865,10 @@ static int pushArgs(Node *Nd) {
     case TY_LDOUBLE:
       for (int I = 1; I <= 2; ++I) {
         if (GP < GP_MAX) {
-          printLn("  # LD的第%d部分%Lf值通过a%d传递", I, Arg->FVal, GP);
+          printLn("  # LD 第%d部の %Lf を a%d で渡す", I, Arg->FVal, GP);
           GP++;
         } else {
-          printLn("  # LD的第%d部分%Lf值通过栈传递", I, Arg->FVal);
+          printLn("  # LD 第%d部の %Lf をスタックで渡す", I, Arg->FVal);
           Stack++;
         }
       }
@@ -878,10 +876,10 @@ static int pushArgs(Node *Nd) {
     default:
       // 整型优先使用GP，最后是栈传递
       if (GP < GP_MAX) {
-        printLn("  # 整型%ld值通过a%d传递", Arg->Val, GP);
+        printLn("  # 整数 %ld を a%d で渡す", Arg->Val, GP);
         GP++;
       } else {
-        printLn("  # 整型%ld值通过栈传递", Arg->Val);
+        printLn("  # 整数 %ld をスタックで渡す", Arg->Val);
         Arg->PassByStack = true;
         Stack++;
       }
@@ -891,7 +889,7 @@ static int pushArgs(Node *Nd) {
 
   // 对齐栈边界
   if ((Depth + Stack) % 2 == 1) {
-    printLn("  # 对齐栈边界到16字节");
+    printLn("  # スタック境界を 16 バイトに整列");
     printLn("  addi sp, sp, -8");
     Depth++;
     Stack++;
@@ -907,7 +905,7 @@ static int pushArgs(Node *Nd) {
   // 返回栈传递参数的个数
 
   if (Nd->RetBuffer && Nd->Ty->Size > 16) {
-    printLn("  # 返回类型是大于16字节的结构体，指向其的指针，压入栈顶");
+    printLn("  # 戻り値が 16 バイト超の構造体：そのポインタをプッシュ");
     printLn("  li t0, %d", Nd->RetBuffer->Offset);
     printLn("  add a0, fp, t0");
     push();
@@ -923,8 +921,8 @@ static void copyRetBuffer(Obj *Var) {
 
   setFloStMemsTy(&Ty, GP, FP);
 
-  printLn("  # 拷贝到返回缓冲区");
-  printLn("  # 加载struct地址到t0");
+  printLn("  # 戻りバッファへコピー");
+  printLn("  # struct のアドレスを t0 へロード");
   printLn("  li t0, %d", Var->Offset);
   printLn("  add t1, fp, t0");
 
@@ -953,7 +951,7 @@ static void copyRetBuffer(Obj *Var) {
     return;
   }
 
-  printLn("  # 复制整型结构体返回值到缓冲区中");
+  printLn("  # 整数構造体の戻り値をバッファへコピー");
   for (int Off = 0; Off < Ty->Size; Off += 8) {
     switch (Ty->Size - Off) {
     case 1:
@@ -978,8 +976,8 @@ static void copyStructReg(void) {
   Type *Ty = CurrentFn->Ty->ReturnTy;
   int GP = 0, FP = 0;
 
-  printLn("  # 复制结构体寄存器");
-  printLn("  # 读取寄存器，写入存有struct地址的0(t1)中");
+  printLn("  # 構造体レジスタをコピー");
+  printLn("  # レジスタを読み 0(t1)（struct アドレス）へ書き込み");
   printLn("  mv t1, a0");
 
   setFloStMemsTy(&Ty, GP, FP);
@@ -1008,7 +1006,7 @@ static void copyStructReg(void) {
     return;
   }
 
-  printLn("  # 复制返回的整型结构体的值");
+  printLn("  # 戻りの整数構造体の値をコピー");
   for (int Off = 0; Off < Ty->Size; Off += 8) {
     switch (Ty->Size - Off) {
     case 1:
@@ -1034,13 +1032,13 @@ static void copyStructMem(void) {
   // 第一个参数，调用者的缓冲区指针
   Obj *Var = CurrentFn->Params;
 
-  printLn("  # 复制大于16字节结构体内存");
-  printLn("  # 将栈内struct地址存入t1，调用者的结构体的地址");
+  printLn("  # 16バイト超の構造体メモリをコピー");
+  printLn("  # スタック上の struct アドレスを t1（呼び出し側アドレス）へ");
   printLn("  li t0, %d", Var->Offset);
   printLn("  add t0, fp, t0");
   printLn("  ld t1, 0(t0)");
 
-  printLn("  # 遍历结构体并从a0位置复制所有字节到t1");
+  printLn("  # 構造体を走査し a0 から全バイトを t1 へコピー");
   for (int I = 0; I < Ty->Size; I++) {
     printLn("  lb t0, %d(a0)", I);
     printLn("  sb t0, %d(t1)", I);
@@ -1149,7 +1147,7 @@ static void genExpr(Node *Nd) {
         uint32_t U32;
       } U;
       U.F32 = Nd->FVal;
-      printLn("  # 将a0转换到float类型值为%Lf的fa0中", Nd->FVal);
+      printLn("  # a0 を float に変換し値 %Lf を fa0 へ", Nd->FVal);
       printLn("  li a0, %u  # float %Lf", U.U32, Nd->FVal);
       printLn("  fmv.w.x fa0, a0");
       return;
@@ -1159,7 +1157,7 @@ static void genExpr(Node *Nd) {
         double F64;
         uint64_t U64;
       } U;
-      printLn("  # 将a0转换到double类型值为%Lf的fa0中", Nd->FVal);
+      printLn("  # a0 を double に変換し値 %Lf を fa0 へ", Nd->FVal);
       U.F64 = Nd->FVal;
       printLn("  li a0, %lu  # double %Lf", U.U64, Nd->FVal);
       printLn("  fmv.d.x fa0, a0");
@@ -1173,7 +1171,7 @@ static void genExpr(Node *Nd) {
       } U;
       memset(&U, 0, sizeof(U));
       U.F128 = Nd->FVal;
-      printLn("  # 将long double类型的%Lf值，压入LD栈中", Nd->FVal);
+      printLn("  # long double %Lf を LD スタックへ", Nd->FVal);
       printLn("  li a0, 0x%016lx  # long double %Lf", U.U64[0], Nd->FVal);
       printLn("  fmv.d.x fs%d, a0", LDSP);
 
@@ -1189,8 +1187,8 @@ static void genExpr(Node *Nd) {
         double F64;
         uint64_t U64;
       } U = {Nd->FVal};
-      printLn("  # 【注意】此处存在f80->f64的精度丢失！！！");
-      printLn("  # 将long double类型的%Lf值，压入LD栈中", Nd->FVal);
+      printLn("  # 【注意】ここでは f80→f64 の精度損失があります！");
+      printLn("  # long double %Lf を LD スタックへ", Nd->FVal);
       printLn("  li a0, %lu  # double %Lf", U.U64, Nd->FVal);
       printLn("  fmv.d.x fa0, a0");
       printLn("  call __extenddftf2@plt");
@@ -1199,7 +1197,7 @@ static void genExpr(Node *Nd) {
 #endif // __x86_64
     }
     default:
-      printLn("  # 将%ld加载到a0中", Nd->Val);
+      printLn("  # %ld を a0 にロード", Nd->Val);
       printLn("  li a0, %ld", Nd->Val);
       return;
     }
@@ -1211,22 +1209,22 @@ static void genExpr(Node *Nd) {
 
     switch (Nd->Ty->Kind) {
     case TY_FLOAT:
-      printLn("  # 对float类型的fa0值进行取反");
+      printLn("  # float（fa0）の値を反転");
       printLn("  fneg.s fa0, fa0");
       return;
     case TY_DOUBLE:
-      printLn("  # 对double类型的fa0值进行取反");
+      printLn("  # double（fa0）の値を反転");
       printLn("  fneg.d fa0, fa0");
       return;
     case TY_LDOUBLE:
-      printLn("  # 对long double类型的LD栈顶值进行取反");
+      printLn("  # long double（LD スタック先頭）を反転");
       printLn("  li t0, -1");
       printLn("  slli t0, t0, 63");
       printLn("  xor a%d, a%d, t0", LDSP + 1, LDSP + 1);
       return;
     default:
       // neg a0, a0是sub a0, x0, a0的别名, 即a0=0-a0
-      printLn("  # 对a0值进行取反");
+      printLn("  # a0 の値を反転");
       printLn("  neg%s a0, a0", Nd->Ty->Size <= 4 ? "w" : "");
       return;
     }
@@ -1274,11 +1272,11 @@ static void genExpr(Node *Nd) {
 
     // 如果是位域成员变量，需要先从内存中读取当前值，然后合并到新值中
     if (Nd->LHS->Kind == ND_MEMBER && Nd->LHS->Mem->IsBitfield) {
-      printLn("\n  # 位域成员变量进行赋值↓");
-      printLn("  # 备份需要赋的a0值");
+      printLn("\n  # ビットフィールド代入 ↓");
+      printLn("  # 代入値 a0 をバックアップ");
       printLn("  mv t2, a0");
 
-      printLn("  # 计算位域成员变量的新值：");
+      printLn("  # ビットフィールド新値を計算：");
       Member *Mem = Nd->LHS->Mem;
       // 将需要赋的值a0存入t1
       printLn("  mv t1, a0");
@@ -1290,13 +1288,13 @@ static void genExpr(Node *Nd) {
       // 此时我们所需要的位域数值已经处于正确的位置，且其他位置都为0
       printLn("  slli t1, t1, %d", Mem->BitOffset);
 
-      printLn("  # 读取位域当前值：");
+      printLn("  # ビットフィールド現値を読み出し：");
       // 将位域值保存的地址加载进来
       printLn("  ld a0, 0(sp)");
       // 读取该地址的值
       load(Mem->Ty);
 
-      printLn("  # 写入成员变量新值到位域当前值中：");
+      printLn("  # メンバ新値を現値へ書き込み：");
       // 位域值对应的掩码，即t1需要写入的位置
       // 掩码位都为1，其余位为0
       long Mask = ((1L << Mem->BitWidth) - 1) << Mem->BitOffset;
@@ -1308,34 +1306,34 @@ static void genExpr(Node *Nd) {
       printLn("  or a0, a0, t1");
 
       store(Nd->Ty);
-      printLn("  # 恢复需要赋的a0值作为返回值");
+      printLn("  # 戻り値として a0 を復元");
       printLn("  mv a0, t2");
-      printLn("  # 完成位域成员变量的赋值↑\n");
+      printLn("  # ビットフィールド代入 完了 ↑\n");
       return;
     }
 
     store(Nd->Ty);
     return;
-  // 语句表达式
+  // 文ステートメント（GNU拡張）
   case ND_STMT_EXPR:
     for (Node *N = Nd->Body; N; N = N->Next)
       genStmt(N);
     return;
-  // 逗号
+  // カンマ演算子
   case ND_COMMA:
     genExpr(Nd->LHS);
     genExpr(Nd->RHS);
     return;
-  // 类型转换
+  // 型変換
   case ND_CAST:
     genExpr(Nd->LHS);
     cast(Nd->LHS->Ty, Nd->Ty);
     return;
-  // 内存清零
+  // メモリのゼロクリア
   case ND_MEMZERO: {
-    printLn("  # 对%s的内存%d(fp)清零%d位", Nd->Var->Name, Nd->Var->Offset,
+    printLn("  # %s のメモリ %d(fp) を %d バイトゼロクリア", Nd->Var->Name, Nd->Var->Offset,
             Nd->Var->Ty->Size);
-    // 对栈内变量所占用的每个字节都进行清零
+    // スタック上の各バイトをゼロにする
     for (int I = 0; I < Nd->Var->Ty->Size; I++) {
       printLn("  li t0, %d", Nd->Var->Offset + I);
       printLn("  add t0, fp, t0");
@@ -1346,13 +1344,13 @@ static void genExpr(Node *Nd) {
   // 条件运算符
   case ND_COND: {
     int C = count();
-    printLn("\n# =====条件运算符%d===========", C);
+    printLn("\n# =====条件演算子 %d===========", C);
     genExpr(Nd->Cond);
     notZero(Nd->Cond->Ty);
-    printLn("  # 条件判断，为0则跳转");
+    printLn("  # 条件判定，0なら分岐");
     printLn("  beqz a0, .L.else.%d", C);
     genExpr(Nd->Then);
-    printLn("  # 跳转到条件运算符结尾部分");
+    printLn("  # 条件演算子の末尾へ分岐");
     printLn("  j .L.end.%d", C);
     printLn(".L.else.%d:", C);
     genExpr(Nd->Els);
@@ -1363,22 +1361,22 @@ static void genExpr(Node *Nd) {
   case ND_NOT:
     genExpr(Nd->LHS);
     notZero(Nd->LHS->Ty);
-    printLn("  # 非运算");
+    printLn("  # 論理否定");
     // a0=0则置1，否则为0
     printLn("  seqz a0, a0");
     return;
   // 逻辑与
   case ND_LOGAND: {
     int C = count();
-    printLn("\n# =====逻辑与%d===============", C);
+    printLn("\n# =====論理 AND %d===============", C);
     genExpr(Nd->LHS);
     // 判断是否为短路操作
     notZero(Nd->LHS->Ty);
-    printLn("  # 左部短路操作判断，为0则跳转");
+    printLn("  # 左オペランドの短絡判定，0なら分岐");
     printLn("  beqz a0, .L.false.%d", C);
     genExpr(Nd->RHS);
     notZero(Nd->RHS->Ty);
-    printLn("  # 右部判断，为0则跳转");
+    printLn("  # 右オペランド判定，0なら分岐");
     printLn("  beqz a0, .L.false.%d", C);
     printLn("  li a0, 1");
     printLn("  j .L.end.%d", C);
@@ -1390,15 +1388,15 @@ static void genExpr(Node *Nd) {
   // 逻辑或
   case ND_LOGOR: {
     int C = count();
-    printLn("\n# =====逻辑或%d===============", C);
+    printLn("\n# =====論理 OR %d===============", C);
     genExpr(Nd->LHS);
     notZero(Nd->LHS->Ty);
     // 判断是否为短路操作
-    printLn("  # 左部短路操作判断，不为0则跳转");
+    printLn("  # 左オペランドの短絡判定，非0なら分岐");
     printLn("  bnez a0, .L.true.%d", C);
     genExpr(Nd->RHS);
     notZero(Nd->RHS->Ty);
-    printLn("  # 右部判断，不为0则跳转");
+    printLn("  # 右オペランド判定，非0なら分岐");
     printLn("  bnez a0, .L.true.%d", C);
     printLn("  li a0, 0");
     printLn("  j .L.end.%d", C);
@@ -1410,7 +1408,7 @@ static void genExpr(Node *Nd) {
   // 按位取非运算
   case ND_BITNOT:
     genExpr(Nd->LHS);
-    printLn("  # 按位取反");
+    printLn("  # ビット反転");
     // 这里的 not a0, a0 为 xori a0, a0, -1 的伪码
     printLn("  not a0, a0");
     return;
@@ -1454,7 +1452,7 @@ static void genExpr(Node *Nd) {
             // LD的第一个寄存器必须是偶数下标，即a0,a2,a4,a6
             if (GP % 2 == 1)
               GP++;
-            printLn("  # long double通过a%d,a%d传递可变实参", GP, GP + 1);
+            printLn("  # long double 可変実引数を a%d,a%d で渡す", GP, GP + 1);
             pop(GP++);
             if (GP < GP_MAX)
               pop(GP++);
@@ -1482,30 +1480,30 @@ static void genExpr(Node *Nd) {
           Type *Regs[2] = {Ty->FSReg1Ty, Ty->FSReg2Ty};
           for (int I = 0; I < 2; ++I) {
             if (Regs[I]->Kind == TY_FLOAT) {
-              printLn("  # %d字节float结构体%d通过fa%d传递", Sz, I, FP);
-              printLn("  # 弹栈，将栈顶的值存入fa%d", FP);
+              printLn("  # %d バイトの float 構造体 %d を fa%d で渡す", Sz, I, FP);
+              printLn("  # ポップしてスタック先頭の値を fa%d へ", FP);
               printLn("  flw fa%d, 0(sp)", FP++);
               printLn("  addi sp, sp, 8");
               Depth--;
             }
             if (Regs[I]->Kind == TY_DOUBLE) {
-              printLn("  # %d字节double结构体%d通过fa%d传递", Sz, I, FP);
+              printLn("  # %d バイトの double 構造体 %d を fa%d で渡す", Sz, I, FP);
               popF(FP++);
             }
             if (isInteger(Regs[I])) {
-              printLn("  # %d字节浮点结构体%d通过a%d传递", Sz, I, GP);
+              printLn("  # %d バイトの浮動構造体 %d を a%d で渡す", Sz, I, GP);
               pop(GP++);
             }
           }
           break;
         }
 
-        // 其他整型结构体或多字节结构体
-        // 9~16字节整型结构体用两个寄存器，其他字节结构体用一个结构体
+        // その他の整数/多バイト構造体
+        // 9〜16B の整数構造体はレジスタ2個, それ以外は1個
         int Regs = (8 < Sz && Sz <= 16) ? 2 : 1;
         for (int I = 1; I <= Regs; ++I) {
           if (GP < GP_MAX) {
-            printLn("  # %d字节的整型结构体%d通过a%d传递", Sz, I, GP);
+            printLn("  # %d バイトの整数構造体 %d を a%d で渡す", Sz, I, GP);
             pop(GP++);
           }
         }
@@ -1541,34 +1539,34 @@ static void genExpr(Node *Nd) {
       }
     }
 
-    // 调用函数
-    printLn("  # 调用函数");
+    // 関数呼び出し
+    printLn("  # 関数を呼び出し");
     printLn("  jalr t5");
 
     if (Nd->Ty->Kind == TY_LDOUBLE) {
-      printLn("  # 保存Long double类型函数的返回值");
+      printLn("  # long double 戻り値を保存");
       pushLD();
     }
 
-    // 回收为栈传递的变量开辟的栈空间
+    // スタック渡しに確保した領域を回収
     if (StackArgs) {
-      // 栈的深度减去栈传递参数的字节数
+      // スタック深さからスタック渡し分のバイト数を減算
       Depth -= StackArgs;
-      printLn("  # 回收栈传递参数的%d个字节", StackArgs * 8);
+      printLn("  # スタック渡し引数の %d バイトを回収", StackArgs * 8);
       printLn("  addi sp, sp, %d", StackArgs * 8);
-      // 清除记录的大结构体的数量
+      // 記録された大構造体数をクリア
       BSDepth = 0;
     }
 
-    // 清除寄存器中高位无关的数据
+    // レジスタの上位不要ビットをクリア
     switch (Nd->Ty->Kind) {
     case TY_BOOL:
-      printLn("  # 清除bool类型的高位");
+      printLn("  # bool 型の上位をクリア");
       printLn("  slli a0, a0, 63");
       printLn("  srli a0, a0, 63");
       return;
     case TY_CHAR:
-      printLn("  # 清除char类型的高位");
+      printLn("  # char 型の上位をクリア");
       if (Nd->Ty->IsUnsigned) {
         printLn("  slli a0, a0, 56");
         printLn("  srli a0, a0, 56");
@@ -1578,7 +1576,7 @@ static void genExpr(Node *Nd) {
       }
       return;
     case TY_SHORT:
-      printLn("  # 清除short类型的高位");
+      printLn("  # short 型の上位をクリア");
       if (Nd->Ty->IsUnsigned) {
         printLn("  slli a0, a0, 48");
         printLn("  srli a0, a0, 48");
@@ -1591,7 +1589,7 @@ static void genExpr(Node *Nd) {
       break;
     }
 
-    // 如果返回的结构体小于16字节，直接使用寄存器返回
+    // 戻り構造体が 16 バイト未満ならレジスタで返す
     if (Nd->RetBuffer && Nd->Ty->Size <= 16) {
       copyRetBuffer(Nd->RetBuffer);
       printLn("  li t0, %d", Nd->RetBuffer->Offset);
@@ -1601,11 +1599,11 @@ static void genExpr(Node *Nd) {
     return;
   }
   case ND_LABEL_VAL:
-    printLn("  # 加载标签%s的值到a0中", Nd->UniqueLabel);
+    printLn("  # ラベル %s の値を a0 へロード", Nd->UniqueLabel);
     printLn("  la a0, %s", Nd->UniqueLabel);
     return;
   case ND_CAS: {
-    printLn("# =====原子比较交换===============");
+    printLn("# =====原子比較交換===============");
     // 当 t1地址中的值t0 与 t3旧值 相同时，将 t1地址中的值 替换为 t4新值
     // 若不同时，将 地址中的值t0 替换掉 旧值
     genExpr(Nd->CasAddr);
@@ -1617,33 +1615,31 @@ static void genExpr(Node *Nd) {
     genExpr(Nd->CasNew);
     printLn("  mv t4, a0"); // t4新值
 
-    // fence用于控制设备、内存的读写顺序
-    // iorw：之前的设备输入输出、内存读写指令，不能晚于fence指令
-    // ow：之后的设备输出、内存写的指令，不能早于fence指令
+    // fence はデバイス・メモリの read/write 順序を制御
+    // iorw: fence 以前の I/O/メモリ RW は fence より後にならない
+    // ow:   fence 以後の出力/書き込みは fence より前にならない
     printLn("  fence iorw, ow");
     printLn("1:");
-    // 加载地址中的值到t0
-    // lr（Load-Reserved）：加载并保留对该内存地址的控制权
-    // aq（acquisition）：若设置了aq位，
-    // 则此硬件线程中在AMO（原子内存操作）之后的任何内存操作，都不会在AMO之前发生
+    // アドレスの値を t0 にロード
+    // lr（Load-Reserved）: アドレスをロードし予約
+    // aq（acquire）: AMO 以後のメモリ操作が AMO より前に来ない
     printLn("  lr.w.aq t0, (t1)");
-    // 地址的值和旧值比较，若不等则退出
+    // 値と旧値を比較し，不一致なら抜ける
     printLn("  bne t0, t3, 2f");
-    // 写入新值到地址
-    // sc（Store-Conditional）：将寄存器中的值写入指定内存地址。
-    // 写入操作只有在该内存地址仍然被处理器保留时才会生效。
+    // 新値を書き込み
+    // sc（Store-Conditional）: 予約が有効なら書き込み成功
     printLn("  sc.w.aq a0, t4, (t1)");
-    // 不为0时，写入失败，重新写入
+    // 非 0 なら失敗。リトライ
     printLn("  bnez a0, 1b");
 
     printLn("2:");
-    // t0地址中的值 减去 t3旧值，将 差值 存入 t3
+    // t0（現値）- t3（旧値）→ t3
     printLn("  subw t3, t0, t3");
-    // 判断差值t3，t3为0时 返回值a0为1，t3不为0时 返回值a0为0
+    // t3==0 なら a0=1，非 0 なら a0=0
     printLn("  seqz a0, t3");
-    // 判断差值t3，t3为0时跳转到最后
+    // t3==0 なら末尾へ分岐
     printLn("  beqz t3, 3f");
-    // 若不同时，将 地址中的值t0 写入 t2旧值的地址，替换掉 旧值
+    // 不一致なら 現値 t0 を旧値アドレス t2 へ書き戻す
     printLn("  sw t0, (t2)");
     printLn("3:");
     return;
@@ -1656,7 +1652,7 @@ static void genExpr(Node *Nd) {
 
     int Sz = Nd->LHS->Ty->Base->Size;
     char *S = (Sz <= 4) ? "w" : "d";
-    printLn("  # 原子交换");
+    printLn("  # 原子交換");
     printLn("  amoswap.%s.aq a0, a0, (a1)", S);
     return;
   }

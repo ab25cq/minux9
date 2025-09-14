@@ -26,6 +26,9 @@ kernel.elf: crt0.o cc
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cat crt0.o cat.c $(CHILD_CFLAGS)
 	xxd -i cat > cat.h  
 
+#	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cc -g cc.c -mcmodel=medany $(CHILD_CFLAGS)
+#	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc crt0.o cc.c $(CHILD_CFLAGS)
+
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o hello -g hello.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o hello crt0.o hello.c $(CHILD_CFLAGS)
 	xxd -i hello > hello.h  
@@ -74,6 +77,10 @@ kernel.elf: crt0.o cc
 	# vi user program (very minimal)
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o vi -g vi.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o vi crt0.o vi.c $(CHILD_CFLAGS)
+
+	# minimal in-OS C compiler: cc
+#	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cc -g cc.c -mcmodel=medany $(CHILD_CFLAGS)
+#	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc crt0.o cc.c $(CHILD_CFLAGS)
 
 	# toy C: compiler + VM
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o toycc -g toycc.c -mcmodel=medany $(CHILD_CFLAGS)
@@ -130,6 +137,7 @@ clean:
 
 cc: crt0.o
 	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc \
-		crt0.o cc-main.c cc-codegen.c cc-parse.c cc-preprocess.c \
-		cc-tokenize.c cc-type.c cc-hashmap.c cc-string.c \
-		cc-unicode.c minux.c -I. -fno-omit-frame-pointer -DCC_S_ONLY -lgcc
+		crt0.o cc-main.c minux.c
+#		crt0.o cc-main.c cc-codegen.c cc-parse.c cc-preprocess.c \
+#		cc-tokenize.c cc-type.c cc-hashmap.c cc-string.c \
+#		cc-unicode.c minux.c -I. -fno-omit-frame-pointer -DCC_S_ONLY -lgcc

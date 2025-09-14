@@ -1,81 +1,81 @@
 #include "cc.h"
 
-// 宏函数形参
+// マクロ関数の仮引数
 typedef struct MacroParam MacroParam;
 struct MacroParam {
-  MacroParam *Next; // 下一个
-  char *Name;       // 名称
+  MacroParam *Next; // 次
+  char *Name;       // 名前
 };
 
-// 宏函数实参
+// マクロ関数の実引数
 typedef struct MacroArg MacroArg;
 struct MacroArg {
-  MacroArg *Next; // 下一个
-  char *Name;     // 名称
-  bool IsVaArg;   // 是否为可变参数
-  Token *Tok;     // 对应的终结符链表
+  MacroArg *Next; // 次
+  char *Name;     // 名前
+  bool IsVaArg;   // 可変長か
+  Token *Tok;     // 対応トークン列
 };
 
-// 宏处理函数
+// マクロ処理関数
 typedef Token *macroHandlerFn(Token *);
 
-// 定义的宏变量
+// 定義済みマクロ
 typedef struct Macro Macro;
 struct Macro {
-  char *Name;              // 名称
-  bool IsObjlike;          // 宏变量为真，或者宏函数为假
-  MacroParam *Params;      // 宏函数参数
-  char *VaArgsName;        // 可变参数
-  Token *Body;             // 对应的终结符
-  macroHandlerFn *Handler; // 宏处理函数
+  char *Name;              // 名前
+  bool IsObjlike;          // オブジェクト様（true）/関数様（false）
+  MacroParam *Params;      // 関数様マクロの引数
+  char *VaArgsName;        // 可変引数名
+  Token *Body;             // 展開本体
+  macroHandlerFn *Handler; // 特別なハンドラ
 };
 
-// 宏变量栈
+// マクロ表
 static HashMap Macros;
 
-// #if可以嵌套，所以使用栈来保存嵌套的#if
+// #if は入れ子可。入れ子状態をスタックで管理
 typedef struct CondIncl CondIncl;
 struct CondIncl {
-  CondIncl *Next;                         // 下一个
-  enum { IN_THEN, IN_ELIF, IN_ELSE } Ctx; // 类型
-  Token *Tok;                             // 对应的终结符
-  bool Included;                          // 是否被包含
+  CondIncl *Next;                         // 次
+  enum { IN_THEN, IN_ELIF, IN_ELSE } Ctx; // 状態
+  Token *Tok;                             // 対応トークン
+  bool Included;                          // 採用中か
 };
 
-// 预处理语言的设计方式使得即使存在递归宏也可以保证停止。
-// 一个宏只对每个终结符应用一次。
+// 事前処理は再帰マクロでも停止するよう設計されている。
+// 各トークンへは各マクロは1回のみ適用される。
 //
-// 宏展开时的隐藏集
+// マクロ展開の Hideset（再展開防止の集合）
 typedef struct Hideset Hideset;
 struct Hideset {
-  Hideset *Next; // 下一个
-  char *Name;    // 名称
+  Hideset *Next; // 次
+  char *Name;    // 名前
 };
 
-// 全局的#if保存栈
+// 大域の #if スタック
 static CondIncl *CondIncls;
-// 记录含有 #pragma once 的文件
+// #pragma once を記録
 static HashMap PragmaOnce;
-// 记录 #include_next 开始的索引值
+// #include_next の開始インデックス
 static int IncludeNextIdx;
 
-// 处理所有的宏和指示
+// マクロとディレクティブを処理
 static Token *preprocess2(Token *Tok);
-// 查找宏
+// マクロ検索
 static Macro *findMacro(Token *tok);
 
-// 是否行首是#号
+// 行頭の # 判定
 static bool isHash(Token *Tok) { return Tok->AtBOL && equal(Tok, "#"); }
 
-// 一些预处理器允许#include等指示，在换行前有多余的终结符
-// 此函数跳过这些终结符
+// 一部のプリプロセッサは改行前の余計なトークンを許すため
+// この関数でスキップする
 static Token *skipLine(Token *Tok) {
-  // 在行首，正常情况
+  // 行頭ならそのまま
   if (Tok->AtBOL)
     return Tok;
-  // 提示多余的字符
+  // 余計なトークンを警告
   warnTok(Tok, "extra token");
-  // 跳过终结符，直到行首
+  // 行頭まで読み飛ばす
   while (!Tok->AtBOL)
     Tok = Tok->Next;
   return Tok;
@@ -88,7 +88,7 @@ static Token *copyToken(Token *Tok) {
   return T;
 }
 
-// 新建一个EOF终结符
+// EOF トークンを作成
 static Token *newEOF(Token *Tok) {
   Token *T = copyToken(Tok);
   T->Kind = TK_EOF;
@@ -96,14 +96,14 @@ static Token *newEOF(Token *Tok) {
   return T;
 }
 
-// 新建一个隐藏集
+// Hideset を作成
 static Hideset *newHideset(char *Name) {
   Hideset *Hs = calloc(1, sizeof(Hideset));
   Hs->Name = Name;
   return Hs;
 }
 
-// 连接两个隐藏集
+// 2 つの Hideset を結合
 static Hideset *hidesetUnion(Hideset *Hs1, Hideset *Hs2) {
   Hideset Head = {};
   Hideset *Cur = &Head;
@@ -114,7 +114,7 @@ static Hideset *hidesetUnion(Hideset *Hs1, Hideset *Hs2) {
   return Head.Next;
 }
 
-// 是否已经处于宏变量当中
+// Hideset に名前が含まれるか
 static bool hidesetContains(Hideset *Hs, char *S, int Len) {
   // 遍历隐藏集
   for (; Hs; Hs = Hs->Next)
@@ -1189,6 +1189,7 @@ static Token *preprocess2(Token *Tok) {
 
 // 定义预定义的宏
 void defineMacro(char *Name, char *Buf) {
+write(1, "Y", 1);
   Token *Tok = tokenize(newFile("<built-in>", 1, Buf));
   addMacro(Name, true, Tok);
 }
@@ -1278,6 +1279,7 @@ static char *formatTime(struct tm *Tm) {
 
 // 初始化预定义的宏
 void initMacros(void) {
+write(1, "X", 1);
   defineMacro("_LP64", "1");
   defineMacro("__C99_MACRO_WITH_VA_ARGS", "1");
   defineMacro("__ELF__", "1");

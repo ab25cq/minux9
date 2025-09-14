@@ -9,6 +9,8 @@ typedef struct mem_block {
 
 mem_block_t *free_list = NULL;
 
+#define UART0        0x10000000UL
+
 void *malloc(size_t size) {
     if (size == 0) {
         return NULL;
@@ -21,8 +23,11 @@ void *malloc(size_t size) {
 
     mem_block_t *current = free_list;
     mem_block_t *prev = NULL;
+    
+*(char*)UART0 = '1';
 
     while (current != NULL) {
+*(char*)UART0 = '2';
         if (current->size >= size) {
             if (prev == NULL) {
                 free_list = current->next;
