@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9-dev" "fs.c"
+	.file 0 "/Users/ab25cq/minux9" "fs.c"
 	.local	vbase
 	.comm	vbase,8,8
 	.local	Q
@@ -4660,7 +4660,6 @@ gPipes:
 gFiles:
 	.zero	18688
 	.globl	gFreePipes
-	.section	.sbss,"aw",@nobits
 	.align	3
 	.type	gFreePipes, @object
 	.size	gFreePipes, 8
@@ -20106,6 +20105,8 @@ fs_dup2:
 	.string	"addrs"
 .LASF129:
 	.string	"kalloc_pages"
+.LASF169:
+	.string	"fs_chown"
 .LASF207:
 	.string	"remove_dirent"
 .LASF189:
@@ -20272,8 +20273,6 @@ fs_dup2:
 	.string	"first"
 .LASF106:
 	.string	"vbase"
-.LASF310:
-	.string	"GNU C17 14.2.0 -mabi=lp64 -mcmodel=medany -mtune=rocket -misa-spec=20191213 -march=rv64imafdc_zicsr_zifencei -g -ffreestanding"
 .LASF277:
 	.string	"second"
 .LASF252:
@@ -20564,8 +20563,8 @@ fs_dup2:
 	.string	"orig"
 .LASF205:
 	.string	"need"
-.LASF169:
-	.string	"fs_chown"
+.LASF310:
+	.string	"GNU C17 14.2.0 -mabi=lp64 -mno-small-data-limit=0 -mcmodel=medany -mtune=rocket -misa-spec=20191213 -march=rv64imafdc_zicsr_zifencei -g -fno-pie -ffreestanding"
 .LASF303:
 	.string	"sz_avail"
 .LASF199:
@@ -20681,9 +20680,9 @@ fs_dup2:
 .LASF87:
 	.string	"FK_STDIN"
 	.section	.debug_line_str,"MS",@progbits,1
+.LASF1:
+	.string	"/Users/ab25cq/minux9"
 .LASF0:
 	.string	"fs.c"
-.LASF1:
-	.string	"/Users/ab25cq/minux9-dev"
 	.ident	"GCC: (g04696df09) 14.2.0"
 	.section	.note.GNU-stack,"",@progbits

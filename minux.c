@@ -9,6 +9,46 @@ typedef struct mem_block {
 
 mem_block_t *free_list = NULL;
 
+int errno;
+
+// POSIX 風 sbrk: 成功で「旧プログラムブレーク」を返す。失敗で (void*)-1, errno=ENOMEM
+void *sbrk(ptrdiff_t increment) {
+    static uintptr_t cur;      // 現在の program break（ユーザ空間の絶対アドレス）
+    static int inited = 0;
+
+    // 初回：カーネルに問い合わせて現在の brk を知る
+    if (!inited) {
+        long now = brk(0);                // 実装が「クエリとしての brk(0)」でなくても、変更は起きない
+        if (now < 0) { errno = 12; return (void*)-1; }  // ENOMEM
+        cur = (uintptr_t)now;
+        inited = 1;
+    }
+
+    if (increment == 0) {
+        return (void*)cur;                // 現在の brk を返す
+    }
+
+    // オーバーフロー保護
+    uintptr_t want = cur + (intptr_t)increment;
+    if ((increment > 0 && want < cur) || (increment < 0 && want > cur)) {
+        errno = 12;                       // ENOMEM
+        return (void*)-1;
+    }
+
+    // 要求ブレークへ移動（brk の戻り値仕様に依らず、後で再取得して正規化）
+    long rc = brk((long)want);
+    if (rc < 0) { errno = 12; return (void*)-1; }
+
+    // 正規化：現在値を改めて読み直す
+    long newer = brk(0);
+    if (newer < 0) { errno = 12; return (void*)-1; }
+
+    void *old = (void*)cur;   // 旧ブレーク（これを返すのが sbrk の契約）
+    cur = (uintptr_t)newer;
+    return old;
+}
+
+
 #define UART0        0x10000000UL
 
 void *malloc(size_t size) {
@@ -25,6 +65,8 @@ void *malloc(size_t size) {
     mem_block_t *prev = NULL;
     
 *(char*)UART0 = '1';
+*(char*)UART0 = (char)current + '0';
+*(char*)UART0 = (char)free_list + '0';
 
     while (current != NULL) {
 *(char*)UART0 = '2';
@@ -39,8 +81,9 @@ void *malloc(size_t size) {
         prev = current;
         current = current->next;
     }
+*(char*)UART0 = '3';
 
-    mem_block_t *new_mem = (mem_block_t *)brk(size);
+    mem_block_t *new_mem = (mem_block_t *)sbrk(size);
     if (new_mem == (void *)-1) {
         return NULL; 
     }
@@ -712,43 +755,7 @@ int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     return p - out;
 }
 
-void putchar(char c)
-{
-    write(1, &c, 1);
-}
 
-void printint(int val_, int base, int sign) {
-    char buf[33];  
-    int i = 0;
-    int negative = 0;
-    unsigned int uval;
-
-    if (sign && val_ < 0) {
-        negative = 1;
-        uval = -val_;
-    } else {
-        uval = (unsigned int)val_;
-    }
-
-    if (uval == 0) {
-        putchar('0');
-        return;
-    }
-
-    while (uval > 0) {
-        int digit = uval % base;
-        buf[i++] = digit < 10 ? '0' + digit : 'a' + (digit - 10);
-        uval /= base;
-    }
-
-    if (negative) {
-        putchar('-');
-    }
-
-    while (--i >= 0) {
-        putchar(buf[i]);
-    }
-}
 
 // ───────────────────────────────────────────
 // Minimal stdio (FILE, fopen/fclose/fseek, vfprintf/fprintf, fscanf)
@@ -1049,160 +1056,8 @@ int fflush(FILE* fp) {
   return 0;
 }
 
-void printlong(unsigned long val_, int base, int sign)  {
-    char buf[65];  
-    int i = 0;
-    int negative = 0;
 
-    if (sign && (long)val_ < 0) {
-        negative = 1;
-        val_ = -(long)val_;
-    }
 
-    if (val_ == 0) {
-        putchar('0');
-        return;
-    }
-
-    while (val_ > 0) {
-        int digit = val_ % base;
-        buf[i++] = digit < 10 ? '0' + digit : 'a' + (digit - 10);
-        val_ /= base;
-    }
-
-    if (negative) {
-        putchar('-');
-    }
-
-    while (--i >= 0) {
-        putchar(buf[i]);
-    }
-}
-
-void printlonglong(unsigned long long val_, int base, int sign)  {
-    char buf[65];
-    int i = 0;
-    int negative = 0;
-
-    if (sign && (long long)val_ < 0) {
-        negative = 1;
-        val_ = -(long long)val_;
-    }
-
-    if (val_ == 0) {
-        putchar('0');
-        return;
-    }
-
-    while (val_ > 0) {
-        int digit = val_ % base;
-        buf[i++] = digit < 10 ? '0' + digit : 'a' + (digit - 10);
-        val_ /= base;
-    }
-
-    if (negative) {
-        putchar('-');
-    }
-
-    while (--i >= 0) {
-        putchar(buf[i]);
-    }
-}
-
-int printf(const char* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-
-    const char* p;
-    for (p = fmt; *p; p++) {
-        if (*p != '%') {
-            putchar(*p);
-            continue;
-        }
-
-        p++; 
-
-        if (*p == 'l') {
-            int lcount = 1;
-            if (*(p+1) == 'l') {
-                lcount = 2;
-                p++;
-            }
-            p++;
-
-            switch (*p) {
-                case 'x': {
-                    if (lcount == 1) {
-                        unsigned long val_ = va_arg(ap, unsigned long);
-                        printlong(val_, 16, 0);
-                    } else {
-                        unsigned long long val_ = va_arg(ap, unsigned long long);
-                        printlonglong(val_, 16, 0);
-                    }
-                    break;
-                }
-                case 'd': {
-                    if (lcount == 1) {
-                        long val_ = va_arg(ap, long);
-                        printlong(val_, 10, 1);
-                    } else {
-                        long long val_ = va_arg(ap, long long);
-                        printlonglong(val_, 10, 1);
-                    }
-                    break;
-                }
-                default: {
-                    putchar('%');
-                    for (int i=0; i<lcount; i++) putchar('l');
-                    putchar(*p);
-                    break;
-                }
-            }
-        } else {
-            switch (*p) {
-                case 'd': {
-                    int val_ = va_arg(ap, int);
-                    printint(val_, 10, 1);
-                    break;
-                }
-                case 'x': {
-                    unsigned int val_ = va_arg(ap, unsigned int);
-                    printint(val_, 16, 0);
-                    break;
-                }
-                case 'p': {
-                    unsigned long val_ = (unsigned long)va_arg(ap, void*);
-                    putchar('0'); putchar('x');
-                    printlong(val_, 16, 0);
-                    break;
-                }
-                case 's': {
-                    const char* s = va_arg(ap, const char*);
-                    if (!s) s = "(null)";
-                    while (*s) putchar(*s++);
-                    break;
-                }
-                case 'c': {
-                    char c = (char)va_arg(ap, int);
-                    putchar(c);
-                    break;
-                }
-                case '%': {
-                    putchar('%');
-                    break;
-                }
-                default: {
-                    putchar('%');
-                    putchar(*p);
-                    break;
-                }
-            }
-        }
-    }
-
-    va_end(ap);
-    return 0;
-}
 
 int fputc(int c, FILE* fp) {
     unsigned char ch = (unsigned char)c;

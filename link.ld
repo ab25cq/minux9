@@ -16,9 +16,10 @@ SECTIONS
   .text : { *(.text*) } :text
   . = ALIGN(4096); /* <-- この行を追加 */
   .rodata : { *(.rodata*) } :text
-  .data : { *(.data*) } :data
-  .sdata : { *(.sdata*) } :data
+  .data : { *(.data .data.*); } :data
+  . = ALIGN(16);
   .bss : { *(.bss) *(.bss.*) *(.sbss) *(.sbss.*) } :data
+  .sdata : { *(.sdata*) } :data
   PROVIDE(_code_end = .);
   . += STACK_MAX;
   PROVIDE(stack_top = .);

@@ -1,6 +1,9 @@
 CCPREFIX=riscv64-unknown-elf-
-CFLAGS=-march=rv64gc -mabi=lp64
-CHILD_CFLAGS=-I. -fno-omit-frame-pointer #-momit-leaf-frame-pointer #-mstack-alignment=16
+#CFLAGS=-march=rv64gc -mabi=lp64
+#CHILD_CFLAGS=-I. -fno-omit-frame-pointer #-momit-leaf-frame-pointer #-mstack-alignment=16
+CFLAGS_AS=-march=rv64gc -mabi=lp64
+CFLAGS=-march=rv64gc -mabi=lp64 -msmall-data-limit=0 -fno-pic -fno-pie -Wl,-no-pie
+CHILD_CFLAGS=-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie -nostdlib -mcmodel=medany -static -nostartfiles  -Wl,-e,_start -Wl,-no-pie -msmall-data-limit=0 -march=rv64gc -mabi=lp64 -Tuser.ld
 
 all: kernel.elf 
 
@@ -9,9 +12,9 @@ crt0.o: crt0.S
 	$(CCPREFIX)gcc $(CFLAGS) -c -o crt0.o crt0.S
 
 kernel.elf: crt0.o cc
-	$(CCPREFIX)as -g $(CFLAGS) -o entry.o entry.S
-	$(CCPREFIX)as -g $(CFLAGS) -o trap.o trap.S
-	$(CCPREFIX)as -g $(CFLAGS) -o userret.o userret.S
+	$(CCPREFIX)as -g $(CFLAGS_AS) -o entry.o entry.S
+	$(CCPREFIX)as -g $(CFLAGS_AS) -o trap.o trap.S
+	$(CCPREFIX)as -g $(CFLAGS_AS) -o userret.o userret.S
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o start.o start.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs.o fs.c
 	$(CCPREFIX)gcc $(CFLAGS) -S -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs.S fs.c
@@ -136,8 +139,8 @@ clean:
 # Always (re)build the filesystem image so updated userland like pwd is included
 
 cc: crt0.o
-	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc \
-		crt0.o cc-main.c minux.c
+	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -Tuser.ld -static -nostartfiles -Wl,-e,_start -o cc \
+		crt0.o cc-main.c minux.c $(CHILD_CFLAGS)
 #		crt0.o cc-main.c cc-codegen.c cc-parse.c cc-preprocess.c \
 #		cc-tokenize.c cc-type.c cc-hashmap.c cc-string.c \
 #		cc-unicode.c minux.c -I. -fno-omit-frame-pointer -DCC_S_ONLY -lgcc
