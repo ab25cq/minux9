@@ -194,20 +194,7 @@ int printf(const char* fmt, ...) {
     return 0;
 }
 
-//__attribute__((section(".data"))) static int free_ = 123;
-int free_ = 0;
-
 void *newFile(char *Name, int FileNo, char *Contents) {
-printf("free_ address %p\n", &free_);
-write(1, "LLL", 3);
-if(free_ == 0) {
-write(1, "YES", 3);
-}
-else {
-write(1, "NO", 3);
-}
-write(1, "LLL", 3);
-while(1);
     return (void*)0;
 }
 

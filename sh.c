@@ -391,7 +391,6 @@ int main(void) {
     char* p;
     
     for (;;) {
-/*
         //write(1, "\r\n", 2);
         // プロンプト
         write(1, "$ ", 2);
@@ -422,9 +421,8 @@ int main(void) {
             }
         }
         buf[n] = '\0';
-*/
         
-        strncpy(buf, "cc b.c", BUF_SIZE);
+//        strncpy(buf, "cc b.c", BUF_SIZE);
 //        strncpy(buf, "cat a.txt | grep ABC", BUF_SIZE);
         
         write(1, "\r\n", 2);
