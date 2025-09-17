@@ -8454,7 +8454,6 @@ Token *tokenizeFile(char *Path) {
   return tokenize(FP);
 }
 
-/*
 // マクロ関数の仮引数
 typedef struct MacroParam MacroParam;
 struct MacroParam {
@@ -9711,7 +9710,6 @@ static char *formatTime(struct tm *Tm) {
   // 时，分，秒
   return format("\"%02d:%02d:%02d\"", Tm->tm_hour, Tm->tm_min, Tm->tm_sec);
 }
-*/
 
 // 定义预定义的宏
 void defineMacro(char *Name, char *Buf) {
@@ -9788,7 +9786,6 @@ void initMacros(void) {
 */
 }
 
-/*
 // 字符串类型
 typedef enum {
   STR_NONE,
@@ -9919,7 +9916,6 @@ Token *preprocess(Token *Tok) {
     T->LineNo += T->LineDelta;
   return Tok;
 }
-*/
 
 // rvcc のエントリポイント
 int main(int Argc, char **Argv) {

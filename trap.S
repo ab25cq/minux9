@@ -421,7 +421,7 @@ asm_memmove:
     
     .align 2
     .global yield
-    .equ STACK_PAGES, 16
+    .equ STACK_PAGES, 64
     .equ STACK_MAX, 4096 * STACK_PAGES
     .extern stack_top
     .extern yield_stack
@@ -473,7 +473,7 @@ yield:
     call kernel_yield
     
     .align 2
-    .equ STACK_PAGES, 16
+    .equ STACK_PAGES, 64
     .equ STACK_MAX, 4096 * STACK_PAGES
     .global yield_return
     .extern stack_top
@@ -524,4 +524,3 @@ yield_return:
     csrw sepc, t0
 
     ret
-
