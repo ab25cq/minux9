@@ -1189,7 +1189,6 @@ static Token *preprocess2(Token *Tok) {
 
 // 定义预定义的宏
 void defineMacro(char *Name, char *Buf) {
-write(1, "Y", 1);
   Token *Tok = tokenize(newFile("<built-in>", 1, Buf));
   addMacro(Name, true, Tok);
 }
@@ -1279,7 +1278,6 @@ static char *formatTime(struct tm *Tm) {
 
 // 初始化预定义的宏
 void initMacros(void) {
-write(1, "X", 1);
   defineMacro("_LP64", "1");
   defineMacro("__C99_MACRO_WITH_VA_ARGS", "1");
   defineMacro("__ELF__", "1");

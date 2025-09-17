@@ -134,13 +134,13 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello qemu-run.log
 
 # Always (re)build the filesystem image so updated userland like pwd is included
 
 cc: crt0.o
 	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc \
-		crt0.o cc-main.c minux.c $(CHILD_CFLAGS)
-#		crt0.o cc-main.c cc-codegen.c cc-parse.c cc-preprocess.c \
+		crt0.o cc-main.c minux.c $(CHILD_CFLAGS) -DCC_S_ONLY -lgcc -fno-omit-frame-pointer 
+#	cc-codegen.c cc-parse.c cc-preprocess.c \
 #		cc-tokenize.c cc-type.c cc-hashmap.c cc-string.c \
-#		cc-unicode.c minux.c -I. -fno-omit-frame-pointer -DCC_S_ONLY -lgcc
+#		cc-unicode.c 

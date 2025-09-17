@@ -136,7 +136,6 @@ void free_proc(struct proc *p) {
         char* pa = walkaddr(p->pagetable, stack_base + i*PGSIZE);
 
         kfree(pa);
-//printf("stack kfree %p\n", pa);
     }
     for (int i=0; i<p->num_process_kalloc_address; i++) {
         kfree(p->process_kalloc_address[i]);
