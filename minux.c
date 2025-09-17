@@ -443,6 +443,11 @@ int isalnum(int c) {
     return (isalpha(c) || isdigit(c)) ? 1 : 0;
 }
 
+void putchar(char c)
+{
+    write(1, &c, 1);
+}
+
 
 void puts(const char *s) {
     while (*s) {

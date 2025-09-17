@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9" "sh.c"
+	.file 0 "/Users/ab25cq/minux9-dev" "sh.c"
 	.align	1
 	.globl	strcmp
 	.type	strcmp, @function
@@ -6038,6 +6038,6 @@ main:
 .LASF0:
 	.string	"sh.c"
 .LASF1:
-	.string	"/Users/ab25cq/minux9"
+	.string	"/Users/ab25cq/minux9-dev"
 	.ident	"GCC: (g04696df09) 14.2.0"
 	.section	.note.GNU-stack,"",@progbits
