@@ -577,7 +577,7 @@ main(int argc, char *argv[])
     //-------------------------------------------------------------------
     write_file_to_file_system("cat", 3);
     write_file_to_file_system("grep", 4);
-    write_file_to_file_system("hello3.elf", 5);
+    write_file_to_file_system("hello.c", 5);
     write_file_to_file_system("hello4.elf", 6);
     write_file_to_file_system("a.txt", 7);
     write_file_to_file_system("b.txt", 8);
@@ -604,6 +604,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("as", 29);
     write_file_to_file_system("ld", 30);
     write_file_to_file_system("minux_syscall.h", 31);
+    write_file_to_file_system("b.s", 32);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);

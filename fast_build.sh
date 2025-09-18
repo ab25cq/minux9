@@ -90,7 +90,6 @@ mkdir -p ~/.config/gdb
 echo "add-auto-load-safe-path $(pwd)/.gdbinit" >> ~/.config/gdb/gdbinit
 
 make clean
-make 
 if uname -a | grep Darwin
 then
     make run

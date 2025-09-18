@@ -1,1849 +1,2663 @@
-#include "minux.h"
+#include "as.h"
+
+const char progname[] = "wrasm";
+const struct versioninfo_t versioninfo = { 0, 0, 1, "alpha" };
+const char helpstr[] =
+	"The wrasm assembler\n"
+	"\n"
+	"A risc-V macro assembler based on nasm (see https://nasm.us/)\n"
+	"Currently still being built\n";
+
+struct cmdargs_t cmdargs;
+
+void *argtable[6];
+static void free_argtable(void);
+
+void parse_cmdargs(int argc, char *argv[])
+{
+	const char *progcall = argv[0];
+
+	argtable[0] = cmdargs.help =
+		arg_litn("h", "help", 0, 1, "display this help and exit");
+	argtable[1] = cmdargs.version =
+		arg_litn("V", "version", 0, 1, "display version info and exit");
+	argtable[2] = cmdargs.verbose =
+		arg_litn("v", "verbose", 0, 1, "verbose output");
+	argtable[3] = cmdargs.inputfile =
+		arg_filen(NULL, NULL, "<input>", 1, 3, "input file");
+	argtable[4] = cmdargs.outputfile =
+		arg_filen("o", "output", "<filename>", 1, 3, "output file");
+	argtable[5] = cmdargs.end = arg_end(20);
+
+	atexit(&free_argtable);
+
+	int nerrors = arg_parse(argc, argv, argtable);
+
+	if (cmdargs.help->count) {
+		printf("Usage: %s", progcall);
+		arg_print_syntax(stdout, argtable, "\n");
+		puts(helpstr);
+		arg_print_glossary(stdout, argtable, "  %-25s %s\n");
+		exit(EXIT_SUCCESS);
+	}
+
+	if (cmdargs.version->count) {
+		printf("%s version %d.%d.%d %s\n", progname, versioninfo.major,
+		       versioninfo.minor, versioninfo.patch, versioninfo.note);
+		exit(EXIT_SUCCESS);
+	}
+
+	if (cmdargs.inputfile->count > 1 || cmdargs.outputfile->count > 1)
+		nerrors++;
+
+	if (nerrors) {
+		arg_print_errors(stdout, cmdargs.end, progname);
+		printf("Try '%s --help' for more information\n", progcall);
+		exit(EXIT_FAILURE);
+	}
+
+	if (cmdargs.verbose->count) {
+		set_min_loglevel(DEBUG);
+	}
+}
+
+static void free_argtable(void)
+{
+	arg_freetable(argtable, ARRAY_LENGTH(argtable));
+}
+
+#include "debug.h"
+
 #include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Simple RISC-V assembler for the Minux9 userland toolchain
-//
-//  This assembler targets the subset of RISC-V assembly emitted by the bundled
-//  C compiler (cc.c).  It is intentionally minimal and self-contained so it can
-//  run inside the Minux9 environment.  The assembler produces a custom object
-//  format that will be consumed by a companion linker (ld.c).  Objects contain
-//  section data, symbol metadata, and relocation records.  The linker will then
-//  resolve relocations, lay out the final image, and emit an ELF64 executable.
-//
-//  The implementation is split into several logical parts:
-//    * data structure helpers (growable arrays, string utilities)
-//    * section/symbol/relocation bookkeeping
-//    * tokenisation and minimal parsing support
-//    * directive handling (.text/.data/.bss/.align/.byte/.zero/etc)
-//    * instruction encoding (integer, floating-point, atomics, pseudo ops)
-//    * expression parsing for immediates and relocation aware operands
-//    * object writer (our lightweight format)
-//
-//  NOTE: the assembler purposefully focuses on the instructions/directives used
-//  by cc.c.  It is not a general purpose assembler and omits many architectural
-//  features.  Where instructions require relocations their immediate fields are
-//  left zeroed and a relocation entry is emitted so that the linker can resolve
-//  them after the final layout is known.
-// ─────────────────────────────────────────────────────────────────────────────
+#include "args.h"
 
-#define ARRAY_LEN(x) ((int)(sizeof(x) / sizeof((x)[0])))
+size_t linenumber;
 
-static void fatal(const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  fprintf(stderr, "as: ");
-  vfprintf(stderr, fmt, ap);
-  fprintf(stderr, "\n");
-  va_end(ap);
-  exit(1);
+const char *level_names[6] = {
+	"debug", "info", "warning", "error", "critical", "none",
+};
+const char *level_colours[6] = {
+	"",
+	"\033[0;36;1m",
+	"\033[0;35;1m",
+	"\033[0;31;1m",
+	"\033[1;31;1m",
+	"\033[1m",
+};
+size_t level_instances[6] = { 0 };
+
+static enum loglvl_t minloglevel = WARN;
+static enum loglvl_t exitloglevel = ERROR;
+
+void set_min_loglevel(enum loglvl_t level)
+{
+	minloglevel = level;
+	logger(INFO, no_error, "Log level set to %s%s\033[0m",
+	       level_colours[minloglevel], level_names[minloglevel]);
 }
 
-static void *xmalloc(size_t n) {
-  void *p = malloc(n);
-  if (!p)
-    fatal("out of memory");
-  return p;
+void set_exit_loglevel(enum loglvl_t level)
+{
+	exitloglevel = level;
+	logger(INFO, no_error, "Exit log level set to %s%s\033[0m",
+	       level_colours[exitloglevel], level_names[exitloglevel]);
 }
 
-static void *xrealloc(void *ptr, size_t n) {
-  void *p = realloc(ptr, n);
-  if (!p)
-    fatal("out of memory");
-  return p;
+void logger(enum loglvl_t level, enum error_t id, const char *format, ...)
+{
+	level_instances[level]++;
+	if (level < minloglevel)
+		return;
+
+	FILE *out = stderr;
+
+	fprintf(out, "%s: %s0x%.02x\033[0m / %s%s\033[0m ", progname,
+		level_colours[level], id, level_colours[level],
+		level_names[level]);
+	if (linenumber)
+		fprintf(out, "- %sL%lu\033[0m ", level_colours[level],
+			(unsigned long)linenumber);
+
+	va_list format_params;
+	va_start(format_params, format);
+	vfprintf(out, format, format_params);
+	va_end(format_params);
+
+	putc('\n', out);
+
+	if (level >= exitloglevel)
+		exit(EXIT_FAILURE);
 }
 
-static int digit_val(int c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-  return -1;
+int get_clean_exit(enum loglvl_t level)
+{
+	for (; level <= NODEBUG; level++)
+		if (level_instances[level])
+			return 1;
+	return 0;
+}
+#include "generation.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "bytecode.h"
+#include "debug.h"
+#include "directives.h"
+#include "elf/output.h"
+#include "parse.h"
+#include "stringutil.h"
+#include "symbols.h"
+#include "xmalloc.h"
+
+/*
+ * custom getline implementation for cross platform support removes newline at
+ * end of line and therefore not compatible with GNU/POSIX getline
+ */
+size_t getl(char **lineptr, size_t *n, FILE *stream)
+{
+	char *bufptr = NULL;
+	char *p = bufptr;
+	size_t size;
+	int c;
+
+	if (lineptr == NULL)
+		return (size_t)-1;
+	if (stream == NULL)
+		return (size_t)-1;
+	if (n == NULL)
+		return (size_t)-1;
+
+	bufptr = *lineptr;
+	size = *n;
+
+	c = fgetc(stream);
+	if (c == EOF)
+		return (size_t)-1;
+
+	if (!bufptr) {
+		size = 128;
+		bufptr = xmalloc(size);
+	}
+	p = bufptr;
+	while (c != EOF) {
+		if ((size_t)(p - bufptr) > (size - 1)) {
+			size = size + 128;
+			bufptr = xrealloc(bufptr, size);
+		}
+		if (c == '\n')
+			break;
+		*p++ = (char)c;
+		c = fgetc(stream);
+	}
+
+	*(p++) = '\0';
+	*lineptr = bufptr;
+	*n = size;
+
+	return (size_t)(p - bufptr - 1);
 }
 
-static const char *skip_spaces(const char *s) {
-  while (*s && isspace((unsigned char)*s))
-    s++;
-  return s;
+void parse_file(FILE *ifp, FILE *ofp)
+{
+	char *line = NULL;
+	size_t linesize = 0;
+	size_t nread;
+
+	linenumber = 0;
+
+	fseek(ifp, 0L, SEEK_SET);
+
+	while ((nread = getl(&line, &linesize, ifp)) != (size_t)-1) {
+		linenumber++;
+		logger(DEBUG, no_error, "Parsing line \"%s\"", line);
+		if (parse_line(line, get_outputpos()))
+			return;
+		logger(DEBUG, no_error, " | Finished parsing line");
+	}
+
+	linenumber = 0;
+
+	calc_strtab();
+	calc_symtab();
+	alloc_output();
+
+	write_all();
+
+	free(line);
+
+	linenumber = 0;
+
+	fill_strtab();
+	fill_symtab();
+
+	flush_output(ofp);
+
+	free_output();
+	free_instructions();
+	free_data();
+	free_symbols();
 }
 
-static char *find_plus_minus(char *s) {
-  for (; *s; s++) {
-    if (*s == '+' || *s == '-')
-      return s;
-  }
-  return NULL;
+static inline int parse_line_trimmed(char *, struct sectionpos);
+int parse_line(char *line, struct sectionpos position)
+{
+	char *trimmed_line = trim_whitespace(line);
+	const int result = parse_line_trimmed(trimmed_line, position);
+	free(trimmed_line);
+	return result;
 }
 
-static char *read_line(FILE *fp, char *buf, size_t size) {
-  if (!fp || size == 0)
-    return NULL;
+static inline int parse_line_trimmed(char *line, struct sectionpos position)
+{
+	logger(DEBUG, no_error, " |-> \"%s\"", line);
 
-  size_t i = 0;
-  int c = 0;
-  while (i + 1 < size) {
-    c = fgetc(fp);
-    if (c == EOF)
-      break;
-    buf[i++] = (char)c;
-    if (c == '\n')
-      break;
-  }
+	switch (*line) {
+	case '\0':
+	case ';':
+		return 0;
+	case '.':
+	case '[':
+		return parse_directive(line);
+	case '/':
+		if (line[1] == '/')
+			return 0;
+	}
 
-  if (i == 0 && c == EOF)
-    return NULL;
+	if (strchr(line, ':'))
+		return parse_label(line, position);
 
-  buf[i] = '\0';
-  return buf;
+	return parse_asm(line, position);
 }
 
-static uint64_t parse_uint_auto(const char *str) {
-  const char *s = skip_spaces(str);
-  int base = 10;
-  if (s[0] == '0') {
-    if (s[1] == 'x' || s[1] == 'X') { base = 16; s += 2; }
-    else if (s[1] == 'b' || s[1] == 'B') { base = 2; s += 2; }
-    else if (s[1] >= '0' && s[1] <= '7') { base = 8; s += 1; }
-  }
+int parse_label(char *line, struct sectionpos position)
+{
+	char *end = strchr(line, ':');
+	/* check for invalid label definition */
+	if (end == NULL)
+		return 0;
 
-  uint64_t val = 0;
-  while (*s) {
-    int d = digit_val(*s);
-    if (d < 0 || d >= base)
-      break;
-    val = val * base + (uint64_t)d;
-    s++;
-  }
-  return val;
+	logger(DEBUG, no_error, "Creating label (%s)", line);
+
+	*(end++) = '\0';
+	char *name = trim_whitespace(line);
+	struct symbol *label = get_or_create_symbol(name, SYMBOL_LABEL);
+	free(name);
+
+	const struct sectionpos fpos = get_outputpos();
+	if (fpos.offset == (size_t)-1) {
+		logger(CRITICAL, error_system,
+		       "Unable to determine section file position");
+		return 1;
+	}
+
+	label->section = fpos.section;
+	label->value = (long)fpos.offset;
+
+	logger(DEBUG, no_error, "Moving on to line (%s %p)", end, end);
+	return parse_line(end, position);
 }
 
-static int64_t parse_int_auto(const char *str) {
-  const char *s = skip_spaces(str);
-  int sign = 1;
-  if (*s == '+') {
-    s++;
-  } else if (*s == '-') {
-    sign = -1;
-    s++;
-  }
-  return (int64_t)(sign * (int64_t)parse_uint_auto(s));
+int parse_preprocessor(const char *line)
+{
+	/* TODO: implement preprocessor stuff */
+	(void)line;
+	logger(WARN, error_not_implemented, "Preprocessor not implemented");
+	return 0;
 }
 
-static long parse_long10(const char *str) {
-  const char *s = skip_spaces(str);
-  int sign = 1;
-  if (*s == '+') s++;
-  else if (*s == '-') { sign = -1; s++; }
-  long val = 0;
-  while (*s >= '0' && *s <= '9') {
-    val = val * 10 + (*s - '0');
-    s++;
-  }
-  return sign * val;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Growable array helpers (vector-like)
-
-#define DECL_VEC(Type, Name)                                                   \
-  typedef struct {                                                             \
-    Type *data;                                                                \
-    size_t len;                                                                \
-    size_t cap;                                                                \
-  } Name;                                                                      \
-                                                                              \
-  static void Name##_push(Name *vec, Type value) {                             \
-    if (vec->len == vec->cap) {                                                \
-      size_t new_cap = vec->cap ? vec->cap * 2 : 16;                           \
-      vec->data = xrealloc(vec->data, new_cap * sizeof(Type));                 \
-      vec->cap = new_cap;                                                      \
-    }                                                                          \
-    vec->data[vec->len++] = value;                                             \
-  }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section / symbol / relocation metadata
-
-typedef enum {
-  SEC_TEXT,
-  SEC_DATA,
-  SEC_BSS,
-  SEC_RODATA,
-  SEC_TDATA,
-  SEC_TBSS,
-  SEC_CUSTOM_START
-} SectionKind;
-
-typedef struct {
-  char *name;
-  SectionKind kind;
-  uint8_t *data;
-  size_t size;
-  size_t cap;
-  size_t align;   // alignment requirement (power of two)
-  bool alloc;     // occupies memory (bss has alloc but no data stored)
-  bool exec;      // executable instructions
-  bool write;     // writable
-} Section;
-
-DECL_VEC(Section, SectionVec)
-
-static Section *current_section;
-static SectionVec sections;
-
-static Section *new_section(const char *name, SectionKind kind, bool alloc,
-                            bool exec, bool write) {
-  Section sec = {
-      .name = strdup(name),
-      .kind = kind,
-      .data = NULL,
-      .size = 0,
-      .cap = 0,
-      .align = 1,
-      .alloc = alloc,
-      .exec = exec,
-      .write = write,
-  };
-  SectionVec_push(&sections, sec);
-  return &sections.data[sections.len - 1];
-}
-
-static Section *find_or_create_section(const char *name) {
-  for (size_t i = 0; i < sections.len; i++) {
-    if (strcmp(sections.data[i].name, name) == 0)
-      return &sections.data[i];
-  }
-
-  SectionKind kind = SEC_CUSTOM_START;
-  bool alloc = true, exec = false, write = true;
-
-  if (strcmp(name, ".text") == 0) {
-    kind = SEC_TEXT;
-    exec = true;
-    write = false;
-  } else if (strcmp(name, ".data") == 0) {
-    kind = SEC_DATA;
-  } else if (strcmp(name, ".bss") == 0) {
-    kind = SEC_BSS;
-  } else if (strcmp(name, ".rodata") == 0) {
-    kind = SEC_RODATA;
-    write = false;
-  } else if (strcmp(name, ".tdata") == 0) {
-    kind = SEC_TDATA;
-  } else if (strcmp(name, ".tbss") == 0) {
-    kind = SEC_TBSS;
-  }
-
-  return new_section(name, kind, alloc, exec, write);
-}
-
-static Section *require_current_section(void) {
-  if (!current_section)
-    fatal("no active section (.text/.data/.bss)");
-  return current_section;
-}
-
-static void ensure_capacity(Section *sec, size_t extra) {
-  if (!sec->write && sec->kind != SEC_TEXT && sec->kind != SEC_RODATA &&
-      sec->kind != SEC_TDATA) {
-    // Non-writable, non-text, non-rodata sections shouldn't receive data via
-    // the assembler stream.
-    fatal("section %s does not accept data emission", sec->name);
-  }
-
-  if (sec->cap < sec->size + extra) {
-    size_t new_cap = sec->cap ? sec->cap * 2 : 64;
-    while (new_cap < sec->size + extra)
-      new_cap *= 2;
-    sec->data = xrealloc(sec->data, new_cap);
-    sec->cap = new_cap;
-  }
-}
-
-static void emit_bytes(Section *sec, const void *src, size_t n) {
-  ensure_capacity(sec, n);
-  memcpy(sec->data + sec->size, src, n);
-  sec->size += n;
-}
-
-static void emit_u8(Section *sec, uint8_t v) { emit_bytes(sec, &v, 1); }
-
-static void emit_u32(Section *sec, uint32_t v) {
-  uint8_t buf[4] = {v & 0xff, (uint8_t)(v >> 8), (uint8_t)(v >> 16),
-                    (uint8_t)(v >> 24)};
-  emit_bytes(sec, buf, 4);
-}
-
-static void emit_u64(Section *sec, uint64_t v) {
-  uint8_t buf[8];
-  for (int i = 0; i < 8; i++)
-    buf[i] = (uint8_t)(v >> (i * 8));
-  emit_bytes(sec, buf, 8);
-}
-
-static void align_section(Section *sec, size_t align) {
-  if (align == 0)
-    return;
-  if ((align & (align - 1)) != 0)
-    fatal("alignment must be power of two");
-  if (sec->align < align)
-    sec->align = align;
-
-  size_t mask = align - 1;
-  size_t padding = (-sec->size) & mask;
-  if (padding && (sec->write || sec->exec)) {
-    // For alloc/data sections we physically emit zeros to honour the alignment.
-    for (size_t i = 0; i < padding; i++)
-      emit_u8(sec, 0);
-  } else {
-    // For BSS-like sections we only adjust the logical size.
-    sec->size += padding;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Symbol table
-
-typedef enum {
-  SYM_LOCAL = 0,
-  SYM_GLOBAL = 1,
-} SymbolVisibility;
-
-typedef enum {
-  SYM_UNDEF = -1,
-  SYM_ABS = -2,
-  SYM_COMMON = -3,
-} SymbolSectionSpecial;
-
-typedef enum {
-  SYM_TYPE_NONE = 0,
-  SYM_TYPE_FUNC = 1,
-  SYM_TYPE_OBJECT = 2,
-} SymbolType;
-
-typedef struct {
-  char *name;
-  int section;      // index into sections (>=0) or SYM_UNDEF / etc
-  uint64_t value;   // offset within section or absolute value
-  uint64_t size;    // function/object size when provided
-  SymbolVisibility vis;
-  SymbolType type;
-  uint32_t align;   // for commons
-} Symbol;
-
-DECL_VEC(Symbol, SymbolVec)
-
-static SymbolVec symbols;
-
-static Symbol *find_symbol(const char *name) {
-  for (size_t i = 0; i < symbols.len; i++) {
-    if (strcmp(symbols.data[i].name, name) == 0)
-      return &symbols.data[i];
-  }
-  return NULL;
-}
-
-static Symbol *intern_symbol(const char *name) {
-  Symbol *sym = find_symbol(name);
-  if (sym)
-    return sym;
-  Symbol tmp = {
-      .name = strdup(name),
-      .section = SYM_UNDEF,
-      .value = 0,
-      .size = 0,
-      .vis = SYM_LOCAL,
-      .type = SYM_TYPE_NONE,
-      .align = 0,
-  };
-  SymbolVec_push(&symbols, tmp);
-  return &symbols.data[symbols.len - 1];
-}
-
-static int symbol_index(Symbol *sym) {
-  return (int)(sym - symbols.data);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Relocation records
-
-typedef enum {
-  RELOC_ABS64,
-  RELOC_HI20,
-  RELOC_LO12_I,
-  RELOC_LO12_S,
-  RELOC_PCREL_HI20,
-  RELOC_PCREL_LO12_I,
-  RELOC_PCREL_LO12_S,
-  RELOC_BRANCH,
-  RELOC_JAL,
-  RELOC_CALL,
-  RELOC_TPREL_HI20,
-  RELOC_TPREL_LO12_I,
-  RELOC_TPREL_LO12_S,
-} RelocType;
-
-typedef struct {
-  int section;     // section index that owns this relocation
-  uint64_t offset; // offset within section
-  int symbol;      // symbol table index
-  int64_t addend;  // addend to be applied
-  RelocType type;
-} Reloc;
-
-DECL_VEC(Reloc, RelocVec)
-
-static RelocVec relocs;
-
-static void add_reloc(int section_index, uint64_t offset, Symbol *sym,
-                      int64_t addend, RelocType type) {
-  Reloc rec = {
-      .section = section_index,
-      .offset = offset,
-      .symbol = symbol_index(sym),
-      .addend = addend,
-      .type = type,
-  };
-  RelocVec_push(&relocs, rec);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Token helpers for parsing operands / directives
-
-typedef struct {
-  char *base;  // owning buffer (line storage)
-  char *s;     // current parse cursor
-} LineReader;
-
-static void lr_init(LineReader *lr, char *line) {
-  lr->base = line;
-  lr->s = line;
-}
-
-static void lr_skip_spaces(LineReader *lr) {
-  while (*lr->s && isspace((unsigned char)*lr->s))
-    lr->s++;
-}
-
-static bool is_ident_start(int c) {
-  return isalpha(c) || c == '_' || c == '.' || c == '$';
-}
-
-// Read raw token up to comma/space/comment keeping parentheses
-static char *lr_read_token(LineReader *lr) {
-  lr_skip_spaces(lr);
-  if (*lr->s == '\0')
-    return NULL;
-
-  char *start = lr->s;
-  int paren = 0;
-  while (*lr->s) {
-    char c = *lr->s;
-    if (c == '(')
-      paren++;
-    else if (c == ')')
-      paren--;
-    else if (c == ',' && paren == 0)
-      break;
-    else if ((c == '#' || c == ';') && paren == 0)
-      break;
-    lr->s++;
-  }
-
-  size_t len = (size_t)(lr->s - start);
-  char *tok = xmalloc(len + 1);
-  memcpy(tok, start, len);
-  tok[len] = '\0';
-
-  if (*lr->s == ',')
-    lr->s++;
-  return tok;
-}
-
-static char *str_trim(char *s) {
-  while (*s && isspace((unsigned char)*s))
-    s++;
-  char *end = s + strlen(s);
-  while (end > s && isspace((unsigned char)end[-1]))
-    *--end = '\0';
-  return s;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Register parsing
-
-static int parse_int_reg(const char *tok) {
-  if (tok[0] == 'x' && tok[1] >= '0' && tok[1] <= '9') {
-    long v = parse_long10(tok + 1);
-    const char *p = tok + 1;
-    while (*p >= '0' && *p <= '9') p++;
-    if (*p == '\0' && v >= 0 && v <= 31)
-      return (int)v;
-  }
-
-  static const char *names[] = {
-      "zero", "ra",  "sp",  "gp",  "tp",  "t0",  "t1",  "t2",
-      "s0",   "s1",  "a0",  "a1",  "a2",  "a3",  "a4",  "a5",
-      "a6",   "a7",  "s2",  "s3",  "s4",  "s5",  "s6",  "s7",
-      "s8",   "s9",  "s10", "s11", "t3",  "t4",  "t5",  "t6",
-  };
-
-  for (int i = 0; i < 32; i++) {
-    if (strcmp(tok, names[i]) == 0)
-      return i;
-  }
-
-  if (tok[0] == 's' && tok[1] == 'p' && tok[2] == '\0')
-    return 2; // redundant but harmless
-
-  return -1;
-}
-
-static int parse_float_reg(const char *tok) {
-  if ((tok[0] == 'f' || tok[0] == 'F') && (tok[1] == 's' || tok[1] == 't' ||
-                                           tok[1] == 'a' || tok[1] == 'f')) {
-    // support ABI aliases fs0..fs11, ft0..ft11, fa0..fa7, f0..f31
-    if (tok[1] == 's' || tok[1] == 't' || tok[1] == 'a') {
-      static const char *fs_names[] = {"fs0", "fs1", "fs2", "fs3", "fs4",
-                                       "fs5", "fs6", "fs7", "fs8", "fs9",
-                                       "fs10", "fs11"};
-      static const char *ft_names[] = {"ft0", "ft1", "ft2", "ft3", "ft4",
-                                       "ft5", "ft6", "ft7", "ft8", "ft9",
-                                       "ft10", "ft11"};
-      static const char *fa_names[] = {"fa0", "fa1", "fa2", "fa3",
-                                       "fa4", "fa5", "fa6", "fa7"};
-
-      for (int i = 0; i < ARRAY_LEN(ft_names); i++)
-        if (strcmp(tok, ft_names[i]) == 0)
-          return i < 8 ? i : 16 + (i - 8);
-      for (int i = 0; i < ARRAY_LEN(fa_names); i++)
-        if (strcmp(tok, fa_names[i]) == 0)
-          return 10 + i;
-      for (int i = 0; i < ARRAY_LEN(fs_names); i++)
-        if (strcmp(tok, fs_names[i]) == 0)
-          return 8 + i;
-    }
-  }
-
-  if ((tok[0] == 'f' || tok[0] == 'F') && tok[1] >= '0' && tok[1] <= '9') {
-    long v = parse_long10(tok + 1);
-    const char *p = tok + 1;
-    while (*p >= '0' && *p <= '9') p++;
-    if (*p == '\0' && v >= 0 && v <= 31)
-      return (int)v;
-  }
-
-  return -1;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Expression parsing for immediates (symbol + addend / reloc wrappers)
-
-typedef enum {
-  EXPR_IMM,       // pure immediate value
-  EXPR_SYMBOL,    // symbol (optionally with addend)
-  EXPR_RELOC_WRP, // relocation wrapper e.g. %pcrel_lo(sym)
-} ExprKind;
-
-typedef struct {
-  ExprKind kind;
-  int64_t imm;
-  Symbol *sym;
-  RelocType reloc; // valid when kind == EXPR_RELOC_WRP
-  int64_t addend;  // for symbol or reloc wrappers supporting sym+const
-} Expr;
-
-static RelocType reloc_from_wrapper(const char *name, bool is_store) {
-  if (strcmp(name, "%hi") == 0)
-    return RELOC_HI20;
-  if (strcmp(name, "%lo") == 0)
-    return is_store ? RELOC_LO12_S : RELOC_LO12_I;
-  if (strcmp(name, "%pcrel_hi") == 0)
-    return RELOC_PCREL_HI20;
-  if (strcmp(name, "%pcrel_lo") == 0)
-    return is_store ? RELOC_PCREL_LO12_S : RELOC_PCREL_LO12_I;
-  if (strcmp(name, "%tprel_hi") == 0)
-    return RELOC_TPREL_HI20;
-  if (strcmp(name, "%tprel_lo") == 0)
-    return is_store ? RELOC_TPREL_LO12_S : RELOC_TPREL_LO12_I;
-  fatal("unsupported relocation wrapper %s", name);
-  return RELOC_ABS64; // unreachable
-}
-
-static Expr parse_expr(const char *tok, bool is_store_format) {
-  Expr e = {.kind = EXPR_IMM, .imm = 0, .sym = NULL, .reloc = RELOC_ABS64,
-            .addend = 0};
-
-  char *copy = strdup(tok);
-  char *s = str_trim(copy);
-  if (*s == '\0') {
-    free(copy);
-    fatal("expected expression, got empty token");
-  }
-
-  if (*s == '%') {
-    char *paren = strchr(s, '(');
-    if (!paren || paren[1] == '\0')
-      fatal("malformed relocation wrapper: %s", tok);
-    *paren = '\0';
-    char *close = strrchr(paren + 1, ')');
-    if (!close)
-      fatal("missing ')' in %s", tok);
-    *close = '\0';
-
-    RelocType reloc = reloc_from_wrapper(s, is_store_format);
-    char *inside = str_trim(paren + 1);
-
-    char *plus = find_plus_minus(inside);
-    int64_t addend = 0;
-    if (plus && plus != inside) {
-      addend = parse_int_auto(plus);
-      *plus = '\0';
-    }
-
-    Symbol *sym = intern_symbol(inside);
-    e.kind = EXPR_RELOC_WRP;
-    e.sym = sym;
-    e.reloc = reloc;
-    e.addend = addend;
-  } else if (is_ident_start((unsigned char)*s)) {
-    char *plus = find_plus_minus(s);
-    int64_t addend = 0;
-    if (plus && plus != s) {
-      addend = parse_int_auto(plus);
-      *plus = '\0';
-    }
-    Symbol *sym = intern_symbol(s);
-    e.kind = EXPR_SYMBOL;
-    e.sym = sym;
-    e.addend = addend;
-  } else {
-    e.kind = EXPR_IMM;
-    e.imm = parse_int_auto(s);
-  }
-
-  free(copy);
-  return e;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Numeric local label helpers ("1:", "1f", "1b", ... )
-
-typedef struct {
-  int count_defined[10];
-} NumericLabelState;
-
-static NumericLabelState num_label_state;
-
-static char *numeric_label_name(int digit, int index) {
-  char buf[32];
-  snprintf(buf, sizeof(buf), ".L.num%d.%d", digit, index);
-  return strdup(buf);
-}
-
-static Symbol *numeric_label_ref(int digit, bool forward) {
-  if (digit < 0 || digit > 9)
-    fatal("numeric label digit out of range");
-  int index;
-  if (forward)
-    index = num_label_state.count_defined[digit];
-  else {
-    index = num_label_state.count_defined[digit] - 1;
-    if (index < 0)
-      fatal("numeric label %db not defined yet", digit);
-  }
-  char *name = numeric_label_name(digit, index);
-  Symbol *sym = intern_symbol(name);
-  free(name);
-  return sym;
-}
-
-static Symbol *numeric_label_define(int digit, Section *sec) {
-  if (digit < 0 || digit > 9)
-    fatal("numeric label digit out of range");
-  int index = num_label_state.count_defined[digit]++;
-  char *name = numeric_label_name(digit, index);
-  Symbol *sym = intern_symbol(name);
-  free(name);
-  sym->section = (int)(sec - sections.data);
-  sym->value = sec->size;
-  return sym;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Instruction encoding helpers
-
-static uint32_t encode_r_type(int funct7, int rs2, int rs1, int funct3, int rd,
-                              int opcode) {
-  return (uint32_t)((funct7 & 0x7f) << 25 | (rs2 & 0x1f) << 20 |
-                    (rs1 & 0x1f) << 15 | (funct3 & 7) << 12 | (rd & 0x1f) << 7 |
-                    (opcode & 0x7f));
-}
-
-static uint32_t encode_i_type(int imm, int rs1, int funct3, int rd, int opcode) {
-  return (uint32_t)(((imm & 0xfff) << 20) | (rs1 & 0x1f) << 15 |
-                    (funct3 & 7) << 12 | (rd & 0x1f) << 7 | (opcode & 0x7f));
-}
-
-static uint32_t encode_s_type(int imm, int rs2, int rs1, int funct3,
-                              int opcode) {
-  int imm11_5 = (imm >> 5) & 0x7f;
-  int imm4_0 = imm & 0x1f;
-  return (uint32_t)((imm11_5 << 25) | (rs2 & 0x1f) << 20 | (rs1 & 0x1f) << 15 |
-                    (funct3 & 7) << 12 | (imm4_0 << 7) | (opcode & 0x7f));
-}
-
-static uint32_t encode_u_type(int imm, int rd, int opcode) {
-  return (uint32_t)(((imm & 0xfffff) << 12) | (rd & 0x1f) << 7 |
-                    (opcode & 0x7f));
-}
-
-static uint32_t encode_b_type(int imm, int rs2, int rs1, int funct3,
-                              int opcode) {
-  int imm12 = (imm >> 12) & 1;
-  int imm11 = (imm >> 11) & 1;
-  int imm10_5 = (imm >> 5) & 0x3f;
-  int imm4_1 = (imm >> 1) & 0xf;
-  return (uint32_t)((imm12 << 31) | (imm11 << 7) | (imm10_5 << 25) |
-                    (imm4_1 << 8) | (rs2 & 0x1f) << 20 | (rs1 & 0x1f) << 15 |
-                    (funct3 & 7) << 12 | (opcode & 0x7f));
-}
-
-static uint32_t encode_j_type(int imm, int rd, int opcode) {
-  int imm20 = (imm >> 20) & 1;
-  int imm10_1 = (imm >> 1) & 0x3ff;
-  int imm11 = (imm >> 11) & 1;
-  int imm19_12 = (imm >> 12) & 0xff;
-  return (uint32_t)((imm20 << 31) | (imm19_12 << 12) | (imm11 << 20) |
-                    (imm10_1 << 21) | (rd & 0x1f) << 7 | (opcode & 0x7f));
-}
-
-// Forward declaration for instruction dispatcher so that pseudo op helpers can
-// reuse it when they need to emit real instructions.
-static void assemble_instruction(const char *mnemonic, char **operands,
-                                 int operand_count, Section *sec);
-
-// Convenience wrapper to emit a concrete instruction by re-invoking the
-// dispatcher (used by pseudo instructions expanding to multiple real ops).
-static void emit_instr(const char *fmt, ...) {
-  char buf[128];
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(buf, sizeof(buf), fmt, ap);
-  va_end(ap);
-
-  char *tmp = strdup(buf);
-  char *mn = str_trim(tmp);
-  char *space = strchr(mn, ' ');
-  char *operands[8];
-  int count = 0;
-
-  if (space) {
-    *space = '\0';
-    char *rest = space + 1;
-    char *tok;
-    LineReader lr;
-    lr_init(&lr, rest);
-    while ((tok = lr_read_token(&lr)) != NULL) {
-      char *trimmed = str_trim(tok);
-      if (*trimmed) {
-        operands[count++] = strdup(trimmed);
-      }
-      free(tok);
-    }
-  }
-
-  Section *sec = require_current_section();
-  assemble_instruction(mn, operands, count, sec);
-  for (int i = 0; i < count; i++)
-    free(operands[i]);
-  free(tmp);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Instruction tables
-
-typedef struct {
-  const char *name;
-  int funct7;
-  int funct3;
-  int opcode;
-} RTypeInfo;
-
-typedef struct {
-  const char *name;
-  int funct3;
-  int opcode;
-} ITypeInfo;
-
-typedef struct {
-  const char *name;
-  int funct3;
-  int opcode;
-} STypeInfo;
-
-typedef struct {
-  const char *name;
-  int funct3;
-  int opcode;
-} BTypeInfo;
-
-typedef struct {
-  const char *name;
-  int opcode;
-} UTypeInfo;
-
-typedef struct {
-  const char *name;
-  int opcode;
-} JTypeInfo;
-
-static const RTypeInfo rtype_table[] = {
-    {"add", 0x00, 0x0, 0x33},
-    {"sub", 0x20, 0x0, 0x33},
-    {"sll", 0x00, 0x1, 0x33},
-    {"slt", 0x00, 0x2, 0x33},
-    {"sltu", 0x00, 0x3, 0x33},
-    {"xor", 0x00, 0x4, 0x33},
-    {"srl", 0x00, 0x5, 0x33},
-    {"sra", 0x20, 0x5, 0x33},
-    {"or", 0x00, 0x6, 0x33},
-    {"and", 0x00, 0x7, 0x33},
-
-    {"addw", 0x00, 0x0, 0x3b},
-    {"subw", 0x20, 0x0, 0x3b},
-    {"sllw", 0x00, 0x1, 0x3b},
-    {"srlw", 0x00, 0x5, 0x3b},
-    {"sraw", 0x20, 0x5, 0x3b},
-
-    {"mul", 0x01, 0x0, 0x33},
-    {"mulw", 0x01, 0x0, 0x3b},
-    {"div", 0x01, 0x4, 0x33},
-    {"divu", 0x01, 0x5, 0x33},
-    {"divw", 0x01, 0x4, 0x3b},
-    {"divuw", 0x01, 0x5, 0x3b},
-    {"rem", 0x01, 0x6, 0x33},
-    {"remu", 0x01, 0x7, 0x33},
-    {"remw", 0x01, 0x6, 0x3b},
-    {"remuw", 0x01, 0x7, 0x3b},
-
-    // floating point R-type encodings (opcode 0x53)
-    {"fadd.s", 0x00, 0x0, 0x53},
-    {"fsub.s", 0x04, 0x0, 0x53},
-    {"fmul.s", 0x08, 0x0, 0x53},
-    {"fdiv.s", 0x0c, 0x0, 0x53},
-    {"fadd.d", 0x01, 0x0, 0x53},
-    {"fsub.d", 0x05, 0x0, 0x53},
-    {"fmul.d", 0x09, 0x0, 0x53},
-    {"fdiv.d", 0x0d, 0x0, 0x53},
-
-    {"fsgnj.d", 0x10, 0x1, 0x53},
-    {"fsgnjn.d", 0x10, 0x2, 0x53},
-    {"fsgnjx.d", 0x10, 0x3, 0x53},
+#include "parse.h"
+
+#include <ctype.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "bytecode.h"
+#include "debug.h"
+#include "elf/output.h"
+#include "form/instructions.h"
+#include "registers.h"
+#include "stringutil.h"
+#include "symbols.h"
+#include "xmalloc.h"
+
+const struct args empty_args = {
+	.rd = 0,
+	.rs1 = 0,
+	.rs2 = 0,
+	.imm = 0,
+	.sym = NULL,
 };
 
-static const ITypeInfo itype_table[] = {
-    {"addi", 0x0, 0x13},
-    {"slti", 0x2, 0x13},
-    {"sltiu", 0x3, 0x13},
-    {"xori", 0x4, 0x13},
-    {"ori", 0x6, 0x13},
-    {"andi", 0x7, 0x13},
-    {"slli", 0x1, 0x13},
-    {"srli", 0x5, 0x13},
-    {"srai", 0x5, 0x13},
+static char *trim_arg(char *s)
+{
+	const char *tok = strtok(s, ",");
+	if (!tok)
+		return NULL;
+	return trim_whitespace(tok);
+}
 
-    {"addiw", 0x0, 0x1b},
-    {"slliw", 0x1, 0x1b},
-    {"srliw", 0x5, 0x1b},
-    {"sraiw", 0x5, 0x1b},
+static uint8_t expect_reg(char *arg)
+{
+	size_t reg = get_register_id(arg);
+	if (reg == (size_t)-1)
+		logger(ERROR, error_instruction_other,
+		       "Expected register but got %s", arg);
+	return (uint8_t)reg;
+}
 
-    {"lb", 0x0, 0x03},
-    {"lh", 0x1, 0x03},
-    {"lw", 0x2, 0x03},
-    {"ld", 0x3, 0x03},
-    {"lbu", 0x4, 0x03},
-    {"lhu", 0x5, 0x03},
-    {"lwu", 0x6, 0x03},
+static void expect_offreg(char *arg, int32_t *offset, uint8_t *reg)
+{
+	*offset = (int32_t)strtol(arg, &arg, 0);
 
-    {"jalr", 0x0, 0x67},
+	while (isspace(*arg))
+		arg++;
 
-    {"flw", 0x2, 0x07},
-    {"fld", 0x3, 0x07},
+	if (*arg != '(')
+		logger(ERROR, error_instruction_other,
+		       "Expected '(' but got '%c'", *arg);
+	arg++;
+	char *closing = arg;
+	while (*closing != ')') {
+		if (!*closing) {
+			logger(ERROR, error_instruction_other,
+			       "Expected closing parenthesis");
+			return;
+		}
+		closing++;
+	}
+	*closing = '\0';
 
-    {"fence", 0x0, 0x0f},
+	size_t r = get_register_id(arg);
+
+	if (r == (size_t)-1)
+		logger(ERROR, error_instruction_other,
+		       "Expected register but got %s", arg);
+
+	*reg = (uint8_t)r;
+
+	closing++;
+	if (*closing)
+		logger(ERROR, error_instruction_other,
+		       "Received unexpected expression \"%s\"", closing);
+}
+
+static uint32_t expect_imm(char *arg)
+{
+	size_t imm;
+	if (get_immediate(arg, &imm))
+		logger(ERROR, error_instruction_other,
+		       "Expected immediate but got %s", arg);
+	return (uint32_t)imm;
+}
+
+static uint16_t expect_csr(char *arg)
+{
+	const uint16_t csr = get_csr(arg);
+	if (csr == 0xFFFF)
+		logger(ERROR, error_instruction_other,
+		       "Expected valid control/status register but got %s",
+		       arg);
+	return csr;
+}
+
+static int expect_one_arg(char *first)
+{
+	if (strtok(NULL, ",")) {
+		logger(ERROR, error_instruction_other,
+		       "Instruction has more than one argument");
+		return 0;
+	}
+
+	if (!first) {
+		logger(ERROR, error_instruction_other,
+		       "Expected one argument, not none");
+		return 1;
+	}
+	return 0;
+}
+
+static int expect_two_args(char *first, char *second)
+{
+	if (strtok(NULL, ",")) {
+		logger(ERROR, error_instruction_other,
+		       "Instruction has more than two arguments");
+		return 0;
+	}
+
+	if (!first) {
+		logger(ERROR, error_instruction_other,
+		       "Expected two arguments, not none");
+		return 1;
+	}
+	if (!second) {
+		logger(ERROR, error_instruction_other,
+		       "Expected two arguments, not one");
+		free(first);
+		return 1;
+	}
+	return 0;
+}
+
+static int expect_three_args(char *first, char *second, char *third)
+{
+	if (strtok(NULL, ",")) {
+		logger(ERROR, error_instruction_other,
+		       "Instruction has more than three arguments");
+		return 0;
+	}
+
+	if (!first) {
+		logger(ERROR, error_instruction_other,
+		       "Expected three arguments, not none");
+		return 1;
+	}
+	if (!second) {
+		logger(ERROR, error_instruction_other,
+		       "Expected three arguments, not one");
+		free(first);
+		return 1;
+	}
+	if (!third) {
+		logger(ERROR, error_instruction_other,
+		       "Expected three arguments, not two");
+		free(first);
+		free(second);
+		return 1;
+	}
+	return 0;
+}
+
+int parse_asm(const char *linestr, struct sectionpos position)
+{
+	logger(DEBUG, no_error, "Parsing assembly %s", linestr);
+
+	char *line = xmalloc(strlen(linestr) + 1);
+	strcpy(line, linestr);
+
+	char *instruction = strtok(line, " \t");
+	char *argstr = strtok(NULL, "");
+
+	const struct formation formation = parse_form(instruction);
+	const struct args args = formation.arg_handler(argstr);
+
+	free(line);
+
+	add_instruction((struct instruction){
+		.formation = formation,
+		.args = args,
+		.line = linenumber,
+		.position = position,
+	});
+	inc_outputsize(position.section, formation.idata.sz);
+	logger(DEBUG, no_error, "Updated position to offset (%zu)",
+	       position.offset);
+
+	return 0;
+}
+
+struct args parse_none(char *argstr)
+{
+	logger(DEBUG, no_error,
+	       "Parsing arguments for no argument instruction");
+
+	if (!argstr)
+		return empty_args;
+
+	for (char *c = argstr; *c; c++)
+		if (*c == ',')
+			logger(ERROR, error_instruction_other,
+			       "Expected zero arguments, but got at least one");
+
+	return empty_args;
+}
+
+struct args parse_rtype(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for rtype instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+	char *third = trim_arg(NULL);
+
+	logger(DEBUG, no_error, "Parsed %s, %s, %s", first, second, third);
+
+	if (expect_three_args(first, second, third))
+		return empty_args;
+
+	const struct args args = {
+		.rd = expect_reg(first),
+		.rs1 = expect_reg(second),
+		.rs2 = expect_reg(third),
+		.sym = NULL,
+	};
+
+	free(first);
+	free(second);
+	free(third);
+
+	logger(DEBUG, no_error, "Registers parsed x%d, x%d, x%d", args.rd,
+	       args.rs1, args.rs2);
+
+	return args;
+}
+
+struct args parse_itype(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for itype instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+	char *third = trim_arg(NULL);
+
+	if (expect_three_args(first, second, third))
+		return empty_args;
+
+	const struct args args = {
+		.rd = expect_reg(first),
+		.rs1 = expect_reg(second),
+		.imm = expect_imm(third),
+		.sym = NULL,
+	};
+
+	free(first);
+	free(second);
+	free(third);
+
+	logger(DEBUG, no_error, "Registers parsed x%d, x%d, %d", args.rd,
+	       args.rs1, args.imm);
+
+	return args;
+}
+
+struct args parse_ltype(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for itype instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+
+	if (expect_two_args(first, second))
+		return empty_args;
+
+	struct args args = {
+		.rd = expect_reg(first),
+		.sym = NULL,
+	};
+
+	expect_offreg(second, &args.imm, &args.rs1);
+
+	free(first);
+	free(second);
+
+	logger(DEBUG, no_error, "Registers parsed x%d, %d(x%d)", args.rd,
+	       args.imm, args.rs1);
+
+	return args;
+}
+
+struct args parse_stype(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for itype instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+
+	if (expect_two_args(first, second))
+		return empty_args;
+
+	struct args args = {
+		.rs2 = expect_reg(second),
+		.sym = NULL,
+	};
+
+	expect_offreg(first, &args.imm, &args.rs1);
+
+	free(first);
+	free(second);
+
+	logger(DEBUG, no_error, "Registers parsed %d(x%d), x%d", args.imm,
+	       args.rs1, args.rs2);
+
+	return args;
+}
+
+struct args parse_utype(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for utype instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+
+	if (expect_two_args(first, second))
+		return empty_args;
+
+	const struct args args = {
+		.rd = expect_reg(first),
+		.imm = expect_imm(second),
+		.sym = NULL,
+	};
+
+	free(first);
+	free(second);
+
+	logger(DEBUG, no_error, "Registers parsed x%d, %d", args.rd, args.imm);
+
+	return args;
+}
+
+struct args parse_btype(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for jtype instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+	char *third = trim_arg(NULL);
+
+	if (expect_three_args(first, second, third))
+		return empty_args;
+
+	const struct args args = {
+		.rs1 = expect_reg(first),
+		.rs2 = expect_reg(second),
+		.sym = get_or_create_symbol(third, SYMBOL_LABEL),
+	};
+
+	free(first);
+	free(second);
+	free(third);
+
+	logger(DEBUG, no_error, "Registers parsed x%d, x%d, %s", args.rs1,
+	       args.rs2, args.sym->name);
+
+	return args;
+}
+
+struct args parse_bztype(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for bztype instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+
+	if (expect_two_args(first, second))
+		return empty_args;
+
+	const struct args args = {
+		.rs1 = expect_reg(first),
+		.sym = get_or_create_symbol(second, SYMBOL_LABEL),
+	};
+
+	free(first);
+	free(second);
+
+	logger(DEBUG, no_error, "Registers parsed x%d, %s", args.rs1,
+	       args.sym->name);
+
+	return args;
+}
+
+struct args parse_pseudo(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments %s for pseudo instruction",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+
+	if (expect_two_args(first, second))
+		return empty_args;
+
+	const struct args args = {
+		.rd = expect_reg(first),
+		.rs1 = expect_reg(second),
+		.sym = NULL,
+	};
+
+	free(first);
+	free(second);
+
+	logger(DEBUG, no_error, "Registers parsed x%d, x%d", args.rd, args.rs1);
+
+	return args;
+}
+
+static int parse_fence_arg(const char *arg)
+{
+	const char *key = "iorw";
+	int iorw = 0;
+	for (const char *c = key; *c; c++) {
+		iorw <<= 1;
+		if (*c != *arg)
+			continue;
+		iorw |= 1;
+		arg++;
+	}
+	if (*arg)
+		logger(ERROR, error_instruction_other,
+		       "expected combination of iorw but encountered '%c' character",
+		       *arg);
+	return iorw;
+}
+
+struct args parse_fence(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments %s for fence instruction",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+
+	if (!first)
+		return (struct args){
+			.rd = 0x0,
+			.rs1 = 0x0,
+			.imm = 0xFF,
+			.sym = NULL,
+		};
+
+	if (strtok(NULL, ","))
+		logger(ERROR, error_instruction_other,
+		       "Instruction has more than two arguments");
+
+	if (!second) {
+		logger(ERROR, error_instruction_other,
+		       "Expected two arguments but got one");
+		return empty_args;
+	}
+
+	const int predecessor = parse_fence_arg(first);
+	const int successor = parse_fence_arg(second);
+
+	free(first);
+	free(second);
+
+	return (struct args){
+		.rd = 0x0,
+		.rs1 = 0x0,
+		.imm = (predecessor << 4) | successor,
+		.sym = NULL,
+	};
+}
+
+struct args parse_jal(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for jal instruction %s",
+	       argstr);
+
+	struct args args = { .rd = 1 };
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+	char *sym = first;
+
+	if (strtok(NULL, ","))
+		logger(ERROR, error_instruction_other,
+		       "Expected at most two arguments");
+
+	if (!first) {
+		logger(ERROR, error_invalid_instruction,
+		       "Expected at least one argument");
+		return empty_args;
+	}
+
+	if (second) {
+		args.rd = expect_reg(first);
+		free(first);
+		sym = second;
+		if (!sym)
+			logger(ERROR, error_invalid_instruction,
+			       "Expected a second argument");
+	}
+
+	args.sym = get_or_create_symbol(sym, SYMBOL_LABEL);
+	free(sym);
+
+	logger(DEBUG, no_error, "Registers parsed, x%d, %s", args.rd,
+	       args.sym->name);
+
+	return args;
+}
+
+struct args parse_jalr(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for jalr instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+	char *third = trim_arg(NULL);
+
+	if (strtok(NULL, ","))
+		logger(ERROR, error_instruction_other,
+		       "Instruction has more than three arguments");
+
+	if (!first) {
+		logger(DEBUG, error_instruction_other,
+		       "Expected at least one argument");
+		return empty_args;
+	}
+
+	const uint8_t rd = expect_reg(first);
+	free(first);
+
+	if (!second) {
+		logger(DEBUG, no_error, "jalr (pseudo) arguments parsed -> x%d",
+		       rd);
+		return (struct args){
+			.rd = 0x1,
+			.rs1 = rd,
+			.imm = 0,
+			.sym = NULL,
+		};
+	}
+
+	if (!third) {
+		logger(ERROR, error_instruction_other,
+		       "Expected one or three arguments but got two");
+		free(second);
+		return empty_args;
+	}
+
+	const uint8_t rs1 = expect_reg(second);
+	const uint32_t imm = expect_imm(third);
+
+	free(second);
+	free(third);
+
+	logger(DEBUG, no_error, "jalr arguments parsed x%d x%d %d", rd, rs1,
+	       imm);
+
+	return (struct args){
+		.rd = rd,
+		.rs1 = rs1,
+		.imm = imm,
+		.sym = NULL,
+	};
+}
+
+struct args parse_la(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments %s for la instruction",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+
+	if (expect_two_args(first, second))
+		return empty_args;
+
+	const struct args args = {
+		.rd = expect_reg(first),
+		.sym = get_or_create_symbol(second, SYMBOL_LABEL),
+	};
+
+	free(first);
+	free(second);
+
+	logger(DEBUG, no_error, "Registers parsed x%d x%d", args.rd, args.rs1);
+
+	return args;
+}
+
+struct args parse_li(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments %s for li instruction",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+
+	if (expect_two_args(first, second))
+		return empty_args;
+
+	const struct args args = {
+		.rd = expect_reg(first),
+		.imm = expect_imm(second),
+		.sym = NULL,
+	};
+
+	free(first);
+	free(second);
+
+	logger(DEBUG, no_error, "Registers parsed x%d x%d", args.rd, args.rs1);
+
+	return args;
+}
+
+struct args parse_j(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments %s for li instruction",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+
+	if (expect_one_arg(first))
+		return empty_args;
+
+	const struct args args = {
+		.sym = get_or_create_symbol(first, SYMBOL_LABEL),
+	};
+
+	logger(DEBUG, no_error, "Symbol parsed %s", args.sym->name);
+
+	return args;
+}
+
+struct args parse_jr(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments %s for li instruction",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+
+	if (expect_one_arg(first))
+		return empty_args;
+
+	const struct args args = {
+		.rs1 = expect_reg(first),
+		.sym = NULL,
+	};
+
+	free(first);
+
+	logger(DEBUG, no_error, "Register parsed x%d", args.rs1);
+
+	return args;
+}
+
+struct args parse_ftso(char *argstr)
+{
+	logger(DEBUG, no_error,
+	       "Parsing arguments for no argument instruction");
+
+	const struct args args = {
+		.rd = 0x0,
+		.rs1 = 0x0,
+		.imm = 0x833,
+		.sym = NULL,
+	};
+
+	if (!argstr)
+		return args;
+
+	for (char *c = argstr; *c; c++)
+		if (*c == ',')
+			logger(ERROR, error_instruction_other,
+			       "Expected zero arguments");
+
+	return args;
+}
+
+struct args parse_al(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for itype instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+
+	if (expect_two_args(first, second))
+		return empty_args;
+
+	struct args args = {
+		.rd = expect_reg(first),
+		.rs2 = 0,
+		.sym = NULL,
+	};
+
+	expect_offreg(second, &args.imm, &args.rs1);
+
+	if (args.imm)
+		logger(ERROR, error_invalid_instruction,
+		       "Optional integer offset must be zero");
+
+	free(first);
+	free(second);
+
+	logger(DEBUG, no_error, "Registers parsed x%d %d(x%d)", args.rd,
+	       args.imm, args.rs1);
+
+	return args;
+}
+
+struct args parse_as(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for itype instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+	char *third = trim_arg(NULL);
+
+	if (expect_three_args(first, second, third))
+		return empty_args;
+
+	struct args args = {
+		.rd = expect_reg(first),
+		.rs2 = expect_reg(second),
+	};
+
+	expect_offreg(third, &args.imm, &args.rs1);
+
+	if (args.imm)
+		logger(ERROR, error_invalid_instruction,
+		       "Optional integer offset must be zero");
+
+	free(first);
+	free(second);
+	free(third);
+
+	logger(DEBUG, no_error, "Registers parsed x%d x%d %d(x%d)", args.rd,
+	       args.rs2, args.imm, args.rs1);
+
+	return args;
+}
+
+struct args parse_csr(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for csr instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+	char *third = trim_arg(NULL);
+
+	if (expect_three_args(first, second, third))
+		return empty_args;
+
+	struct args args = {
+		.rd = expect_reg(first),
+		.imm = expect_csr(second),
+		.rs1 = expect_reg(third),
+	};
+
+	free(first);
+	free(second);
+	free(third);
+
+	logger(DEBUG, no_error, "Registers parsed x%d, x%d, 0x%.03X", args.rd,
+	       args.rs1, args.imm);
+
+	return args;
+}
+
+struct args parse_csri(char *argstr)
+{
+	logger(DEBUG, no_error, "Parsing arguments for csri instruction %s",
+	       argstr);
+
+	char *first = trim_arg(argstr);
+	char *second = trim_arg(NULL);
+	char *third = trim_arg(NULL);
+
+	if (expect_three_args(first, second, third))
+		return empty_args;
+
+	struct args args = {
+		.rd = expect_reg(first),
+		.imm = expect_csr(second),
+		.rs1 = (uint8_t)(expect_imm(third) & 0x1F),
+	};
+
+	free(first);
+	free(second);
+	free(third);
+
+	logger(DEBUG, no_error, "Registers parsed x%d, 0x%X, 0x%.03X", args.rd,
+	       args.rs1, args.imm);
+
+	return args;
+}
+
+#include "stringutil.h"
+
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "xmalloc.h"
+
+int is_terminating(char c)
+{
+	return !c || c == ';' || c == '\n';
+}
+
+char *trim_whitespace(const char *str)
+{
+	const char *start = str;
+	while (isspace(*start) && !is_terminating(*start))
+		start++;
+
+	const char *end = start;
+	while (!is_terminating(*end))
+		end++;
+
+	while (isspace(*end) && end > start)
+		end--;
+
+	char *newstr = xmalloc((size_t)(end - start + 1));
+	memcpy(newstr, start, (size_t)(end - start));
+	newstr[end - start] = '\0';
+
+	return newstr;
+}
+
+#include "xmalloc.h"
+
+#include <stdlib.h>
+
+#include "debug.h"
+
+static void die(const char *function)
+{
+	logger(CRITICAL, error_system, "Call to %s failed", function);
+	exit(EXIT_FAILURE);
+}
+
+void *xmalloc(size_t sz)
+{
+	void *ptr = malloc(sz);
+	if (!ptr)
+		die("malloc");
+	return ptr;
+}
+
+void *xcalloc(size_t nitems, size_t size)
+{
+	void *ptr = calloc(nitems, size);
+	if (!ptr)
+		die("calloc");
+	return ptr;
+}
+
+void *xrealloc(void *ptr, size_t size)
+{
+	ptr = realloc(ptr, size);
+	if (!ptr)
+		die("xrealloc");
+	return ptr;
+}
+
+#include "bytecode.h"
+
+#include <stddef.h>
+#include <stdlib.h>
+
+#include "debug.h"
+#include "elf/output.h"
+#include "form/generic.h"
+#include "symbols.h"
+#include "xmalloc.h"
+
+static struct instruction *instructions = NULL;
+static size_t instructions_size = 0;
+static struct rawdata *dataitems = NULL;
+static size_t dataitems_size = 0;
+
+int add_instruction(struct instruction instruction)
+{
+	const size_t sz = instructions_size + 1;
+	instructions = xrealloc(instructions, sz * sizeof(*instructions));
+	instructions[instructions_size] = instruction;
+	instructions_size = sz;
+
+	return 0;
+}
+
+int add_data(struct rawdata dataitem)
+{
+	const size_t sz = dataitems_size + 1;
+	struct rawdata *newdataarr =
+		xrealloc(dataitems, sz * sizeof(*dataitems));
+
+	if (newdataarr == NULL) {
+		logger(ERROR, error_internal, 0,
+		       "Unable to allocate memory for label instruction");
+		return 1;
+	}
+
+	dataitems = newdataarr;
+	dataitems[dataitems_size] = dataitem;
+	dataitems_size = sz;
+
+	return 0;
+}
+
+int write_all(void)
+{
+	if (write_all_instructions())
+		return 1;
+	if (write_all_data())
+		return 1;
+	return 0;
+}
+
+int write_all_instructions(void)
+{
+	linenumber = 0;
+	logger(DEBUG, no_error, "Generating all instruction bytecode...");
+	for (size_t i = 0; i < instructions_size; i++)
+		if (write_instruction(instructions[i]))
+			return 1;
+	return 0;
+}
+
+int write_instruction(struct instruction i)
+{
+	linenumber = i.line;
+	logger(DEBUG, no_error,
+	       "Generating bytecode for %s instruction (offset: %zu)",
+	       i.formation.name, i.position.offset);
+	set_section(i.position.section);
+
+	if (i.args.sym)
+		if (i.args.sym->section == SECTION_NULL)
+			logger(ERROR, error_unknown, "Symbol %s not found",
+			       i.args.sym->name);
+
+	struct bytecode bytecode =
+		i.formation.form_handler(i.formation.name, i.formation.idata,
+					 i.args, calc_fileoffset(i.position));
+	logger(DEBUG, no_error, "Bytecode finished generating");
+	if (!bytecode.size) {
+		logger(WARN, no_error,
+		       "No bytecode generated from instruction");
+		return 0;
+	}
+	if (!bytecode.data) {
+		logger(ERROR, error_internal, "Received invalid bytecode");
+		return 1;
+	}
+	const size_t sz = (size_t)bytecode.size;
+	size_t nwritten =
+		write_sectiondata((char *)bytecode.data, sz, i.position);
+	free(bytecode.data);
+	if (nwritten != sz) {
+		logger(CRITICAL, error_system, "Error writing bytes to output");
+		return 1;
+	}
+	return 0;
+}
+
+int write_all_data(void)
+{
+	linenumber = 0;
+	logger(DEBUG, no_error, "Writing all data bytes...");
+	for (size_t i = 0; i < dataitems_size; i++)
+		if (write_data(dataitems[i]))
+			return 1;
+	return 0;
+}
+
+int write_data(struct rawdata data)
+{
+	linenumber = data.line;
+	logger(DEBUG, no_error, "Writing data (offset: %zu)",
+	       data.position.offset);
+	set_section(data.position.section);
+	const size_t written =
+		write_sectiondata(data.data, data.size, data.position);
+	free(data.data);
+	if (written != data.size) {
+		logger(CRITICAL, error_system, "Error writing bytes to output");
+		return 1;
+	}
+	return 0;
+}
+
+void free_instructions(void)
+{
+	free(instructions);
+	instructions = NULL;
+	instructions_size = 0;
+}
+
+void free_data(void)
+{
+	free(dataitems);
+	dataitems = NULL;
+	dataitems_size = 0;
+}
+#include "directives.h"
+
+#include <ctype.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "debug.h"
+#include "elf/output.h"
+#include "bytecode.h"
+#include "macros.h"
+#include "stringutil.h"
+#include "symbols.h"
+#include "xmalloc.h"
+
+struct directive {
+	const char *name;
+	int (*parser)(const char *);
+};
+struct directive directive_map[] = {
+	{ ".string", parse_asciz }, { ".asciz", parse_asciz },
+	{ ".ascii", parse_ascii },  { ".section", parse_section },
+	{ ".globl", parse_global },
+};
+struct {
+	const char *name;
+	enum sections section;
+} section_map[] = {
+	{ ".text", SECTION_TEXT },
+	{ ".data", SECTION_DATA },
 };
 
-static const STypeInfo stype_table[] = {
-    {"sb", 0x0, 0x23},
-    {"sh", 0x1, 0x23},
-    {"sw", 0x2, 0x23},
-    {"sd", 0x3, 0x23},
+static struct directive get_directive(const char *name)
+{
+	for (unsigned long i = 0; i < ARRAY_LENGTH(directive_map); i++)
+		if (!strcmp(name, directive_map[i].name))
+			return directive_map[i];
+	logger(ERROR, error_invalid_instruction,
+	       "Unknown directive found with name: %s", name);
+	return (struct directive){ NULL, NULL };
+}
 
-    {"fsw", 0x2, 0x27},
-    {"fsd", 0x3, 0x27},
+int parse_directive(char *line)
+{
+	char *directivename = line;
+	while (!isspace(*line))
+		line++;
+	if (*line)
+		*(line++) = '\0';
+
+	struct directive directive = get_directive(directivename);
+
+	if (directive.parser == NULL)
+		return 1;
+
+	char *args = trim_whitespace(line);
+	const int result = directive.parser(args);
+	free(args);
+	return result;
+}
+
+static char get_escapedchar(const char **str)
+{
+	switch (**str) {
+	case 'x':
+	case 'u': {
+		char *end;
+		long val = strtol(*str + 1, &end, (**str == 'x') ? 16 : 8);
+		if (val >= 256 || val < 0) {
+			logger(ERROR, error_invalid_instruction,
+			       "Escape sequence out of range");
+			return '\0';
+		}
+		*str = end - 1;
+		return (char)val;
+	}
+	case 'a':
+		return '\a';
+		break;
+	case 'b':
+		return '\b';
+	case 'f':
+		return '\f';
+	case 'n':
+		return '\n';
+	case 'r':
+		return '\r';
+	case 't':
+		return '\t';
+	case 'v':
+		return '\v';
+	case '\\':
+		return '\\';
+	case '"':
+		return '"';
+	}
+	return '\0';
+}
+
+static inline size_t parse_nulltermstr(char *dest, const char *str)
+{
+	if (*str != '"')
+		return (size_t)-1;
+	str++;
+	size_t size = 0;
+	while (*str != '"') {
+		register char val = *str;
+		if (!val) {
+			logger(ERROR, error_invalid_syntax,
+			       "Expected '\"' (0x22 double quote) character at start or end of "
+			       "ascii string");
+			return (size_t)-1;
+		}
+		if (val == '\\') {
+			str++;
+			val = get_escapedchar(&str);
+		}
+		dest[size] = val;
+		size++;
+		str++;
+	}
+	dest[size] = '\0';
+	size++;
+	str++;
+	return size;
+}
+
+static int parse_ascii_generic(const char *str, bool nullterm)
+{
+	char *parsed = xmalloc(strlen(str) - 1);
+	const size_t size = parse_nulltermstr(parsed, str) - !nullterm;
+	if (size == (size_t)-1)
+		return 1;
+	char *data = xmalloc(size);
+	memcpy(data, parsed, size);
+	free(parsed);
+	const struct sectionpos position = get_outputpos();
+	const int res = add_data((struct rawdata){ .data = data,
+						   .size = size,
+						   .position = position,
+						   .line = linenumber });
+	inc_outputsize(position.section, size);
+	return res;
+}
+int parse_asciz(const char *str)
+{
+	return parse_ascii_generic(str, true);
+}
+int parse_ascii(const char *str)
+{
+	return parse_ascii_generic(str, false);
+}
+int parse_section(const char *str)
+{
+	logger(DEBUG, no_error, "Selecting Section \"%s\"", str);
+	for (unsigned long i = 0; i < ARRAY_LENGTH(section_map); i++) {
+		if (!strcmp(str, section_map[i].name)) {
+			change_output(section_map[i].section);
+			return 0;
+		}
+	}
+	logger(WARN, error_invalid_instruction, "Unknown Section \"%s\"", str);
+	return 1;
+}
+int parse_global(const char *str)
+{
+	struct symbol *sym = get_or_create_symbol(str, SYMBOL_LABEL);
+	if (!sym) {
+		logger(ERROR, error_internal, "Uknown symbol %s encountered",
+		       str);
+		return 1;
+	}
+	sym->binding = 0x10;
+	return 0;
+}
+
+#include "form/atomic.h"
+
+#include "form/generic.h"
+#include "parse.h"
+
+const struct formation rv32a[] = {
+	{ "lr.w", &form_rtype, &parse_al, { 4, OP_AMO, 0x2, 0x08 } },
+	{ "lr.w.rl", &form_rtype, &parse_al, { 4, OP_AMO, 0x2, 0x09 } },
+	{ "lr.w.aq", &form_rtype, &parse_al, { 4, OP_AMO, 0x2, 0x0A } },
+	{ "lr.w.aqrl", &form_rtype, &parse_al, { 4, OP_AMO, 0x2, 0x0B } },
+	{ "sc.w", &form_rtype, &parse_as, { 4, OP_AMO, 0x2, 0x0C } },
+	{ "sc.w.rl", &form_rtype, &parse_as, { 4, OP_AMO, 0x2, 0x0D } },
+	{ "sc.w.aq", &form_rtype, &parse_as, { 4, OP_AMO, 0x2, 0x0E } },
+	{ "sc.w.aqrl", &form_rtype, &parse_as, { 4, OP_AMO, 0x2, 0x0F } },
+
+	{ "amoswap.w", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x04 } },
+	{ "amoswap.w.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x05 } },
+	{ "amoswap.w.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x06 } },
+	{ "amoswap.w.aqrl",
+	  &form_rtype,
+	  &parse_rtype,
+	  { 4, OP_AMO, 0x2, 0x07 } },
+	{ "amoadd.w", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x00 } },
+	{ "amoadd.w.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x01 } },
+	{ "amoadd.w.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x02 } },
+	{ "amoadd.w.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x03 } },
+	{ "amoxor.w", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x10 } },
+	{ "amoxor.w.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x12 } },
+	{ "amoxor.w.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x11 } },
+	{ "amoxor.w.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x13 } },
+	{ "amoor.w", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x20 } },
+	{ "amoor.w.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x21 } },
+	{ "amoor.w.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x22 } },
+	{ "amoor.w.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x23 } },
+	{ "amoand.w", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x30 } },
+	{ "amoand.w.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x31 } },
+	{ "amoand.w.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x32 } },
+	{ "amoand.w.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x33 } },
+	{ "amomin.w", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x40 } },
+	{ "amomin.w.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x41 } },
+	{ "amomin.w.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x42 } },
+	{ "amomin.w.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x43 } },
+	{ "amomax.w", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x50 } },
+	{ "amomax.w.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x51 } },
+	{ "amomax.w.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x52 } },
+	{ "amomax.w.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x53 } },
+	{ "amominu.w", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x60 } },
+	{ "amominu.w.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x61 } },
+	{ "amominu.w.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x62 } },
+	{ "amominu.w.aqrl",
+	  &form_rtype,
+	  &parse_rtype,
+	  { 4, OP_AMO, 0x2, 0x63 } },
+	{ "amomaxu.w", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x70 } },
+	{ "amomaxu.w.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x71 } },
+	{ "amomaxu.w.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x2, 0x72 } },
+	{ "amomaxu.w.aqrl",
+	  &form_rtype,
+	  &parse_rtype,
+	  { 4, OP_AMO, 0x2, 0x73 } },
+
+	END_FORMATION
 };
 
-static const BTypeInfo btype_table[] = {
-    {"beq", 0x0, 0x63},
-    {"bne", 0x1, 0x63},
-    {"blt", 0x4, 0x63},
-    {"bge", 0x5, 0x63},
-    {"bltu", 0x6, 0x63},
-    {"bgeu", 0x7, 0x63},
+const struct formation rv64a[] = {
+	{ "lr.d", &form_rtype, &parse_al, { 4, OP_AMO, 0x3, 0x08 } },
+	{ "lr.d.rl", &form_rtype, &parse_al, { 4, OP_AMO, 0x3, 0x09 } },
+	{ "lr.d.aq", &form_rtype, &parse_al, { 4, OP_AMO, 0x3, 0x0A } },
+	{ "lr.d.aqrl", &form_rtype, &parse_al, { 4, OP_AMO, 0x3, 0x0B } },
+	{ "sc.d", &form_rtype, &parse_as, { 4, OP_AMO, 0x3, 0x0C } },
+	{ "sc.d.rl", &form_rtype, &parse_as, { 4, OP_AMO, 0x3, 0x0D } },
+	{ "sc.d.aq", &form_rtype, &parse_as, { 4, OP_AMO, 0x3, 0x0E } },
+	{ "sc.d.aqrl", &form_rtype, &parse_as, { 4, OP_AMO, 0x3, 0x0F } },
+
+	{ "amoswap.d", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x04 } },
+	{ "amoswap.d.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x05 } },
+	{ "amoswap.d.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x06 } },
+	{ "amoswap.d.aqrl",
+	  &form_rtype,
+	  &parse_rtype,
+	  { 4, OP_AMO, 0x3, 0x07 } },
+	{ "amoadd.d", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x00 } },
+	{ "amoadd.d.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x01 } },
+	{ "amoadd.d.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x02 } },
+	{ "amoadd.d.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x03 } },
+	{ "amoxor.d", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x10 } },
+	{ "amoxor.d.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x12 } },
+	{ "amoxor.d.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x11 } },
+	{ "amoxor.d.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x13 } },
+	{ "amoor.d", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x20 } },
+	{ "amoor.d.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x21 } },
+	{ "amoor.d.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x22 } },
+	{ "amoor.d.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x23 } },
+	{ "amoand.d", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x30 } },
+	{ "amoand.d.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x31 } },
+	{ "amoand.d.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x32 } },
+	{ "amoand.d.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x33 } },
+	{ "amomin.d", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x40 } },
+	{ "amomin.d.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x41 } },
+	{ "amomin.d.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x42 } },
+	{ "amomin.d.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x43 } },
+	{ "amomax.d", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x50 } },
+	{ "amomax.d.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x51 } },
+	{ "amomax.d.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x52 } },
+	{ "amomax.d.aqrl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x53 } },
+	{ "amominu.d", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x60 } },
+	{ "amominu.d.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x61 } },
+	{ "amominu.d.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x62 } },
+	{ "amominu.d.aqrl",
+	  &form_rtype,
+	  &parse_rtype,
+	  { 4, OP_AMO, 0x3, 0x63 } },
+	{ "amomaxu.d", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x70 } },
+	{ "amomaxu.d.rl", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x71 } },
+	{ "amomaxu.d.aq", &form_rtype, &parse_rtype, { 4, OP_AMO, 0x3, 0x72 } },
+	{ "amomaxu.d.aqrl",
+	  &form_rtype,
+	  &parse_rtype,
+	  { 4, OP_AMO, 0x3, 0x73 } },
+
+	END_FORMATION
 };
 
-static const UTypeInfo utype_table[] = {
-    {"lui", 0x37},
-    {"auipc", 0x17},
+#include "form/base.h"
+
+#include <assert.h>
+#include <string.h>
+
+#include "debug.h"
+#include "form/generic.h"
+#include "macros.h"
+#include "parse.h"
+#include "xmalloc.h"
+
+/*
+ * Clang can correctly optimise fully defined switches over enumerated values.
+ * For other compilers, we create an unreachable segment of code, however for
+ * clang we do nothing, as clang will raise an error if the switch is ever not
+ * fully defined.
+ */
+#ifdef __clang__
+#define FULLY_DEFINED_SWITCH()
+#elif defined(__GNUC__)
+#define FULLY_DEFINED_SWITCH() __builtin_unreachable()
+#elif defined(_MSC_VER)
+#define FULLY_DEFINED_SWITCH() __assume(0)
+#else
+#warning "compiler does not define __GNUC__ and is not MSVC"
+#define FULLY_DEFINED_SWITCH() return error_bytecode
+#endif
+
+/* TODO: Add HINT instruction support */
+const struct formation rv32i[] = {
+	{ "nop", &form_nop, &parse_none, { 4, OP_OPI, 0, 0 } },
+
+	{ "li", &form_load_pseudo, &parse_li, { 8, LOAD_IMM, 0, 0 } },
+	{ "la", &form_load_pseudo, &parse_la, { 8, LOAD_ADDR, 0, 0 } },
+
+	{ "mv", &form_math, &parse_pseudo, { 4, MATH_MV, 0, 0 } },
+	{ "not", &form_math, &parse_pseudo, { 4, MATH_NOT, 0, 0 } },
+	{ "neg", &form_math, &parse_pseudo, { 4, MATH_NEG, 0, 0 } },
+
+	{ "seqz", &form_setif, &parse_pseudo, { 4, SETIF_EQZ, 0, 0 } },
+	{ "snez", &form_setif, &parse_pseudo, { 4, SETIF_NEZ, 0, 0 } },
+	{ "sltz", &form_setif, &parse_pseudo, { 4, SETIF_LTZ, 0, 0 } },
+	{ "sgtz", &form_setif, &parse_pseudo, { 4, SETIF_GTZ, 0, 0 } },
+
+	{ "beqz", &form_branchifz, &parse_bztype, { 4, BRANCHIFZ_EQZ, 0, 0 } },
+	{ "bnez", &form_branchifz, &parse_bztype, { 4, BRANCHIFZ_NEZ, 0, 0 } },
+	{ "blez", &form_branchifz, &parse_bztype, { 4, BRANCHIFZ_LEZ, 0, 0 } },
+	{ "bgez", &form_branchifz, &parse_bztype, { 4, BRANCHIFZ_GEZ, 0, 0 } },
+	{ "bltz", &form_branchifz, &parse_bztype, { 4, BRANCHIFZ_LTZ, 0, 0 } },
+	{ "bgtz", &form_branchifz, &parse_bztype, { 4, BRANCHIFZ_GTZ, 0, 0 } },
+	{ "bgt", &form_branchifr, &parse_btype, { 4, BRANCHIFR_GT, 0, 0 } },
+	{ "ble", &form_branchifr, &parse_btype, { 4, BRANCHIFR_LE, 0, 0 } },
+	{ "bgtu", &form_branchifr, &parse_btype, { 4, BRANCHIFR_GTU, 0, 0 } },
+	{ "bleu", &form_branchifr, &parse_btype, { 4, BRANCHIFR_LEU, 0, 0 } },
+
+	{ "j", &form_jump, &parse_j, { 4, JUMP_J, 0, 0 } },
+	{ "jr", &form_jump, &parse_jr, { 4, JUMP_JR, 0, 0 } },
+	{ "ret", &form_jump, &parse_none, { 4, JUMP_RET, 0, 0 } },
+
+	{ "fence.tso", &form_itype, &parse_ftso, { 4, OP_MISC_MEM, 0x0, 0 } },
+
+	{ "add", &form_rtype, &parse_rtype, { 4, OP_OP, 0x0, 0x00 } },
+	{ "addi", &form_itype, &parse_itype, { 4, OP_OPI, 0x0, 0 } },
+	{ "sub", &form_rtype, &parse_rtype, { 4, OP_OP, 0x0, 0x20 } },
+	{ "and", &form_rtype, &parse_rtype, { 4, OP_OP, 0x7, 0x00 } },
+	{ "andi", &form_itype, &parse_itype, { 4, OP_OPI, 0x7, 0 } },
+	{ "or", &form_rtype, &parse_rtype, { 4, OP_OP, 0x6, 0x00 } },
+	{ "ori", &form_itype, &parse_itype, { 4, OP_OPI, 0x6, 0 } },
+	{ "xor", &form_rtype, &parse_rtype, { 4, OP_OP, 0x4, 0x00 } },
+	{ "xori", &form_itype, &parse_itype, { 4, OP_OPI, 0x4, 0 } },
+	{ "sll", &form_rtype, &parse_rtype, { 4, OP_OP, 0x1, 0x00 } },
+	{ "srl", &form_rtype, &parse_rtype, { 4, OP_OP, 0x5, 0x00 } },
+	{ "sra", &form_rtype, &parse_rtype, { 4, OP_OP, 0x5, 0x20 } },
+	{ "slt", &form_rtype, &parse_rtype, { 4, OP_OP, 0x2, 0x00 } },
+	{ "slti", &form_itype, &parse_itype, { 4, OP_OPI, 0x2, 0 } },
+	{ "sltu", &form_rtype, &parse_rtype, { 4, OP_OP, 0x3, 0x00 } },
+	{ "sltiu", &form_itype, &parse_itype, { 4, OP_OPI, 0x3, 0 } },
+
+	{ "beq", &form_btype, &parse_btype, { 4, OP_BRANCH, 0x0, 0 } },
+	{ "bne", &form_btype, &parse_btype, { 4, OP_BRANCH, 0x1, 0 } },
+	{ "bge", &form_btype, &parse_btype, { 4, OP_BRANCH, 0x5, 0 } },
+	{ "bgeu", &form_btype, &parse_btype, { 4, OP_BRANCH, 0x7, 0 } },
+	{ "blt", &form_btype, &parse_btype, { 4, OP_BRANCH, 0x4, 0 } },
+	{ "bltu", &form_btype, &parse_btype, { 4, OP_BRANCH, 0x6, 0 } },
+
+	{ "jal", &form_jtype, &parse_jal, { 4, OP_JAL, 0, 0 } },
+	{ "jalr", &form_itype, &parse_jalr, { 4, OP_JALR, 0x0, 0 } },
+
+	{ "ecall", &form_syscall, &parse_none, { 4, OP_SYSTEM, 0x0, 0x000 } },
+	{ "ebreak", &form_syscall, &parse_none, { 4, OP_SYSTEM, 0x0, 0x001 } },
+
+	{ "lb", &form_itype, &parse_ltype, { 4, OP_LOAD, 0x0, 0 } },
+	{ "lh", &form_itype, &parse_ltype, { 4, OP_LOAD, 0x1, 0 } },
+	{ "lw", &form_itype, &parse_ltype, { 4, OP_LOAD, 0x2, 0 } },
+	{ "lbu", &form_itype, &parse_ltype, { 4, OP_LOAD, 0x4, 0 } },
+	{ "lhu", &form_itype, &parse_ltype, { 4, OP_LOAD, 0x5, 0 } },
+
+	{ "sb", &form_stype, &parse_stype, { 4, OP_STORE, 0x0, 0 } },
+	{ "sh", &form_stype, &parse_stype, { 4, OP_STORE, 0x1, 0 } },
+	{ "sw", &form_stype, &parse_stype, { 4, OP_STORE, 0x2, 0 } },
+
+	{ "lui", &form_utype, &parse_utype, { 4, OP_LUI, 0, 0 } },
+	{ "auipc", &form_utype, &parse_utype, { 4, OP_AUIPC, 0, 0 } },
+
+	{ "fence", &form_itype, &parse_fence, { 4, OP_MISC_MEM, 0x0, 0 } },
+
+	END_FORMATION
 };
 
-static const JTypeInfo jtype_table[] = {
-    {"jal", 0x6f},
+const struct formation rv64i[] = {
+	{ "negw", &form_math, &parse_pseudo, { 4, MATH_NEGW, 0, 0 } },
+	{ "sext.w", &form_math, &parse_pseudo, { 4, MATH_SEXTW, 0, 0 } },
+
+	{ "addw", &form_rtype, &parse_rtype, { 4, OP_OP32, 0x0, 0x00 } },
+	{ "addiw", &form_itype, &parse_itype, { 4, OP_OPI32, 0x0, 0 } },
+	{ "subw", &form_rtype, &parse_rtype, { 4, OP_OP32, 0x0, 0x20 } },
+
+	{ "slli", &form_itype, &parse_itype, { 4, OP_OPI, 0x1, 0x00 } },
+	{ "sllw", &form_rtype, &parse_rtype, { 4, OP_OP32, 0x1, 0x00 } },
+	{ "slliw", &form_itype, &parse_itype, { 4, OP_OPI32, 0x0, 0x00 } },
+	{ "srli", &form_itype, &parse_itype, { 4, OP_OPI, 0x5, 0x00 } },
+	{ "srlw", &form_rtype, &parse_rtype, { 4, OP_OP32, 0x5, 0x00 } },
+	{ "srliw", &form_itype, &parse_itype, { 4, OP_OPI32, 0x5, 0 } },
+	{ "srai", &form_itype2, &parse_itype, { 4, OP_OPI, 0x5, 0 } },
+	{ "sraw", &form_rtype, &parse_rtype, { 4, OP_OP32, 0x5, 0x20 } },
+	{ "sraiw", &form_itype2, &parse_itype, { 4, OP_OPI32, 0x5, 0 } },
+
+	{ "lwu", &form_itype, &parse_itype, { 4, OP_LOAD, 0x6, 0 } },
+	{ "ld", &form_itype, &parse_itype, { 4, OP_LOAD, 0x3, 0 } },
+	{ "sd", &form_stype, &parse_stype, { 4, OP_STORE, 0x3, 0 } },
+
+	END_FORMATION
 };
 
-// Atomics: lr/sc/amoswap (RV64A) -> custom encoding
-static uint32_t encode_lr_sc(const char *mnemonic, int rd, int rs1, int rs2,
-                             int aq, int rl, int funct3) {
-  int opcode = 0x2f;
-  int funct5 = 0;
-  if (strncmp(mnemonic, "lr", 2) == 0) {
-    funct5 = 0x02; // lr
-  } else if (strncmp(mnemonic, "sc", 2) == 0) {
-    funct5 = 0x03; // sc
-  } else {
-    fatal("unsupported LR/SC mnemonic %s", mnemonic);
-  }
-  int funct7 = (funct5 << 2) | (aq ? 2 : 0) | (rl ? 1 : 0);
-  return (uint32_t)((funct7 << 25) | (rs2 & 0x1f) << 20 | (rs1 & 0x1f) << 15 |
-                    (funct3 & 7) << 12 | (rd & 0x1f) << 7 | opcode);
+struct bytecode form_syscall(const char *name, struct idata instruction,
+			     struct args args, size_t position)
+{
+	(void)args;
+	(void)position;
+	logger(DEBUG, no_error, "Generating syscall %s", name);
+
+	const uint32_t opcode = instruction.opcode;
+	const uint32_t funct3 = instruction.funct3;
+	const uint32_t funct7 = instruction.funct7;
+
+	assert(instruction.sz == 4);
+
+	struct bytecode res = {
+		.size = 4,
+		.data = xmalloc(4),
+	};
+	*(uint32_t *)res.data = opcode | (funct3 << 12) | (funct7 << 20);
+	return res;
 }
 
-static uint32_t encode_amo(const char *mnemonic, int rd, int rs1, int rs2,
-                            int aq, int rl, int funct3) {
-  int opcode = 0x2f;
-  int funct5 = 0;
-  if (strncmp(mnemonic, "amoswap", 7) == 0) {
-    funct5 = 0x01;
-  } else {
-    fatal("unsupported AMO mnemonic %s", mnemonic);
-  }
-  int funct7 = (funct5 << 2) | (aq ? 2 : 0) | (rl ? 1 : 0);
-  return (uint32_t)((funct7 << 25) | (rs2 & 0x1f) << 20 | (rs1 & 0x1f) << 15 |
-                    (funct3 & 7) << 12 | (rd & 0x1f) << 7 | opcode);
+struct bytecode form_nop(const char *name, struct idata instruction,
+			 struct args args, size_t position)
+{
+	(void)args;
+	(void)position;
+	logger(DEBUG, no_error, "Generating nop instruction %s", name);
+
+	return form_itype(name, instruction,
+			  (struct args){ .rd = 0, .rs1 = 0, .imm = 0 },
+			  position);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Instruction dispatcher
+struct bytecode form_load_pseudo(const char *name, struct idata instruction,
+				 struct args args, size_t position)
+{
+	logger(DEBUG, no_error, "Generating load instruction %s", name);
 
-static void expect_operand_count(const char *mnemonic, int got, int expected) {
-  if (got != expected)
-    fatal("%s expects %d operand(s), got %d", mnemonic, expected, got);
+	enum load_pseudo type = instruction.opcode;
+	uint8_t rd = args.rd;
+
+	uint8_t opcode;
+	uint32_t value;
+	switch (type) {
+	case LOAD_IMM:
+		opcode = OP_LUI;
+		value = args.imm;
+		break;
+	case LOAD_ADDR:
+		opcode = OP_AUIPC;
+		value = (uint32_t)calc_symbol_offset(args.sym, position);
+		break;
+	default:
+		UNREACHABLE();
+#ifdef NO_UNREACHABLE
+		/* ensure warnings aren't emitted if the UNREACHABLE hint
+		 * can't be defined */
+		opcode = 0;
+		value = 0;
+		break;
+#endif
+	}
+
+	logger(DEBUG, no_error, "Load psuedoinstruction has value %d", value);
+
+	const char *uppernames[] = { "lui (li)", "auipc (la)" };
+	const char *lowernames[] = { "addi (li)", "addi (la)" };
+
+	struct bytecode upper = form_utype(uppernames[type],
+					   (struct idata){ 4, opcode, 0, 0 },
+					   (struct args){
+						   .rd = rd,
+						   .imm = value & 0xFFFFF000,
+					   },
+					   position);
+	struct bytecode lower = form_itype(lowernames[type],
+					   (struct idata){ 4, OP_OPI, 0x0, 0 },
+					   (struct args){
+						   .rd = rd,
+						   .rs1 = rd,
+						   .imm = value & 0xFFF,
+					   },
+					   position + 4);
+
+	unsigned char *data = malloc(upper.size + lower.size);
+	memcpy(data, upper.data, upper.size);
+	memcpy(data + upper.size, lower.data, lower.size);
+
+	free(upper.data);
+	free(lower.data);
+
+	return (struct bytecode){
+		.size = upper.size + lower.size,
+		.data = data,
+	};
 }
 
-static bool starts_with(const char *s, const char *prefix) {
-  return strncmp(s, prefix, strlen(prefix)) == 0;
-}
-static void handle_li(const char *mnemonic, char **ops, int count) {
-  expect_operand_count(mnemonic, count, 2);
-  int rd = parse_int_reg(ops[0]);
-  if (rd < 0)
-    fatal("invalid destination register in %s", mnemonic);
-  Expr e = parse_expr(ops[1], false);
+struct bytecode form_math(const char *name, struct idata instruction,
+			  struct args args, size_t position)
+{
+	logger(DEBUG, no_error, "Generating math instruction %s", name);
 
-  if (e.kind == EXPR_IMM) {
-    int64_t imm = e.imm;
-    if (imm >= -2048 && imm <= 2047) {
-      emit_instr("addi %s, zero, %lld", ops[0], (long long)imm);
-      return;
-    }
-
-    uint64_t uimm = (uint64_t)imm;
-    uint32_t hi = (uint32_t)((uimm + 0x800) >> 12);
-    int32_t lo = (int32_t)(uimm & 0xfff);
-    if (lo & 0x800) {
-      hi += 1;
-      lo -= 0x1000;
-    }
-    emit_instr("lui %s, %u", ops[0], hi);
-    emit_instr("addi %s, %s, %d", ops[0], ops[0], lo);
-    return;
-  }
-
-  if (e.kind == EXPR_SYMBOL) {
-    emit_instr("lui %s, %%hi(%s)", ops[0], e.sym->name);
-    emit_instr("addi %s, %s, %%lo(%s)%+lld", ops[0], ops[0], e.sym->name,
-               (long long)e.addend);
-    return;
-  }
-
-  fatal("unsupported expression in li: %s", ops[1]);
-}
-
-static void handle_mv(const char *mnemonic, char **ops, int count) {
-  expect_operand_count(mnemonic, count, 2);
-  emit_instr("add %s, %s, zero", ops[0], ops[1]);
+	const enum math_pseudo type = instruction.opcode;
+	// op rd, rs1
+	switch (type) {
+	case MATH_MV: // addi rd, rs, 0
+		args.imm = 0;
+		return form_itype("mv (addi)",
+				  (struct idata){ 4, OP_OPI, 0x0, 0 }, args,
+				  position);
+	case MATH_NOT: // xori rd, rs, -1
+		args.imm = (uint32_t)-1;
+		return form_itype("not (xori)",
+				  (struct idata){ 4, OP_OPI, 0x4, 0 }, args,
+				  position);
+	case MATH_NEG: // sub rd, x0, rs
+		args.rs2 = args.rs1;
+		args.rs1 = 0;
+		return form_rtype("neg (sub)",
+				  (struct idata){ 4, OP_OP, 0x0, 0x20 }, args,
+				  position);
+	case MATH_NEGW: // subw rd, x0, rs
+		args.rs2 = args.rs1;
+		args.rs1 = 0;
+		return form_rtype("neg (sub)",
+				  (struct idata){ 4, OP_OP32, 0x0, 0x20 }, args,
+				  position);
+	case MATH_SEXTW: // addiw rd, rs, 0
+		args.imm = 0;
+		return form_itype("sextw (addiw)",
+				  (struct idata){ 4, OP_OPI32, 0x0, 0 }, args,
+				  position);
+	}
+	FULLY_DEFINED_SWITCH();
 }
 
-static void handle_not(const char *mnemonic, char **ops, int count) {
-  expect_operand_count(mnemonic, count, 2);
-  emit_instr("xori %s, %s, -1", ops[0], ops[1]);
+struct bytecode form_setif(const char *name, struct idata instruction,
+			   struct args args, size_t position)
+{
+	logger(DEBUG, no_error, "Generating conditional set intruction %s",
+	       name);
+	const enum setif_pseudo type = instruction.opcode;
+	// op rd, rs1
+	switch (type) {
+	case SETIF_EQZ: // sltiu rd, rs, 1
+		args.imm = 1;
+		return form_itype("sltiu (snez)",
+				  (struct idata){ 4, OP_OPI, 0x3, 0x00 }, args,
+				  position);
+	case SETIF_NEZ: // sltu rd, x0, rs
+		args.rs2 = args.rs1;
+		args.rs1 = 0;
+		return form_rtype("sltu (snez)",
+				  (struct idata){ 4, OP_OP, 0x3, 0x00 }, args,
+				  position);
+	case SETIF_LTZ: // slt rd, rs, x0
+		args.rs2 = 0;
+		return form_rtype("slt (sltz)",
+				  (struct idata){ 4, OP_OP, 0x2, 0x00 }, args,
+				  position);
+	case SETIF_GTZ: // slt rd, x0, rs
+		args.rs2 = args.rs1;
+		args.rs1 = 0;
+		return form_rtype("slt (sgtz)",
+				  (struct idata){ 4, OP_OP, 0x2, 0x00 }, args,
+				  position);
+	}
+	FULLY_DEFINED_SWITCH();
 }
 
-static void handle_neg(const char *mnemonic, char **ops, int count,
-                       bool word) {
-  expect_operand_count(mnemonic, count, 2);
-  emit_instr(word ? "subw %s, zero, %s" : "sub %s, zero, %s", ops[0],
-             ops[1]);
+struct bytecode form_branchifz(const char *name, struct idata instruction,
+			       struct args args, size_t position)
+{
+	logger(DEBUG, no_error, "Generating conditional branch intruction %s",
+	       name);
+	const enum branchifz_pseudo type = instruction.opcode;
+	// op rs1, offset
+	switch (type) {
+	case BRANCHIFZ_EQZ: // beq rs, x0, offset
+		args.rs2 = 0;
+		return form_btype("beq (beqz)",
+				  (struct idata){ 4, OP_BRANCH, 0x0, 0 }, args,
+				  position);
+	case BRANCHIFZ_NEZ: // bne rs, x0, offset
+		args.rs2 = 0;
+		return form_btype("bne (bnez)",
+				  (struct idata){ 4, OP_BRANCH, 0x1, 0 }, args,
+				  position);
+	case BRANCHIFZ_LEZ: // bge x0, rs, offset
+		args.rs2 = args.rs1;
+		args.rs1 = 0;
+		return form_btype("bge (blez)",
+				  (struct idata){ 4, OP_BRANCH, 0x5, 0 }, args,
+				  position);
+	case BRANCHIFZ_GEZ: // bge rs, x0, offset
+		args.rs2 = 0;
+		return form_btype("bge (blez)",
+				  (struct idata){ 4, OP_BRANCH, 0x5, 0 }, args,
+				  position);
+	case BRANCHIFZ_LTZ: // blt rs, x0, offset
+		args.rs2 = 0;
+		return form_btype("bge (blez)",
+				  (struct idata){ 4, OP_BRANCH, 0x4, 0 }, args,
+				  position);
+	case BRANCHIFZ_GTZ: // blt x0, rs, offset
+		args.rs2 = args.rs1;
+		args.rs1 = 0;
+		return form_btype("bge (blez)",
+				  (struct idata){ 4, OP_BRANCH, 0x4, 0 }, args,
+				  position);
+	}
+	FULLY_DEFINED_SWITCH();
 }
 
-static void handle_ret(const char *mnemonic, char **ops, int count) {
-  (void)ops;
-  expect_operand_count(mnemonic, count, 0);
-  emit_instr("jalr zero, ra, 0");
+struct bytecode form_branchifr(const char *name, struct idata instruction,
+			       struct args args, size_t position)
+{
+	logger(DEBUG, no_error, "Generating conditional branch intruction %s",
+	       name);
+	const enum branchifr_pseudo type = instruction.opcode;
+
+	const uint8_t rs1 = args.rs1;
+	args.rs1 = args.rs2;
+	args.rs2 = rs1;
+
+	const uint8_t funct3 = (uint8_t)(type);
+	const char *names[] = { "blt (bgt)", "bge (ble)", "bltu (bgtu)",
+				"bgeu (bleu)" };
+	return form_btype(names[type - BRANCHIFR_GT],
+			  (struct idata){ 4, OP_BRANCH, funct3, 0 }, args,
+			  position);
 }
 
-static void handle_jr(const char *mnemonic, char **ops, int count) {
-  expect_operand_count(mnemonic, count, 1);
-  emit_instr("jalr zero, %s, 0", ops[0]);
+struct bytecode form_jump(const char *name, struct idata instruction,
+			  struct args args, size_t position)
+{
+	logger(DEBUG, no_error, "Generating unconditional jump intruction %s",
+	       name);
+	const enum jump_pseudo type = instruction.opcode;
+	switch (type) {
+	case JUMP_J:
+		args.rd = 0;
+		return form_jtype("jal (j)", (struct idata){ 4, OP_JAL, 0, 0 },
+				  args, position);
+	case JUMP_RET:
+		args.rs1 = 1;
+		// fall through
+	case JUMP_JR:
+		args.rd = 0;
+		args.imm = 0;
+		return form_itype("jalr (jr)",
+				  (struct idata){ 4, OP_JALR, 0x0, 0 }, args,
+				  position);
+	}
+	FULLY_DEFINED_SWITCH();
 }
 
-static void handle_j(const char *mnemonic, char **ops, int count) {
-  expect_operand_count(mnemonic, count, 1);
-  emit_instr("jal zero, %s", ops[0]);
+#include "form/csr.h"
+
+#include "form/generic.h"
+#include "parse.h"
+
+const struct formation zicsr[] = {
+	{ "csrrw", &form_itype, &parse_csr, { 4, OP_SYSTEM, 0x1, 0 } },
+	{ "csrrs", &form_itype, &parse_csr, { 4, OP_SYSTEM, 0x2, 0 } },
+	{ "csrrc", &form_itype, &parse_csr, { 4, OP_SYSTEM, 0x3, 0 } },
+	{ "csrrwi", &form_itype, &parse_csri, { 4, OP_SYSTEM, 0x5, 0 } },
+	{ "csrrsi", &form_itype, &parse_csri, { 4, OP_SYSTEM, 0x6, 0 } },
+	{ "csrrci", &form_itype, &parse_csri, { 4, OP_SYSTEM, 0x7, 0 } },
+
+	END_FORMATION
+};
+
+#include "form/fencei.h"
+
+#include "form/generic.h"
+#include "parse.h"
+
+const struct formation zifencei[] = {
+	{ "fence.i", &form_itype, &parse_none, { 4, OP_MISC_MEM, 0x1, 0 } },
+
+	END_FORMATION
+};
+
+#include "form/generic.h"
+
+#include <assert.h>
+#include <string.h>
+
+#include "debug.h"
+#include "symbols.h"
+#include "xmalloc.h"
+
+const struct bytecode error_bytecode = { .size = (size_t)-1, .data = NULL };
+
+int32_t calc_symbol_offset(const struct symbol *sym, size_t position)
+{
+	const size_t sympos = calc_fileoffset((struct sectionpos){
+		.section = sym->section,
+		.offset = sym->value,
+	});
+	return (int32_t)(sympos - position);
 }
 
-static void handle_call(const char *mnemonic, char **ops, int count) {
-  expect_operand_count(mnemonic, count, 1);
-  emit_instr("jal ra, %s", ops[0]);
+struct bytecode form_empty_bytecode(void)
+{
+	logger(DEBUG, no_error, "Generating empty bytecode");
+	return (struct bytecode){ .size = 0, .data = NULL };
 }
 
-static void handle_la(const char *mnemonic, char **ops, int count) {
-  expect_operand_count(mnemonic, count, 2);
-  emit_instr("auipc %s, %%pcrel_hi(%s)", ops[0], ops[1]);
-  emit_instr("addi %s, %s, %%pcrel_lo(%s)", ops[0], ops[0], ops[1]);
+struct bytecode form_rtype(const char *name, struct idata instruction,
+			   struct args args, size_t position)
+{
+	(void)position;
+	logger(DEBUG, no_error, "Generating R type instruction %s", name);
+
+	const uint32_t opcode = instruction.opcode;
+	const uint32_t rd = args.rd;
+	const uint32_t funct3 = instruction.funct3;
+	const uint32_t rs1 = args.rs1;
+	const uint32_t rs2 = args.rs2;
+	const uint32_t funct7 = instruction.funct7;
+
+	assert(instruction.sz == 4);
+
+	struct bytecode res = {
+		.size = 4,
+		.data = xmalloc(4),
+	};
+	*(uint32_t *)res.data = opcode | (rd << 7) | (funct3 << 12) |
+				(rs1 << 15) | (rs2 << 20) | (funct7 << 25);
+	return res;
 }
 
-static void handle_seqz(const char *mnemonic, char **ops, int count) {
-  expect_operand_count(mnemonic, count, 2);
-  emit_instr("sltiu %s, %s, 1", ops[0], ops[1]);
+struct bytecode form_itype(const char *name, struct idata instruction,
+			   struct args args, size_t position)
+{
+	(void)position;
+	logger(DEBUG, no_error, "Generating I type instruction %s", name);
+
+	const uint32_t opcode = instruction.opcode;
+	const uint32_t rd = args.rd;
+	const uint32_t funct3 = instruction.funct3;
+	const uint32_t rs1 = args.rs1;
+	const uint32_t imm_11_0 = args.imm & 0xFFF;
+
+	assert(instruction.sz == 4);
+
+	struct bytecode res = {
+		.size = 4,
+		.data = xmalloc(4),
+	};
+	*(uint32_t *)res.data = opcode | (rd << 7) | (funct3 << 12) |
+				(rs1 << 15) | (imm_11_0 << 20);
+	return res;
 }
 
-static void handle_snez(const char *mnemonic, char **ops, int count) {
-  expect_operand_count(mnemonic, count, 2);
-  emit_instr("sltu %s, zero, %s", ops[0], ops[1]);
+struct bytecode form_itype2(const char *name, struct idata instruction,
+			    struct args args, size_t position)
+{
+	logger(DEBUG, no_error, "Generating I type 2 instruction %s", name);
+	struct bytecode res = form_itype(name, instruction, args, position);
+	*(uint32_t *)res.data |= 0x40000000; /* set type 2 bit */
+	return res;
 }
 
-static void handle_bleu(const char *mnemonic, char **ops, int count) {
-  expect_operand_count(mnemonic, count, 3);
-  emit_instr("bgeu %s, %s, %s", ops[2], ops[1], ops[0]);
+struct bytecode form_stype(const char *name, struct idata instruction,
+			   struct args args, size_t position)
+{
+	(void)position;
+	logger(DEBUG, no_error, "Generating S type instruction %s", name);
+
+	const uint32_t opcode = instruction.opcode;
+	const uint32_t imm_4_0 = args.imm & 0x1F;
+	const uint32_t funct3 = instruction.funct3;
+	const uint32_t rs1 = args.rs1;
+	const uint32_t rs2 = args.rs2;
+	const uint32_t imm_11_5 = (args.imm >> 5) & 0x7F;
+
+	assert(instruction.sz == 4);
+
+	struct bytecode res = {
+		.size = 4,
+		.data = xmalloc(4),
+	};
+	*(uint32_t *)res.data = opcode | (imm_4_0 << 7) | (funct3 << 12) |
+				(rs1 << 15) | (rs2 << 20) | (imm_11_5 << 25);
+	return res;
 }
 
-static void assemble_instruction(const char *mnemonic, char **operands,
-                                 int operand_count, Section *sec) {
-  (void)sec;
+struct bytecode form_btype(const char *name, struct idata instruction,
+			   struct args args, size_t position)
+{
+	(void)position;
+	logger(DEBUG, no_error, "Generating B type instruction %s", name);
 
-  // Handle pseudo instructions first
-  if (strcmp(mnemonic, "li") == 0) {
-    handle_li(mnemonic, operands, operand_count);
-    return;
-  }
-  if (strcmp(mnemonic, "mv") == 0) {
-    handle_mv(mnemonic, operands, operand_count);
-    return;
-  }
-  if (strcmp(mnemonic, "not") == 0) {
-    handle_not(mnemonic, operands, operand_count);
-    return;
-  }
-  if (strcmp(mnemonic, "neg") == 0) {
-    handle_neg(mnemonic, operands, operand_count, false);
-    return;
-  }
-  if (strcmp(mnemonic, "negw") == 0) {
-    handle_neg(mnemonic, operands, operand_count, true);
-    return;
-  }
-  if (strcmp(mnemonic, "ret") == 0) {
-    handle_ret(mnemonic, operands, operand_count);
-    return;
-  }
-  if (strcmp(mnemonic, "jr") == 0) {
-    handle_jr(mnemonic, operands, operand_count);
-    return;
-  }
-  if (strcmp(mnemonic, "j") == 0) {
-    handle_j(mnemonic, operands, operand_count);
-    return;
-  }
-  if (strcmp(mnemonic, "call") == 0) {
-    handle_call(mnemonic, operands, operand_count);
-    return;
-  }
-  if (strcmp(mnemonic, "la") == 0) {
-    handle_la(mnemonic, operands, operand_count);
-    return;
-  }
-  if (strcmp(mnemonic, "seqz") == 0) {
-    handle_seqz(mnemonic, operands, operand_count);
-    return;
-  }
-  if (strcmp(mnemonic, "snez") == 0) {
-    handle_snez(mnemonic, operands, operand_count);
-    return;
-  }
-  if (strcmp(mnemonic, "bleu") == 0) {
-    handle_bleu(mnemonic, operands, operand_count);
-    return;
-  }
+	if (args.sym->type != SYMBOL_LABEL)
+		logger(ERROR, error_invalid_syntax,
+		       "Incorrect argument types for instruction %s."
+		       " Expected label, but got a different symbol",
+		       args.sym->name);
 
-  // Branch pseudo with zero comparisons
-  if (strcmp(mnemonic, "beqz") == 0) {
-    expect_operand_count(mnemonic, operand_count, 2);
-    emit_instr("beq %s, zero, %s", operands[0], operands[1]);
-    return;
-  }
-  if (strcmp(mnemonic, "bnez") == 0) {
-    expect_operand_count(mnemonic, operand_count, 2);
-    emit_instr("bne %s, zero, %s", operands[0], operands[1]);
-    return;
-  }
+	const uint32_t offset =
+		(uint32_t)calc_symbol_offset(args.sym, position);
+	const uint32_t opcode = instruction.opcode;
+	const uint32_t imm_11 = (offset >> 11) & 0x1;
+	const uint32_t imm_4_1 = (offset >> 1) & 0xF;
+	const uint32_t funct3 = instruction.funct3;
+	const uint32_t rs1 = args.rs1;
+	const uint32_t rs2 = args.rs2;
+	const uint32_t imm_10_5 = (offset >> 5) & 0x3F;
+	const uint32_t imm_12 = (offset >> 12) & 0x1;
 
-  // Fall-through to actual instruction encoders
-  Section *section = require_current_section();
-  int section_index = (int)(section - sections.data);
-  size_t loc = section->size;
+	logger(DEBUG, no_error, "B type instruction has offset of 0x%.04X",
+	       offset);
 
-  for (size_t i = 0; i < ARRAY_LEN(rtype_table); i++) {
-    if (strcmp(mnemonic, rtype_table[i].name) == 0) {
-      expect_operand_count(mnemonic, operand_count, 3);
-      int rd = parse_int_reg(operands[0]);
-      int rs1, rs2;
-      if (strncmp(mnemonic, "f", 1) == 0 && strchr(mnemonic, '.')) {
-        // floating point R-type (rd, rs1, rs2 as FP regs)
-        rd = parse_float_reg(operands[0]);
-        rs1 = parse_float_reg(operands[1]);
-        rs2 = parse_float_reg(operands[2]);
-      } else if (strcmp(mnemonic, "fsgnj.d") == 0 ||
-                 strcmp(mnemonic, "fsgnjn.d") == 0 ||
-                 strcmp(mnemonic, "fsgnjx.d") == 0) {
-        rd = parse_float_reg(operands[0]);
-        rs1 = parse_float_reg(operands[1]);
-        rs2 = parse_float_reg(operands[2]);
-      } else {
-        rs1 = parse_int_reg(operands[1]);
-        rs2 = parse_int_reg(operands[2]);
-      }
-      if (rd < 0 || rs1 < 0 || rs2 < 0)
-        fatal("invalid register operand for %s", mnemonic);
+	assert(instruction.sz == 4);
 
-      uint32_t word = encode_r_type(rtype_table[i].funct7, rs2, rs1,
-                                    rtype_table[i].funct3, rd,
-                                    rtype_table[i].opcode);
-      emit_u32(section, word);
-      return;
-    }
-  }
-
-  for (size_t i = 0; i < ARRAY_LEN(itype_table); i++) {
-    if (strcmp(mnemonic, itype_table[i].name) == 0) {
-      if (strcmp(mnemonic, "fence") == 0) {
-        expect_operand_count(mnemonic, operand_count, 2);
-        // Currently only support fence iorw, ow pattern
-        uint32_t word = 0x0ff0000f; // fence iorw, iorw baseline
-        emit_u32(section, word);
-        return;
-      }
-
-      expect_operand_count(mnemonic, operand_count, 3);
-      bool is_shift = (strcmp(mnemonic, "slli") == 0 ||
-                       strcmp(mnemonic, "srli") == 0 ||
-                       strcmp(mnemonic, "srai") == 0 ||
-                       strcmp(mnemonic, "slliw") == 0 ||
-                       strcmp(mnemonic, "srliw") == 0 ||
-                       strcmp(mnemonic, "sraiw") == 0);
-
-      bool is_load = (itype_table[i].opcode == 0x03 ||
-                      itype_table[i].opcode == 0x07);
-
-      int rd = (itype_table[i].opcode == 0x07)
-                   ? parse_float_reg(operands[0])
-                   : parse_int_reg(operands[0]);
-      int rs1;
-      Expr immexpr;
-
-      if (is_load) {
-        char *op = operands[1];
-        char *paren = strchr(op, '(');
-        if (!paren)
-          fatal("expected offset(base) addressing in %s", mnemonic);
-        *paren = '\0';
-        char *close = strchr(paren + 1, ')');
-        if (!close)
-          fatal("missing ')' in %s", mnemonic);
-        *close = '\0';
-        char *offset = str_trim(op);
-        char *base = str_trim(paren + 1);
-        rs1 = parse_int_reg(base);
-        if (rs1 < 0)
-          fatal("invalid base register in %s", mnemonic);
-        immexpr = parse_expr(offset, false);
-      } else {
-        rs1 = parse_int_reg(operands[1]);
-        if (rs1 < 0)
-          fatal("invalid rs1 in %s", mnemonic);
-        immexpr = parse_expr(operands[2], false);
-      }
-
-      if (rd < 0)
-        fatal("invalid destination register in %s", mnemonic);
-
-      uint32_t word = encode_i_type(0, rs1, itype_table[i].funct3, rd,
-                                    itype_table[i].opcode);
-
-      if (immexpr.kind == EXPR_IMM) {
-        int imm = (int)immexpr.imm;
-        if ((imm < -2048 || imm > 2047) && !is_shift)
-          fatal("immediate out of range for %s", mnemonic);
-        if (is_shift) {
-          int shamt = imm & 0x3f;
-          int funct7 = 0;
-          if (strcmp(mnemonic, "srai") == 0 || strcmp(mnemonic, "sraiw") == 0)
-            funct7 = 0x20;
-          word = encode_i_type((funct7 << 5) | shamt, rs1,
-                               itype_table[i].funct3, rd,
-                               itype_table[i].opcode);
-        } else {
-          word = encode_i_type(imm, rs1, itype_table[i].funct3, rd,
-                               itype_table[i].opcode);
-        }
-        emit_u32(section, word);
-      } else if (immexpr.kind == EXPR_SYMBOL) {
-        emit_u32(section, word);
-        add_reloc(section_index, loc, immexpr.sym, immexpr.addend,
-                  is_load ? RELOC_LO12_I : RELOC_LO12_I);
-      } else if (immexpr.kind == EXPR_RELOC_WRP) {
-        emit_u32(section, word);
-        add_reloc(section_index, loc, immexpr.sym, immexpr.addend,
-                  immexpr.reloc);
-      } else {
-        fatal("unsupported immediate in %s", mnemonic);
-      }
-      return;
-    }
-  }
-
-  for (size_t i = 0; i < ARRAY_LEN(stype_table); i++) {
-    if (strcmp(mnemonic, stype_table[i].name) == 0) {
-      expect_operand_count(mnemonic, operand_count, 2);
-      char *op = operands[1];
-      char *paren = strchr(op, '(');
-      if (!paren)
-        fatal("expected offset(base) in %s", mnemonic);
-      *paren = '\0';
-      char *close = strchr(paren + 1, ')');
-      if (!close)
-        fatal("missing ')' in %s", mnemonic);
-      *close = '\0';
-      char *offset = str_trim(op);
-      char *base = str_trim(paren + 1);
-
-      Expr immexpr = parse_expr(offset, true);
-
-      int rs1 = parse_int_reg(base);
-      int rs2 = (stype_table[i].opcode == 0x27)
-                    ? parse_float_reg(operands[0])
-                    : parse_int_reg(operands[0]);
-      if (rs1 < 0 || rs2 < 0)
-        fatal("invalid register in %s", mnemonic);
-
-      uint32_t word = encode_s_type(0, rs2, rs1, stype_table[i].funct3,
-                                    stype_table[i].opcode);
-      emit_u32(section, word);
-
-      if (immexpr.kind == EXPR_IMM) {
-        int imm = (int)immexpr.imm;
-        if (imm < -2048 || imm > 2047)
-          fatal("immediate out of range for %s", mnemonic);
-        section->data[loc] |= (imm & 0x1f) << 7;
-        section->data[loc + 1] |= ((imm >> 5) & 0x7f);
-      } else if (immexpr.kind == EXPR_SYMBOL) {
-        add_reloc(section_index, loc, immexpr.sym, immexpr.addend,
-                  RELOC_LO12_S);
-      } else if (immexpr.kind == EXPR_RELOC_WRP) {
-        add_reloc(section_index, loc, immexpr.sym, immexpr.addend,
-                  immexpr.reloc);
-      }
-      return;
-    }
-  }
-
-  for (size_t i = 0; i < ARRAY_LEN(btype_table); i++) {
-    if (strcmp(mnemonic, btype_table[i].name) == 0) {
-      expect_operand_count(mnemonic, operand_count, 3);
-      int rs1 = parse_int_reg(operands[0]);
-      int rs2 = parse_int_reg(operands[1]);
-      if (rs1 < 0 || rs2 < 0)
-        fatal("invalid registers in %s", mnemonic);
-
-      Symbol *sym;
-      char *tok = operands[2];
-      if (isdigit((unsigned char)tok[0]) &&
-          (tok[1] == 'f' || tok[1] == 'b')) {
-        int digit = tok[0] - '0';
-        bool forward = (tok[1] == 'f');
-        sym = numeric_label_ref(digit, forward);
-      } else {
-        sym = intern_symbol(str_trim(tok));
-      }
-
-      uint32_t word = encode_b_type(0, rs2, rs1, btype_table[i].funct3,
-                                    btype_table[i].opcode);
-      emit_u32(section, word);
-      add_reloc(section_index, loc, sym, 0, RELOC_BRANCH);
-      return;
-    }
-  }
-
-  for (size_t i = 0; i < ARRAY_LEN(utype_table); i++) {
-    if (strcmp(mnemonic, utype_table[i].name) == 0) {
-      expect_operand_count(mnemonic, operand_count, 2);
-      int rd = parse_int_reg(operands[0]);
-      if (rd < 0)
-        fatal("invalid rd for %s", mnemonic);
-      Expr expr = parse_expr(operands[1], false);
-      uint32_t word = encode_u_type(0, rd, utype_table[i].opcode);
-      emit_u32(section, word);
-      if (expr.kind == EXPR_IMM) {
-        uint32_t imm = (uint32_t)((expr.imm + 0x800) >> 12);
-        section->data[loc + 3] = (imm >> 12) & 0xff;
-        section->data[loc + 2] = (imm >> 4) & 0xff;
-        section->data[loc + 1] = ((imm & 0xf) << 4) | (section->data[loc + 1] & 0xf);
-      } else if (expr.kind == EXPR_SYMBOL) {
-        add_reloc(section_index, loc, expr.sym, expr.addend, RELOC_HI20);
-      } else if (expr.kind == EXPR_RELOC_WRP) {
-        add_reloc(section_index, loc, expr.sym, expr.addend, expr.reloc);
-      }
-      return;
-    }
-  }
-
-  for (size_t i = 0; i < ARRAY_LEN(jtype_table); i++) {
-    if (strcmp(mnemonic, jtype_table[i].name) == 0) {
-      expect_operand_count(mnemonic, operand_count, 2);
-      int rd = parse_int_reg(operands[0]);
-      if (rd < 0)
-        fatal("invalid rd in %s", mnemonic);
-      Symbol *sym;
-      char *tok = operands[1];
-      if (isdigit((unsigned char)tok[0]) &&
-          (tok[1] == 'f' || tok[1] == 'b')) {
-        sym = numeric_label_ref(tok[0] - '0', tok[1] == 'f');
-      } else {
-        sym = intern_symbol(str_trim(tok));
-      }
-      uint32_t word = encode_j_type(0, rd, jtype_table[i].opcode);
-      emit_u32(section, word);
-      add_reloc(section_index, loc, sym, 0, rd == 1 ? RELOC_CALL : RELOC_JAL);
-      return;
-    }
-  }
-
-  if (starts_with(mnemonic, "lr.")) {
-    expect_operand_count(mnemonic, operand_count, 2);
-    int rd = parse_int_reg(operands[0]);
-    char *op = operands[1];
-    char *paren = strchr(op, '(');
-    if (!paren)
-      fatal("expected (rs1) in %s", mnemonic);
-    *paren = '\0';
-    char *close = strchr(paren + 1, ')');
-    if (!close)
-      fatal("missing ')' in %s", mnemonic);
-    *close = '\0';
-    char *rs1str = str_trim(paren + 1);
-    int rs1 = parse_int_reg(rs1str);
-    if (rd < 0 || rs1 < 0)
-      fatal("invalid registers in %s", mnemonic);
-    int aq = strstr(mnemonic, ".aq") != NULL;
-    uint32_t word = encode_lr_sc(mnemonic, rd, rs1, 0, aq, 0, 0x2);
-    emit_u32(section, word);
-    return;
-  }
-
-  if (starts_with(mnemonic, "sc.")) {
-    expect_operand_count(mnemonic, operand_count, 3);
-    int rd = parse_int_reg(operands[0]);
-    int rs2 = parse_int_reg(operands[1]);
-    char *op = operands[2];
-    char *paren = strchr(op, '(');
-    if (!paren)
-      fatal("expected (rs1) in %s", mnemonic);
-    *paren = '\0';
-    char *close = strchr(paren + 1, ')');
-    if (!close)
-      fatal("missing ')' in %s", mnemonic);
-    *close = '\0';
-    int rs1 = parse_int_reg(str_trim(paren + 1));
-    int aq = strstr(mnemonic, ".aq") != NULL;
-    uint32_t word = encode_lr_sc(mnemonic, rd, rs1, rs2, aq, 0, 0x2);
-    emit_u32(section, word);
-    return;
-  }
-
-  if (starts_with(mnemonic, "amoswap")) {
-    expect_operand_count(mnemonic, operand_count, 3);
-    int rd = parse_int_reg(operands[0]);
-    int rs2 = parse_int_reg(operands[1]);
-    char *op = operands[2];
-    char *paren = strchr(op, '(');
-    if (!paren)
-      fatal("expected (rs1) in %s", mnemonic);
-    *paren = '\0';
-    char *close = strchr(paren + 1, ')');
-    if (!close)
-      fatal("missing ')' in %s", mnemonic);
-    *close = '\0';
-    int rs1 = parse_int_reg(str_trim(paren + 1));
-    int aq = strstr(mnemonic, ".aq") != NULL;
-    uint32_t word = encode_amo(mnemonic, rd, rs1, rs2, aq, 0, 0x2);
-    emit_u32(section, word);
-    return;
-  }
-
-  fatal("unsupported instruction %s", mnemonic);
+	struct bytecode res = {
+		.size = 4,
+		.data = xmalloc(4),
+	};
+	*(uint32_t *)res.data = opcode | (imm_11 << 7) | (imm_4_1 << 8) |
+				(funct3 << 12) | (rs1 << 15) | (rs2 << 20) |
+				(imm_10_5 << 25) | (imm_12 << 31);
+	return res;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Directive handling and assembler driver
+struct bytecode form_utype(const char *name, struct idata instruction,
+			   struct args args, size_t position)
+{
+	(void)position;
+	logger(DEBUG, no_error, "Generating U type instruction %s", name);
 
-static void handle_directive(char *line) {
-  char *cursor = line;
-  while (*cursor && !isspace((unsigned char)*cursor))
-    cursor++;
-  char saved = *cursor;
-  *cursor = '\0';
-  const char *dir = line;
-  char *args = saved ? cursor + 1 : cursor;
-  args = str_trim(args);
+	const uint32_t opcode = instruction.opcode;
+	const uint32_t rd = args.rd & 0x1F;
+	const uint32_t imm_12_31 = (args.imm >> 12) & 0xFFFFF;
 
-  if (strcmp(dir, ".text") == 0) {
-    current_section = find_or_create_section(".text");
-    return;
-  }
-  if (strcmp(dir, ".data") == 0) {
-    current_section = find_or_create_section(".data");
-    return;
-  }
-  if (strcmp(dir, ".bss") == 0) {
-    current_section = find_or_create_section(".bss");
-    return;
-  }
-  if (strcmp(dir, ".rodata") == 0) {
-    current_section = find_or_create_section(".rodata");
-    return;
-  }
-  if (strcmp(dir, ".section") == 0) {
-    LineReader lr;
-    lr_init(&lr, args);
-    char *tok = lr_read_token(&lr);
-    if (!tok)
-      fatal(".section requires a name");
-    char *name = str_trim(tok);
-    current_section = find_or_create_section(name);
-    free(tok);
-    return;
-  }
+	assert(instruction.sz == 4);
 
-  if (strcmp(dir, ".align") == 0) {
-    LineReader lr;
-    lr_init(&lr, args);
-    char *tok = lr_read_token(&lr);
-    if (!tok)
-      fatal(".align requires value");
-    int align_pow = (int)parse_int_auto(tok);
-    free(tok);
-    if (align_pow < 0 || align_pow > 31)
-      fatal(".align argument out of range");
-    size_t align = (size_t)1 << align_pow;
-    align_section(require_current_section(), align);
-    return;
-  }
-
-  if (strcmp(dir, ".byte") == 0) {
-    LineReader lr;
-    lr_init(&lr, args);
-    Section *section = require_current_section();
-    char *tok;
-    while ((tok = lr_read_token(&lr)) != NULL) {
-      char *trim = str_trim(tok);
-      if (*trim == '\0') {
-        free(tok);
-        continue;
-      }
-      Expr expr = parse_expr(trim, false);
-      if (expr.kind == EXPR_IMM) {
-        emit_u8(section, (uint8_t)expr.imm);
-      } else if (expr.kind == EXPR_SYMBOL) {
-        size_t off = section->size;
-        emit_u8(section, 0);
-        add_reloc((int)(section - sections.data), off, expr.sym, expr.addend,
-                  RELOC_ABS64); // treat as byte within 64 relocation (later fix)
-      } else {
-        fatal("unsupported expression in .byte");
-      }
-      free(tok);
-    }
-    return;
-  }
-
-  if (strcmp(dir, ".zero") == 0) {
-    LineReader lr;
-    lr_init(&lr, args);
-    char *tok = lr_read_token(&lr);
-    if (!tok)
-      fatal(".zero requires count");
-    size_t count = (size_t)parse_uint_auto(tok);
-    free(tok);
-    Section *section = require_current_section();
-    for (size_t i = 0; i < count; i++)
-      emit_u8(section, 0);
-    return;
-  }
-
-  if (strcmp(dir, ".quad") == 0) {
-    LineReader lr;
-    lr_init(&lr, args);
-    char *tok;
-    Section *section = require_current_section();
-    while ((tok = lr_read_token(&lr)) != NULL) {
-      char *trim = str_trim(tok);
-      if (*trim == '\0') {
-        free(tok);
-        continue;
-      }
-      Expr expr = parse_expr(trim, false);
-      size_t off = section->size;
-      emit_u64(section, 0);
-      if (expr.kind == EXPR_IMM) {
-        uint64_t v = (uint64_t)expr.imm;
-        for (int i = 0; i < 8; i++)
-          section->data[off + i] = (uint8_t)(v >> (i * 8));
-      } else if (expr.kind == EXPR_SYMBOL) {
-        add_reloc((int)(section - sections.data), off, expr.sym, expr.addend,
-                  RELOC_ABS64);
-      } else if (expr.kind == EXPR_RELOC_WRP) {
-        add_reloc((int)(section - sections.data), off, expr.sym, expr.addend,
-                  expr.reloc);
-      }
-      free(tok);
-    }
-    return;
-  }
-
-  if (strcmp(dir, ".globl") == 0 || strcmp(dir, ".global") == 0) {
-    LineReader lr;
-    lr_init(&lr, args);
-    char *tok = lr_read_token(&lr);
-    if (!tok)
-      fatal(".globl requires symbol name");
-    char *name = str_trim(tok);
-    Symbol *sym = intern_symbol(name);
-    sym->vis = SYM_GLOBAL;
-    free(tok);
-    return;
-  }
-
-  if (strcmp(dir, ".local") == 0) {
-    LineReader lr;
-    lr_init(&lr, args);
-    char *tok = lr_read_token(&lr);
-    if (!tok)
-      fatal(".local requires symbol name");
-    Symbol *sym = intern_symbol(str_trim(tok));
-    sym->vis = SYM_LOCAL;
-    free(tok);
-    return;
-  }
-
-  if (strcmp(dir, ".type") == 0) {
-    LineReader lr;
-    lr_init(&lr, args);
-    char *a = lr_read_token(&lr);
-    char *b = lr_read_token(&lr);
-    if (!a || !b)
-      fatal(".type requires two arguments");
-    Symbol *sym = intern_symbol(str_trim(a));
-    char *val = str_trim(b);
-    if (strcmp(val, "@function") == 0)
-      sym->type = SYM_TYPE_FUNC;
-    else if (strcmp(val, "@object") == 0)
-      sym->type = SYM_TYPE_OBJECT;
-    free(a);
-    free(b);
-    return;
-  }
-
-  if (strcmp(dir, ".size") == 0) {
-    LineReader lr;
-    lr_init(&lr, args);
-    char *a = lr_read_token(&lr);
-    char *b = lr_read_token(&lr);
-    if (!a || !b)
-      fatal(".size requires two arguments");
-    Symbol *sym = intern_symbol(str_trim(a));
-    sym->size = parse_uint_auto(b);
-    free(a);
-    free(b);
-    return;
-  }
-
-  if (strcmp(dir, ".comm") == 0) {
-    LineReader lr;
-    lr_init(&lr, args);
-    char *name_tok = lr_read_token(&lr);
-    char *size_tok = lr_read_token(&lr);
-    char *align_tok = lr_read_token(&lr);
-    if (!name_tok || !size_tok)
-      fatal(".comm requires name and size");
-    Symbol *sym = intern_symbol(str_trim(name_tok));
-    sym->section = SYM_COMMON;
-    sym->size = parse_uint_auto(size_tok);
-    sym->align = align_tok ? (uint32_t)parse_uint_auto(align_tok) : 0;
-    free(name_tok);
-    free(size_tok);
-    if (align_tok)
-      free(align_tok);
-    return;
-  }
-
-  if (strcmp(dir, ".file") == 0 || strcmp(dir, ".loc") == 0) {
-    // debug directives ignored
-    return;
-  }
-
-  fatal("unsupported directive %s", dir);
+	struct bytecode res = {
+		.size = 4,
+		.data = xmalloc(4),
+	};
+	*(uint32_t *)res.data = opcode | (rd << 7) | (imm_12_31 << 12);
+	return res;
 }
 
-static void parse_line(char *line) {
-  char *hash = strchr(line, '#');
-  if (hash)
-    *hash = '\0';
-  char *semi = strchr(line, ';');
-  if (semi)
-    *semi = '\0';
-  char *trim = str_trim(line);
-  if (*trim == '\0')
-    return;
+struct bytecode form_jtype(const char *name, struct idata instruction,
+			   struct args args, size_t position)
+{
+	(void)position;
+	logger(DEBUG, no_error, "Generating J type instruction %s", name);
 
-  size_t len = strlen(trim);
-  if (trim[len - 1] == ':') {
-    trim[len - 1] = '\0';
-    if (isdigit((unsigned char)trim[0]) && trim[1] == '\0') {
-      numeric_label_define(trim[0] - '0', require_current_section());
-    } else {
-      Symbol *sym = intern_symbol(trim);
-      Section *sec = require_current_section();
-      sym->section = (int)(sec - sections.data);
-      sym->value = sec->size;
-    }
-    return;
-  }
+	int32_t offset = calc_symbol_offset(args.sym, position);
+	logger(DEBUG, no_error, "Offset of J type instruction is 0x%x", offset);
 
-  if (*trim == '.') {
-    handle_directive(trim);
-    return;
-  }
+	const uint32_t opcode = instruction.opcode;
+	const uint32_t rd = args.rd & 0x1F;
+	const uint32_t imm_19_12 = (offset >> 12) & 0xFF;
+	const uint32_t imm_11 = (offset >> 11) & 0x1;
+	const uint32_t imm_10_1 = (offset >> 1) & 0x3FF;
+	const uint32_t imm_20 = (offset >> 20) & 0x1;
 
-  // instruction
-  char *space = trim;
-  while (*space && !isspace((unsigned char)*space))
-    space++;
-  char saved = *space;
-  *space = '\0';
-  const char *mnemonic = trim;
-  char *operand_str = saved ? space + 1 : space;
-  operand_str = str_trim(operand_str);
+	assert(instruction.sz == 4);
 
-  char *operands[16];
-  int operand_count = 0;
-  if (*operand_str) {
-    LineReader lr;
-    lr_init(&lr, operand_str);
-    char *tok;
-    while ((tok = lr_read_token(&lr)) != NULL) {
-      char *t = str_trim(tok);
-      if (*t)
-        operands[operand_count++] = strdup(t);
-      free(tok);
-    }
-  }
-
-  assemble_instruction(mnemonic, operands, operand_count,
-                       require_current_section());
-  for (int i = 0; i < operand_count; i++)
-    free(operands[i]);
+	struct bytecode res = {
+		.size = 4,
+		.data = xmalloc(4),
+	};
+	*(uint32_t *)res.data = opcode | (rd << 7) | (imm_19_12 << 12) |
+				(imm_11 << 20) | (imm_10_1 << 21) |
+				(imm_20 << 31);
+	return res;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Object file writer (custom format)
+#include "form/instructions.h"
 
-typedef struct {
-  uint32_t magic;      // 'MOBJ'
-  uint16_t version;    // currently 1
-  uint16_t section_cnt;
-  uint32_t symbol_cnt;
-  uint32_t reloc_cnt;
-  uint32_t reserved;
-} __attribute__((packed)) ObjHeader;
+#include <stdlib.h>
+#include <string.h>
 
-typedef struct {
-  char name[32];
-  uint64_t size;
-  uint64_t align;
-  uint8_t flags; // bit0=alloc, bit1=exec, bit2=write
-  uint8_t kind;  // SectionKind enum (truncated to byte)
-  uint16_t reserved;
-  uint64_t offset; // file offset for data payload
-} __attribute__((packed)) ObjSection;
+#include "debug.h"
+#include "form/atomic.h"
+#include "form/base.h"
+#include "form/csr.h"
+#include "form/fencei.h"
+#include "form/generic.h"
+#include "macros.h"
 
-typedef struct {
-  char name[32];
-  int32_t section; // -1 undef, -2 abs, -3 common, >=0 section index
-  uint32_t reserved;
-  uint64_t value;
-  uint64_t size;
-  uint32_t align;
-  uint8_t visibility; // SymbolVisibility
-  uint8_t type;       // SymbolType
-  uint16_t pad;
-} __attribute__((packed)) ObjSymbol;
+struct formation parse_form(const char *instruction)
+{
+	logger(DEBUG, no_error, "Getting formation for instruction %s",
+	       instruction);
 
-typedef struct {
-  int32_t section;
-  int32_t symbol;
-  uint64_t offset;
-  int64_t addend;
-  uint32_t type;
-  uint32_t reserved;
-} __attribute__((packed)) ObjReloc;
+	const struct formation *sets[] = {
+		rv32i, rv64i, rv32a, rv64a, zicsr, zifencei,
+	};
+	for (size_t i = 0; i < ARRAY_LENGTH(sets); i++) {
+		while (sets[i]->name) {
+			if (!strcmp(instruction, sets[i]->name))
+				return *sets[i];
+			sets[i]++;
+		}
+	}
 
-static void write_object(const char *path) {
-  FILE *fp = fopen(path, "wb");
-  if (!fp)
-    fatal("failed to open %s for writing", path);
-
-  ObjHeader hdr = {
-      .magic = 0x4d4f424a, // 'MOBJ'
-      .version = 1,
-      .section_cnt = (uint16_t)sections.len,
-      .symbol_cnt = (uint32_t)symbols.len,
-      .reloc_cnt = (uint32_t)relocs.len,
-      .reserved = 0,
-  };
-  fwrite(&hdr, sizeof(hdr), 1, fp);
-
-  size_t header_offset = sizeof(hdr);
-  size_t sections_offset = header_offset + sections.len * sizeof(ObjSection);
-  size_t symbols_offset = sections_offset + symbols.len * sizeof(ObjSymbol);
-  size_t relocs_offset = symbols_offset + relocs.len * sizeof(ObjReloc);
-
-  // We'll collect section data offsets as we go
-  size_t data_cursor = relocs_offset;
-  ObjSection *sec_tbl = calloc(sections.len, sizeof(ObjSection));
-  for (size_t i = 0; i < sections.len; i++) {
-    Section *sec = &sections.data[i];
-    ObjSection *os = &sec_tbl[i];
-    snprintf(os->name, sizeof(os->name), "%s", sec->name);
-    os->size = sec->size;
-    os->align = sec->align ? sec->align : 1;
-    os->flags = (sec->alloc ? 1 : 0) | (sec->exec ? 2 : 0) |
-                (sec->write ? 4 : 0);
-    os->kind = (uint8_t)sec->kind;
-    os->offset = data_cursor;
-    data_cursor += sec->size;
-  }
-
-  fwrite(sec_tbl, sizeof(ObjSection), sections.len, fp);
-  free(sec_tbl);
-
-  ObjSymbol *sym_tbl = calloc(symbols.len, sizeof(ObjSymbol));
-  for (size_t i = 0; i < symbols.len; i++) {
-    Symbol *sym = &symbols.data[i];
-    ObjSymbol *os = &sym_tbl[i];
-    snprintf(os->name, sizeof(os->name), "%s", sym->name);
-    os->section = sym->section;
-    os->value = sym->value;
-    os->size = sym->size;
-    os->align = sym->align;
-    os->visibility = sym->vis;
-    os->type = sym->type;
-  }
-  fwrite(sym_tbl, sizeof(ObjSymbol), symbols.len, fp);
-  free(sym_tbl);
-
-  ObjReloc *rel_tbl = calloc(relocs.len, sizeof(ObjReloc));
-  for (size_t i = 0; i < relocs.len; i++) {
-    Reloc *rel = &relocs.data[i];
-    ObjReloc *or = &rel_tbl[i];
-    or->section = rel->section;
-    or->symbol = rel->symbol;
-    or->offset = rel->offset;
-    or->addend = rel->addend;
-    or->type = rel->type;
-  }
-  fwrite(rel_tbl, sizeof(ObjReloc), relocs.len, fp);
-  free(rel_tbl);
-
-  // finally section data
-  for (size_t i = 0; i < sections.len; i++) {
-    Section *sec = &sections.data[i];
-    if (sec->size && sec->data)
-      fwrite(sec->data, 1, sec->size, fp);
-  }
-
-  fclose(fp);
+	logger(ERROR, error_invalid_instruction,
+	       "Unknown assembly instruction - %s\n", instruction);
+	return (struct formation)END_FORMATION;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main entry
+#include "elf/def.h"
 
-static void usage(void) {
-  fprintf(stderr, "usage: as [-o output] file.s\n");
-  exit(1);
+#define ELF_IDENT                                                         \
+	0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, \
+		0x00, 0x00, 0x00, 0x00, 0x00
+
+struct elf64header new_elf64header(void)
+{
+	return (struct elf64header){
+		.ident = { ELF_IDENT },
+		.type = 0x01, /* Relocatable file */
+		.machine = 0xF3, /* RISC-V */
+		.version = 1, /* ELF version 1 */
+		.flags = 0x0004, /* RISC-V float abi double flag */
+		.headersize = sizeof(struct elf64header),
+	};
 }
 
-int main(int argc, char **argv) {
-  const char *output_path = "a.o";
-  const char *input_path = NULL;
+struct elf64sectionheader new_elf64sectionheader(void)
+{
+	return (struct elf64sectionheader){
+		.size = sizeof(struct elf64sectionheader),
+		.addr = 0x0,
+	};
+}
 
-  for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "-o") == 0) {
-      if (++i >= argc)
-        usage();
-      output_path = argv[i];
-    } else if (argv[i][0] == '-') {
-      usage();
-    } else {
-      input_path = argv[i];
-    }
-  }
+#include "elf/output.h"
 
-  if (!input_path)
-    usage();
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-  FILE *fp = fopen(input_path, "r");
-  if (!fp)
-    fatal("failed to open %s", input_path);
+#include "debug.h"
+#include "elf/def.h"
+#include "symbols.h"
+#include "xmalloc.h"
 
-  // ensure default sections exist
-  current_section = find_or_create_section(".text");
+enum sectiontypes_e {
+	SHT_NULL = 0x0,
+	SHT_PROGBITS = 0x1,
+	SHT_SYMTAB = 0x2,
+	SHT_STRTAB = 0x3,
+};
 
-  char linebuf[512];
-  while (read_line(fp, linebuf, sizeof(linebuf))) {
-    parse_line(linebuf);
-  }
-  fclose(fp);
+enum sections outputsection = SECTION_TEXT;
+static struct section outputsections[SECTION_COUNT] = { { .size = 0,
+							  .contents = NULL } };
 
-  write_object(output_path);
-  return 0;
+static struct {
+	uint64_t flags;
+	uint32_t link;
+	uint32_t info;
+	uint64_t align;
+	uint64_t entrysize;
+	uint32_t type;
+} sectiondata[SECTION_COUNT] = {
+	{ 0x00, 0x0, 0x0, 0x1, 0x0, SHT_NULL },
+	{ 0x00, 0x0, 0x0, 0x1, 0x0, SHT_STRTAB }, // .strtab
+	{ 0x06, 0x0, 0x0, 0x4, 0x0, SHT_PROGBITS }, // .text
+	{ 0x03, 0x0, 0x0, 0x1, 0x0, SHT_PROGBITS }, // .data
+	{ 0x00, 0x1, 0x0, 0x8, 0x18, SHT_SYMTAB }, // .symtab
+};
+
+static const char *sectionnames[SECTION_COUNT] = {
+	"", ".strtab", ".text", ".data", ".symtab",
+};
+
+void change_output(enum sections section)
+{
+	if (section >= SECTION_COUNT || section < 0)
+		return;
+	outputsection = section;
+}
+
+struct sectionpos get_outputpos(void)
+{
+	return (struct sectionpos){
+		.section = outputsection,
+		.offset = outputsections[outputsection].size
+	};
+}
+
+void inc_outputsize(enum sections section, size_t amount)
+{
+	outputsections[section].size += amount;
+}
+
+void set_section(enum sections section)
+{
+	outputsection = section;
+}
+
+size_t calc_fileoffset(struct sectionpos a)
+{
+	return outputsections[a.section].offset + a.offset;
+}
+
+static inline size_t align_offset(size_t offset, size_t align)
+{
+	offset--;
+	offset /= align;
+	offset++;
+	offset *= align;
+	return offset;
+}
+
+void calc_strtab(void)
+{
+	outputsections[SECTION_STRTAB].size = 0;
+	for (int i = 0; i < SECTION_COUNT; i++)
+		outputsections[SECTION_STRTAB].size +=
+			strlen(sectionnames[i]) + 1;
+	outputsections[SECTION_STRTAB].size += calc_symtab_str_buf_size();
+}
+
+int fill_strtab(void)
+{
+	const size_t symtab_strings_sz = calc_symtab_str_buf_size();
+	char *symtab_strings = create_symtab_str_buf(symtab_strings_sz);
+	const size_t count =
+		write_sectiondata(symtab_strings, symtab_strings_sz,
+				  (struct sectionpos){
+					  .section = SECTION_STRTAB,
+					  .offset = 0,
+				  });
+	free(symtab_strings);
+	if (count != symtab_strings_sz) {
+		logger(ERROR, error_internal,
+		       "Unable to write data to memory for section .strtab");
+		return 1;
+	}
+	size_t offset = count;
+	for (int i = 0; i < SECTION_COUNT; i++) {
+		const size_t sz = strlen(sectionnames[i]) + 1;
+		const size_t written =
+			write_sectiondata(sectionnames[i], sz,
+					  (struct sectionpos){
+						  .section = SECTION_STRTAB,
+						  .offset = offset,
+					  });
+		if (sz != written) {
+			logger(ERROR, error_internal,
+			       "Unable to write data to memory for section .strtab");
+			return 1;
+		}
+		outputsections[i].nameoffset = (uint32_t)offset;
+		offset += sz;
+	}
+	return 0;
+}
+
+void calc_symtab(void)
+{
+	size_t sz = 0;
+	for (size_t hash = 0; hash < SYMBOLMAP_ENTRIES; hash++)
+		sz += symbols[hash].count;
+	outputsections[SECTION_SYMTAB].size =
+		(sz + 1) * sizeof(struct elf64sym);
+	sectiondata[SECTION_SYMTAB].info = (uint32_t)sz;
+}
+
+int fill_symtab(void)
+{
+	const struct elf64sym blank = (struct elf64sym){ 0, 0, 0, 0, 0, 0 };
+	write_sectiondata(&blank, sizeof(blank),
+			  (struct sectionpos){ .section = SECTION_SYMTAB,
+					       .offset = 0 });
+	uint32_t strtab_addr = 1;
+	size_t count = 1;
+	for (size_t hash = 0; hash < SYMBOLMAP_ENTRIES; hash++) {
+		for (size_t index = 0; index < symbols[hash].count; index++) {
+			const struct symbol *sym = &symbols[hash].data[index];
+			struct elf64sym entry = (struct elf64sym){
+				.name = strtab_addr,
+				.info = sym->binding,
+				.other = 0, /* TODO: add other attributes */
+				.shndx = (uint16_t)sym->section,
+				.value = (uint64_t)sym->value,
+				.size = 0, /* TODO: support for symbol sizes? */
+			};
+			write_sectiondata(
+				&entry, sizeof(entry),
+				(struct sectionpos){ .section = SECTION_SYMTAB,
+						     .offset = count *
+							       sizeof(entry) });
+			strtab_addr += (uint32_t)sym->name_sz;
+			count++;
+		}
+	}
+	return 0;
+}
+
+int alloc_output(void)
+{
+	size_t offset = sizeof(struct elf64header);
+	for (int i = 0; i < SECTION_COUNT; i++) {
+		outputsections[i].contents = xmalloc(outputsections[i].size);
+		logger(DEBUG, no_error, "%d bytes allocated to section (%p)",
+		       outputsections[i].size, outputsections[i].contents);
+		offset = align_offset(offset, sectiondata[i].align);
+		outputsections[i].offset = offset;
+		offset += outputsections[i].size;
+	}
+	outputsections[SECTION_NULL].offset = 0x0;
+	return 0;
+}
+
+size_t write_sectiondata(const void *bytes, size_t count,
+			 struct sectionpos position)
+{
+	logger(DEBUG, no_error, "writing %d bytes to section %s",
+	       position.section, sectionnames[position.section]);
+	if (position.offset + count > outputsections[position.section].size) {
+		logger(CRITICAL, error_internal,
+		       "Too many bytes for allowed size (requested end: %d, allocated: %d)",
+		       position.offset + count,
+		       outputsections[position.section].size);
+		return 0;
+	}
+	char *dest =
+		outputsections[position.section].contents + position.offset;
+	memcpy(dest, bytes, count);
+	return count;
+}
+
+int flush_output(FILE *elf)
+{
+	logger(DEBUG, no_error, "Writing ELF output to temporary file");
+	/* Generate headers */
+	struct elf64header elfheader = new_elf64header();
+	elfheader.phoffset = 0;
+	elfheader.phentrysize = 0;
+	elfheader.phcount = 0;
+
+	elfheader.shcount = SECTION_COUNT;
+	elfheader.shentrysize = sizeof(struct elf64sectionheader);
+	elfheader.shstrindex = SECTION_STRTAB;
+
+	struct elf64sectionheader sectionheaders[SECTION_COUNT];
+	for (int i = 0; i < SECTION_COUNT; i++) {
+		sectionheaders[i] = new_elf64sectionheader();
+		sectionheaders[i].flags = sectiondata[i].flags;
+		sectionheaders[i].link = sectiondata[i].link;
+		sectionheaders[i].info = sectiondata[i].info;
+		sectionheaders[i].addralign = sectiondata[i].align;
+		sectionheaders[i].entrysize = sectiondata[i].entrysize;
+		sectionheaders[i].type = sectiondata[i].type;
+		sectionheaders[i].name = outputsections[i].nameoffset;
+		sectionheaders[i].offset = outputsections[i].offset;
+		sectionheaders[i].size = outputsections[i].size;
+		logger(DEBUG, no_error,
+		       "Creating section (%s) of size (0x%.08x) and offset (0x%.08x)",
+		       sectionnames[i], sectionheaders[i].size,
+		       sectionheaders[i].offset);
+	}
+
+	/* Fix offset and alignment stuff */
+	sectionheaders[SECTION_NULL].addralign = 0x0;
+	elfheader.shoffset =
+		align_offset(outputsections[SECTION_COUNT - 1].offset +
+				     outputsections[SECTION_COUNT - 1].size,
+			     8);
+
+	logger(DEBUG, no_error, "Section Header offset at 0x%.08x",
+	       elfheader.shoffset);
+
+	/* Write data to output */
+	logger(DEBUG, no_error, "Writing ELF header");
+	fwrite(&elfheader, sizeof(elfheader), 1, elf);
+	for (int i = 0; i < SECTION_COUNT; i++) {
+		logger(DEBUG, no_error, "Writing Section (%s)",
+		       sectionnames[i]);
+		fseek(elf, (long)outputsections[i].offset, SEEK_SET);
+		fwrite(outputsections[i].contents, 1, outputsections[i].size,
+		       elf);
+	}
+	logger(DEBUG, no_error, "Writing section headers");
+	fseek(elf, (long)elfheader.shoffset, SEEK_SET);
+	fwrite(sectionheaders, sizeof(sectionheaders), 1, elf);
+
+	return 0;
+}
+
+void free_output(void)
+{
+	for (int i = 0; i < SECTION_COUNT; i++)
+		free(outputsections[i].contents);
+}
+
+#define __STDC_WANT_LIB_EXT1__ 1
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "args.h"
+#include "debug.h"
+#include "generation.h"
+#include "xmalloc.h"
+
+FILE *inputfile = NULL;
+FILE *outputtempfile = NULL;
+FILE *outputfile = NULL;
+
+static int open(FILE **f, const char *filename, const char *flags)
+{
+#ifdef __STDC_LIB_EXT1__
+	return fopen_s(f, filename, flags));
+#else
+	*f = fopen(filename, flags);
+	return !*f;
+#endif
+}
+
+void closefiles(void)
+{
+	if (inputfile)
+		fclose(inputfile);
+	if (outputtempfile)
+		fclose(outputtempfile);
+	if (outputfile && outputfile != stdin && outputfile != stdout &&
+	    outputfile != stderr)
+		fclose(outputfile);
+}
+
+void open_files(void)
+{
+	logger(DEBUG, no_error, "Opening files");
+
+	outputtempfile = tmpfile();
+	if (!outputtempfile) {
+		logger(ERROR, error_system, "Unable to create temporary file");
+		exit(EXIT_FAILURE);
+	}
+
+	logger(DEBUG, no_error, "Opening %s", *cmdargs.inputfile->filename);
+	if (open(&inputfile, *cmdargs.inputfile->filename, "r")) {
+		perror("Error: ");
+		logger(ERROR, error_system, "Unable to open input file");
+		exit(EXIT_FAILURE);
+	}
+
+	if (!**cmdargs.outputfile->filename) {
+		logger(DEBUG, no_error, "All files opened successfully");
+		outputfile = stdout;
+		return;
+	}
+
+	logger(DEBUG, no_error, "Opening %s", *cmdargs.outputfile->filename);
+	if (open(&outputfile, *cmdargs.outputfile->filename, "wb")) {
+		perror("Error: ");
+		logger(ERROR, error_system, "Unable to open output file");
+		exit(EXIT_FAILURE);
+	}
+
+	logger(DEBUG, no_error, "All files opened successfully");
+}
+
+void copy_files(FILE *dest, FILE *src)
+{
+	const long pos = ftell(src);
+	rewind(outputtempfile);
+
+	char *buffer = xmalloc(BUFSIZ);
+	for (;;) {
+		const size_t bytes = fread(buffer, 1, BUFSIZ, src);
+		fwrite(buffer, 1, bytes, dest);
+		if (bytes != BUFSIZ)
+			break;
+	}
+	free(buffer);
+
+	fseek(src, pos, SEEK_SET);
+}
+
+int main(int argc, char *argv[])
+{
+	parse_cmdargs(argc, argv);
+	open_files();
+	parse_file(inputfile, outputtempfile);
+
+	logger(DEBUG, no_error, "Done generating bytecode");
+	copy_files(outputfile, outputtempfile);
+	logger(DEBUG, no_error, "Finished writing bytecode to output");
+	closefiles();
+
+	return get_clean_exit(ERROR);
 }
