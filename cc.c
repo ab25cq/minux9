@@ -491,7 +491,7 @@ static void cleanup(void) {
 // 创建临时文件
 static char *createTmpFile(void) {
   // 临时文件的路径格式
-  char *Path = strdup("/tmp/rvcc-XXXXXX");
+  char *Path = strdup("/tmp-rvcc-XXXXXX");
   // 创建临时文件
   int FD = mkstemp(Path);
   // 临时文件创建失败
@@ -517,6 +517,7 @@ static void runSubprocess(char **Argv) {
     // 换行
     fprintf(stderr, "\n");
   }
+
 
   // Fork–exec模型
   // 创建当前进程的副本，这里开辟了一个子进程
