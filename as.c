@@ -29,7 +29,7 @@ void parse_cmdargs(int argc, char *argv[])
 		arg_filen("o", "output", "<filename>", 1, 3, "output file");
 	argtable[5] = cmdargs.end = arg_end(20);
 
-	atexit(&free_argtable);
+//	atexit(&free_argtable);
 
 	int nerrors = arg_parse(argc, argv, argtable);
 
@@ -38,13 +38,13 @@ void parse_cmdargs(int argc, char *argv[])
 		arg_print_syntax(stdout, argtable, "\n");
 		puts(helpstr);
 		arg_print_glossary(stdout, argtable, "  %-25s %s\n");
-		exit(EXIT_SUCCESS);
+		exit(0);
 	}
 
 	if (cmdargs.version->count) {
 		printf("%s version %d.%d.%d %s\n", progname, versioninfo.major,
 		       versioninfo.minor, versioninfo.patch, versioninfo.note);
-		exit(EXIT_SUCCESS);
+		exit(0);
 	}
 
 	if (cmdargs.inputfile->count > 1 || cmdargs.outputfile->count > 1)
@@ -53,7 +53,7 @@ void parse_cmdargs(int argc, char *argv[])
 	if (nerrors) {
 		arg_print_errors(stdout, cmdargs.end, progname);
 		printf("Try '%s --help' for more information\n", progcall);
-		exit(EXIT_FAILURE);
+		exit(1);
 	}
 
 	if (cmdargs.verbose->count) {
@@ -65,14 +65,6 @@ static void free_argtable(void)
 {
 	arg_freetable(argtable, ARRAY_LENGTH(argtable));
 }
-
-#include "debug.h"
-
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "args.h"
 
 size_t linenumber;
 
@@ -126,10 +118,10 @@ void logger(enum loglvl_t level, enum error_t id, const char *format, ...)
 	vfprintf(out, format, format_params);
 	va_end(format_params);
 
-	putc('\n', out);
+	fputc('\n', out);
 
 	if (level >= exitloglevel)
-		exit(EXIT_FAILURE);
+		exit(1);
 }
 
 int get_clean_exit(enum loglvl_t level)
@@ -139,20 +131,6 @@ int get_clean_exit(enum loglvl_t level)
 			return 1;
 	return 0;
 }
-#include "generation.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "bytecode.h"
-#include "debug.h"
-#include "directives.h"
-#include "elf/output.h"
-#include "parse.h"
-#include "stringutil.h"
-#include "symbols.h"
-#include "xmalloc.h"
 
 /*
  * custom getline implementation for cross platform support removes newline at
@@ -201,6 +179,9 @@ size_t getl(char **lineptr, size_t *n, FILE *stream)
 
 	return (size_t)(p - bufptr - 1);
 }
+
+struct sectionpos get_outputpos(void);
+int parse_line(char *line, struct sectionpos position);
 
 void parse_file(FILE *ifp, FILE *ofp)
 {
@@ -310,21 +291,6 @@ int parse_preprocessor(const char *line)
 	return 0;
 }
 
-#include "parse.h"
-
-#include <ctype.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "bytecode.h"
-#include "debug.h"
-#include "elf/output.h"
-#include "form/instructions.h"
-#include "registers.h"
-#include "stringutil.h"
-#include "symbols.h"
-#include "xmalloc.h"
 
 const struct args empty_args = {
 	.rd = 0,
@@ -1122,13 +1088,6 @@ struct args parse_csri(char *argstr)
 	return args;
 }
 
-#include "stringutil.h"
-
-#include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "xmalloc.h"
 
 int is_terminating(char c)
 {
@@ -1155,16 +1114,11 @@ char *trim_whitespace(const char *str)
 	return newstr;
 }
 
-#include "xmalloc.h"
-
-#include <stdlib.h>
-
-#include "debug.h"
 
 static void die(const char *function)
 {
 	logger(CRITICAL, error_system, "Call to %s failed", function);
-	exit(EXIT_FAILURE);
+	exit(1);
 }
 
 void *xmalloc(size_t sz)
@@ -1191,16 +1145,6 @@ void *xrealloc(void *ptr, size_t size)
 	return ptr;
 }
 
-#include "bytecode.h"
-
-#include <stddef.h>
-#include <stdlib.h>
-
-#include "debug.h"
-#include "elf/output.h"
-#include "form/generic.h"
-#include "symbols.h"
-#include "xmalloc.h"
 
 static struct instruction *instructions = NULL;
 static size_t instructions_size = 0;
@@ -1331,20 +1275,6 @@ void free_data(void)
 	dataitems = NULL;
 	dataitems_size = 0;
 }
-#include "directives.h"
-
-#include <ctype.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "debug.h"
-#include "elf/output.h"
-#include "bytecode.h"
-#include "macros.h"
-#include "stringutil.h"
-#include "symbols.h"
-#include "xmalloc.h"
 
 struct directive {
 	const char *name;
@@ -1507,10 +1437,6 @@ int parse_global(const char *str)
 	return 0;
 }
 
-#include "form/atomic.h"
-
-#include "form/generic.h"
-#include "parse.h"
 
 const struct formation rv32a[] = {
 	{ "lr.w", &form_rtype, &parse_al, { 4, OP_AMO, 0x2, 0x08 } },
@@ -1630,16 +1556,6 @@ const struct formation rv64a[] = {
 	END_FORMATION
 };
 
-#include "form/base.h"
-
-#include <assert.h>
-#include <string.h>
-
-#include "debug.h"
-#include "form/generic.h"
-#include "macros.h"
-#include "parse.h"
-#include "xmalloc.h"
 
 /*
  * Clang can correctly optimise fully defined switches over enumerated values.
@@ -2021,11 +1937,6 @@ struct bytecode form_jump(const char *name, struct idata instruction,
 	FULLY_DEFINED_SWITCH();
 }
 
-#include "form/csr.h"
-
-#include "form/generic.h"
-#include "parse.h"
-
 const struct formation zicsr[] = {
 	{ "csrrw", &form_itype, &parse_csr, { 4, OP_SYSTEM, 0x1, 0 } },
 	{ "csrrs", &form_itype, &parse_csr, { 4, OP_SYSTEM, 0x2, 0 } },
@@ -2037,10 +1948,6 @@ const struct formation zicsr[] = {
 	END_FORMATION
 };
 
-#include "form/fencei.h"
-
-#include "form/generic.h"
-#include "parse.h"
 
 const struct formation zifencei[] = {
 	{ "fence.i", &form_itype, &parse_none, { 4, OP_MISC_MEM, 0x1, 0 } },
@@ -2048,14 +1955,6 @@ const struct formation zifencei[] = {
 	END_FORMATION
 };
 
-#include "form/generic.h"
-
-#include <assert.h>
-#include <string.h>
-
-#include "debug.h"
-#include "symbols.h"
-#include "xmalloc.h"
 
 const struct bytecode error_bytecode = { .size = (size_t)-1, .data = NULL };
 
@@ -2240,18 +2139,6 @@ struct bytecode form_jtype(const char *name, struct idata instruction,
 	return res;
 }
 
-#include "form/instructions.h"
-
-#include <stdlib.h>
-#include <string.h>
-
-#include "debug.h"
-#include "form/atomic.h"
-#include "form/base.h"
-#include "form/csr.h"
-#include "form/fencei.h"
-#include "form/generic.h"
-#include "macros.h"
 
 struct formation parse_form(const char *instruction)
 {
@@ -2274,7 +2161,6 @@ struct formation parse_form(const char *instruction)
 	return (struct formation)END_FORMATION;
 }
 
-#include "elf/def.h"
 
 #define ELF_IDENT                                                         \
 	0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, \
@@ -2300,16 +2186,6 @@ struct elf64sectionheader new_elf64sectionheader(void)
 	};
 }
 
-#include "elf/output.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "debug.h"
-#include "elf/def.h"
-#include "symbols.h"
-#include "xmalloc.h"
 
 enum sectiontypes_e {
 	SHT_NULL = 0x0,
@@ -2565,13 +2441,6 @@ void free_output(void)
 
 #define __STDC_WANT_LIB_EXT1__ 1
 
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "args.h"
-#include "debug.h"
-#include "generation.h"
-#include "xmalloc.h"
 
 FILE *inputfile = NULL;
 FILE *outputtempfile = NULL;
@@ -2605,14 +2474,14 @@ void open_files(void)
 	outputtempfile = tmpfile();
 	if (!outputtempfile) {
 		logger(ERROR, error_system, "Unable to create temporary file");
-		exit(EXIT_FAILURE);
+		exit(1);
 	}
 
 	logger(DEBUG, no_error, "Opening %s", *cmdargs.inputfile->filename);
 	if (open(&inputfile, *cmdargs.inputfile->filename, "r")) {
 		perror("Error: ");
 		logger(ERROR, error_system, "Unable to open input file");
-		exit(EXIT_FAILURE);
+		exit(1);
 	}
 
 	if (!**cmdargs.outputfile->filename) {
@@ -2625,7 +2494,7 @@ void open_files(void)
 	if (open(&outputfile, *cmdargs.outputfile->filename, "wb")) {
 		perror("Error: ");
 		logger(ERROR, error_system, "Unable to open output file");
-		exit(EXIT_FAILURE);
+		exit(1);
 	}
 
 	logger(DEBUG, no_error, "All files opened successfully");

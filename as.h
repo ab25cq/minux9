@@ -1,7 +1,6 @@
 #pragma once
 #include "minux.h"
 #include <stdint.h>
-#include <argtable2.h>
 
 #define OP_LOAD 0x03
 #define OP_STORE 0x23
@@ -222,6 +221,11 @@ char *create_symtab_str_buf(size_t);
 
 void free_symbols(void);
 
+struct sectionpos {
+	enum sections section;
+	size_t offset;
+};
+
 /* general instruction generation */
 void parse_file(FILE *, FILE *);
 int parse_line(char *, struct sectionpos);
@@ -296,10 +300,6 @@ extern struct cmdargs_t cmdargs;
 
 void parse_cmdargs(int argc, char *argv[]);
 
-struct sectionpos {
-	enum sections section;
-	size_t offset;
-};
 
 struct instruction {
 	struct formation formation;

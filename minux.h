@@ -680,3 +680,57 @@ char* strerror(int errnum);
 int ispunct(int c);
 char *strtok(char *s, const char *delim);
 int isxdigit(int c);
+
+extern size_t linenumber;
+
+
+struct __minux_FILE;
+enum arg_kind {                                                                                                          
+    ARG_KIND_LIT = 1,                                                                                                    
+    ARG_KIND_FILE = 2,                                                                                                   
+    ARG_KIND_END = 3,                                                                                                    
+};                                                     
+struct arg_hdr {                                       
+    enum arg_kind kind;                                
+    const char *shortopts;                                                                                               
+    const char *longopts;                 
+    const char *datatype;                                                                                                
+    const char *glossary;                              
+    int mincount;                                                                                                        
+    int maxcount;                                                                                                        
+};                                                                                                                       
+struct arg_lit {                                                                                                         
+    struct arg_hdr hdr;      
+    int count;
+};                                                                                                                       
+struct arg_file {                                                                                                        
+    struct arg_hdr hdr;                                                                                                  
+    int count;                                                                                                           
+    const char **filename;                                                                                               
+};                                                     
+struct arg_error {                                     
+    const char *msg;                                                                                                     
+    const char *argval;                                                                                                  
+    const struct arg_hdr *hdr;                                                                                           
+};               
+
+struct arg_end {                                                                                                         
+    struct arg_hdr hdr;                                
+    int count;                                         
+    int maxerrors;                                    
+    struct arg_error *errors;
+};                  
+struct arg_lit *arg_litn(const char *shortopts, const char *longopts,                                                    
+                         int mincount, int maxcount, const char *glossary);                                              
+struct arg_file *arg_filen(const char *shortopts, const char *longopts,                                                  
+                           const char *datatype, int mincount, int maxcount,                                             
+                           const char *glossary);      
+struct arg_end *arg_end(int maxerrors);                
+int arg_parse(int argc, char **argv, void **argtable); 
+void arg_print_syntax(struct __minux_FILE *fp, void **argtable,                                                          
+                      const char *suffix);
+void arg_print_glossary(struct __minux_FILE *fp, void **argtable,                                                        
+                        const char *format);           
+void arg_print_errors(struct __minux_FILE *fp, struct arg_end *end,                                                      
+                      const char *progname);                                                                             
+void arg_freetable(void **argtable, size_t n); 

@@ -83,7 +83,7 @@ kernel.elf: crt0.o cc
 
 	# in-OS assembler and linker
 	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o as \
-		crt0.o as.c minux.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer
+		crt0.o as.c minux.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer 
 	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o ld \
 		crt0.o ld.c minux.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer
 

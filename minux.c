@@ -1,4 +1,5 @@
 #include "minux.h"
+#include "argtable2.h"
 
 int errno;
 
@@ -412,6 +413,484 @@ void globfree(glob_t* pglob) {
     free(pglob->gl_pathv);
     pglob->gl_pathv = 0;
     pglob->gl_pathc = 0;
+}
+
+// ───────────────────────────────────────────
+// Minimal argtable2-compatible implementation
+
+static size_t arg_file_capacity(const struct arg_file *file) {
+    int maxc = file->hdr.maxcount;
+    return (maxc > 0) ? (size_t)maxc : 1u;
+}
+
+static void arg_lit_reset(struct arg_lit *lit) {
+    if (lit) lit->count = 0;
+}
+
+static void arg_file_reset(struct arg_file *file) {
+    if (!file) return;
+    file->count = 0;
+    size_t cap = arg_file_capacity(file);
+    for (size_t i = 0; i < cap; ++i) {
+        file->filename[i] = "";
+    }
+}
+
+static void arg_end_reset(struct arg_end *end) {
+    if (!end) return;
+    end->count = 0;
+    if (!end->errors) return;
+    for (int i = 0; i < end->maxerrors; ++i) {
+        end->errors[i].msg = NULL;
+        end->errors[i].argval = NULL;
+        end->errors[i].hdr = NULL;
+    }
+}
+
+static void arg_add_error(struct arg_end *end, const char *msg,
+                          const char *arg, const struct arg_hdr *hdr) {
+    if (!end || end->maxerrors <= 0) return;
+    if (end->count >= end->maxerrors) return;
+    end->errors[end->count].msg = msg;
+    end->errors[end->count].argval = arg;
+    end->errors[end->count].hdr = hdr;
+    end->count++;
+}
+
+static int arg_has_capacity(int count, int maxcount) {
+    return (maxcount <= 0) || (count < maxcount);
+}
+
+struct arg_lit *arg_litn(const char *shortopts, const char *longopts,
+                         int mincount, int maxcount, const char *glossary) {
+    if (mincount < 0 || maxcount < 0) return NULL;
+    struct arg_lit *lit = (struct arg_lit *)malloc(sizeof(*lit));
+    if (!lit) return NULL;
+    lit->hdr.kind = ARG_KIND_LIT;
+    lit->hdr.shortopts = shortopts;
+    lit->hdr.longopts = longopts;
+    lit->hdr.datatype = NULL;
+    lit->hdr.glossary = glossary;
+    lit->hdr.mincount = mincount;
+    lit->hdr.maxcount = maxcount;
+    lit->count = 0;
+    return lit;
+}
+
+struct arg_file *arg_filen(const char *shortopts, const char *longopts,
+                           const char *datatype, int mincount, int maxcount,
+                           const char *glossary) {
+    if (mincount < 0 || maxcount < 0) return NULL;
+    struct arg_file *file = (struct arg_file *)malloc(sizeof(*file));
+    if (!file) return NULL;
+    size_t cap = (maxcount > 0) ? (size_t)maxcount : 1u;
+    file->filename = (const char **)malloc(sizeof(char *) * cap);
+    if (!file->filename) {
+        free(file);
+        return NULL;
+    }
+    file->hdr.kind = ARG_KIND_FILE;
+    file->hdr.shortopts = shortopts;
+    file->hdr.longopts = longopts;
+    file->hdr.datatype = datatype;
+    file->hdr.glossary = glossary;
+    file->hdr.mincount = mincount;
+    file->hdr.maxcount = maxcount;
+    file->count = 0;
+    for (size_t i = 0; i < cap; ++i) file->filename[i] = "";
+    return file;
+}
+
+struct arg_end *arg_end(int maxerrors) {
+    if (maxerrors < 0) return NULL;
+    struct arg_end *end = (struct arg_end *)malloc(sizeof(*end));
+    if (!end) return NULL;
+    end->hdr.kind = ARG_KIND_END;
+    end->hdr.shortopts = NULL;
+    end->hdr.longopts = NULL;
+    end->hdr.datatype = NULL;
+    end->hdr.glossary = NULL;
+    end->hdr.mincount = 0;
+    end->hdr.maxcount = 0;
+    end->maxerrors = maxerrors;
+    end->errors = NULL;
+    if (maxerrors > 0) {
+        end->errors = (struct arg_error *)malloc(sizeof(struct arg_error) * (size_t)maxerrors);
+        if (!end->errors) {
+            free(end);
+            return NULL;
+        }
+    }
+    arg_end_reset(end);
+    return end;
+}
+
+static int argtable_reset(void **argtable, struct arg_end **end_out) {
+    int count = 0;
+    struct arg_end *end = NULL;
+    while (argtable[count]) {
+        struct arg_hdr *hdr = (struct arg_hdr *)argtable[count];
+        if (hdr->kind == ARG_KIND_LIT) {
+            arg_lit_reset((struct arg_lit *)hdr);
+        } else if (hdr->kind == ARG_KIND_FILE) {
+            arg_file_reset((struct arg_file *)hdr);
+        } else if (hdr->kind == ARG_KIND_END) {
+            end = (struct arg_end *)hdr;
+            arg_end_reset(end);
+            count++;
+            break;
+        }
+        count++;
+    }
+    if (end_out) *end_out = end;
+    return count;
+}
+
+static int argtable_entries(void **argtable, struct arg_end **end_out) {
+    int count = 0;
+    struct arg_end *end = NULL;
+    while (argtable[count]) {
+        struct arg_hdr *hdr = (struct arg_hdr *)argtable[count];
+        if (hdr->kind == ARG_KIND_END) {
+            end = (struct arg_end *)hdr;
+            break;
+        }
+        count++;
+    }
+    if (end_out) *end_out = end;
+    return count;
+}
+
+static int arg_long_match(const char *options, const char *name) {
+    if (!options || !name) return 0;
+    size_t namelen = strlen(name);
+    const char *p = options;
+    while (*p) {
+        const char *start = p;
+        while (*p && *p != ',' && *p != '|') p++;
+        size_t len = (size_t)(p - start);
+        if (len == namelen && strncmp(start, name, namelen) == 0) return 1;
+        if (*p) p++;
+    }
+    return 0;
+}
+
+static struct arg_hdr *arg_find_short(void **argtable, int entries, char opt) {
+    for (int i = 0; i < entries; ++i) {
+        struct arg_hdr *hdr = (struct arg_hdr *)argtable[i];
+        if (!hdr || hdr->kind == ARG_KIND_END) continue;
+        const char *s = hdr->shortopts;
+        while (s && *s) {
+            if (*s++ == opt) return hdr;
+        }
+    }
+    return NULL;
+}
+
+static struct arg_hdr *arg_find_long(void **argtable, int entries, const char *name) {
+    for (int i = 0; i < entries; ++i) {
+        struct arg_hdr *hdr = (struct arg_hdr *)argtable[i];
+        if (!hdr || hdr->kind == ARG_KIND_END) continue;
+        if (arg_long_match(hdr->longopts, name)) return hdr;
+    }
+    return NULL;
+}
+
+static struct arg_file *arg_find_positional(void **argtable, int entries) {
+    for (int i = 0; i < entries; ++i) {
+        struct arg_hdr *hdr = (struct arg_hdr *)argtable[i];
+        if (!hdr || hdr->kind != ARG_KIND_FILE) continue;
+        if ((hdr->shortopts && hdr->shortopts[0]) ||
+            (hdr->longopts && hdr->longopts[0])) {
+            continue;
+        }
+        struct arg_file *file = (struct arg_file *)hdr;
+        size_t cap = arg_file_capacity(file);
+        if ((size_t)file->count < cap) return file;
+    }
+    return NULL;
+}
+
+static int arg_file_add(struct arg_file *file, const char *value,
+                        struct arg_end *end, const char *errmsg) {
+    if (!file) return -1;
+    size_t cap = arg_file_capacity(file);
+    if ((size_t)file->count >= cap && cap > 0) {
+        arg_add_error(end, errmsg, value, &file->hdr);
+        return -1;
+    }
+    file->filename[file->count] = value ? value : "";
+    file->count++;
+    return 0;
+}
+
+int arg_parse(int argc, char **argv, void **argtable) {
+    if (!argtable) return 0;
+
+    struct arg_end *end = NULL;
+    int total = argtable_reset(argtable, &end);
+    if (!end) return 0;
+
+    int entries = 0;
+    while (entries < total && argtable[entries]) {
+        struct arg_hdr *hdr = (struct arg_hdr *)argtable[entries];
+        if (hdr->kind == ARG_KIND_END) break;
+        entries++;
+    }
+
+    int errors_before = end->count;
+    int stop_opts = 0;
+
+    for (int i = 1; i < argc; ++i) {
+        char *arg = argv[i];
+        if (!stop_opts && arg[0] == '-' && arg[1] != '\0') {
+            if (arg[1] == '-' && arg[2] == '\0') {
+                stop_opts = 1;
+                continue;
+            }
+
+            if (arg[1] == '-') {
+                const char *name = arg + 2;
+                const char *val = NULL;
+                const char *eq = strchr(name, '=');
+                char namebuf[64];
+                if (eq) {
+                    size_t len = (size_t)(eq - name);
+                    if (len >= sizeof(namebuf)) len = sizeof(namebuf) - 1;
+                    for (size_t k = 0; k < len; ++k) namebuf[k] = name[k];
+                    namebuf[len] = '\0';
+                    name = namebuf;
+                    val = eq + 1;
+                }
+                struct arg_hdr *hdr = arg_find_long(argtable, entries, name);
+                if (!hdr) {
+                    arg_add_error(end, "unknown option", arg, NULL);
+                    continue;
+                }
+                if (hdr->kind == ARG_KIND_LIT) {
+                    if (val && *val) {
+                        arg_add_error(end, "option does not take a value", arg, hdr);
+                        continue;
+                    }
+                    struct arg_lit *lit = (struct arg_lit *)hdr;
+                    if (!arg_has_capacity(lit->count, hdr->maxcount)) {
+                        arg_add_error(end, "option specified too many times", arg, hdr);
+                        continue;
+                    }
+                    lit->count++;
+                    continue;
+                }
+                if (hdr->kind == ARG_KIND_FILE) {
+                    if (!val) {
+                        if (i + 1 < argc) {
+                            val = argv[++i];
+                        } else {
+                            arg_add_error(end, "option requires a value", arg, hdr);
+                            continue;
+                        }
+                    }
+                    arg_file_add((struct arg_file *)hdr, val, end,
+                                  "option specified too many times");
+                    continue;
+                }
+                arg_add_error(end, "unsupported option", arg, hdr);
+                continue;
+            }
+
+            const char *p = arg + 1;
+            while (*p) {
+                char opt = *p++;
+                struct arg_hdr *hdr = arg_find_short(argtable, entries, opt);
+                if (!hdr) {
+                    arg_add_error(end, "unknown option", arg, NULL);
+                    continue;
+                }
+                if (hdr->kind == ARG_KIND_LIT) {
+                    struct arg_lit *lit = (struct arg_lit *)hdr;
+                    if (!arg_has_capacity(lit->count, hdr->maxcount)) {
+                        arg_add_error(end, "option specified too many times", NULL, hdr);
+                        continue;
+                    }
+                    lit->count++;
+                    continue;
+                }
+                if (hdr->kind == ARG_KIND_FILE) {
+                    const char *val = NULL;
+                    if (*p) {
+                        val = p;
+                        p += strlen(p);
+                    } else if (i + 1 < argc) {
+                        val = argv[++i];
+                    } else {
+                        arg_add_error(end, "option requires a value", arg, hdr);
+                        break;
+                    }
+                    arg_file_add((struct arg_file *)hdr, val, end,
+                                  "option specified too many times");
+                    break;
+                }
+            }
+            continue;
+        }
+
+        struct arg_file *file = arg_find_positional(argtable, entries);
+        if (!file) {
+            arg_add_error(end, "unexpected argument", arg, NULL);
+            continue;
+        }
+        arg_file_add(file, arg, end, "too many positional arguments");
+    }
+
+    for (int i = 0; i < entries; ++i) {
+        struct arg_hdr *hdr = (struct arg_hdr *)argtable[i];
+        if (!hdr || hdr->kind == ARG_KIND_END) continue;
+
+        int count = 0;
+        if (hdr->kind == ARG_KIND_LIT) {
+            count = ((struct arg_lit *)hdr)->count;
+        } else if (hdr->kind == ARG_KIND_FILE) {
+            count = ((struct arg_file *)hdr)->count;
+        }
+
+        if (hdr->mincount > 0 && count < hdr->mincount) {
+            if ((hdr->shortopts && hdr->shortopts[0]) ||
+                (hdr->longopts && hdr->longopts[0])) {
+                arg_add_error(end, "missing required option", hdr->longopts ? hdr->longopts : hdr->shortopts, hdr);
+            } else {
+                arg_add_error(end, "missing required argument", hdr->datatype, hdr);
+            }
+        }
+    }
+
+    (void)errors_before;
+    return end->count;
+}
+
+static void arg_print_joined_option(char *buf, size_t bufsz,
+                                    const struct arg_hdr *hdr) {
+    size_t pos = 0;
+    if (!bufsz) return;
+    buf[0] = '\0';
+    if (hdr->shortopts && hdr->shortopts[0]) {
+        int wrote = snprintf(buf + pos, bufsz - pos, "-%c", hdr->shortopts[0]);
+        if (wrote < 0) wrote = 0;
+        pos += (size_t)wrote;
+        if (pos >= bufsz) pos = bufsz - 1;
+        if (hdr->longopts && hdr->longopts[0] && pos + 2 < bufsz) {
+            wrote = snprintf(buf + pos, bufsz - pos, ", ");
+            if (wrote < 0) wrote = 0;
+            pos += (size_t)wrote;
+            if (pos >= bufsz) pos = bufsz - 1;
+        }
+    }
+    if (hdr->longopts && hdr->longopts[0]) {
+        int wrote = snprintf(buf + pos, bufsz - pos, "--%s", hdr->longopts);
+        if (wrote < 0) wrote = 0;
+        pos += (size_t)wrote;
+        if (pos >= bufsz) pos = bufsz - 1;
+    }
+    if ((hdr->shortopts && hdr->shortopts[0]) ||
+        (hdr->longopts && hdr->longopts[0])) {
+        if (hdr->datatype && hdr->datatype[0] && pos + 1 < bufsz) {
+            int wrote = snprintf(buf + pos, bufsz - pos, " %s", hdr->datatype);
+            if (wrote < 0) wrote = 0;
+            pos += (size_t)wrote;
+            if (pos >= bufsz) pos = bufsz - 1;
+        }
+    }
+}
+
+void arg_print_syntax(struct __minux_FILE *fp, void **argtable,
+                      const char *suffix) {
+    if (!fp || !argtable) return;
+    struct arg_end *end = NULL;
+    int entries = argtable_entries(argtable, &end);
+    if (!end) return;
+    for (int i = 0; i < entries; ++i) {
+        struct arg_hdr *hdr = (struct arg_hdr *)argtable[i];
+        if (!hdr || hdr->kind == ARG_KIND_END) continue;
+        if ((hdr->shortopts && hdr->shortopts[0]) ||
+            (hdr->longopts && hdr->longopts[0])) {
+            fprintf(fp, " [");
+            if (hdr->shortopts && hdr->shortopts[0]) {
+                fprintf(fp, "-%c", hdr->shortopts[0]);
+                if (hdr->longopts && hdr->longopts[0]) fprintf(fp, "|");
+            }
+            if (hdr->longopts && hdr->longopts[0]) {
+                fprintf(fp, "--%s", hdr->longopts);
+            }
+            if (hdr->kind == ARG_KIND_FILE && hdr->datatype && hdr->datatype[0]) {
+                fprintf(fp, " %s", hdr->datatype);
+            }
+            fprintf(fp, "]");
+        } else {
+            const char *dt = hdr->datatype ? hdr->datatype : "<value>";
+            int mandatory = (hdr->mincount > 0) ? hdr->mincount : 0;
+            for (int k = 0; k < mandatory; ++k) fprintf(fp, " %s", dt);
+            if (hdr->maxcount == 0 || hdr->maxcount > mandatory) {
+                fprintf(fp, " [%s]", dt);
+            }
+        }
+    }
+    if (suffix) fprintf(fp, "%s", suffix);
+}
+
+void arg_print_glossary(struct __minux_FILE *fp, void **argtable,
+                        const char *format) {
+    if (!fp || !argtable || !format) return;
+    struct arg_end *end = NULL;
+    int entries = argtable_entries(argtable, &end);
+    if (!end) return;
+    char optbuf[64];
+    for (int i = 0; i < entries; ++i) {
+        struct arg_hdr *hdr = (struct arg_hdr *)argtable[i];
+        if (!hdr || hdr->kind == ARG_KIND_END) continue;
+        optbuf[0] = '\0';
+        arg_print_joined_option(optbuf, sizeof(optbuf), hdr);
+        const char *gloss = hdr->glossary ? hdr->glossary : "";
+        fprintf(fp, format, optbuf, gloss);
+    }
+}
+
+void arg_print_errors(struct __minux_FILE *fp, struct arg_end *end,
+                      const char *progname) {
+    if (!fp || !end) return;
+    const char *prog = progname ? progname : "";
+    for (int i = 0; i < end->count; ++i) {
+        const struct arg_error *err = &end->errors[i];
+        const char *msg = err->msg ? err->msg : "parse error";
+        if (err->argval && err->argval[0]) {
+            fprintf(fp, "%s: %s -- %s\n", prog, msg, err->argval);
+        } else if (err->hdr && err->hdr->datatype &&
+                   strcmp(msg, "missing required argument") == 0) {
+            fprintf(fp, "%s: %s %s\n", prog, msg, err->hdr->datatype);
+        } else if (err->hdr && err->hdr->longopts && err->hdr->longopts[0] &&
+                   strcmp(msg, "missing required option") == 0) {
+            fprintf(fp, "%s: %s --%s\n", prog, msg, err->hdr->longopts);
+        } else if (err->hdr && err->hdr->shortopts && err->hdr->shortopts[0] &&
+                   strcmp(msg, "missing required option") == 0) {
+            fprintf(fp, "%s: %s -%c\n", prog, msg, err->hdr->shortopts[0]);
+        } else {
+            fprintf(fp, "%s: %s\n", prog, msg);
+        }
+    }
+}
+
+void arg_freetable(void **argtable, size_t n) {
+    if (!argtable) return;
+    for (size_t i = 0; i < n; ++i) {
+        if (!argtable[i]) continue;
+        struct arg_hdr *hdr = (struct arg_hdr *)argtable[i];
+        if (hdr->kind == ARG_KIND_FILE) {
+            struct arg_file *file = (struct arg_file *)hdr;
+            free((void *)file->filename);
+        } else if (hdr->kind == ARG_KIND_END) {
+            struct arg_end *end = (struct arg_end *)hdr;
+            free(end->errors);
+        }
+        free(argtable[i]);
+        argtable[i] = NULL;
+    }
 }
 
 int isprint(int c) {
