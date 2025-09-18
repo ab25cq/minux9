@@ -63,7 +63,7 @@ static StringArray StdIncludePaths;
 // 输入文件名
 char *BaseFile;
 // 输出文件名
-static char *OutputFileName;
+static char *OutputFile;
 
 // 输入文件区
 static StringArray InputPaths;
@@ -369,7 +369,7 @@ static void parseArgs(int Argc, char **Argv) {
 
     // 解析-cc1-output
     if (!strcmp(Argv[I], "-cc1-output")) {
-      OutputFileName = Argv[++I];
+      OutputFile = Argv[++I];
       continue;
     }
 
@@ -526,7 +526,7 @@ static void runSubprocess(char **Argv) {
     execvp(Argv[0], Argv);
     // 如果exec函数返回，表明没有正常执行命令
     fprintf(stderr, "exec failed: %s: %s\n", Argv[0], strerror(errno));
-    exit(1);
+    _exit(1);
   }
 
   // 父进程， 等待子进程结束
@@ -674,8 +674,6 @@ static Token *appendTokens(Token *Tok1, Token *Tok2) {
   return Tok1;
 }
 
-void codegen(Obj *Prog, FILE *Out);
-
 // 编译C文件到汇编文件
 static void cc1(void) {
   Token *Tok = NULL;
@@ -737,7 +735,7 @@ static void cc1(void) {
   fclose(OutputBuf);
 
   // 从缓冲区中写入到文件中
-  FILE *Out = openFile(OutputFileName);
+  FILE *Out = openFile(OutputFile);
   fwrite(Buf, BufLen, 1, Out);
   fclose(Out);
 }
@@ -4072,7 +4070,7 @@ static Node *add(Token **Rest, Token *Tok);
 static Node *newAdd(Node *LHS, Node *RHS, Token *Tok);
 static Node *newSub(Node *LHS, Node *RHS, Token *Tok);
 static Node *mul(Token **Rest, Token *Tok);
-static Node *castop(Token **Rest, Token *Tok);
+static Node *cast(Token **Rest, Token *Tok);
 static Member *getStructMember(Type *Ty, Token *Tok);
 static Type *structDecl(Token **Rest, Token *Tok);
 static Type *unionDecl(Token **Rest, Token *Tok);
@@ -6776,7 +6774,7 @@ static Node *add(Token **Rest, Token *Tok) {
 // mul = cast ("*" cast | "/" cast | "%" cast)*
 static Node *mul(Token **Rest, Token *Tok) {
   // cast
-  Node *Nd = castop(&Tok, Tok);
+  Node *Nd = cast(&Tok, Tok);
 
   // ("*" cast | "/" cast | "%" cast)*
   while (true) {
@@ -6784,19 +6782,19 @@ static Node *mul(Token **Rest, Token *Tok) {
 
     // "*" cast
     if (equal(Tok, "*")) {
-      Nd = newBinary(ND_MUL, Nd, castop(&Tok, Tok->Next), Start);
+      Nd = newBinary(ND_MUL, Nd, cast(&Tok, Tok->Next), Start);
       continue;
     }
 
     // "/" cast
     if (equal(Tok, "/")) {
-      Nd = newBinary(ND_DIV, Nd, castop(&Tok, Tok->Next), Start);
+      Nd = newBinary(ND_DIV, Nd, cast(&Tok, Tok->Next), Start);
       continue;
     }
 
     // "%" cast
     if (equal(Tok, "%")) {
-      Nd = newBinary(ND_MOD, Nd, castop(&Tok, Tok->Next), Start);
+      Nd = newBinary(ND_MOD, Nd, cast(&Tok, Tok->Next), Start);
       continue;
     }
 
@@ -6807,7 +6805,7 @@ static Node *mul(Token **Rest, Token *Tok) {
 
 // 解析类型转换
 // cast = "(" typeName ")" cast | unary
-static Node *castop(Token **Rest, Token *Tok) {
+static Node *cast(Token **Rest, Token *Tok) {
   // cast = "(" typeName ")" cast
   if (equal(Tok, "(") && isTypename(Tok->Next)) {
     Token *Start = Tok;
@@ -6819,7 +6817,7 @@ static Node *castop(Token **Rest, Token *Tok) {
       return unary(Rest, Start);
 
     // 解析嵌套的类型转换
-    Node *Nd = newCast(castop(Rest, Tok), Ty);
+    Node *Nd = newCast(cast(Rest, Tok), Ty);
     Nd->Tok = Start;
     return Nd;
   }
@@ -6836,15 +6834,15 @@ static Node *castop(Token **Rest, Token *Tok) {
 static Node *unary(Token **Rest, Token *Tok) {
   // "+" cast
   if (equal(Tok, "+"))
-    return castop(Rest, Tok->Next);
+    return cast(Rest, Tok->Next);
 
   // "-" cast
   if (equal(Tok, "-"))
-    return newUnary(ND_NEG, castop(Rest, Tok->Next), Tok);
+    return newUnary(ND_NEG, cast(Rest, Tok->Next), Tok);
 
   // "&" cast
   if (equal(Tok, "&")) {
-    Node *LHS = castop(Rest, Tok->Next);
+    Node *LHS = cast(Rest, Tok->Next);
     addType(LHS);
     // 不能够获取位域的地址
     if (LHS->Kind == ND_MEMBER && LHS->Mem->IsBitfield)
@@ -6854,7 +6852,7 @@ static Node *unary(Token **Rest, Token *Tok) {
 
   // "*" cast
   if (equal(Tok, "*")) {
-    Node *Nd = castop(Rest, Tok->Next);
+    Node *Nd = cast(Rest, Tok->Next);
     addType(Nd);
     // 如果func是函数，那么*func等价于func
     if (Nd->Ty->Kind == TY_FUNC)
@@ -6864,11 +6862,11 @@ static Node *unary(Token **Rest, Token *Tok) {
 
   // "!" cast
   if (equal(Tok, "!"))
-    return newUnary(ND_NOT, castop(Rest, Tok->Next), Tok);
+    return newUnary(ND_NOT, cast(Rest, Tok->Next), Tok);
 
   // "~" cast
   if (equal(Tok, "~"))
-    return newUnary(ND_BITNOT, castop(Rest, Tok->Next), Tok);
+    return newUnary(ND_BITNOT, cast(Rest, Tok->Next), Tok);
 
   // 转换 ++i 为 i+=1
   // "++" unary
@@ -9070,7 +9068,7 @@ static Token *timestampMacro(Token *Tmpl) {
 
   char Buf[30];
   // 将文件最后修改时间写入Buf
-//  ctime_r(&St.mtime, Buf);
+  ctime_r(&St.st_mtime, Buf);
   Buf[24] = '\0';
   return newStrToken(Buf, Tmpl);
 }
@@ -10885,7 +10883,7 @@ int displayWidth(char *P, int Len) {
 
 int main(int Argc, char **Argv) {
   // 在程序退出时，执行cleanup函数
-//  atexit(cleanup);
+  atexit(cleanup);
   // 初始化预定义的宏
   initMacros();
   // 解析传入程序的参数

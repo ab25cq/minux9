@@ -2,7 +2,24 @@
 // 使用了strndup函数
 #define _POSIX_C_SOURCE 200809L
 
-#include "minux.h"
+#include <assert.h>
+#include <ctype.h>
+#include <errno.h>
+#include <glob.h>
+#include <libgen.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdnoreturn.h>
+#include <string.h>
+#include <strings.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
 
 // 宏展开函数
 // 括号是为了保证内部表达式作为整体去求值
@@ -87,10 +104,10 @@ struct Token {
 
 // 去除了static用以在多个文件间访问
 // 报错函数
-void error(char *Fmt, ...) __attribute__((format(printf, 1, 2)));
-void errorAt(char *Loc, char *Fmt, ...)
+noreturn void error(char *Fmt, ...) __attribute__((format(printf, 1, 2)));
+noreturn void errorAt(char *Loc, char *Fmt, ...)
     __attribute__((format(printf, 2, 3)));
-void errorTok(Token *Tok, char *Fmt, ...)
+noreturn void errorTok(Token *Tok, char *Fmt, ...)
     __attribute__((format(printf, 2, 3)));
 void warnTok(Token *Tok, char *Fmt, ...) __attribute__((format(printf, 2, 3)));
 // 警告函数

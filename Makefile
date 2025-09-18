@@ -140,7 +140,7 @@ clean:
 
 cc: crt0.o
 	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc \
-		crt0.o cc-main.c minux.c $(CHILD_CFLAGS) -DCC_S_ONLY -lgcc -fno-omit-frame-pointer 
+		crt0.o cc.c minux.c $(CHILD_CFLAGS) -DCC_S_ONLY -lgcc -fno-omit-frame-pointer 
 #	cc-codegen.c cc-parse.c cc-preprocess.c \
 #		cc-tokenize.c cc-type.c cc-hashmap.c cc-string.c \
 #		cc-unicode.c 
