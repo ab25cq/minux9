@@ -49,8 +49,6 @@ void *sbrk(ptrdiff_t increment) {
 }
 
 
-#define UART0        0x10000000UL
-
 void *malloc(size_t size) {
     if (size == 0) {
         return NULL;
@@ -64,12 +62,8 @@ void *malloc(size_t size) {
     mem_block_t *current = free_list;
     mem_block_t *prev = NULL;
     
-*(char*)UART0 = '1';
-*(char*)UART0 = (char)current + '0';
-*(char*)UART0 = (char)free_list + '0';
 
     while (current != NULL) {
-*(char*)UART0 = '2';
         if (current->size >= size) {
             if (prev == NULL) {
                 free_list = current->next;
@@ -81,7 +75,6 @@ void *malloc(size_t size) {
         prev = current;
         current = current->next;
     }
-*(char*)UART0 = '3';
 
     mem_block_t *new_mem = (mem_block_t *)sbrk(size);
     if (new_mem == (void *)-1) {

@@ -3428,15 +3428,15 @@ static void runCC1(int Argc, char **Argv, char *Input, char *Output) {
   char *PrevBase = BaseFile;
   char *PrevOutput = OutputFileName;
 
-  char *InputCopy = Input ? strdup(Input) : NULL;
-  BaseFile = InputCopy ? InputCopy : Input;
+  char *OwnedBase = Input ? strdup(Input) : NULL;
+  BaseFile = OwnedBase ? OwnedBase : Input;
   OutputFileName = Output ? Output : "-";
 
   cc1();
 
   BaseFile = PrevBase;
   OutputFileName = PrevOutput;
-  free(InputCopy);
+  // Note: OwnedBase intentionally leaked to keep File->Name valid.
 }
 
 // 当指定-E选项时，打印出所有终结符
