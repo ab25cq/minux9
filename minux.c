@@ -1117,8 +1117,16 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* fp) {
 }
 
 static void __fputs(FILE* fp, const char* s) {
-  if (!s) s = "(null)";
-  write(fp->fd, s, strlen(s));
+  if (!s)
+    s = "(null)";
+
+  size_t len = strlen(s);
+  if (fp->is_mem) {
+    if (len)
+      fwrite(s, 1, len, fp);
+  } else {
+    write(fp->fd, s, len);
+  }
 }
 
 int vfprintf(FILE* fp, const char* fmt, va_list ap) {
@@ -1146,7 +1154,18 @@ int vfprintf(FILE* fp, const char* fmt, va_list ap) {
         if (*(p+1) == 'd') { p++; itoa(buf, va_arg(ap, long), 10, 1); __fputs(fp, buf); count += strlen(buf); }
         else if (*(p+1) == 'u') { p++; itoa(buf, va_arg(ap, unsigned long), 10, 0); __fputs(fp, buf); count += strlen(buf); }
         else if (*(p+1) == 'x') { p++; itoa(buf, va_arg(ap, unsigned long), 16, 0); __fputs(fp, buf); count += strlen(buf); }
-        else { write(fp->fd, "%", 1); write(fp->fd, "l", 1); write(fp->fd, p, 1); count += 3; }
+        else {
+          if (fp->is_mem) {
+            fwrite("%", 1, 1, fp);
+            fwrite("l", 1, 1, fp);
+            fwrite(p, 1, 1, fp);
+          } else {
+            write(fp->fd, "%", 1);
+            write(fp->fd, "l", 1);
+            write(fp->fd, p, 1);
+          }
+          count += 3;
+        }
         break;
       }
       default: if (fp->is_mem) { fwrite("%",1,1,fp); fwrite(p,1,1,fp);} else { write(fp->fd, "%", 1); write(fp->fd, p, 1);} count += 2; break;

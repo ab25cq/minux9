@@ -219,7 +219,7 @@ LOAD syscall.o
  *fill*         0x000000008001154c        0x4 
  .rodata        0x0000000080011550      0x1a0 syscall.o
 
-.data           0x00000000800116f0     0x3008
+.data           0x00000000800116f0     0x2f30
  *(.data .data.*)
  .data          0x00000000800116f0        0x0 entry.o
  .data          0x00000000800116f0        0x0 start.o
@@ -228,13 +228,13 @@ LOAD syscall.o
  .data          0x00000000800116f0        0x0 fs.o
  .data          0x00000000800116f0        0x0 plic.o
  .data          0x00000000800116f0        0x0 trap_c.o
- .data          0x00000000800116f0     0x3008 main.o
+ .data          0x00000000800116f0     0x2f30 main.o
                 0x00000000800116f0                sh_elf
-                0x0000000080014688                sh_elf_len
-                0x0000000080014698                gUsers
- .data          0x00000000800146f8        0x0 sub.o
- .data          0x00000000800146f8        0x0 syscall.o
-                0x0000000080014700                . = ALIGN (0x10)
+                0x00000000800145b0                sh_elf_len
+                0x00000000800145c0                gUsers
+ .data          0x0000000080014620        0x0 sub.o
+ .data          0x0000000080014620        0x0 syscall.o
+                0x0000000080014620                . = ALIGN (0x10)
 
 .bss            0x0000000080014800     0x8790
  *(.bss)

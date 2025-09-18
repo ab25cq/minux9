@@ -9195,6 +9195,7 @@ void initMacros(void) {
   // 获取当前的本地时区的时间
   struct tm *Tm = localtime(&Now);
   // 定义__DATE__为当前日期
+  formatDate(Tm);
   defineMacro("__DATE__", formatDate(Tm));
   // 定义__DATE__为当前时间
   defineMacro("__TIME__", formatTime(Tm));
@@ -9365,7 +9366,6 @@ char *format(char *Fmt, ...) {
 
   va_list VA;
   va_start(VA, Fmt);
-  // 向流中写入数据
   vfprintf(Out, Fmt, VA);
   va_end(VA);
 
