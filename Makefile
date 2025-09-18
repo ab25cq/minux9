@@ -81,6 +81,12 @@ kernel.elf: crt0.o cc
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o vi -g vi.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o vi crt0.o vi.c $(CHILD_CFLAGS)
 
+	# in-OS assembler and linker
+	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o as \
+		crt0.o as.c minux.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer
+	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o ld \
+		crt0.o ld.c minux.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer
+
 	# minimal in-OS C compiler: cc
 #	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cc -g cc.c -mcmodel=medany $(CHILD_CFLAGS)
 #	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc crt0.o cc.c $(CHILD_CFLAGS)
@@ -134,7 +140,7 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello qemu-run.log
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log
 
 # Always (re)build the filesystem image so updated userland like pwd is included
 
