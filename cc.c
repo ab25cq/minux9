@@ -2,6 +2,8 @@
 
 #define GP_MAX 8
 #define FP_MAX 8
+#define FS_SAVE_COUNT 12
+#define FS_SAVE_BYTES (FS_SAVE_COUNT * 8)
 
 // 输出文件
 static FILE *OutputFile;
@@ -2200,7 +2202,8 @@ static void assignLVarOffsets(Obj *Prog) {
       Fn->VaArea->Offset = ReOffset;
     }
 
-    int Offset = 0;
+    // Reserve space at top of the frame for fs0~fs11 spills.
+    int Offset = FS_SAVE_BYTES;
     // 读取所有变量
     for (Obj *Var = Fn->Locals; Var; Var = Var->Next) {
       // 栈传递的变量的直接跳过
@@ -2476,21 +2479,14 @@ void emitText(Obj *Prog) {
     printLn("  # 将ra寄存器压栈,保存ra的值");
     printLn("  addi sp, sp, -16");
     printLn("  sd ra, 8(sp)");
-    // 将fp压入栈中，保存fp的值
-    printLn("  # 将fp压栈，fp属于“被调用者保存”的寄存器，需要恢复原值");
     printLn("  sd fp, 0(sp)");
-    // 将sp写入fp
-    printLn("  # 将sp的值写入fp");
     printLn("  mv fp, sp");
 
-    printLn("  # 保存所有的fs0~fs11寄存器");
-    for (int I = 0; I <= 11; ++I)
-      printLn("  fsgnj.d ft%d, fs%d, fs%d", I, I, I);
-
-    // 偏移量为实际变量所用的栈大小
-    printLn("  # sp腾出StackSize大小的栈空间");
     printLn("  li t0, -%d", Fn->StackSize);
     printLn("  add sp, sp, t0");
+
+    for (int I = 0; I < FS_SAVE_COUNT; ++I)
+      printLn("  fsd fs%d, %d(fp)", I, -(I + 1) * 8);
     // Alloca函数
     printLn("  # 将当前的sp值，存入到Alloca区域的底部");
     printLn("  li t0, %d", Fn->AllocaBottom->Offset);
@@ -2630,9 +2626,8 @@ void emitText(Obj *Prog) {
     printLn("# return段标签");
     printLn(".L.return.%s:", Fn->Name);
 
-    printLn("  # 恢复所有的fs0~fs11寄存器");
-    for (int I = 0; I <= 11; ++I)
-        printLn("  fsgnj.d fs%d, ft%d, ft%d", I, I, I);
+    for (int I = 0; I < FS_SAVE_COUNT; ++I)
+        printLn("  fld fs%d, %d(fp)", I, -(I + 1) * 8);
 
     // 将fp的值改写回sp
     printLn("  # 将fp的值写回sp");
