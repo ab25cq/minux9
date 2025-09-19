@@ -1521,7 +1521,7 @@ int fclose(FILE* fp) {
 }
 
 FILE* tmpfile(void) {
-  char templ[] = "/tmp/minuxXXXXXX";
+  char templ[] = "minuxXXXXXX";
   int fd = mkstemp(templ);
   if (fd < 0) {
     return 0;
