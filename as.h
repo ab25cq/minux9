@@ -1,6 +1,5 @@
 #pragma once
 #include "minux.h"
-#include <stdint.h>
 
 #define OP_LOAD 0x03
 #define OP_STORE 0x23
@@ -34,8 +33,6 @@ extern const struct bytecode error_bytecode;
 
 /* helper functions */
 struct bytecode form_empty_bytecode(void);
-
-int32_t calc_symbol_offset(const struct symbol *, size_t);
 
 struct formation;
 struct args;

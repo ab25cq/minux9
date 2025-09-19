@@ -444,7 +444,7 @@ int parse_asm(const char *linestr, struct sectionpos position)
 	logger(DEBUG, no_error, "Parsing assembly %s", linestr);
 
 	char *line = xmalloc(strlen(linestr) + 1);
-	strcpy(line, linestr);
+	strncpy(line, linestr, strlen(linestr) + 1);
 
 	char *instruction = strtok(line, " \t");
 	char *argstr = strtok(NULL, "");
@@ -1713,6 +1713,8 @@ struct bytecode form_nop(const char *name, struct idata instruction,
 			  position);
 }
 
+int32_t calc_symbol_offset(const struct symbol *sym, size_t position);
+
 struct bytecode form_load_pseudo(const char *name, struct idata instruction,
 				 struct args args, size_t position)
 {
@@ -2446,7 +2448,7 @@ FILE *inputfile = NULL;
 FILE *outputtempfile = NULL;
 FILE *outputfile = NULL;
 
-static int open(FILE **f, const char *filename, const char *flags)
+static int fopen2(FILE **f, const char *filename, const char *flags)
 {
 #ifdef __STDC_LIB_EXT1__
 	return fopen_s(f, filename, flags));
@@ -2478,8 +2480,8 @@ void open_files(void)
 	}
 
 	logger(DEBUG, no_error, "Opening %s", *cmdargs.inputfile->filename);
-	if (open(&inputfile, *cmdargs.inputfile->filename, "r")) {
-		perror("Error: ");
+	if (fopen2(&inputfile, *cmdargs.inputfile->filename, "r")) {
+		puts("Error: ");
 		logger(ERROR, error_system, "Unable to open input file");
 		exit(1);
 	}
@@ -2491,14 +2493,16 @@ void open_files(void)
 	}
 
 	logger(DEBUG, no_error, "Opening %s", *cmdargs.outputfile->filename);
-	if (open(&outputfile, *cmdargs.outputfile->filename, "wb")) {
-		perror("Error: ");
+	if (fopen2(&outputfile, *cmdargs.outputfile->filename, "wb")) {
+		puts("Error: ");
 		logger(ERROR, error_system, "Unable to open output file");
 		exit(1);
 	}
 
 	logger(DEBUG, no_error, "All files opened successfully");
 }
+
+#define BUFSIZ 1024
 
 void copy_files(FILE *dest, FILE *src)
 {

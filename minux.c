@@ -1,5 +1,4 @@
 #include "minux.h"
-#include "argtable2.h"
 
 int errno;
 
@@ -1529,6 +1528,38 @@ int fseek(FILE* fp, long offset, int whence) {
   return 0;
 }
 
+long ftell(FILE* fp) {
+  if (!fp) return -1;
+  if (fp->is_mem) {
+    return fp->pos;
+  }
+  long r = lseek(fp->fd, 0, SEEK_CUR);
+  if (r < 0) {
+    fp->err = 1;
+    return -1;
+  }
+  fp->pos = r;
+  return r;
+}
+
+void rewind(FILE* fp) {
+  if (!fp) return;
+  fp->eof = 0;
+  fp->have_push = 0;
+  if (fp->is_mem) {
+    fp->pos = 0;
+    fp->err = 0;
+    return;
+  }
+  long r = lseek(fp->fd, 0, SEEK_SET);
+  if (r < 0) {
+    fp->err = 1;
+    return;
+  }
+  fp->pos = r;
+  fp->err = 0;
+}
+
 int fgetc(FILE* fp) {
   if (!fp) return EOF;
   if (fp->have_push) { fp->have_push = 0; return fp->push_ch; }
@@ -1770,35 +1801,84 @@ double strtod(const char* nptr, char** endptr) {
     return neg ? -val : val;
 }
 
-unsigned long strtoul(const char* nptr, char** endptr, int base) {
+static unsigned long __minux_parse_unsigned(const char* nptr, char** endptr,
+                                            int base, int* neg_out, int* any_out) {
     const char* s = nptr;
     while (isspace(*s)) s++;
+
     int neg = 0;
-    if (*s == '+') s++; else if (*s == '-') { neg = 1; s++; }
-    if (base == 0) {
-        if (s[0]=='0' && (s[1]=='x' || s[1]=='X')) { base = 16; s += 2; }
-        else if (s[0]=='0') { base = 8; s += 1; }
-        else base = 10;
-    } else if (base == 16) {
-        if (s[0]=='0' && (s[1]=='x' || s[1]=='X')) s += 2;
+    if (*s == '+') {
+        s++;
+    } else if (*s == '-') {
+        neg = 1;
+        s++;
     }
+
     unsigned long val = 0;
     int any = 0;
-    for (;;) {
+    int actual_base = base;
+
+    if (actual_base == 0) {
+        if (s[0] == '0') {
+            if (s[1] == 'x' || s[1] == 'X') {
+                actual_base = 16;
+                s += 2;
+            } else {
+                actual_base = 8;
+                s++;
+                any = 1;  // leading zero counts as a digit
+            }
+        } else {
+            actual_base = 10;
+        }
+    } else if (actual_base == 16) {
+        if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+            s += 2;
+        }
+    }
+
+    if (actual_base < 2 || actual_base > 36) {
+        if (endptr) *endptr = (char*)nptr;
+        if (neg_out) *neg_out = neg;
+        if (any_out) *any_out = 0;
+        return 0;
+    }
+
+    for (;; s++) {
         int c = *s;
         int d;
         if (c >= '0' && c <= '9') d = c - '0';
         else if (c >= 'a' && c <= 'z') d = c - 'a' + 10;
         else if (c >= 'A' && c <= 'Z') d = c - 'A' + 10;
         else break;
-        if (d >= base) break;
+        if (d >= actual_base) break;
         any = 1;
-        val = val * (unsigned long)base + (unsigned long)d;
-        s++;
+        val = val * (unsigned long)actual_base + (unsigned long)d;
     }
+
     if (endptr) *endptr = (char*)(any ? s : nptr);
+    if (neg_out) *neg_out = neg;
+    if (any_out) *any_out = any;
+    return val;
+}
+
+unsigned long strtoul(const char* nptr, char** endptr, int base) {
+    int neg = 0;
+    int any = 0;
+    unsigned long val = __minux_parse_unsigned(nptr, endptr, base, &neg, &any);
+    if (!any) return 0;
     if (neg) val = (unsigned long)(-(long)val);
     return val;
+}
+
+long strtol(const char* nptr, char** endptr, int base) {
+    int neg = 0;
+    int any = 0;
+    unsigned long val = __minux_parse_unsigned(nptr, endptr, base, &neg, &any);
+    if (!any) return 0;
+    long result = (long)val;
+    if (neg) result = -result;
+    return result;
 }
 
 static int __tolower(int c) {
