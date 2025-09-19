@@ -1520,6 +1520,35 @@ int fclose(FILE* fp) {
   return rc;
 }
 
+FILE* tmpfile(void) {
+  char templ[] = "/tmp/minuxXXXXXX";
+  int fd = mkstemp(templ);
+  if (fd < 0) {
+    return 0;
+  }
+  unlink(templ);
+
+  FILE* fp = (FILE*)malloc(sizeof(FILE));
+  if (!fp) {
+    close(fd);
+    return 0;
+  }
+  fp->fd = fd;
+  fp->flags = 1 | 2;
+  fp->pos = 0;
+  fp->eof = 0;
+  fp->err = 0;
+  fp->have_push = 0;
+  fp->push_ch = 0;
+  fp->is_mem = 0;
+  fp->ms_bufp = 0;
+  fp->ms_sizep = 0;
+  fp->ms_buf = 0;
+  fp->ms_cap = 0;
+  fp->ms_len = 0;
+  return fp;
+}
+
 int fseek(FILE* fp, long offset, int whence) {
   if (!fp) return -1;
   long r = lseek(fp->fd, offset, whence);
@@ -1801,8 +1830,8 @@ double strtod(const char* nptr, char** endptr) {
     return neg ? -val : val;
 }
 
-static unsigned long __minux_parse_unsigned(const char* nptr, char** endptr,
-                                            int base, int* neg_out, int* any_out) {
+static unsigned long long __minux_parse_unsigned(const char* nptr, char** endptr,
+                                                 int base, int* neg_out, int* any_out) {
     const char* s = nptr;
     while (isspace(*s)) s++;
 
@@ -1814,7 +1843,7 @@ static unsigned long __minux_parse_unsigned(const char* nptr, char** endptr,
         s++;
     }
 
-    unsigned long val = 0;
+    unsigned long long val = 0;
     int any = 0;
     int actual_base = base;
 
@@ -1853,7 +1882,7 @@ static unsigned long __minux_parse_unsigned(const char* nptr, char** endptr,
         else break;
         if (d >= actual_base) break;
         any = 1;
-        val = val * (unsigned long)actual_base + (unsigned long)d;
+        val = val * (unsigned long long)actual_base + (unsigned long long)d;
     }
 
     if (endptr) *endptr = (char*)(any ? s : nptr);
@@ -1865,8 +1894,9 @@ static unsigned long __minux_parse_unsigned(const char* nptr, char** endptr,
 unsigned long strtoul(const char* nptr, char** endptr, int base) {
     int neg = 0;
     int any = 0;
-    unsigned long val = __minux_parse_unsigned(nptr, endptr, base, &neg, &any);
+    unsigned long long parsed = __minux_parse_unsigned(nptr, endptr, base, &neg, &any);
     if (!any) return 0;
+    unsigned long val = (unsigned long)parsed;
     if (neg) val = (unsigned long)(-(long)val);
     return val;
 }
@@ -1874,11 +1904,29 @@ unsigned long strtoul(const char* nptr, char** endptr, int base) {
 long strtol(const char* nptr, char** endptr, int base) {
     int neg = 0;
     int any = 0;
-    unsigned long val = __minux_parse_unsigned(nptr, endptr, base, &neg, &any);
+    unsigned long long parsed = __minux_parse_unsigned(nptr, endptr, base, &neg, &any);
     if (!any) return 0;
-    long result = (long)val;
+    long result = (long)parsed;
     if (neg) result = -result;
     return result;
+}
+
+long long strtoll(const char* nptr, char** endptr, int base) {
+    int neg = 0;
+    int any = 0;
+    unsigned long long parsed = __minux_parse_unsigned(nptr, endptr, base, &neg, &any);
+    if (!any) return 0;
+    long long result = (long long)parsed;
+    if (neg) result = -result;
+    return result;
+}
+
+long atol(const char* nptr) {
+    return strtol(nptr, 0, 10);
+}
+
+int atoi(const char* nptr) {
+    return (int)strtol(nptr, 0, 10);
 }
 
 static int __tolower(int c) {
