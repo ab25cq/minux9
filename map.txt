@@ -403,37 +403,37 @@ LOAD syscall.o
  .debug_line    0x00000000000096a7     0x1af0 sub.o
  .debug_line    0x000000000000b197     0x2a2b syscall.o
 
-.debug_str      0x0000000000000000     0x175b
+.debug_str      0x0000000000000000     0x1757
  *(.debug_str)
- .debug_str     0x0000000000000000     0x175b entry.o
-                                         0x2f (size before relaxing)
- .debug_str     0x000000000000175b      0x1d0 start.o
- .debug_str     0x000000000000175b       0x2e trap.o
- .debug_str     0x000000000000175b      0xb8c fs.o
- .debug_str     0x000000000000175b      0x198 plic.o
- .debug_str     0x000000000000175b      0x16c trap_c.o
- .debug_str     0x000000000000175b      0xd65 main.o
- .debug_str     0x000000000000175b      0x32c sub.o
- .debug_str     0x000000000000175b      0x992 syscall.o
+ .debug_str     0x0000000000000000     0x1757 entry.o
+                                         0x2b (size before relaxing)
+ .debug_str     0x0000000000001757      0x1d0 start.o
+ .debug_str     0x0000000000001757       0x2a trap.o
+ .debug_str     0x0000000000001757      0xb8c fs.o
+ .debug_str     0x0000000000001757      0x198 plic.o
+ .debug_str     0x0000000000001757      0x16c trap_c.o
+ .debug_str     0x0000000000001757      0xd65 main.o
+ .debug_str     0x0000000000001757      0x32c sub.o
+ .debug_str     0x0000000000001757      0x992 syscall.o
 
 .debug_line_str
-                0x0000000000000000       0xe4
+                0x0000000000000000       0xe0
  *(.debug_line_str)
  .debug_line_str
-                0x0000000000000000       0xe4 start.o
-                                         0xb0 (size before relaxing)
+                0x0000000000000000       0xe0 start.o
+                                         0xa8 (size before relaxing)
  .debug_line_str
-                0x00000000000000e4       0xbe fs.o
+                0x00000000000000e0       0xb6 fs.o
  .debug_line_str
-                0x00000000000000e4       0xad plic.o
+                0x00000000000000e0       0xa5 plic.o
  .debug_line_str
-                0x00000000000000e4       0xad trap_c.o
+                0x00000000000000e0       0xa5 trap_c.o
  .debug_line_str
-                0x00000000000000e4       0xd7 main.o
+                0x00000000000000e0       0xcf main.o
  .debug_line_str
-                0x00000000000000e4       0xc5 sub.o
+                0x00000000000000e0       0xbd sub.o
  .debug_line_str
-                0x00000000000000e4       0xcd syscall.o
+                0x00000000000000e0       0xc5 syscall.o
 OUTPUT(kernel.elf elf64-littleriscv)
 
 .debug_aranges  0x0000000000000000      0x1b0
