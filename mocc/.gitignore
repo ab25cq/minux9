@@ -1,0 +1,7 @@
+/tmp*
+/mocc
+*.o
+/mocc-*
+/.stage*
+/.self
+*.profraw
