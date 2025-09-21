@@ -236,7 +236,7 @@ LOAD syscall.o
  .data          0x00000000800146f8        0x0 syscall.o
                 0x0000000080014700                . = ALIGN (0x10)
 
-.bss            0x0000000080014800     0x8790
+.bss            0x0000000080014800     0x87a0
  *(.bss)
  .bss           0x0000000080014800        0x0 entry.o
  .bss           0x0000000080014800        0x0 start.o
@@ -260,7 +260,7 @@ LOAD syscall.o
                 0x000000008001cf74                g_time_offset
  .bss           0x000000008001cf80       0x10 sub.o
                 0x000000008001cf80                free_list
- .bss           0x000000008001cf90        0x0 syscall.o
+ .bss           0x000000008001cf90       0x10 syscall.o
  *(.bss.*)
  *(.sbss)
  *(.sbss.*)
@@ -268,8 +268,8 @@ LOAD syscall.o
 .sdata
  *(.sdata*)
                 [!provide]                        PROVIDE (_code_end = .)
-                0x000000008005cf90                . = (. + STACK_MAX)
-                0x000000008005cf90                PROVIDE (stack_top = .)
+                0x000000008005cfa0                . = (. + STACK_MAX)
+                0x000000008005cfa0                PROVIDE (stack_top = .)
                 0x000000008005d000                . = ALIGN (0x1000)
                 0x000000008005d000                TRAPFRAME = .
                 0x000000008005e000                . = (. + 0x1000)
@@ -367,7 +367,7 @@ LOAD syscall.o
  .note.GNU-stack
                 0x0000000000000000        0x0 syscall.o
 
-.debug_info     0x0000000000000000     0xa53e
+.debug_info     0x0000000000000000     0xa56a
  *(.debug_info)
  .debug_info    0x0000000000000000       0x2e entry.o
  .debug_info    0x000000000000002e      0x3b1 start.o
@@ -377,7 +377,7 @@ LOAD syscall.o
  .debug_info    0x0000000000003f23      0x101 trap_c.o
  .debug_info    0x0000000000004024     0x2d66 main.o
  .debug_info    0x0000000000006d8a      0xdbe sub.o
- .debug_info    0x0000000000007b48     0x29f6 syscall.o
+ .debug_info    0x0000000000007b48     0x2a22 syscall.o
 
 .debug_abbrev   0x0000000000000000     0x135e
  *(.debug_abbrev)
@@ -403,18 +403,18 @@ LOAD syscall.o
  .debug_line    0x00000000000096a7     0x1af0 sub.o
  .debug_line    0x000000000000b197     0x2a2b syscall.o
 
-.debug_str      0x0000000000000000     0x1757
+.debug_str      0x0000000000000000     0x1761
  *(.debug_str)
- .debug_str     0x0000000000000000     0x1757 entry.o
+ .debug_str     0x0000000000000000     0x1761 entry.o
                                          0x2b (size before relaxing)
- .debug_str     0x0000000000001757      0x1d0 start.o
- .debug_str     0x0000000000001757       0x2a trap.o
- .debug_str     0x0000000000001757      0xb8c fs.o
- .debug_str     0x0000000000001757      0x198 plic.o
- .debug_str     0x0000000000001757      0x16c trap_c.o
- .debug_str     0x0000000000001757      0xd65 main.o
- .debug_str     0x0000000000001757      0x32c sub.o
- .debug_str     0x0000000000001757      0x992 syscall.o
+ .debug_str     0x0000000000001761      0x1d0 start.o
+ .debug_str     0x0000000000001761       0x2a trap.o
+ .debug_str     0x0000000000001761      0xb8c fs.o
+ .debug_str     0x0000000000001761      0x198 plic.o
+ .debug_str     0x0000000000001761      0x16c trap_c.o
+ .debug_str     0x0000000000001761      0xd65 main.o
+ .debug_str     0x0000000000001761      0x32c sub.o
+ .debug_str     0x0000000000001761      0x9a5 syscall.o
 
 .debug_line_str
                 0x0000000000000000       0xe0

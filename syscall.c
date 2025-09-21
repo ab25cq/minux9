@@ -973,6 +973,47 @@ int Sys_execve()
     return argc;
 }
 
+// プロセスごとに管理するヒープ末尾
+static uintptr_t heap_base;   // 初期化時: .bss末尾かユーザ領域の開始
+static uintptr_t heap_end;    // 現在の brk
+
+/*
+int Sys_brk(void) {
+    struct context_t* tf = (struct context_t*)TRAPFRAME;
+    uintptr_t req = (uintptr_t)tf->a0;   // ユーザーの a0
+    struct proc *p = gProc[gActiveProc];
+
+    // 問い合わせ: brk(0) → 現在の brk を返す
+    if (req == 0) {
+        tf->a0 = heap_end;
+        return heap_end;  // or 0; どちらでも sbrk 側は後で brk(0) を読みに行く
+    }
+
+    // ガード: 下限/上限
+    if (req < heap_base) { tf->a0 = (long)-1; return -1; }
+//    if (req > USER_TOP - PAGE_SIZE) { tf->a0 = (long)-1; return -1; }
+
+    // ページ境界に合わせて map/unmap
+    uintptr_t old = heap_end;
+    if (req > old) {
+        //map_user_pages(old, req - old, PTE_U|PTE_R|PTE_W);
+        if(uvm_alloc(p, p->pagetable, old, req) < 0) {
+            printf("Sys_brk: uvm_alloc failed!\n");
+            return -1; 
+        }
+    } else if (req < old) {
+        uvm_dealloc(p->pagetable, old, req);
+    }
+//    heap_end = req;
+    p->sz = req;
+
+    // 成功：0 でも heap_end でもどちらでも可（sbrk は最終的に brk(0) で読み直す）
+    tf->a0 = 0;
+    return 0;
+}
+*/
+
+
 // In main.c, inside Sys_brk
 int Sys_brk() {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;

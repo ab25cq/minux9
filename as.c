@@ -248,13 +248,16 @@ int parse_line(char *line, struct sectionpos position);
 
 void parse_file(FILE *ifp, FILE *ofp)
 {
+puts("parse_file1");
 	char *line = NULL;
 	size_t linesize = 0;
 	size_t nread;
+puts("parse_file2");
 
 	linenumber = 0;
 
 	fseek(ifp, 0L, SEEK_SET);
+puts("parse_file3");
 
 	while ((nread = getl(&line, &linesize, ifp)) != (size_t)-1) {
 		linenumber++;
@@ -264,20 +267,27 @@ void parse_file(FILE *ifp, FILE *ofp)
 		logger(DEBUG, no_error, " | Finished parsing line");
 	}
 
+puts("parse_file4");
 	linenumber = 0;
 
 	calc_strtab();
+puts("parse_file5");
 	calc_symtab();
+puts("parse_file6");
 	alloc_output();
+puts("parse_file7");
 
 	write_all();
+puts("parse_file8");
 
 	free(line);
 
 	linenumber = 0;
 
 	fill_strtab();
+puts("parse_file9");
 	fill_symtab();
+puts("parse_file10");
 
 	flush_output(ofp);
 
@@ -299,6 +309,7 @@ int parse_line(char *line, struct sectionpos position)
 static inline int parse_line_trimmed(char *line, struct sectionpos position)
 {
 	logger(DEBUG, no_error, " |-> \"%s\"", line);
+puts("parse_line_trimmed1");
 
 	switch (*line) {
 	case '\0':
@@ -312,14 +323,18 @@ static inline int parse_line_trimmed(char *line, struct sectionpos position)
 			return 0;
 	}
 
+puts("parse_line_trimmed2");
+
 	if (strchr(line, ':'))
 		return parse_label(line, position);
+puts("parse_line_trimmed3");
 
 	return parse_asm(line, position);
 }
 
 int parse_label(char *line, struct sectionpos position)
 {
+puts("parse_label");
 	char *end = strchr(line, ':');
 	/* check for invalid label definition */
 	if (end == NULL)
@@ -504,18 +519,27 @@ static int expect_three_args(char *first, char *second, char *third)
 
 int parse_asm(const char *linestr, struct sectionpos position)
 {
+puts("parse_asm");
 	logger(DEBUG, no_error, "Parsing assembly %s", linestr);
 
+puts("parse_asm0");
 	char *line = xmalloc(strlen(linestr) + 1);
+puts("parse_asm1");
 	strncpy(line, linestr, strlen(linestr) + 1);
+puts("parse_asm2");
 
 	char *instruction = strtok(line, " \t");
+puts("parse_asm3");
 	char *argstr = strtok(NULL, "");
+puts("parse_asm4");
 
 	const struct formation formation = parse_form(instruction);
+puts("parse_asm5");
 	const struct args args = formation.arg_handler(argstr);
 
+puts("parse_asm6");
 	free(line);
+puts("parse_asm7");
 
 	add_instruction((struct instruction){
 		.formation = formation,
@@ -523,6 +547,7 @@ int parse_asm(const char *linestr, struct sectionpos position)
 		.line = linenumber,
 		.position = position,
 	});
+puts("parse_asm8");
 	inc_outputsize(position.section, formation.idata.sz);
 	logger(DEBUG, no_error, "Updated position to offset (%zu)",
 	       position.offset);
@@ -633,6 +658,7 @@ struct args parse_ltype(char *argstr)
 	return args;
 }
 
+/*
 struct args parse_stype(char *argstr)
 {
 	logger(DEBUG, no_error, "Parsing arguments for itype instruction %s",
@@ -658,6 +684,35 @@ struct args parse_stype(char *argstr)
 	       args.rs1, args.rs2);
 
 	return args;
+}
+*/
+
+struct args parse_stype(char *argstr)
+{
+    logger(DEBUG, no_error, "Parsing arguments for stype instruction %s",
+           argstr);
+
+    char *first  = trim_arg(argstr);
+    char *second = trim_arg(NULL);
+
+    if (expect_two_args(first, second))
+        return empty_args;
+
+    struct args args = {
+        .rs2 = expect_reg(first),   // ← 1つ目はソースレジスタ rs2
+        .sym = NULL,
+    };
+
+    // ← 2つ目は off(reg) 形式（imm と base レジスタ rs1）
+    expect_offreg(second, &args.imm, &args.rs1);
+
+    free(first);
+    free(second);
+
+    logger(DEBUG, no_error, "Registers parsed x%d -> %d(x%d)",
+           args.rs2, args.imm, args.rs1);
+
+    return args;
 }
 
 struct args parse_utype(char *argstr)
@@ -1216,10 +1271,15 @@ static size_t dataitems_size = 0;
 
 int add_instruction(struct instruction instruction)
 {
+puts("add_instruction");
 	const size_t sz = instructions_size + 1;
+puts("add_instruction2");
 	instructions = xrealloc(instructions, sz * sizeof(*instructions));
+puts("add_instruction3");
 	instructions[instructions_size] = instruction;
+puts("add_instruction4");
 	instructions_size = sz;
+puts("add_instruction5");
 
 	return 0;
 }
@@ -1358,6 +1418,7 @@ struct {
 
 static struct directive get_directive(const char *name)
 {
+puts("get_directive");
 	for (unsigned long i = 0; i < ARRAY_LENGTH(directive_map); i++)
 		if (!strcmp(name, directive_map[i].name))
 			return directive_map[i];
@@ -1368,6 +1429,7 @@ static struct directive get_directive(const char *name)
 
 int parse_directive(char *line)
 {
+puts("Parse_directive");
 	char *directivename = line;
 	while (!isspace(*line))
 		line++;
@@ -2593,14 +2655,22 @@ void copy_files(FILE *dest, FILE *src)
 
 int main(int argc, char *argv[])
 {
+puts("1");
 	parse_cmdargs(argc, argv);
+puts("2");
 	open_files();
+puts("3");
 	parse_file(inputfile, outputtempfile);
+puts("4");
 
 	logger(DEBUG, no_error, "Done generating bytecode");
+puts("5");
 	copy_files(outputfile, outputtempfile);
+puts("6");
 	logger(DEBUG, no_error, "Finished writing bytecode to output");
+puts("7");
 	closefiles();
+puts("8");
 
 	return get_clean_exit(ERROR);
 }
