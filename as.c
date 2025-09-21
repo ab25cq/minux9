@@ -541,12 +541,21 @@ puts("parse_asm6");
 	free(line);
 puts("parse_asm7");
 
-	add_instruction((struct instruction){
-		.formation = formation,
-		.args = args,
-		.line = linenumber,
-		.position = position,
-	});
+   struct instruction si;
+   si.formation = formation;
+   si.args = args;
+   si.line = linenumber;
+   si.position = position;
+   
+   add_instruction(si);
+/*
+   add_instruction((struct instruction){
+        .formation = formation,
+        .args = args,
+        .line = linenumber,
+        .position = position,
+    });
+*/
 puts("parse_asm8");
 	inc_outputsize(position.section, formation.idata.sz);
 	logger(DEBUG, no_error, "Updated position to offset (%zu)",
@@ -1242,6 +1251,7 @@ static void die(const char *function)
 void *xmalloc(size_t sz)
 {
 	void *ptr = malloc(sz);
+printf("ptr %p size %d\r\n", ptr, sz);
 	if (!ptr)
 		die("malloc");
 	return ptr;
@@ -1250,6 +1260,7 @@ void *xmalloc(size_t sz)
 void *xcalloc(size_t nitems, size_t size)
 {
 	void *ptr = calloc(nitems, size);
+printf("ptr %p size %d\r\n", ptr, size);
 	if (!ptr)
 		die("calloc");
 	return ptr;
@@ -1258,6 +1269,7 @@ void *xcalloc(size_t nitems, size_t size)
 void *xrealloc(void *ptr, size_t size)
 {
 	ptr = realloc(ptr, size);
+printf("ptr %p size %d\r\n", ptr, size);
 	if (!ptr)
 		die("xrealloc");
 	return ptr;

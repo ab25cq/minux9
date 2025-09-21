@@ -389,11 +389,19 @@ int main(void) {
     int num_commands;
     int num_arg;
     char* p;
+    int m = 0;
     
     for (;;) {
         //write(1, "\r\n", 2);
         // プロンプト
         write(1, "$ ", 2);
+        
+        m++;
+        if(m == 1) {
+            strncpy(buf, "cc -o b.s -S b.c", BUF_SIZE);
+        }
+        else {
+//        strncpy(buf, "cat a.txt | grep ABC", BUF_SIZE);
         
         // キーボードから１行読み込み（改行込み）
         n = 0;
@@ -421,9 +429,8 @@ int main(void) {
             }
         }
         buf[n] = '\0';
+        }
         
-//        strncpy(buf, "cc -S b.c", BUF_SIZE);
-//        strncpy(buf, "cat a.txt | grep ABC", BUF_SIZE);
         
         write(1, "\r\n", 2);
         // save whole command line into global for MINUX_CMDLINE
