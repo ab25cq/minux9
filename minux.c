@@ -2015,3 +2015,145 @@ char *strtok(char *s, const char *delim) {
 int isxdigit(int c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
+
+// --- minimal sscanf implementation (supports %zi, %d, %ld, %u, %s, %[...], width) ---
+static int __minux_isspace(int c) { return c==' '||c=='\t'||c=='\n'||c=='\r'||c=='\v'||c=='\f'; }
+
+int sscanf(const char *str, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    const char *s = str;
+    const char *f = fmt;
+    int assigned = 0;
+
+    #define SKIP_WS_INPUT() while (*s && __minux_isspace((unsigned char)*s)) s++
+
+    while (*f) {
+        if (*f != '%') {
+            if (__minux_isspace((unsigned char)*f)) {
+                while (__minux_isspace((unsigned char)*f)) f++;
+                SKIP_WS_INPUT();
+                continue;
+            }
+            if (*s != *f) { va_end(ap); return assigned; }
+            s++; f++;
+            continue;
+        }
+        f++; // skip '%'
+
+        // width
+        int width = 0;
+        while (*f >= '0' && *f <= '9') { width = width*10 + (*f - '0'); f++; }
+
+        // length modifier (handle 'l', 'z'; allow "ll")
+        char length = 0;
+        if (*f == 'l' || *f == 'z') { length = *f; f++; if (length=='l' && *f=='l') { f++; } }
+
+        char conv = *f++;
+        if (conv == 's') {
+            char *out = va_arg(ap, char*);
+            if (!out) { va_end(ap); return assigned; }
+            SKIP_WS_INPUT();
+            int n=0;
+            while (*s && !__minux_isspace((unsigned char)*s) && (width==0 || n<width)) { out[n++] = *s++; }
+            out[n] = '\0';
+            if (n==0) { va_end(ap); return assigned; }
+            assigned++;
+        } else if (conv=='d' || conv=='i' || conv=='u') {
+            SKIP_WS_INPUT();
+            int neg = 0; if (*s=='+'||*s=='-'){ neg = (*s=='-'); s++; }
+            unsigned long long val=0; int digits=0;
+            while (*s>='0'&&*s<='9' && (width==0 || digits<width)) { val = val*10 + (unsigned)(*s-'0'); s++; digits++; }
+            if (digits==0) { va_end(ap); return assigned; }
+            if (conv=='u') {
+                if (length=='l')      { unsigned long* p = va_arg(ap, unsigned long*); *p = (unsigned long)val; }
+                else if (length=='z') { size_t* p = va_arg(ap, size_t*); *p = (size_t)val; }
+                else                  { unsigned* p = va_arg(ap, unsigned*); *p = (unsigned)val; }
+            } else {
+                long long sval = neg ? -(long long)val : (long long)val;
+                if (length=='l')      { long* p = va_arg(ap, long*); *p = (long)sval; }
+                else if (length=='z') { long long* p = va_arg(ap, long long*); *p = (long long)sval; } // ssize_t 相当
+                else                  { int* p = va_arg(ap, int*); *p = (int)sval; }
+            }
+            assigned++;
+        } else if (conv=='[') {
+            // scanset: %[...]
+            int invert = 0; if (*f=='^'){ invert=1; f++; }
+            char set[256]={0};
+            if (*f==']'){ set[(unsigned)']']=1; f++; }
+            while (*f && *f!=']') {
+                if (*(f+1)=='-' && *(f+2) && *(f+2)!=']') {
+                    unsigned char a=(unsigned char)*f, b=(unsigned char)*(f+2);
+                    if (a<=b) { for (int c=a;c<=b;c++) set[c]=1; }
+                    else      { for (int c=b;c<=a;c++) set[c]=1; }
+                    f+=3;
+                } else {
+                    set[(unsigned char)*f]=1; f++;
+                }
+            }
+            if (*f==']') f++;
+            char *out = va_arg(ap, char*);
+            if (!out) { va_end(ap); return assigned; }
+            int n=0;
+            while (*s && (width==0 || n<width)) {
+                int in = set[(unsigned char)*s];
+                if ((in && !invert) || (!in && invert)) { out[n++]=*s++; }
+                else break;
+            }
+            out[n]='\0';
+            if (n==0) { va_end(ap); return assigned; }
+            assigned++;
+        } else if (conv=='c') {
+            char *out = va_arg(ap, char*);
+            int n = (width==0)?1:width;
+            int i=0; for (; i<n && *s; i++) *out++ = *s++;
+            if (i<n) { va_end(ap); return assigned; }
+            assigned++;
+        } else if (conv=='%') {
+            if (*s!='%') { va_end(ap); return assigned; }
+            s++;
+        } else {
+            va_end(ap); return assigned; // 未対応指定子はその場で終了
+        }
+
+        while (__minux_isspace((unsigned char)*f)) {
+            while (__minux_isspace((unsigned char)*f)) f++;
+            SKIP_WS_INPUT();
+        }
+    }
+    va_end(ap);
+    return assigned;
+}
+
+#ifndef MINUX_PATH_MAX
+#define MINUX_PATH_MAX 1024
+#endif
+
+// POSIX-like dirname: returns static buffer; input not modified
+char* dirname(const char* path) {
+    static char buf[MINUX_PATH_MAX];
+    if (!path || !*path) { buf[0]='.'; buf[1]='\0'; return buf; }
+
+    // copy
+    size_t n = 0;
+    while (path[n] && n < MINUX_PATH_MAX-1) { buf[n] = path[n]; n++; }
+    buf[n] = '\0';
+
+    // strip trailing '/'
+    while (n > 1 && buf[n-1] == '/') { buf[--n] = '\0'; }
+
+    // find last '/'
+    char *last = NULL;
+    for (size_t i=0; i<n; i++) if (buf[i] == '/') last = &buf[i];
+
+    if (!last) { buf[0]='.'; buf[1]='\0'; return buf; }
+    if (last == buf) { buf[1] = '\0'; return buf; } // "/xxx" -> "/"
+
+    *last = '\0';
+    size_t m = (size_t)(last - buf);
+    while (m > 0 && buf[m-1] == '/') { buf[--m] = '\0'; } // "/foo///bar" -> "/foo"
+
+    if (m == 0) { buf[0] = '/'; buf[1] = '\0'; }
+    return buf;
+}
+

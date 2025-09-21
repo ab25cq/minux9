@@ -741,3 +741,6 @@ void arg_print_glossary(struct __minux_FILE *fp, void **argtable,
 void arg_print_errors(struct __minux_FILE *fp, struct arg_end *end,                                                      
                       const char *progname);                                                                             
 void arg_freetable(void **argtable, size_t n); 
+
+int sscanf(const char *str, const char *fmt, ...);
+char *dirname(const char *path);

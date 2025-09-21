@@ -15,6 +15,8 @@
 #define OP_LUI 0x37
 #define OP_AUIPC 0x17
 #define OP_AMO 0x2F
+#define OP_LOAD_FP  0x07
+#define OP_STORE_FP 0x27
 
 #define END_FORMATION              \
 	{                          \
@@ -40,6 +42,10 @@ struct idata;
 typedef struct bytecode(form_handler)(const char *, struct idata, struct args,
 				      size_t);
 typedef struct args arg_parser(char *);
+// as.h（既存の arg_parser 群の近く）
+arg_parser parse_fltype;  // fld/flw: rd=FREG,  imm(rs1)
+arg_parser parse_fstype;  // fsd/fsw: rs2=FREG, imm(rs1)
+
 
 form_handler form_rtype;
 form_handler form_itype;

@@ -1,5 +1,66 @@
 #include "as.h"
 
+// as.c
+static size_t expect_freg(const char* s) {
+    ssize_t r = (ssize_t)get_float_register_id(s);
+    if (r < 0 || r > 31) {
+        logger(ERROR, error_invalid_syntax, "Expected floating register, got '%s'", s);
+        return 0;
+    }
+    return (size_t)r;
+}
+
+struct args parse_fltype(char* argstr) {
+    // 形式:   fld  fRD, imm(RS1)
+    // 例:     fld  fs5, -48(fp)
+    char *first = strtok(argstr, ",");
+    char *second = strtok(NULL, ",");
+    if (!first || !second) {
+        logger(ERROR, error_invalid_syntax, "Invalid operands");
+        return empty_args;
+    }
+    first  = trim_whitespace(first);
+    second = trim_whitespace(second);
+
+    size_t rd = expect_freg(first);
+
+    // off(reg) を読む
+    size_t imm = 0;
+    char basebuf[64];
+    if (sscanf(second, "%zi(%63[^)])", (ssize_t*)&imm, basebuf) != 2) {
+        logger(ERROR, error_invalid_syntax, "Expected off(reg), got '%s'", second);
+        return empty_args;
+    }
+    size_t rs1 = get_register_id(trim_whitespace(basebuf));
+
+    return (struct args){ .rd = (uint8_t)rd, .rs1 = (uint8_t)rs1, .imm = (int32_t)imm };
+}
+
+struct args parse_fstype(char* argstr) {
+    // 形式:   fsd  fRS2, imm(RS1)
+    char *first = strtok(argstr, ",");
+    char *second = strtok(NULL, ",");
+    if (!first || !second) {
+        logger(ERROR, error_invalid_syntax, "Invalid operands");
+        return empty_args;
+    }
+    first  = trim_whitespace(first);
+    second = trim_whitespace(second);
+
+    size_t rs2 = expect_freg(first);
+
+    size_t imm = 0;
+    char basebuf[64];
+    if (sscanf(second, "%zi(%63[^)])", (ssize_t*)&imm, basebuf) != 2) {
+        logger(ERROR, error_invalid_syntax, "Expected off(reg), got '%s'", second);
+        return empty_args;
+    }
+    size_t rs1 = get_register_id(trim_whitespace(basebuf));
+
+    return (struct args){ .rs1 = (uint8_t)rs1, .rs2 = (uint8_t)rs2, .imm = (int32_t)imm };
+}
+
+
 const char progname[] = "wrasm";
 const struct versioninfo_t versioninfo = { 0, 0, 1, "alpha" };
 const char helpstr[] =
@@ -60,6 +121,8 @@ void parse_cmdargs(int argc, char *argv[])
 		set_min_loglevel(DEBUG);
 	}
 }
+
+
 
 static void free_argtable(void)
 {
@@ -1676,6 +1739,13 @@ const struct formation rv64i[] = {
 	{ "lwu", &form_itype, &parse_itype, { 4, OP_LOAD, 0x6, 0 } },
 	{ "ld", &form_itype, &parse_itype, { 4, OP_LOAD, 0x3, 0 } },
 	{ "sd", &form_stype, &parse_stype, { 4, OP_STORE, 0x3, 0 } },
+{ "lwu", &form_itype, &parse_itype, { 4, OP_LOAD,     0x6, 0 } },
+{ "ld",  &form_itype, &parse_itype, { 4, OP_LOAD,     0x3, 0 } },
+{ "sd",  &form_stype, &parse_stype, { 4, OP_STORE,    0x3, 0 } },
+
+// ▼ここから追加（FP）
+{ "fld", &form_itype, &parse_fltype, { 4, OP_LOAD_FP,  0x3, 0 } }, // 64bit浮動ロード
+{ "fsd", &form_stype, &parse_fstype, { 4, OP_STORE_FP, 0x3, 0 } }, // 64bit浮動ストア
 
 	END_FORMATION
 };
@@ -3015,7 +3085,6 @@ const struct {
 };
 
 /* TODO: implement w/ float extension */
-const char *float_reg_abi_map[] = { 0 };
 
 size_t get_register_id(const char *reg)
 {
@@ -3047,6 +3116,16 @@ size_t get_register_id(const char *reg)
 
 	return (size_t)-1;
 }
+
+const char *float_reg_abi_map[] = {
+    /* f0  - f31 の ABI 名 */
+    "ft0","ft1","ft2","ft3","ft4","ft5","ft6","ft7",
+    "fs0","fs1",
+    "fa0","fa1","fa2","fa3","fa4","fa5","fa6","fa7",
+    "fs2","fs3","fs4","fs5","fs6","fs7","fs8","fs9","fs10","fs11",
+    "ft8","ft9","ft10","ft11",
+    NULL
+};
 
 size_t get_float_register_id(const char *reg)
 {
@@ -3108,3 +3187,4 @@ uint16_t get_csr(const char *csr)
 			return csr_map[i].encoding;
 	return 0xFFFF;
 }
+
