@@ -290,6 +290,7 @@ puts("parse_file9");
 puts("parse_file10");
 
 	flush_output(ofp);
+fflush(ofp);
 
 	free_output();
 	free_instructions();
@@ -306,6 +307,34 @@ int parse_line(char *line, struct sectionpos position)
 	return result;
 }
 
+static inline int parse_line_trimmed(char *line, struct sectionpos position)
+{
+    logger(DEBUG, no_error, " |-> \"%s\"", line);
+
+    switch (*line) {
+    case '\0':
+    case ';':
+        return 0;
+    case '/':
+        if (line[1] == '/')
+            return 0;
+        break;
+    }
+
+    // ★ 先にラベルを処理（.L.*: などをディレクティブと誤判定しない）
+    if (strchr(line, ':'))
+        return parse_label(line, position);
+
+    // ここからディレクティブ判定
+    if (*line == '.' || *line == '[')
+        return parse_directive(line);
+
+    // 命令
+    return parse_asm(line, position);
+}
+
+
+/*
 static inline int parse_line_trimmed(char *line, struct sectionpos position)
 {
 	logger(DEBUG, no_error, " |-> \"%s\"", line);
@@ -331,6 +360,7 @@ puts("parse_line_trimmed3");
 
 	return parse_asm(line, position);
 }
+*/
 
 int parse_label(char *line, struct sectionpos position)
 {
@@ -519,27 +549,29 @@ static int expect_three_args(char *first, char *second, char *third)
 
 int parse_asm(const char *linestr, struct sectionpos position)
 {
-puts("parse_asm");
 	logger(DEBUG, no_error, "Parsing assembly %s", linestr);
 
-puts("parse_asm0");
 	char *line = xmalloc(strlen(linestr) + 1);
-puts("parse_asm1");
 	strncpy(line, linestr, strlen(linestr) + 1);
-puts("parse_asm2");
 
-	char *instruction = strtok(line, " \t");
-puts("parse_asm3");
-	char *argstr = strtok(NULL, "");
-puts("parse_asm4");
+//	char *instruction = strtok(line, " \t");
+//	char *argstr = strtok(NULL, "");
+char *p = line;
+while (*p==' ' || *p=='\t') p++;
+char *instruction = p;
+while (*p && *p!=' ' && *p!='\t') p++;
+if (*p) *p++ = '\0';
+while (*p==' ' || *p=='\t') p++;
 
+
+
+
+
+char *argstr = (*p ? strdup(p) : NULL);
 	const struct formation formation = parse_form(instruction);
-puts("parse_asm5");
 	const struct args args = formation.arg_handler(argstr);
 
-puts("parse_asm6");
 	free(line);
-puts("parse_asm7");
 
    struct instruction si;
    si.formation = formation;
@@ -1281,6 +1313,7 @@ static size_t instructions_size = 0;
 static struct rawdata *dataitems = NULL;
 static size_t dataitems_size = 0;
 
+/*
 int add_instruction(struct instruction instruction)
 {
 puts("add_instruction");
@@ -1294,6 +1327,21 @@ puts("add_instruction4");
 puts("add_instruction5");
 
 	return 0;
+}
+*/
+
+static struct instruction *instructions;
+static size_t instructions_size, instructions_cap;
+
+int add_instruction(struct instruction ins) {
+    if (instructions_size == instructions_cap) {
+        size_t newcap = instructions_cap ? instructions_cap*2 : 256;
+        void* p = xrealloc(instructions, newcap * sizeof(*instructions));
+        instructions = p;
+        instructions_cap = newcap;
+    }
+    instructions[instructions_size++] = ins;
+    return 0;
 }
 
 int add_data(struct rawdata dataitem)
@@ -1810,8 +1858,8 @@ const struct formation rv64i[] = {
 	{ "sraw", &form_rtype, &parse_rtype, { 4, OP_OP32, 0x5, 0x20 } },
 	{ "sraiw", &form_itype2, &parse_itype, { 4, OP_OPI32, 0x5, 0 } },
 
-	{ "lwu", &form_itype, &parse_itype, { 4, OP_LOAD, 0x6, 0 } },
-	{ "ld", &form_itype, &parse_itype, { 4, OP_LOAD, 0x3, 0 } },
+	{ "lwu", &form_itype, &parse_ltype, { 4, OP_LOAD, 0x6, 0 } },
+	{ "ld", &form_itype, &parse_ltype, { 4, OP_LOAD, 0x3, 0 } },
 	{ "sd", &form_stype, &parse_stype, { 4, OP_STORE, 0x3, 0 } },
 { "lwu", &form_itype, &parse_itype, { 4, OP_LOAD,     0x6, 0 } },
 { "ld",  &form_itype, &parse_itype, { 4, OP_LOAD,     0x3, 0 } },
@@ -2492,12 +2540,18 @@ int alloc_output(void)
 {
 	size_t offset = sizeof(struct elf64header);
 	for (int i = 0; i < SECTION_COUNT; i++) {
+    if(outputsections[i].size == 0) {
+        puts("ZERO");
+    }
+    else {
+    puts("NO ZERO");
 		outputsections[i].contents = xmalloc(outputsections[i].size);
 		logger(DEBUG, no_error, "%d bytes allocated to section (%p)",
 		       outputsections[i].size, outputsections[i].contents);
 		offset = align_offset(offset, sectiondata[i].align);
 		outputsections[i].offset = offset;
 		offset += outputsections[i].size;
+    }
 	}
 	outputsections[SECTION_NULL].offset = 0x0;
 	return 0;

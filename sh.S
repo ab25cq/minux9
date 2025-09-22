@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9" "sh.c"
+	.file 0 "/Users/ab25cq/minux9-dev" "sh.c"
 	.align	1
 	.globl	strcmp
 	.type	strcmp, @function
@@ -2196,6 +2196,9 @@ run_command:
 	.align	3
 .LC13:
 	.string	"cd: failed\n"
+	.align	3
+.LC14:
+	.string	"=> %d\r\n"
 	.text
 	.align	1
 	.globl	main
@@ -3179,6 +3182,11 @@ main:
 # 0 "" 2
  #NO_APP
 .LBE63:
+	.loc 1 606 17
+	lw	a5,-956(s0)
+	mv	a1,a5
+	lla	a0,.LC14
+	call	printf
 .LBE62:
 	.loc 1 603 43 discriminator 3
 	lw	a5,-68(s0)
@@ -6069,6 +6077,6 @@ main:
 .LASF0:
 	.string	"sh.c"
 .LASF1:
-	.string	"/Users/ab25cq/minux9"
+	.string	"/Users/ab25cq/minux9-dev"
 	.ident	"GCC: (g04696df09) 14.2.0"
 	.section	.note.GNU-stack,"",@progbits

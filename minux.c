@@ -32,16 +32,25 @@ void *sbrk(ptrdiff_t increment) {
     uintptr_t want = cur + (intptr_t)increment;
     if ((increment > 0 && want < cur) || (increment < 0 && want > cur)) {
         errno = 12;                       // ENOMEM
+puts("MALLOC RETUR -1(1)");
         return (void*)-1;
     }
 
     // 要求ブレークへ移動（brk の戻り値仕様に依らず、後で再取得して正規化）
     long rc = brk((long)want);
-    if (rc < 0) { errno = 12; return (void*)-1; }
+    if (rc < 0) { 
+        errno = 12; 
+puts("MALLOC RETUR -1(2)");
+        return (void*)-1; 
+    }
 
     // 正規化：現在値を改めて読み直す
     long newer = brk(0);
-    if (newer < 0) { errno = 12; return (void*)-1; }
+    if (newer < 0) { 
+        errno = 12; 
+puts("MALLOC RETUR -1(3)");
+        return (void*)-1; 
+    }
 
     void *old = (void*)cur;   // 旧ブレーク（これを返すのが sbrk の契約）
     cur = (uintptr_t)newer;
@@ -78,6 +87,7 @@ void *malloc(size_t size) {
 
     mem_block_t *new_mem = (mem_block_t *)sbrk(size);
     if (new_mem == (void *)-1) {
+puts("MALLOC RETURN NULL(0)");
         return NULL; 
     }
 

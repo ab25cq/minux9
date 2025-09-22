@@ -603,6 +603,7 @@ int main(void) {
             for(int k=0; k<num_commands; k++) {
                 int status;
                 wait(&status);
+                printf("=> %d\r\n", status);
             }
         }
     }
