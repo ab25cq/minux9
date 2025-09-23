@@ -1,5 +1,18 @@
 #include "as.h"
 
+#ifndef PAGE_SIZE
+#define PAGE_SIZE  4096ull
+#endif
+#ifndef BASE_ADDR
+#define BASE_ADDR  0x1000ull
+#endif
+
+static inline size_t align_up(size_t x, size_t a){
+    if (a <= 1) return x;
+    return (x + (a - 1)) / a * a;
+}
+        
+
 static const char shstrtab_bytes[] =
   "\0.text\0.data\0.bss\0.symtab\0.strtab\0.shstrtab\0";
 static const uint32_t shname_text     = 1;                   // ".text"
@@ -2541,144 +2554,141 @@ size_t write_sectiondata(const void *bytes, size_t count,
 int flush_output(FILE *elf)
 {
     logger(DEBUG, no_error, "Writing ELF output to temporary file");
-    /* Generate headers */
-    struct elf64header elfheader = new_elf64header();
-    elfheader.phoffset = 0;
-    elfheader.phentrysize = 0;
-    elfheader.phcount = 0;
 
-    elfheader.shcount = SECTION_COUNT;
+    // ELF/SHDR ひな型
+    struct elf64header elfheader = new_elf64header();
+    elfheader.type        = 0x02; /* ET_EXEC */
+    elfheader.shcount     = SECTION_COUNT;
     elfheader.shentrysize = sizeof(struct elf64sectionheader);
-//    elfheader.shstrindex = SECTION_STRTAB;
-    elfheader.shstrindex = SECTION_SHSTRTAB;
+    elfheader.shstrindex  = SECTION_SHSTRTAB; /* ★ .shstrtab を指す */
 
     struct elf64sectionheader sectionheaders[SECTION_COUNT];
     for (int i = 0; i < SECTION_COUNT; i++) {
         sectionheaders[i] = new_elf64sectionheader();
-        sectionheaders[i].flags = sectiondata[i].flags;
-        sectionheaders[i].link = sectiondata[i].link;
-        sectionheaders[i].info = sectiondata[i].info;
-        sectionheaders[i].addralign = sectiondata[i].align;
-        sectionheaders[i].entrysize = sectiondata[i].entrysize;
-        sectionheaders[i].type = sectiondata[i].type;
-        sectionheaders[i].name = outputsections[i].nameoffset;
-        sectionheaders[i].offset = outputsections[i].offset;
-        sectionheaders[i].size = outputsections[i].size;
+        sectionheaders[i].flags      = sectiondata[i].flags;
+        sectionheaders[i].link       = sectiondata[i].link;
+        sectionheaders[i].info       = sectiondata[i].info;
+        sectionheaders[i].addralign  = sectiondata[i].align;
+        sectionheaders[i].entrysize  = sectiondata[i].entrysize;
+        sectionheaders[i].type       = sectiondata[i].type;
+        sectionheaders[i].name       = outputsections[i].nameoffset;
+        sectionheaders[i].size       = outputsections[i].size;
+        sectionheaders[i].offset     = outputsections[i].offset; // この後で上書き確定
         logger(DEBUG, no_error,
-               "Creating section (%s) of size (0x%x) and offset (0x%x)",
+               "Creating section (%s) of size (0x%.08x) at provisional offset (0x%.08x)",
+               sectionnames[i], sectionheaders[i].size, sectionheaders[i].offset);
+    }
+
+    // ==== ファイルレイアウトを EHDR 後から一括割当 ====
+    // SECTION_NULL(0) は offset=0/size=0 のまま・書かない
+    size_t cursor = sizeof(struct elf64header);
+
+    for (int i = 1; i < SECTION_COUNT; i++) {
+        size_t al = sectionheaders[i].addralign ? (size_t)sectionheaders[i].addralign : 1;
+        cursor = align_up(cursor, al);
+        outputsections[i].offset  = cursor;
+        sectionheaders[i].offset  = cursor;
+
+        // 実行ファイルなので、ALLOC セクションは sh_addr に仮想アドレスを付与
+        if (sectionheaders[i].flags & 0x2 /* SHF_ALLOC */) {
+            sectionheaders[i].addr = BASE_ADDR + outputsections[i].offset;
+        }
+
+        logger(DEBUG, no_error,
+               "Section (%s) final size (0x%.08x) offset (0x%.08x) addr (0x%.08x)",
                sectionnames[i], sectionheaders[i].size,
-               sectionheaders[i].offset);
-    }
-    
-    //sectionheaders[SECTION_BSS].name = shname_bss;           // bss を使うなら
-    sectionheaders[SECTION_SHSTRTAB].name = shname_shstrtab; // ← 新規
+               sectionheaders[i].offset, sectionheaders[i].addr);
 
-    /* Fix offset and alignment stuff */
-    sectionheaders[SECTION_NULL].addralign = 0x0;
-    /*
-    elfheader.shoffset =
-        align_offset(outputsections[SECTION_COUNT - 1].offset +
-                     outputsections[SECTION_COUNT - 1].size,
-                 8);
-    */
-    
-    /* ====== ここから ET_EXEC 用の PHDR/ENTRY を設定 ====== */
-    /* .text/.data の仮想アドレスを設定（ALLOC セクションのみ） */
-    if (SECTION_TEXT < SECTION_COUNT) {
-      sectionheaders[SECTION_TEXT].addr =
-        BASE_ADDR + outputsections[SECTION_TEXT].offset;
+        cursor += outputsections[i].size;
     }
-    if (SECTION_DATA < SECTION_COUNT) {
-      sectionheaders[SECTION_DATA].addr =
-        BASE_ADDR + outputsections[SECTION_DATA].offset;
-    }
-    
-    outputsections[SECTION_SHSTRTAB].offset =
-      align_offset(outputsections[SECTION_COUNT-2].offset + outputsections[SECTION_COUNT-2].size, 1);
-    outputsections[SECTION_SHSTRTAB].size = sizeof(shstrtab_bytes) - 1;
-    
-    sectionheaders[SECTION_SHSTRTAB].type = 3; /* SHT_STRTAB */
-    sectionheaders[SECTION_SHSTRTAB].flags = 0;
-    sectionheaders[SECTION_SHSTRTAB].addralign = 1;
-    sectionheaders[SECTION_SHSTRTAB].offset = outputsections[SECTION_SHSTRTAB].offset;
-    sectionheaders[SECTION_SHSTRTAB].size   = outputsections[SECTION_SHSTRTAB].size;
-    
-    /* entry を .text 先頭に（_start が先頭にある前提。必要ならシンボル検索に拡張可能） */
+
+    // エントリポイントは .text 先頭（_start がそこにある想定）
     elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset;
-    
-    /* プログラムヘッダをセクション群の直後に置く設計 */
-    const size_t sect_end_aligned =
-      align_offset(outputsections[SECTION_COUNT - 1].offset +
-                   outputsections[SECTION_COUNT - 1].size, 8);
-    
-    /* 2 本: [0]=RX(text), [1]=RW(data) */
-    const uint16_t phnum = 2;
+
+    // ==== プログラムヘッダ（text/data の2本）をセクション群の後ろに配置 ====
+    struct elf64phdr {
+        uint32_t type;
+        uint32_t flags;
+        uint64_t offset;
+        uint64_t vaddr;
+        uint64_t paddr;
+        uint64_t filesz;
+        uint64_t memsz;
+        uint64_t align;
+    };
+
     elfheader.phentrysize = sizeof(struct elf64phdr);
-    elfheader.phcount = phnum;
-    elfheader.phoffset = sect_end_aligned; /* ヘッダの直後ではなく、セクションの後に配置 */
-    
-    /* そのさらに後ろに SHDR を配置 */
-    elfheader.shoffset =
-      align_offset(elfheader.phoffset + phnum * sizeof(struct elf64phdr), 8);
+    elfheader.phcount     = 2;
+    elfheader.phoffset    = align_up(cursor, 8);
 
-    logger(DEBUG, no_error, "Section Header offset at 0x%x",
-           elfheader.shoffset);
+    // PHDR 内容（ページ境界へ丸め）
+    struct elf64phdr ph[2];
 
-    /* Write data to output */
+    // text: R|X
+    {
+        uint64_t o     = outputsections[SECTION_TEXT].offset;
+        uint64_t start = (o / PAGE_SIZE) * PAGE_SIZE;
+        uint64_t end   = align_up(o + outputsections[SECTION_TEXT].size, PAGE_SIZE);
+
+        ph[0].type   = 1; /* PT_LOAD */
+        ph[0].flags  = 0x4 /*R*/ | 0x1 /*X*/;
+        ph[0].offset = start;
+        ph[0].vaddr  = BASE_ADDR + start;
+        ph[0].paddr  = 0;
+        ph[0].filesz = end - start;
+        ph[0].memsz  = ph[0].filesz;
+        ph[0].align  = PAGE_SIZE;
+    }
+
+    // data: R|W
+    {
+        uint64_t o     = outputsections[SECTION_DATA].offset;
+        uint64_t start = (o / PAGE_SIZE) * PAGE_SIZE;
+        uint64_t end   = align_up(o + outputsections[SECTION_DATA].size, PAGE_SIZE);
+
+        ph[1].type   = 1; /* PT_LOAD */
+        ph[1].flags  = 0x4 /*R*/ | 0x2 /*W*/;
+        ph[1].offset = start;
+        ph[1].vaddr  = BASE_ADDR + start;
+        ph[1].paddr  = 0;
+        ph[1].filesz = end - start;
+        ph[1].memsz  = ph[1].filesz;    // BSS 未導入なので filesz と同じ
+        ph[1].align  = PAGE_SIZE;
+    }
+
+    cursor = elfheader.phoffset + elfheader.phcount * sizeof(struct elf64phdr);
+
+    // ==== セクションヘッダはさらにその後ろ ====
+    elfheader.shoffset = align_up(cursor, 8);
+
+    logger(DEBUG, no_error, "ELF Entry 0x%.08x", elfheader.entry);
+    logger(DEBUG, no_error, "PHDR offset 0x%.08x, count %d", elfheader.phoffset, elfheader.phcount);
+    logger(DEBUG, no_error, "SHDR offset 0x%.08x, count %d", elfheader.shoffset, elfheader.shcount);
+
+    // ==== 書き出し順：EHDR → 各セクション → PHDR → SHDR ====
+
+    // EHDR
     logger(DEBUG, no_error, "Writing ELF header");
+    fseek(elf, 0L, SEEK_SET);
     fwrite(&elfheader, sizeof(elfheader), 1, elf);
-    for (int i = 0; i < SECTION_COUNT; i++) {
-        logger(DEBUG, no_error, "Writing Section (%s)",
-               sectionnames[i]);
-        fseek(elf, (long)outputsections[i].offset, SEEK_SET);
-        fwrite(outputsections[i].contents, 1, outputsections[i].size,
-               elf);
-    }
-    
-    /* ====== プログラムヘッダを書き出す ====== */
-    struct elf64phdr phdr[2];
-    /* text segment */
-    {
-      const uint64_t toff = outputsections[SECTION_TEXT].offset;
-      const uint64_t tstart = (toff / PAGE_SIZE) * PAGE_SIZE;               /* page 下げ */
-      const uint64_t tend   = align_offset(toff + outputsections[SECTION_TEXT].size,
-                                           PAGE_SIZE);
-      phdr[0].type   = PT_LOAD;
-      phdr[0].flags  = PF_R | PF_X;
-      phdr[0].offset = tstart;
-      phdr[0].vaddr  = BASE_ADDR + tstart;
-      phdr[0].paddr  = 0;
-      phdr[0].filesz = tend - tstart;
-      phdr[0].memsz  = phdr[0].filesz;
-      phdr[0].align  = PAGE_SIZE;
-    }
-    /* data segment */
-    {
-      const uint64_t doff = outputsections[SECTION_DATA].offset;
-      const uint64_t dstart = (doff / PAGE_SIZE) * PAGE_SIZE;
-      const uint64_t dend   = align_offset(doff + outputsections[SECTION_DATA].size,
-                                           PAGE_SIZE);
-      phdr[1].type   = PT_LOAD;
-      phdr[1].flags  = PF_R | PF_W;
-      phdr[1].offset = dstart;
-      phdr[1].vaddr  = BASE_ADDR + dstart;
-      phdr[1].paddr  = 0;
-      phdr[1].filesz = dend - dstart;
-      phdr[1].memsz  = phdr[1].filesz;        /* .bss 未導入なので filesz と同じ */
-      phdr[1].align  = PAGE_SIZE;
-    }
-    fseek(elf, (long)elfheader.phoffset, SEEK_SET);
-    fwrite(phdr, sizeof(struct elf64phdr), phnum, elf);
-    
-    fseek(elf, (long)outputsections[SECTION_SHSTRTAB].offset, SEEK_SET);
-    fwrite(shstrtab_bytes, 1, outputsections[SECTION_SHSTRTAB].size, elf);
-     
-    /* Write section headers */
-    logger(DEBUG, no_error, "Writing section headers");
-    fseek(elf, (long)elfheader.shoffset, SEEK_SET);
-    fwrite(sectionheaders, sizeof(sectionheaders), 1, elf);
 
-    fflush(elf);
+    // セクション本体（SECTION_NULL を除く。★ .shstrtab もここで書く）
+    for (int i = 1; i < SECTION_COUNT; i++) {
+        if (outputsections[i].size == 0) continue;
+        logger(DEBUG, no_error, "Writing Section (%s)", sectionnames[i]);
+        fseek(elf, (long)outputsections[i].offset, SEEK_SET);
+        fwrite(outputsections[i].contents, 1, outputsections[i].size, elf);
+    }
+
+    // PHDR
+    logger(DEBUG, no_error, "Writing Program headers");
+    fseek(elf, (long)elfheader.phoffset, SEEK_SET);
+    fwrite(ph, sizeof(ph[0]), elfheader.phcount, elf);
+
+    // SHDR
+    logger(DEBUG, no_error, "Writing Section headers");
+    fseek(elf, (long)elfheader.shoffset, SEEK_SET);
+    fwrite(sectionheaders, sizeof(sectionheaders[0]), SECTION_COUNT, elf);
 
     return 0;
 }
