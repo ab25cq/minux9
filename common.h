@@ -236,7 +236,6 @@ void exit(int n);
 char* itoa(char* buf, unsigned long val_, int base, int is_signed);
 int vasprintf(char** out, const char* fmt, va_list ap);
 int snprintf(char* out, unsigned long out_size, const char* fmt, ...);
-int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...);
 void printint(int val_, int base, int sign);
 void printlong(unsigned long val_, int base, int sign);
 void printlonglong(unsigned long long val_, int base, int sign);

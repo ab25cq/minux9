@@ -656,7 +656,7 @@ int fclose(FILE* fp);
 FILE* fopen(const char* path, const char* mode);
 FILE* tmpfile(void);
 void putchar(char c);
-int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...);
+int vsnprintf(char* out, unsigned long out_size, const char* fmt, va_list ap);
 int snprintf(char* out, unsigned long out_size, const char* fmt, ...);
 int vasprintf(char** out, const char* fmt, va_list ap);
 char* strncat(char* dest, const char* src, size_t n);
