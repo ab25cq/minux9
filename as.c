@@ -1,5 +1,16 @@
 #include "as.h"
 
+static const char shstrtab_bytes[] =
+  "\0.text\0.data\0.bss\0.symtab\0.strtab\0.shstrtab\0";
+static const uint32_t shname_text     = 1;                   // ".text"
+static const uint32_t shname_data     = shname_text + 6;     // + ".text\0"
+static const uint32_t shname_bss      = shname_data + 6;     // ".data\0"
+static const uint32_t shname_symtab   = shname_bss  + 4;     // ".bss\0"
+static const uint32_t shname_strtab   = shname_symtab + 8;   // ".symtab\0"
+static const uint32_t shname_shstrtab = shname_strtab + 8;   // ".strtab\0"
+
+// セクション名 → shstrtab 内オフセット
+
 // as.c
 static size_t expect_freg(const char* s) {
     ssize_t r = (ssize_t)get_float_register_id(s);
@@ -2312,7 +2323,7 @@ struct elf64header new_elf64header(void)
 {
     return (struct elf64header){
         .ident = { ELF_IDENT },
-        .type = 0x01, /* Relocatable file */
+        .type = 0x02, /* ET_EXEC(excutable) */
         .machine = 0xF3, /* RISC-V */
         .version = 1, /* ELF version 1 */
         .flags = 0x0004, /* RISC-V float abi double flag */
@@ -2523,6 +2534,10 @@ size_t write_sectiondata(const void *bytes, size_t count,
     return count;
 }
 
+/* page/addr parameters */
+#define PAGE_SIZE  4096ull
+#define BASE_ADDR  0x1000ull
+
 int flush_output(FILE *elf)
 {
     logger(DEBUG, no_error, "Writing ELF output to temporary file");
@@ -2534,7 +2549,8 @@ int flush_output(FILE *elf)
 
     elfheader.shcount = SECTION_COUNT;
     elfheader.shentrysize = sizeof(struct elf64sectionheader);
-    elfheader.shstrindex = SECTION_STRTAB;
+//    elfheader.shstrindex = SECTION_STRTAB;
+    elfheader.shstrindex = SECTION_SHSTRTAB;
 
     struct elf64sectionheader sectionheaders[SECTION_COUNT];
     for (int i = 0; i < SECTION_COUNT; i++) {
@@ -2553,13 +2569,57 @@ int flush_output(FILE *elf)
                sectionnames[i], sectionheaders[i].size,
                sectionheaders[i].offset);
     }
+    
+    //sectionheaders[SECTION_BSS].name = shname_bss;           // bss を使うなら
+    sectionheaders[SECTION_SHSTRTAB].name = shname_shstrtab; // ← 新規
 
     /* Fix offset and alignment stuff */
     sectionheaders[SECTION_NULL].addralign = 0x0;
+    /*
     elfheader.shoffset =
         align_offset(outputsections[SECTION_COUNT - 1].offset +
                      outputsections[SECTION_COUNT - 1].size,
                  8);
+    */
+    
+    /* ====== ここから ET_EXEC 用の PHDR/ENTRY を設定 ====== */
+    /* .text/.data の仮想アドレスを設定（ALLOC セクションのみ） */
+    if (SECTION_TEXT < SECTION_COUNT) {
+      sectionheaders[SECTION_TEXT].addr =
+        BASE_ADDR + outputsections[SECTION_TEXT].offset;
+    }
+    if (SECTION_DATA < SECTION_COUNT) {
+      sectionheaders[SECTION_DATA].addr =
+        BASE_ADDR + outputsections[SECTION_DATA].offset;
+    }
+    
+    outputsections[SECTION_SHSTRTAB].offset =
+      align_offset(outputsections[SECTION_COUNT-2].offset + outputsections[SECTION_COUNT-2].size, 1);
+    outputsections[SECTION_SHSTRTAB].size = sizeof(shstrtab_bytes) - 1;
+    
+    sectionheaders[SECTION_SHSTRTAB].type = 3; /* SHT_STRTAB */
+    sectionheaders[SECTION_SHSTRTAB].flags = 0;
+    sectionheaders[SECTION_SHSTRTAB].addralign = 1;
+    sectionheaders[SECTION_SHSTRTAB].offset = outputsections[SECTION_SHSTRTAB].offset;
+    sectionheaders[SECTION_SHSTRTAB].size   = outputsections[SECTION_SHSTRTAB].size;
+    
+    /* entry を .text 先頭に（_start が先頭にある前提。必要ならシンボル検索に拡張可能） */
+    elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset;
+    
+    /* プログラムヘッダをセクション群の直後に置く設計 */
+    const size_t sect_end_aligned =
+      align_offset(outputsections[SECTION_COUNT - 1].offset +
+                   outputsections[SECTION_COUNT - 1].size, 8);
+    
+    /* 2 本: [0]=RX(text), [1]=RW(data) */
+    const uint16_t phnum = 2;
+    elfheader.phentrysize = sizeof(struct elf64phdr);
+    elfheader.phcount = phnum;
+    elfheader.phoffset = sect_end_aligned; /* ヘッダの直後ではなく、セクションの後に配置 */
+    
+    /* そのさらに後ろに SHDR を配置 */
+    elfheader.shoffset =
+      align_offset(elfheader.phoffset + phnum * sizeof(struct elf64phdr), 8);
 
     logger(DEBUG, no_error, "Section Header offset at 0x%x",
            elfheader.shoffset);
@@ -2574,6 +2634,46 @@ int flush_output(FILE *elf)
         fwrite(outputsections[i].contents, 1, outputsections[i].size,
                elf);
     }
+    
+    /* ====== プログラムヘッダを書き出す ====== */
+    struct elf64phdr phdr[2];
+    /* text segment */
+    {
+      const uint64_t toff = outputsections[SECTION_TEXT].offset;
+      const uint64_t tstart = (toff / PAGE_SIZE) * PAGE_SIZE;               /* page 下げ */
+      const uint64_t tend   = align_offset(toff + outputsections[SECTION_TEXT].size,
+                                           PAGE_SIZE);
+      phdr[0].type   = PT_LOAD;
+      phdr[0].flags  = PF_R | PF_X;
+      phdr[0].offset = tstart;
+      phdr[0].vaddr  = BASE_ADDR + tstart;
+      phdr[0].paddr  = 0;
+      phdr[0].filesz = tend - tstart;
+      phdr[0].memsz  = phdr[0].filesz;
+      phdr[0].align  = PAGE_SIZE;
+    }
+    /* data segment */
+    {
+      const uint64_t doff = outputsections[SECTION_DATA].offset;
+      const uint64_t dstart = (doff / PAGE_SIZE) * PAGE_SIZE;
+      const uint64_t dend   = align_offset(doff + outputsections[SECTION_DATA].size,
+                                           PAGE_SIZE);
+      phdr[1].type   = PT_LOAD;
+      phdr[1].flags  = PF_R | PF_W;
+      phdr[1].offset = dstart;
+      phdr[1].vaddr  = BASE_ADDR + dstart;
+      phdr[1].paddr  = 0;
+      phdr[1].filesz = dend - dstart;
+      phdr[1].memsz  = phdr[1].filesz;        /* .bss 未導入なので filesz と同じ */
+      phdr[1].align  = PAGE_SIZE;
+    }
+    fseek(elf, (long)elfheader.phoffset, SEEK_SET);
+    fwrite(phdr, sizeof(struct elf64phdr), phnum, elf);
+    
+    fseek(elf, (long)outputsections[SECTION_SHSTRTAB].offset, SEEK_SET);
+    fwrite(shstrtab_bytes, 1, outputsections[SECTION_SHSTRTAB].size, elf);
+     
+    /* Write section headers */
     logger(DEBUG, no_error, "Writing section headers");
     fseek(elf, (long)elfheader.shoffset, SEEK_SET);
     fwrite(sectionheaders, sizeof(sectionheaders), 1, elf);

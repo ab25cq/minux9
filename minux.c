@@ -1,5 +1,14 @@
 #include "minux.h"
 
+static int __append_char(char **p, unsigned long *rem, char c) {
+    if (*rem > 1) { **p = c; (*p)++; (*rem)--; return 1; }
+    return 0;
+}
+
+static void __append_str(char **p, unsigned long *rem, const char *s) {
+    while (*s && *rem > 1) { **p = *s++; (*p)++; (*rem)--; }
+}
+
 int errno;
 
 typedef struct mem_block {
@@ -1236,7 +1245,115 @@ int vasprintf(char** out, const char* fmt, va_list ap) {
     return p - out2;
 }
 
+static int __utoa_ull(char *buf, unsigned long long v, int base, int lower) {
+    static const char digs_l[]="0123456789abcdef";
+    static const char digs_u[]="0123456789ABCDEF";
+    const char *digs = lower ? digs_l : digs_u;
+    char tmp[32]; int i=0;
+    if (base < 2 || base > 16) { buf[0]='\0'; return 0; }
+    if (v==0) { buf[0]='0'; buf[1]='\0'; return 1; }
+    while (v) { tmp[i++] = digs[v % (unsigned)base]; v /= (unsigned)base; }
+    int n=i, j=0; while (i--) buf[j++]=tmp[i]; buf[j]='\0'; return n;
+}
 
+static void __fmt_num(char **p, unsigned long *rem,
+                      unsigned long long v, int base,
+                      int is_signed, int neg, int width, char pad, int lower) {
+    char num[64]; int n = __utoa_ull(num, v, base, lower);
+    int total = n + (neg?1:0);
+    while (total < width) { __append_char(p, rem, pad); total++; }
+    if (neg) __append_char(p, rem, '-');
+    __append_str(p, rem, num);
+}
+
+int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
+    va_list ap; va_start(ap, fmt);
+    char* p = out; unsigned long rem = out_size;
+
+    while (*fmt) {
+        if (*fmt != '%') { __append_char(&p, &rem, *fmt++); continue; }
+        fmt++; // skip '%'
+
+        // ---- parse flags ----
+        char pad = ' ';
+        if (*fmt == '0') { pad = '0'; fmt++; }
+
+        // ---- parse width ----
+        int width = 0;
+        while (*fmt >= '0' && *fmt <= '9') { width = width*10 + (*fmt - '0'); fmt++; }
+
+        // ---- parse length ----
+        int lcount = 0;
+        while (*fmt == 'l') { lcount++; fmt++; }
+
+        // ---- conversion ----
+        char conv = *fmt ? *fmt++ : '\0';
+        switch (conv) {
+        case 'd':
+        case 'u':
+        case 'x': {
+            int base = (conv=='x') ? 16 : 10;
+            int is_signed = (conv=='d');
+            int lower = (conv!='X'); // X 未対応でも lower=1 でOK
+            int neg = 0; unsigned long long v;
+            if (is_signed) {
+                if (lcount >= 2) { long long a = va_arg(ap, long long); neg = (a<0); v = neg?-(unsigned long long)a:(unsigned long long)a; }
+                else if (lcount == 1) { long a = va_arg(ap, long); neg = (a<0); v = neg?-(unsigned long long)a:(unsigned long long)a; }
+                else { int a = va_arg(ap, int); neg = (a<0); v = neg?-(unsigned long long)a:(unsigned long long)a; }
+            } else {
+                if (lcount >= 2) v = va_arg(ap, unsigned long long);
+                else if (lcount == 1) v = va_arg(ap, unsigned long);
+                else v = (unsigned int)va_arg(ap, unsigned int);
+            }
+            __fmt_num(&p, &rem, v, base, is_signed, neg, width, pad, 1);
+            break;
+        }
+        case 'p': {
+            // 常に 0x + ポインタ（幅は 0x を含めない想定）
+            __append_str(&p, &rem, "0x");
+            unsigned long long v = (unsigned long long)(uintptr_t)va_arg(ap, void*);
+            __fmt_num(&p, &rem, v, 16, 0, 0, (width>2?width-2:0), pad, 1);
+            break;
+        }
+        case 'c': {
+            char c = (char)va_arg(ap, int);
+            __append_char(&p, &rem, c);
+            break;
+        }
+        case 's': {
+            const char* s = va_arg(ap, const char*);
+            if (!s) s = "(null)";
+            // 簡易：幅は左パディングのみ
+            int len=0; for (const char* t=s; *t; ++t) len++;
+            while (len < width) { __append_char(&p, &rem, pad); width--; }
+            __append_str(&p, &rem, s);
+            break;
+        }
+        case '%':
+            __append_char(&p, &rem, '%'); break;
+        default:
+            // 未知指定子はそのまま
+            __append_char(&p, &rem, '%');
+            if (conv) __append_char(&p, &rem, conv);
+            break;
+        }
+    }
+
+    if (rem > 0) *p = '\0';
+    va_end(ap);
+    return (int)(p - out);
+}
+
+// 既存の非標準 vsnprintf はそのままでも動きますが、同じ実装を呼び出したいなら：
+int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
+    va_list ap; va_start(ap, fmt);
+    // 純に snprintf を再利用（この環境では va_list 版の宣言がズレているため）
+    int n = snprintf(out, out_size, fmt, ap); // フォーマットに ap は使われませんが互換のため
+    va_end(ap);
+    return n;
+}
+
+/*
 int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -1332,7 +1449,9 @@ int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     va_end(ap);
     return p - out;
 }
+*/
 
+/*
 int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -1428,6 +1547,7 @@ int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
     va_end(ap);
     return p - out;
 }
+*/
 
 
 

@@ -191,6 +191,8 @@ enum sections {
 	SECTION_SYMTAB,
 	SECTION_COUNT
 };
+#define SECTION_SHSTRTAB   6
+#define SECTION_COUNT      7   // 総数を +1
 
 struct symbol {
 	size_t name_sz;
@@ -405,17 +407,39 @@ struct elf64header {
 };
 
 struct elf64sectionheader {
-	uint32_t name;
-	uint32_t type;
-	uint64_t flags;
-	uint64_t addr;
-	uint64_t offset;
-	uint64_t size;
-	uint32_t link;
-	uint32_t info;
-	uint64_t addralign;
-	uint64_t entrysize;
+   uint32_t name;
+   uint32_t type;
+   uint64_t flags;
+   uint64_t addr;
+   uint64_t offset;
+   uint64_t size;
+   uint32_t link;
+   uint32_t info;
+   uint64_t addralign;
+   uint64_t entrysize;
+ };
+
+/* === Program header (ELF64) === */
+struct elf64phdr {
+  uint32_t type;     /* PT_* */
+  uint32_t flags;    /* PF_* */
+  uint64_t offset;   /* file offset */
+  uint64_t vaddr;    /* virtual address */
+  uint64_t paddr;    /* physical (unused) */
+  uint64_t filesz;   /* size in file */
+  uint64_t memsz;    /* size in memory */
+  uint64_t align;    /* alignment */
 };
+
+/* PT_* */
+#define PT_NULL  0
+#define PT_LOAD  1
+
+/* PF_* */
+#define PF_X 0x1
+#define PF_W 0x2
+#define PF_R 0x4
+
 
 struct elf64header new_elf64header(void);
 struct elf64sectionheader new_elf64sectionheader(void);
@@ -430,3 +454,5 @@ struct elf64sym {
 };
 
 /* TODO: add preprocessor stuff */
+
+

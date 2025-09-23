@@ -16,7 +16,7 @@
 //#define NINODES     64      // イノード数（ファイル数に合わせて拡張）
 //#define NBLOCKS     256     // 総ブロック数（例として 256）
 #define NINODES     128     // 余裕を持たせる
-#define NBLOCKS     4096*2*2    // 512B×4096=約2MiBのFSイメージ
+#define NBLOCKS     4096*2*2*2*2    // 512B×4096=約2MiBのFSイメージ
 
 // 1 ブロックあたりに収まるイノード数
 #define IPB         (BSIZE / sizeof(struct dinode))
@@ -604,7 +604,9 @@ main(int argc, char *argv[])
     write_file_to_file_system("as", 29);
     write_file_to_file_system("ld", 30);
     write_file_to_file_system("minux_syscall.h", 31);
-    write_file_to_file_system("b.s", 32);
+    write_file_to_file_system("readelf", 32);
+    write_file_to_file_system("objdump", 33);
+    write_file_to_file_system("hexdump", 34);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);
