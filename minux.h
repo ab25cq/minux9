@@ -590,7 +590,6 @@ extern int errno;
     (int)_a0;                                                           \
 })
 #define SYS_login 102
-#define SYS_lseek 103
 // login: authenticate and switch credentials
 #define login_user(name, pass) ({                                        \
     register long _a0 asm("a0") = (long)(name);                         \
@@ -603,6 +602,7 @@ extern int errno;
     (int)_a0;                                                           \
 })
 
+#define SYS_lseek 192
 #ifndef SEEK_SET
 #define SEEK_SET 0
 #endif
@@ -623,6 +623,21 @@ extern int errno;
                  : "memory");                                        \
     (long)_a0;                                                       \
 })
+// minux.h 追記
+#define SYS_fstat   210
+
+// fstat: fd を stat する
+#define fstat(fd, stptr) ({                                              \
+    register long _a0 asm("a0") = (long)(fd);                            \
+    register long _a1 asm("a1") = (long)(stptr);                         \
+    register long _a7 asm("a7") = SYS_fstat;                             \
+    asm volatile("ecall"                                                 \
+                 : "+r"(_a0)                                             \
+                 : "r"(_a1), "r"(_a7)                                    \
+                 : "memory");                                            \
+    (int)_a0;                                                            \
+})
+
 
 int printf(const char* fmt, ...);
 int fflush(FILE* fp);
@@ -744,5 +759,5 @@ void arg_freetable(void **argtable, size_t n);
 
 int sscanf(const char *str, const char *fmt, ...);
 char *dirname(const char *path);
-
-
+int fileno(FILE* fp);
+    

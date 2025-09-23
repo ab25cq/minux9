@@ -16,7 +16,7 @@
 //#define NINODES     64      // イノード数（ファイル数に合わせて拡張）
 //#define NBLOCKS     256     // 総ブロック数（例として 256）
 #define NINODES     128     // 余裕を持たせる
-#define NBLOCKS     4096    // 512B×4096=約2MiBのFSイメージ
+#define NBLOCKS     4096*2*2    // 512B×4096=約2MiBのFSイメージ
 
 // 1 ブロックあたりに収まるイノード数
 #define IPB         (BSIZE / sizeof(struct dinode))

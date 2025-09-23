@@ -1548,6 +1548,8 @@ int fs_stat(const char *path, struct stat *st)
     st->type = di.type; st->nlink = di.nlink; st->size = di.size; st->inum = inum;
     st->mode = di.mode; st->uid = di.uid; st->gid = di.gid;
     st->atime = di.atime; st->mtime = di.mtime; st->ctime = di.ctime;
+puts(path);
+printf("SIZE %d\n", st->size);
     return 0;
 }
 
@@ -1823,7 +1825,9 @@ ssize_t fs_write(int fd, const void *buf, size_t count) {
     f->off += written;
     // サイズ拡張を反映
     uint32_t newsize = f->off;
+printf("NEWSIZE %d F->DIN.SIZE %d\n", newsize, f->din.size);
     if (newsize > f->din.size) {
+puts("REWRITE\r\n");
         f->din.size = newsize;
     }
     f->din.mtime = fs_now();
@@ -1963,3 +1967,58 @@ void fs_dup2(int oldfd, int newfd) {
     ft[oldfd]->used++;                           // 参照だけ増やす
     // ★ pipe のカウンタは触らない
 }
+
+// fs.c 追記（プロトタイプは fs.h にも追加してください）
+int fs_fstat_fd(int fd, struct stat* st)
+{
+    if (!st) return -1;
+
+    struct file** ft = get_current_file_table();
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return -1;
+    struct file *f = ft[fd];
+    if (!f || !f->used) return -1;
+
+    // TTY / pipe なども扱っているなら種別で分岐して埋める。
+    // まずは通常ファイル（FK_FILE）想定で inode 情報をそのまま返す。
+    memset(st, 0, sizeof(*st));
+/*
+    st->st_mode = f->din.mode;
+    st->st_uid  = f->din.uid;
+    st->st_gid  = f->din.gid;
+    st->st_nlink= f->din.nlink;
+    st->st_size = f->din.size;     // ← fwrite で更新済みのサイズがここにある
+    st->st_mtime= f->din.mtime;
+    st->st_ino  = f->din.inum;
+    
+    struct dinode di; 
+*/
+    st->type = f->din.type; st->nlink = f->din.nlink; st->size = f->din.size;
+    st->mode = f->din.mode; st->uid = f->din.uid; st->gid = f->din.gid;
+    st->atime = f->din.atime; st->mtime = f->din.mtime; st->ctime = f->din.ctime;
+    
+    return 0;
+}
+
+
+// fs.c 追加
+long fs_lseek(int fd, long offset, int whence) {
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return -1;
+    struct file **ft = get_current_file_table();
+    struct file *f = ft[fd];
+    if (!f) return -1;
+
+    long base;
+    switch (whence) {
+    case SEEK_SET: base = 0; break;
+    case SEEK_CUR: base = (long)f->off; break;
+    case SEEK_END: base = (long)f->din.size; break;
+    default: return -1;
+    }
+
+    long newoff = base + offset;
+    if (newoff < 0) return -1;
+
+    f->off = (uint32_t)newoff;   // ブロック確保はしない
+    return (long)f->off;         // 新しいファイル位置を返す
+}
+

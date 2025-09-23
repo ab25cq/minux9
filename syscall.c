@@ -37,6 +37,7 @@ int Sys_write() {
         }
         else {
             ssize_t w = fs_write(fd, kbuf, n);
+printf("FS_WRITE %d\n", n);
             if (w < 0) return (total > 0) ? total : (int)w;
             total += w;
         }
@@ -324,8 +325,8 @@ int Sys_getcwd()
     // Defensive: ensure cwd is never empty when reported
     const char* src = p->cwd;
     
-    char kernel_buf[256];
-    strncpy(kernel_buf, p->cwd, 256);
+    char kernel_buf[4096];
+    strncpy(kernel_buf, p->cwd, 4096);
     int ret = strlen(p->cwd);
 
     if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
@@ -1131,10 +1132,14 @@ int Sys_read()
     uint64_t destva = arg1;
     size_t   n     = arg2;
     
-    char kernel_buf[256];
+    char kernel_buf[4096];
     int ret;
     
     struct file** file_table = get_current_file_table();
+    
+    if(n > 4096) {
+        panic("read: size is overflow");
+    }
 
     if(is_stdin(fd)) {
         ret = uart_readn(kernel_buf, n);
@@ -1164,3 +1169,30 @@ int Sys_read()
 
     return ret;
 }
+
+// syscall.c 追記
+int Sys_fstat()
+{
+    struct context_t* tf = (struct context_t*)TRAPFRAME;
+    int fd = (int)tf->a0;
+    uint64_t u_st = tf->a1;
+
+    struct stat kst;
+    if (fs_fstat_fd(fd, &kst) < 0) return -1;
+
+    struct proc *p = gProc[gActiveProc];
+    if (copyout(p->pagetable, u_st, &kst, sizeof(kst)) < 0) return -1;
+
+    return 0;
+}
+
+// syscall.c 追加
+int Sys_lseek() {
+    struct context_t* tf = (struct context_t*)TRAPFRAME;
+    int  fd     = (int) tf->a0;
+    long offset = (long)tf->a1;
+    int  whence = (int) tf->a2;
+    long r = fs_lseek(fd, offset, whence);
+    return (int)r;  // プラットフォームの規約に合わせて int 返却
+}
+

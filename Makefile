@@ -3,7 +3,7 @@ CCPREFIX=riscv64-unknown-elf-
 #CHILD_CFLAGS=-I. -fno-omit-frame-pointer #-momit-leaf-frame-pointer #-mstack-alignment=16
 CFLAGS_AS=-march=rv64gc -mabi=lp64
 CFLAGS=-march=rv64gc -mabi=lp64 -msmall-data-limit=0 -fno-pic -fno-pie -Wl,-no-pie
-CHILD_CFLAGS=-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie -nostdlib -mcmodel=medany -static -nostartfiles  -Wl,-e,_start -Wl,-no-pie -msmall-data-limit=0 -march=rv64gc -mabi=lp64 -Tuser.ld
+CHILD_CFLAGS=-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie -nostdlib -mcmodel=medany -static -nostartfiles  -Wl,-e,_start -Wl,-no-pie -msmall-data-limit=0 -march=rv64gc -mabi=lp64 -Tuser.ld minux.o
 
 all: kernel.elf 
 
@@ -11,7 +11,10 @@ crt0.o: crt0.S
 	# build minimal userland crt0 that calls exit(main())
 	$(CCPREFIX)gcc $(CFLAGS) -c -o crt0.o crt0.S
 
-kernel.elf: crt0.o cc
+minux.o: minux.c
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux.o minux.c
+
+kernel.elf: minux.o crt0.o cc
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o entry.o entry.S
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o trap.o trap.S
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o userret.o userret.S
@@ -20,7 +23,6 @@ kernel.elf: crt0.o cc
 	$(CCPREFIX)gcc $(CFLAGS) -S -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs.S fs.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o trap_c.o trap.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o plic.o plic.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux.o minux.c
 
 	# build minimal userland crt0 that calls exit(main())
 	$(CCPREFIX)gcc $(CFLAGS) -c -o crt0.o crt0.S
@@ -83,9 +85,9 @@ kernel.elf: crt0.o cc
 
 	# in-OS assembler and linker
 	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o as \
-		crt0.o as.c minux.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer 
+		crt0.o as.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer 
 	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o ld \
-		crt0.o ld.c minux.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer
+		crt0.o ld.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer
 
 	# minimal in-OS C compiler: cc
 #	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cc -g cc.c -mcmodel=medany $(CHILD_CFLAGS)
@@ -140,13 +142,13 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log minux.o
 
 # Always (re)build the filesystem image so updated userland like pwd is included
 
 cc: crt0.o
 	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc \
-		crt0.o cc.c minux.c $(CHILD_CFLAGS) -DCC_S_ONLY -lgcc -fno-omit-frame-pointer 
+		crt0.o cc.c $(CHILD_CFLAGS) -DCC_S_ONLY -lgcc -fno-omit-frame-pointer 
 #	cc-codegen.c cc-parse.c cc-preprocess.c \
 #		cc-tokenize.c cc-type.c cc-hashmap.c cc-string.c \
 #		cc-unicode.c 

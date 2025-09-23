@@ -122,6 +122,10 @@ void dump_inode(uint32_t inum);
 void virtio_blk_init(void);
 
 typedef int32_t ssize_t;
+int fs_fstat_fd(int fd, struct stat* st);
+long fs_lseek(int fd, long offset, int whence);
+
+enum { SEEK_SET, SEEK_END, SEEK_CUR };
 
 
 #endif // FS_H

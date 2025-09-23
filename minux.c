@@ -1582,19 +1582,28 @@ long ftell(FILE* fp) {
 }
 
 void rewind(FILE* fp) {
-  if (!fp) return;
+printf("REWIND %p\n", fp);
+  if (!fp) {
+puts("RETURN");
+      return;
+  }
   fp->eof = 0;
   fp->have_push = 0;
   if (fp->is_mem) {
     fp->pos = 0;
+printf("REWIND %d\n", fp->pos);
     fp->err = 0;
     return;
   }
+puts("LSEEK");
   long r = lseek(fp->fd, 0, SEEK_SET);
   if (r < 0) {
+puts("ERR");
     fp->err = 1;
     return;
   }
+puts("OK");
+printf("r %d\n", r);
   fp->pos = r;
   fp->err = 0;
 }
@@ -1628,6 +1637,7 @@ size_t fread(void* ptr, size_t size, size_t nmemb, FILE* fp) {
   } else {
     if (fp->have_push && total > 0) { *p++ = fp->push_ch; fp->have_push = 0; done = 1; }
     while (done < total) {
+printf("fp->fd %d read %p %d\n", fp->fd, p + done, total -done);
       long n = read(fp->fd, p + done, total - done);
       if (n <= 0) { if (n==0) fp->eof = 1; else fp->err=1; break; }
       done += n; fp->pos += n;
@@ -2167,3 +2177,8 @@ char* dirname(const char* path) {
     return buf;
 }
 
+int fileno(FILE* fp) {
+  if (!fp) return -1;
+    return fp->fd;
+}
+    

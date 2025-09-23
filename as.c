@@ -1238,6 +1238,7 @@ static void die(const char *function)
 void *xmalloc(size_t sz)
 {
     void *ptr = malloc(sz);
+printf("xmalloc ptr %p\r\n", ptr);
     if (!ptr)
         die("malloc");
     return ptr;
@@ -2577,6 +2578,8 @@ int flush_output(FILE *elf)
     fseek(elf, (long)elfheader.shoffset, SEEK_SET);
     fwrite(sectionheaders, sizeof(sectionheaders), 1, elf);
 
+    fflush(elf);
+
     return 0;
 }
 
@@ -2596,7 +2599,7 @@ FILE *outputfile = NULL;
 static int fopen2(FILE **f, const char *filename, const char *flags)
 {
 #ifdef __STDC_LIB_EXT1__
-    return fopen_s(f, filename, flags));
+    return fopen_s(f, filename, flags);
 #else
     *f = fopen(filename, flags);
     return !*f;
@@ -2649,6 +2652,35 @@ void open_files(void)
 
 #define BUFSIZ 1024
 
+// copy_files: 安全＆堅牢化
+/*
+void copy_files(FILE *dest, FILE *src)
+{
+struct stat stf;
+int fd = fileno(src);
+fstat(fd, &stf);
+printf("FSTAT SIZE %d\n", stf.size);
+    const long pos = ftell(src);
+    fflush(src);                    // 念のため：書き→読みの切替
+    rewind(src);                    // ★ ここを outputtempfile ではなく src にする
+printf("GUHI\n");
+
+    char *buffer = xmalloc(BUFSIZ);
+    for (;;) {
+puts("KKKK");
+        size_t bytes = fread(buffer, 1, BUFSIZ, src);
+puts("KKKK END");
+        if (bytes == 0) break;      // EOF or 読み込み失敗
+        fwrite(buffer, 1, bytes, dest);
+        if (bytes != BUFSIZ) break; // EOF
+    }
+    free(buffer);
+
+    fseek(src, pos, SEEK_SET);
+    fflush(dest);                   // 念のため
+}
+*/
+
 void copy_files(FILE *dest, FILE *src)
 {
     const long pos = ftell(src);
@@ -2656,6 +2688,7 @@ void copy_files(FILE *dest, FILE *src)
 
     char *buffer = xmalloc(BUFSIZ);
     for (;;) {
+printf("FREED %p\n", buffer);
         const size_t bytes = fread(buffer, 1, BUFSIZ, src);
         fwrite(buffer, 1, bytes, dest);
         if (bytes != BUFSIZ)
@@ -2665,6 +2698,7 @@ void copy_files(FILE *dest, FILE *src)
 
     fseek(src, pos, SEEK_SET);
 }
+
 
 int main(int argc, char *argv[])
 {
@@ -2685,7 +2719,14 @@ puts("7");
     closefiles();
 puts("8");
 
-    return get_clean_exit(CRITICAL);
+    int n = get_clean_exit(CRITICAL);
+    
+struct stat stf;
+stat("b.elf", &stf);
+
+printf("stf %d\r\n", stf.size);
+    
+    return n;
 }
 
 struct symbolmap symbols[] = { { .count = 0, .data = NULL } };

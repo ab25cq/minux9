@@ -3,6 +3,9 @@
 
 // forward declaration for time offset used by FS/time syscalls
 int Sys_login(void);
+int Sys_fstat();
+int Sys_lseek();
+                        
 
 uint64_t kernel_sp __attribute__((section(".common")));
 uint64_t user_sp __attribute__((section(".common")));
@@ -1490,6 +1493,15 @@ uintptr_t syscall_handler()
             break;
         case SYS_login: {
             result = Sys_login();
+            }
+            break;
+        case SYS_fstat: {
+            result = Sys_fstat();
+            }
+            break;
+            
+        case SYS_lseek: {
+            result = Sys_lseek();
             }
             break;
             
