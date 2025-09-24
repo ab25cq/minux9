@@ -597,7 +597,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("more", 22);
     write_file_to_file_system("toycc", 23);
     write_file_to_file_system("toyvm", 24);
-    write_file_to_file_system("a.c", 25);
+    write_file_to_file_system("b.s", 25);
     write_file_to_file_system("b.c", 26);
     write_file_to_file_system("cc", 27);
     write_file_to_file_system("vi", 28);
