@@ -764,6 +764,8 @@ int Sys_execv()
 
     // alloc_prog with exec_flag=1 replaces the current process's page table etc.
     int child_proc_index = 0;
+puts("alloc_prog");
+puts(path);
     alloc_prog(elf_buf, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index);
     
     // elf_buf is no longer needed after alloc_prog; free it now.

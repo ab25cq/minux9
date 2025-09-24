@@ -9,6 +9,7 @@
 #define SEEK_END 2
 #endif
 
+
 // ---- ELF64 structures (LE) ----
 typedef struct {
   unsigned char e_ident[16];
@@ -59,6 +60,7 @@ typedef struct {
   uint64_t st_value;
   uint64_t st_size;
 } Elf64_Sym;
+
 
 // ---- ELF constants we need ----
 #define EI_MAG0 0

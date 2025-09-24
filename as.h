@@ -183,16 +183,7 @@ void set_exit_loglevel(enum loglvl_t);
 void logger(enum loglvl_t, enum error_t, const char *, ...);
 int get_clean_exit(enum loglvl_t);
 
-enum sections {
-	SECTION_NULL,
-	SECTION_STRTAB,
-	SECTION_TEXT,
-	SECTION_DATA,
-	SECTION_SYMTAB,
-	SECTION_COUNT
-};
-#define SECTION_SHSTRTAB   6
-#define SECTION_COUNT      7   // 総数を +1
+enum sections {SECTION_NULL=0, SECTION_SHSTRTAB, SECTION_TEXT, SECTION_DATA, SECTION_SYMTAB, SECTION_STRTAB, SECTION_COUNT };
 
 struct symbol {
 	size_t name_sz;
@@ -200,7 +191,7 @@ struct symbol {
 	enum sections section;
 	long value;
 	unsigned char binding;
-	enum symbol_types {
+enum symbol_types {
 		SYMBOL_UNKNOWN,
 		SYMBOL_LABEL,
 		SYMBOL_VALUE,

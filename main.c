@@ -732,6 +732,7 @@ void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
 // Define DEBUG_CWD to enable cwd-related logs
 // #define DEBUG_CWD 1
 
+/*
 static int covered_by_load(struct proghdr* ph, int phnum, uint64_t lo, uint64_t hi) {
     for (int i = 0; i < phnum; i++) if (ph[i].type == ELF_PROG_LOAD) {
         uint64_t a = ph[i].vaddr, b = ph[i].vaddr + ph[i].memsz;
@@ -739,6 +740,175 @@ static int covered_by_load(struct proghdr* ph, int phnum, uint64_t lo, uint64_t 
     }
     return 0;
 }
+*/
+
+#include <stddef.h>
+_Static_assert(sizeof(struct elfsym) == 24, "Elf64_Sym size must be 24");
+_Static_assert(offsetof(struct elfsym, value) == 8, "st_value must be at +8");
+_Static_assert(offsetof(struct elfsym, size)  == 16, "st_size  must be at +16");
+
+static uint16_t u16le(const void* p){ const unsigned char* q=p; return (uint16_t)(q[0] | (q[1]<<8)); }
+static uint32_t u32le(const void* p){ const unsigned char* q=p; return (uint32_t)q[0] | ((uint32_t)q[1]<<8) | ((uint32_t)q[2]<<16) | ((uint32_t)q[3]<<24); }
+static uint64_t u64le(const void* p){ const unsigned char* q=p; return (uint64_t)q[0] | ((uint64_t)q[1]<<8) | ((uint64_t)q[2]<<16) | ((uint64_t)q[3]<<24)
+                                                       | ((uint64_t)q[4]<<32) | ((uint64_t)q[5]<<40) | ((uint64_t)q[6]<<48) | ((uint64_t)q[7]<<56); }
+
+static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* out_gp)
+{
+    if (!elfbuf || !eh || !out_gp) return -1;
+
+    // --- locate section headers
+    if (eh->shoff == 0 || eh->shnum == 0 || eh->shentsize == 0) return -1;
+    const char* sh_base = elfbuf + eh->shoff;
+
+    // --- find SHT_SYMTAB
+    int idx_sym = -1;
+    for (uint16_t i=0;i<eh->shnum;i++) {
+        const char* sh = sh_base + (uint64_t)i * eh->shentsize;
+        uint32_t sh_type = u32le(sh + 4);
+        if (sh_type == SHT_SYMTAB) { idx_sym = (int)i; break; }
+    }
+    if (idx_sym < 0) return -1;
+
+    // --- get .symtab header
+    const char* sh_sym = sh_base + (uint64_t)idx_sym * eh->shentsize;
+    uint64_t sym_off   = u64le(sh_sym + 0x18);
+    uint64_t sym_size  = u64le(sh_sym + 0x20);
+    uint32_t sym_link  = u32le(sh_sym + 0x28);
+    uint64_t sym_entsz = u64le(sh_sym + 0x38);  // 注意: 64bitヘッダの sh_entsize は 0x38 にある
+
+    if (sym_off == 0 || sym_size == 0 || sym_entsz == 0) return -1;
+    uint64_t n = sym_size / sym_entsz;
+
+    // --- get linked .strtab (prefer sh_link)
+    if (sym_link >= eh->shnum) return -1;
+    const char* sh_str = sh_base + (uint64_t)sym_link * eh->shentsize;
+    if (u32le(sh_str + 4) != SHT_STRTAB) {
+        // フォールバック: .shstrtab 以外の SHT_STRTAB を探す
+        int idx_str = -1;
+        for (uint16_t i=0;i<eh->shnum;i++) {
+            if (i == eh->shstrndx) continue;
+            const char* sh = sh_base + (uint64_t)i * eh->shentsize;
+            if (u32le(sh + 4) == SHT_STRTAB) { idx_str = i; break; }
+        }
+        if (idx_str < 0) return -1;
+        sh_str = sh_base + (uint64_t)idx_str * eh->shentsize;
+    }
+    uint64_t str_off = u64le(sh_str + 0x18);
+    uint64_t str_sz  = u64le(sh_str + 0x20);
+    const char* strtab = (str_sz ? (elfbuf + str_off) : "");
+
+    // --- scan symbols using sh_entsize, field-by-field
+    const char* syms = elfbuf + sym_off;
+    const char target[] = "__global_pointer$";
+    for (uint64_t i=0;i<n;i++) {
+        const char* s = syms + i * sym_entsz;
+
+        // Elf64_Sym (LE) layout: u32 st_name; u8 st_info; u8 st_other; u16 st_shndx; u64 st_value; u64 st_size
+        uint32_t st_name = u32le(s + 0);
+        // uint8_t  st_info = *(const unsigned char*)(s + 4);
+        // uint8_t  st_other= *(const unsigned char*)(s + 5);
+        // uint16_t st_shndx= u16le(s + 6);
+        uint64_t st_value= u64le(s + 8);
+        // uint64_t st_size = u64le(s + 16);
+        const char* name = (st_name < str_sz) ? (strtab + st_name) : NULL;
+        if (!name) continue;
+        // 高速短絡: 先頭2文字 "__" を確認してから strcmp
+        if (name[0]=='_' && name[1]=='_' && strcmp(name, target)==0) {
+            *out_gp = st_value;   // そのまま gp へ書く（絶対VAの想定）
+printf("st_value %x\n", st_value);
+            return 0;
+        }
+    }
+
+    return -1; // not found
+}
+
+
+/*
+static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* out_gp)
+{
+    if (!elfbuf || !eh || !out_gp) {
+puts("error1");
+        return -1;
+    }
+
+    // セクションヘッダテーブルの場所と基本情報
+    if (eh->shoff == 0 || eh->shnum == 0 || eh->shentsize == 0) {
+puts("error2");
+        return -1;
+    }
+
+    const struct elfshdr* sh_base = (const struct elfshdr*)(elfbuf + eh->shoff);
+    int idx_sym = -1;
+
+    // 1) .symtab を探す
+    for (uint16_t i = 0; i < eh->shnum; i++) {
+        const struct elfshdr* sh = (const struct elfshdr*)((const char*)sh_base + (uint64_t)i * eh->shentsize);
+        if (sh->type == SHT_SYMTAB) {
+            idx_sym = (int)i;
+            break;
+        }
+    }
+    if (idx_sym < 0) {
+puts("error3");
+        return -1;
+    }
+
+    const struct elfshdr* sh_sym = (const struct elfshdr*)((const char*)sh_base + (uint64_t)idx_sym * eh->shentsize);
+
+    // 2) .symtab のリンク先（通常 .strtab）を取得
+    int idx_str = (int)sh_sym->link;
+    const struct elfshdr* sh_str = NULL;
+
+    if (idx_str >= 0 && idx_str < eh->shnum) {
+        sh_str = (const struct elfshdr*)((const char*)sh_base + (uint64_t)idx_str * eh->shentsize);
+        if (sh_str->type != SHT_STRTAB) {
+            // sh_link が妥当でない場合はフォールバック：最初の SHT_STRTAB（.shstrtab 以外）を拾う
+            sh_str = NULL;
+        }
+    }
+
+    if (!sh_str) {
+        for (uint16_t i = 0; i < eh->shnum; i++) {
+            const struct elfshdr* sh = (const struct elfshdr*)((const char*)sh_base + (uint64_t)i * eh->shentsize);
+            if (sh->type == SHT_STRTAB && i != eh->shstrndx) { // .shstrtab は除外
+                sh_str = sh;
+                break;
+            }
+        }
+    }
+    if (!sh_str) {
+puts("error4");
+        return -1;
+    }
+
+    // 3) テーブル本体へのポインタを計算
+    const char*      strtab = (const char*)(elfbuf + sh_str->offset);
+    const struct elfsym* syms   = (const struct elfsym*)(elfbuf + sh_sym->offset);
+
+    if (sh_sym->entsize == 0) {
+puts("error5");
+        return -1;
+    }
+    uint64_t nsyms = sh_sym->size / sh_sym->entsize;
+
+    // 4) "__global_pointer$" を走査して探す
+    const char target[] = "__global_pointer$";
+    for (uint64_t i = 0; i < nsyms; i++) {
+        const struct elfsym* s = (const struct elfsym*)((const char*)syms + i * sh_sym->entsize);
+        const char* name = (s->name < sh_str->size) ? (strtab + s->name) : NULL;
+puts(name);
+        if (!name) continue;
+        if (name[0] == '_' && name[1] == '_' && strcmp(name, target) == 0) {
+            *out_gp = s->value;   // Linux/psABI 流儀：st_value はそのまま gp に入れる絶対VA
+            return 0;
+        }
+    }
+
+puts("error6");
+    return -1; // 見つからず
+}
+*/
 
 void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_index) {
     struct proc* result = kalloc();
@@ -913,11 +1083,14 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
             }
         }
     }
+    if(find_gp_from_file(elf_buf, eh, &gp) < 0) {
+        puts("Warning __global_pointer$ not found(1)\n");
+    }
     
     if(gp == 0) {
         // Fallback or error if gp not found, but for now we just warn.
         // For non-PIC code this might be okay. For PIC/GP-relative, it will fail.
-        // puts("Warning: __global_pointer$ not found\n");
+        puts("Warning: __global_pointer$ not found(2)\n");
     }
 
 
