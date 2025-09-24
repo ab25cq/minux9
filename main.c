@@ -815,6 +815,7 @@ static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* ou
         // 高速短絡: 先頭2文字 "__" を確認してから strcmp
         if (name[0]=='_' && name[1]=='_' && strcmp(name, target)==0) {
             *out_gp = st_value;   // そのまま gp へ書く（絶対VAの想定）
+            
 printf("st_value %x\n", st_value);
             return 0;
         }
@@ -824,91 +825,6 @@ printf("st_value %x\n", st_value);
 }
 
 
-/*
-static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* out_gp)
-{
-    if (!elfbuf || !eh || !out_gp) {
-puts("error1");
-        return -1;
-    }
-
-    // セクションヘッダテーブルの場所と基本情報
-    if (eh->shoff == 0 || eh->shnum == 0 || eh->shentsize == 0) {
-puts("error2");
-        return -1;
-    }
-
-    const struct elfshdr* sh_base = (const struct elfshdr*)(elfbuf + eh->shoff);
-    int idx_sym = -1;
-
-    // 1) .symtab を探す
-    for (uint16_t i = 0; i < eh->shnum; i++) {
-        const struct elfshdr* sh = (const struct elfshdr*)((const char*)sh_base + (uint64_t)i * eh->shentsize);
-        if (sh->type == SHT_SYMTAB) {
-            idx_sym = (int)i;
-            break;
-        }
-    }
-    if (idx_sym < 0) {
-puts("error3");
-        return -1;
-    }
-
-    const struct elfshdr* sh_sym = (const struct elfshdr*)((const char*)sh_base + (uint64_t)idx_sym * eh->shentsize);
-
-    // 2) .symtab のリンク先（通常 .strtab）を取得
-    int idx_str = (int)sh_sym->link;
-    const struct elfshdr* sh_str = NULL;
-
-    if (idx_str >= 0 && idx_str < eh->shnum) {
-        sh_str = (const struct elfshdr*)((const char*)sh_base + (uint64_t)idx_str * eh->shentsize);
-        if (sh_str->type != SHT_STRTAB) {
-            // sh_link が妥当でない場合はフォールバック：最初の SHT_STRTAB（.shstrtab 以外）を拾う
-            sh_str = NULL;
-        }
-    }
-
-    if (!sh_str) {
-        for (uint16_t i = 0; i < eh->shnum; i++) {
-            const struct elfshdr* sh = (const struct elfshdr*)((const char*)sh_base + (uint64_t)i * eh->shentsize);
-            if (sh->type == SHT_STRTAB && i != eh->shstrndx) { // .shstrtab は除外
-                sh_str = sh;
-                break;
-            }
-        }
-    }
-    if (!sh_str) {
-puts("error4");
-        return -1;
-    }
-
-    // 3) テーブル本体へのポインタを計算
-    const char*      strtab = (const char*)(elfbuf + sh_str->offset);
-    const struct elfsym* syms   = (const struct elfsym*)(elfbuf + sh_sym->offset);
-
-    if (sh_sym->entsize == 0) {
-puts("error5");
-        return -1;
-    }
-    uint64_t nsyms = sh_sym->size / sh_sym->entsize;
-
-    // 4) "__global_pointer$" を走査して探す
-    const char target[] = "__global_pointer$";
-    for (uint64_t i = 0; i < nsyms; i++) {
-        const struct elfsym* s = (const struct elfsym*)((const char*)syms + i * sh_sym->entsize);
-        const char* name = (s->name < sh_str->size) ? (strtab + s->name) : NULL;
-puts(name);
-        if (!name) continue;
-        if (name[0] == '_' && name[1] == '_' && strcmp(name, target) == 0) {
-            *out_gp = s->value;   // Linux/psABI 流儀：st_value はそのまま gp に入れる絶対VA
-            return 0;
-        }
-    }
-
-puts("error6");
-    return -1; // 見つからず
-}
-*/
 
 void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_index) {
     struct proc* result = kalloc();
