@@ -1414,7 +1414,7 @@ int write_instruction(struct instruction i)
     }
     const size_t sz = (size_t)bytecode.size;
 const unsigned char *p = bytecode.data;
-printf("BYTECODE %02x %02x %02x %02x\n",
+printf("(!)BYTECODE %02x %02x %02x %02x\n",
        (unsigned)p[0], (unsigned)p[1], (unsigned)p[2], (unsigned)p[3]);
     size_t nwritten =
         write_sectiondata((char *)bytecode.data, sz, i.position);
