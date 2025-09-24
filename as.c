@@ -1413,6 +1413,9 @@ int write_instruction(struct instruction i)
         return 1;
     }
     const size_t sz = (size_t)bytecode.size;
+const unsigned char *p = bytecode.data;
+printf("BYTECODE %02x %02x %02x %02x\n",
+       (unsigned)p[0], (unsigned)p[1], (unsigned)p[2], (unsigned)p[3]);
     size_t nwritten =
         write_sectiondata((char *)bytecode.data, sz, i.position);
     free(bytecode.data);
@@ -2705,6 +2708,8 @@ int flush_output(FILE *elf)
 
     // ===== エントリポイントは .text 先頭（_start がそこにある前提） =====
     elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset;
+printf("base addr %p\n", BASE_ADDR);
+printf("entry %x\n", elfheader.entry);
 
     // ===== プログラムヘッダ（PHDR）作成 =====
     //   ※ p_filesz はページ丸め **しない**（実ファイル上の終端まで）

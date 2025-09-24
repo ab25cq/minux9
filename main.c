@@ -876,9 +876,14 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
             
             if (!pa) panic("kalloc");
             memset(pa, 0, PGSIZE);
+
             mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
                      PTE_U | PTE_R | PTE_W | PTE_X | PTE_V);
         }
+        
+const unsigned char *p = elf_buf + ph->off;
+printf("BYTECODE %02x %02x %02x %02x\n",
+       (unsigned)p[0], (unsigned)p[1], (unsigned)p[2], (unsigned)p[3]);
         
         if (copyout(result->pagetable, ph->vaddr, elf_buf + ph->off, ph->filesz) < 0) {
             panic("copyout");
@@ -1092,6 +1097,7 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
     
     /// USER PROGRAM
     result->context.mepc = eh->entry;
+printf("eh->entry %x\n", eh->entry);
     
     if(exec_flag) {
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得

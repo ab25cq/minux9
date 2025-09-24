@@ -1,5 +1,39 @@
 #include "common.h"
 
+typedef struct __minux_FILE {
+  int fd;
+  int flags;   // 1=readable, 2=writable, 4=append
+  long pos;
+  int eof;
+  int err;
+  int have_push;
+  unsigned char push_ch;
+  // memory stream support (fd < 0 if memory stream)
+  int is_mem;
+  char **ms_bufp;
+  size_t *ms_sizep;
+  char *ms_buf;    // internal buffer
+  size_t ms_cap;   // capacity of ms_buf
+  size_t ms_len;   // valid length
+} FILE;
+
+FILE __stdin  = { .fd = 0, .flags = 1, .pos = 0 };
+FILE __stdout = { .fd = 1, .flags = 2, .pos = 0 };
+FILE __stderr = { .fd = 2, .flags = 2, .pos = 0 };
+FILE* stdin  = &__stdin;
+FILE* stdout = &__stdout;
+FILE* stderr = &__stderr;
+
+static int __append_char(char **p, unsigned long *rem, char c) {
+    if (*rem > 1) { **p = c; (*p)++; (*rem)--; return 1; }
+    return 0;
+}
+
+static void __append_str(char **p, unsigned long *rem, const char *s) {
+    while (*s && *rem > 1) { **p = *s++; (*p)++; (*rem)--; }
+}
+
+
 typedef struct mem_block {
     size_t size;
     struct mem_block *next;
@@ -189,6 +223,7 @@ int strlen(const char *s) {
 
 // putcharは環境依存で外部定義
 extern void putchar(char c);
+extern void putc(char c);
 
 void puts(const char *s) {
     while (*s) {
@@ -303,6 +338,27 @@ void exit(int n) {
     while(1);
 }
 
+static int __utoa_ull(char* dst, unsigned long long v, int base, int lower){
+  static const char L[]="0123456789abcdef";
+  static const char U[]="0123456789ABCDEF";
+  const char* D = lower ? L : U;
+  char tmp[32]; int i=0;
+  if (base<2 || base>16){ dst[0]='0'; dst[1]=0; return 1; }
+  if (v==0){ dst[0]='0'; dst[1]=0; return 1; }
+  while (v){ tmp[i++] = D[v % (unsigned)base]; v /= (unsigned)base; }
+  int n=i, j=0; while (i--) dst[j++]=tmp[i]; dst[j]=0; return n;
+}
+
+static void __fmt_num(char **p, unsigned long *rem,
+                      unsigned long long v, int base,
+                      int is_signed, int neg, int width, char pad, int lower) {
+    char num[64]; int n = __utoa_ull(num, v, base, lower);
+    int total = n + (neg?1:0);
+    while (total < width) { __append_char(p, rem, pad); total++; }
+    if (neg) __append_char(p, rem, '-');
+    __append_str(p, rem, num);
+}
+
 char* itoa(char* buf, unsigned long val_, int base, int is_signed) {
     char* p = buf;
     char tmp[32];
@@ -400,383 +456,198 @@ int vasprintf(char** out, const char* fmt, va_list ap) {
     return p - out2;
 }
 
-int snprintf(char* out, unsigned long out_size, const char* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
+// ========= 共通フォーマッタ =========
+typedef struct {
+  // FILE* 向け出力 or バッファ向け出力の両方に使える汎用 putc
+  void (*putc_fn)(void* ctx, char c);
+  void* ctx;
+  int count;
+} __fmt_out_t;
 
-    char* p = out;
-    const char* s;
-    char buf[32];
-    unsigned long remaining = out_size;
-
-    if (remaining == 0) {
-        va_end(ap);
-        return 0;
-    }
-
-    for (; *fmt; fmt++) {
-        if (*fmt != '%') {
-            if (remaining > 1) {
-                *p++ = *fmt;
-                remaining--;
-            }
-            continue;
-        }
-
-        fmt++;
-        switch (*fmt) {
-        case 's':
-            s = va_arg(ap, const char*);
-            while (*s && remaining > 1) {
-                *p++ = *s++;
-                remaining--;
-            }
-            break;
-        case 'd':
-            itoa(buf, va_arg(ap, int), 10, 0);
-            s = buf;
-            while (*s && remaining > 1) {
-                *p++ = *s++;
-                remaining--;
-            }
-            break;
-        case 'x':
-            itoa(buf, (unsigned int)va_arg(ap, int), 16, 1);  
-            s = buf;
-            while (*s && remaining > 1) {
-                *p++ = *s++;
-                remaining--;
-            }
-            break;
-        case 'c':
-            if (remaining > 1) {
-                *p++ = (char)va_arg(ap, int);
-                remaining--;
-            }
-            break;
-        case 'p':
-            s = "0x";
-            while (*s && remaining > 1) {
-                *p++ = *s++;
-                remaining--;
-            }
-            itoa(buf, (long)va_arg(ap, void*), 16, 1);
-            s = buf;
-            while (*s && remaining > 1) {
-                *p++ = *s++;
-                remaining--;
-            }
-            break;
-        case 'l':
-            if (*(fmt + 1) == 'u') {
-                fmt++;
-                itoa(buf, va_arg(ap, long), 10, 1);
-                s = buf;
-                while (*s && remaining > 1) {
-                    *p++ = *s++;
-                    remaining--;
-                }
-            }
-            break;
-        default:
-            if (remaining > 1) {
-                *p++ = '%';
-                remaining--;
-                if (remaining > 1) {
-                    *p++ = *fmt;
-                    remaining--;
-                }
-            }
-            break;
-        }
-    }
-
-    *p = '\0';
-    va_end(ap);
-    return p - out;
+static void __fmt_putc(__fmt_out_t* o, char c) {
+  o->putc_fn(o->ctx, c);
+  o->count++;
 }
 
-int vsnprintf(char* out, unsigned long out_size, const char* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
+static int __is_digit(char c){ return c>='0' && c<='9'; }
 
-    char* p = out;
-    const char* s;
-    char buf[32];
-    unsigned long remaining = out_size;
 
-    if (remaining == 0) {
-        va_end(ap);
-        return 0;
-    }
-
-    for (; *fmt; fmt++) {
-        if (*fmt != '%') {
-            if (remaining > 1) {
-                *p++ = *fmt;
-                remaining--;
-            }
-            continue;
-        }
-
-        fmt++;
-        switch (*fmt) {
-        case 's':
-            s = va_arg(ap, const char*);
-            while (*s && remaining > 1) {
-                *p++ = *s++;
-                remaining--;
-            }
-            break;
-        case 'd':
-            itoa(buf, va_arg(ap, int), 10, 0);
-            s = buf;
-            while (*s && remaining > 1) {
-                *p++ = *s++;
-                remaining--;
-            }
-            break;
-        case 'x':
-            itoa(buf, (unsigned int)va_arg(ap, int), 16, 1);  
-            s = buf;
-            while (*s && remaining > 1) {
-                *p++ = *s++;
-                remaining--;
-            }
-            break;
-        case 'c':
-            if (remaining > 1) {
-                *p++ = (char)va_arg(ap, int);
-                remaining--;
-            }
-            break;
-        case 'p':
-            s = "0x";
-            while (*s && remaining > 1) {
-                *p++ = *s++;
-                remaining--;
-            }
-            itoa(buf, (long)va_arg(ap, void*), 16, 1);
-            s = buf;
-            while (*s && remaining > 1) {
-                *p++ = *s++;
-                remaining--;
-            }
-            break;
-        case 'l':
-            if (*(fmt + 1) == 'u') {
-                fmt++;
-                itoa(buf, va_arg(ap, long), 10, 1);
-                s = buf;
-                while (*s && remaining > 1) {
-                    *p++ = *s++;
-                    remaining--;
-                }
-            }
-            break;
-        default:
-            if (remaining > 1) {
-                *p++ = '%';
-                remaining--;
-                if (remaining > 1) {
-                    *p++ = *fmt;
-                    remaining--;
-                }
-            }
-            break;
-        }
-    }
-
-    *p = '\0';
-    va_end(ap);
-    return p - out;
+static void __emit_pad(__fmt_out_t* o, char pad, int n){
+  while (n-- > 0) __fmt_putc(o, pad);
 }
 
-void printint(int val_, int base, int sign) {
-    char buf[33];  
-    int i = 0;
-    int negative = 0;
-    unsigned int uval;
+// 追加 or 置換：数値の出力ヘルパに left を追加
+static void __emit_num(__fmt_out_t* o, unsigned long long v,
+                       int base, int is_signed, int neg,
+                       int width, char pad, int lower, int left) {
+  char buf[64];
+  int n = __utoa_ull(buf, v, base, lower);
+  int total = n + (neg ? 1 : 0);
 
-    if (sign && val_ < 0) {
-        negative = 1;
-        uval = -val_;
-    } else {
-        uval = (unsigned int)val_;
-    }
-
-    if (uval == 0) {
-        putchar('0');
-        return;
-    }
-
-    while (uval > 0) {
-        int digit = uval % base;
-        buf[i++] = digit < 10 ? '0' + digit : 'a' + (digit - 10);
-        uval /= base;
-    }
-
-    if (negative) {
-        putchar('-');
-    }
-
-    while (--i >= 0) {
-        putchar(buf[i]);
-    }
+  if (!left) {
+    __emit_pad(o, pad, (width>total)?(width-total):0);
+  }
+  if (neg) __fmt_putc(o, '-');
+  for (int i=0;i<n;i++) __fmt_putc(o, buf[i]);
+  if (left) {
+    __emit_pad(o, ' ', (width>total)?(width-total):0); // 左寄せは空白で後ろ詰め
+  }
 }
 
-void printlong(unsigned long val_, int base, int sign)  {
-    char buf[65];  
-    int i = 0;
-    int negative = 0;
+// 中核フォーマッタ：__vformat の中
+static void __vformat(__fmt_out_t* o, const char* fmt, va_list ap) {
+  while (*fmt) {
+    if (*fmt != '%'){ __fmt_putc(o, *fmt++); continue; }
+    fmt++; // skip '%'
 
-    if (sign && (long)val_ < 0) {
-        negative = 1;
-        val_ = -(long)val_;
+    // ---- flags ----
+    char pad = ' ';
+    int left = 0;
+    int parsing_flags = 1;
+    while (parsing_flags) {
+      if (*fmt == '0') { pad = '0'; fmt++; }
+      else if (*fmt == '-') { left = 1; pad = ' '; fmt++; } // '-' 優先、ゼロ詰め無効化
+      else parsing_flags = 0;
     }
 
-    if (val_ == 0) {
-        putchar('0');
-        return;
-    }
+    // ---- width ----
+    int width = 0;
+    while (*fmt >= '0' && *fmt <= '9') { width = width*10 + (*fmt - '0'); fmt++; }
 
-    while (val_ > 0) {
-        int digit = val_ % base;
-        buf[i++] = digit < 10 ? '0' + digit : 'a' + (digit - 10);
-        val_ /= base;
-    }
+    // ---- length: l / ll ----
+    int lcount = 0;
+    while (*fmt == 'l'){ lcount++; fmt++; }
 
-    if (negative) {
-        putchar('-');
-    }
-
-    while (--i >= 0) {
-        putchar(buf[i]);
-    }
-}
-
-void printlonglong(unsigned long long val_, int base, int sign)  {
-    char buf[65];
-    int i = 0;
-    int negative = 0;
-
-    if (sign && (long long)val_ < 0) {
-        negative = 1;
-        val_ = -(long long)val_;
-    }
-
-    if (val_ == 0) {
-        putchar('0');
-        return;
-    }
-
-    while (val_ > 0) {
-        int digit = val_ % base;
-        buf[i++] = digit < 10 ? '0' + digit : 'a' + (digit - 10);
-        val_ /= base;
-    }
-
-    if (negative) {
-        putchar('-');
-    }
-
-    while (--i >= 0) {
-        putchar(buf[i]);
-    }
-}
-
-int printf(const char* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-
-    const char* p;
-    for (p = fmt; *p; p++) {
-        if (*p != '%') {
-            putchar(*p);
-            continue;
+    // ---- conversion ----
+    char c = *fmt ? *fmt++ : '\0';
+    switch (c){
+      case 'd': {
+        long long sv;
+        if (lcount >= 2)      sv = va_arg(ap, long long);
+        else if (lcount == 1) sv = va_arg(ap, long);
+        else                  sv = va_arg(ap, int);
+        int neg = (sv < 0);
+        unsigned long long uv = neg ? (unsigned long long)(-sv) : (unsigned long long)sv;
+        __emit_num(o, uv, 10, 1, neg, width, pad, 1, left);
+        break;
+      }
+      case 'u': case 'x': {
+        int base = (c=='x')?16:10;
+        unsigned long long uv;
+        if (lcount >= 2)      uv = va_arg(ap, unsigned long long);
+        else if (lcount == 1) uv = va_arg(ap, unsigned long);
+        else                  uv = (unsigned int)va_arg(ap, unsigned int);
+        __emit_num(o, uv, base, 0, 0, width, pad, 1, left);
+        break;
+      }
+      case 'p': {
+        unsigned long long uv = (unsigned long long)(uintptr_t)va_arg(ap, void*);
+        // 0x は常に先頭、幅は「0x を除いた部分」に適用。左寄せも考慮。
+        if (!left) {
+          int hexlen = 0; { char tmp[64]; hexlen = __utoa_ull(tmp, uv, 16, 1); }
+          int total = 2 + hexlen; // "0x" + hex
+          __emit_pad(o, pad, (width>total)?(width-total):0);
         }
-
-        p++; 
-
-        if (*p == 'l') {
-            int lcount = 1;
-            if (*(p+1) == 'l') {
-                lcount = 2;
-                p++;
-            }
-            p++;
-
-            switch (*p) {
-                case 'x': {
-                    if (lcount == 1) {
-                        unsigned long val_ = va_arg(ap, unsigned long);
-                        printlong(val_, 16, 0);
-                    } else {
-                        unsigned long long val_ = va_arg(ap, unsigned long long);
-                        printlonglong(val_, 16, 0);
-                    }
-                    break;
-                }
-                case 'd': {
-                    if (lcount == 1) {
-                        long val_ = va_arg(ap, long);
-                        printlong(val_, 10, 1);
-                    } else {
-                        long long val_ = va_arg(ap, long long);
-                        printlonglong(val_, 10, 1);
-                    }
-                    break;
-                }
-                default: {
-                    putchar('%');
-                    for (int i=0; i<lcount; i++) putchar('l');
-                    putchar(*p);
-                    break;
-                }
-            }
-        } else {
-            switch (*p) {
-                case 'd': {
-                    int val_ = va_arg(ap, int);
-                    printint(val_, 10, 1);
-                    break;
-                }
-                case 'x': {
-                    unsigned int val_ = va_arg(ap, unsigned int);
-                    printint(val_, 16, 0);
-                    break;
-                }
-                case 'p': {
-                    unsigned long val_ = (unsigned long)va_arg(ap, void*);
-                    putchar('0'); putchar('x');
-                    printlong(val_, 16, 0);
-                    break;
-                }
-                case 's': {
-                    const char* s = va_arg(ap, const char*);
-                    if (!s) s = "(null)";
-                    while (*s) putchar(*s++);
-                    break;
-                }
-                case 'c': {
-                    char c = (char)va_arg(ap, int);
-                    putchar(c);
-                    break;
-                }
-                case '%': {
-                    putchar('%');
-                    break;
-                }
-                default: {
-                    putchar('%');
-                    putchar(*p);
-                    break;
-                }
-            }
+        __fmt_putc(o,'0'); __fmt_putc(o,'x');
+        __emit_num(o, uv, 16, 0, 0, 0, ' ', 1, 0); // 中身は幅0で直出し
+        if (left) {
+          int hexlen = 0; { char tmp[64]; hexlen = __utoa_ull(tmp, uv, 16, 1); }
+          int total = 2 + hexlen;
+          __emit_pad(o, ' ', (width>total)?(width-total):0);
         }
+        break;
+      }
+      case 'c': {
+        char ch = (char)va_arg(ap, int);
+        if (!left) __emit_pad(o, pad, (width>1)?(width-1):0);
+        __fmt_putc(o, ch);
+        if (left) __emit_pad(o, ' ', (width>1)?(width-1):0);
+        break;
+      }
+      case 's': {
+        const char* s = va_arg(ap, const char*);
+        if (!s) s="(null)";
+        int len=0; for(const char* t=s; *t; ++t) len++;
+        if (!left) __emit_pad(o, pad, (width>len)?(width-len):0);
+        while (*s) __fmt_putc(o, *s++);
+        if (left) __emit_pad(o, ' ', (width>len)?(width-len):0);
+        break;
+      }
+      case '%': __fmt_putc(o,'%'); break;
+      default:
+        // 未知指定子は素通し
+        __fmt_putc(o,'%');
+        if (c) __fmt_putc(o,c);
+        break;
     }
+  }
+}
 
-    va_end(ap);
-    return 0;
+
+
+// ========= FILE* 系 =========
+/*
+static void __file_putc(void* ctx, char ch){
+  FILE* fp = (FILE*)ctx;
+  fputc((unsigned char)ch, fp);
+}
+
+int vfprintf(FILE* fp, const char* fmt, va_list ap){
+  __fmt_out_t out = { __file_putc, fp, 0 };
+  va_list aq; va_copy(aq, ap);
+  __vformat(&out, fmt, aq);
+  va_end(aq);
+  return out.count;
+}
+
+int fprintf(FILE* fp, const char* fmt, ...){
+  va_list ap; va_start(ap, fmt);
+  int r = vfprintf(fp, fmt, ap);
+  va_end(ap);
+  return r;
+}
+*/
+
+static void __file_putc(void* ctx, char ch){
+  FILE* fp = (FILE*)ctx;
+  putc((unsigned char)ch);
+}
+
+int printf(const char* fmt, ...){
+  va_list ap; va_start(ap, fmt);
+  __fmt_out_t out = { __file_putc, stdout, 0 };
+  __vformat(&out, fmt, ap);
+  va_end(ap);
+  return out.count;
+}
+
+// ========= バッファ系（snprintf, vsnprintf） =========
+typedef struct {
+  char* p; unsigned long rem;
+} __buf_ctx_t;
+
+static void __buf_putc(void* ctx, char ch){
+  __buf_ctx_t* b = (__buf_ctx_t*)ctx;
+  if (b->rem > 1){ *(b->p)++ = ch; b->rem--; }
+}
+
+int vsnprintf(char* out, unsigned long out_size, const char* fmt, va_list ap){
+  if (!out || out_size==0) return 0;
+  __buf_ctx_t b = { out, out_size };
+  __fmt_out_t o = { __buf_putc, &b, 0 };
+  va_list aq; va_copy(aq, ap);
+  __vformat(&o, fmt, aq);
+  va_end(aq);
+  // NUL 終端
+  if (b.rem > 0) *(b.p) = '\0';
+  else out[out_size-1] = '\0';
+  return o.count;
+}
+
+int snprintf(char* out, unsigned long out_size, const char* fmt, ...){
+  va_list ap; va_start(ap, fmt);
+  int r = vsnprintf(out, out_size, fmt, ap);
+  va_end(ap);
+  return r;
 }
 
