@@ -132,6 +132,7 @@ int Sys_write()
 
 int Sys_exit()
 {
+puts("Sys_exit()");
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
@@ -146,6 +147,9 @@ int Sys_exit()
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
     
     fs_exit(p->file_table);
+    
+printf("gActiveProc %d\n", gActiveProc);
+printf("xstatus %d\n", arg0);
     
     p->xstatus = arg0;
     p->zombie = 1;

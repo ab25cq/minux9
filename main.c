@@ -1435,6 +1435,7 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
 
 uintptr_t syscall_handler()
 {
+//puts("syscall_handler\r\n");
     disable_timer_interrupts();
     
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;

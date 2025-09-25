@@ -78,9 +78,24 @@ __attribute__((format(printf, 1, 2))) static void printLn(char *Fmt, ...) {
           LineEnd--;
 
         if (LineEnd > LineStart) {
-          fwrite(LineStart, 1, LineEnd - LineStart, OutputFile);
-          fprintf(OutputFile, "\n");
-          Printed = true;
+          bool SkipLine = false;
+          size_t TokenLen = (size_t)(LineEnd - First);
+
+          if (TokenLen >= 3) {
+            if (strncmp(First, "fsd", 3) == 0) {
+              if (TokenLen == 3 || isspace((unsigned char)First[3]))
+                SkipLine = true;
+            } else if (strncmp(First, "fld", 3) == 0) {
+              if (TokenLen == 3 || isspace((unsigned char)First[3]))
+                SkipLine = true;
+            }
+          }
+
+          if (!SkipLine) {
+            fwrite(LineStart, 1, LineEnd - LineStart, OutputFile);
+            fprintf(OutputFile, "\n");
+            Printed = true;
+          }
         }
       }
     }
