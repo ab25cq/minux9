@@ -2707,7 +2707,13 @@ int flush_output(FILE *elf)
     //outputsections[SECTION_SYMTAB].size = symtab_sz;  // サイズを更新！
 
     // ===== エントリポイントは .text 先頭（_start がそこにある前提） =====
-    elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset;
+    struct symbol *s = get_symbol("_start");   // 見つからなければ NULL
+    if (s && s->section == SECTION_TEXT) {
+        elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset + (uint64_t)s->value;
+    } else {
+        elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset; // フォールバック
+    }
+    //elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset;
 printf("base addr %p\n", BASE_ADDR);
 printf("entry %x\n", elfheader.entry);
 
