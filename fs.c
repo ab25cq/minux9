@@ -1548,8 +1548,6 @@ int fs_stat(const char *path, struct stat *st)
     st->type = di.type; st->nlink = di.nlink; st->size = di.size; st->inum = inum;
     st->mode = di.mode; st->uid = di.uid; st->gid = di.gid;
     st->atime = di.atime; st->mtime = di.mtime; st->ctime = di.ctime;
-puts(path);
-printf("SIZE %d\n", st->size);
     return 0;
 }
 
@@ -1825,9 +1823,7 @@ ssize_t fs_write(int fd, const void *buf, size_t count) {
     f->off += written;
     // サイズ拡張を反映
     uint32_t newsize = f->off;
-printf("NEWSIZE %d F->DIN.SIZE %d\n", newsize, f->din.size);
     if (newsize > f->din.size) {
-puts("REWRITE\r\n");
         f->din.size = newsize;
     }
     f->din.mtime = fs_now();
@@ -1944,11 +1940,9 @@ void free_fs_table(struct file** file_table)
                 struct spipe* p = file_table[i]->pipe;
                 
                 kfree(file_table[i]->pipe);
-printf("kfree %p\n", file_table[i]->pipe);
             }
             if(file_table[i]->used <= 0) {
 //                kfree(file_table[i]);
-//printf("kfree %p\n", file_table[i]);
             }
         }
     }

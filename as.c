@@ -202,10 +202,8 @@ void set_exit_loglevel(enum loglvl_t level)
 void logger(enum loglvl_t level, enum error_t id, const char *format, ...)
 {
     level_instances[level]++;
-/*
     if (level < minloglevel)
         return;
-*/
 
     FILE *out = stdout;
 
@@ -1294,7 +1292,6 @@ static void die(const char *function)
 void *xmalloc(size_t sz)
 {
     void *ptr = malloc(sz);
-printf("xmalloc ptr %p\r\n", ptr);
     if (!ptr)
         die("malloc");
     return ptr;
@@ -1413,9 +1410,6 @@ int write_instruction(struct instruction i)
         return 1;
     }
     const size_t sz = (size_t)bytecode.size;
-const unsigned char *p = bytecode.data;
-printf("(!)BYTECODE %02x %02x %02x %02x\n",
-       (unsigned)p[0], (unsigned)p[1], (unsigned)p[2], (unsigned)p[3]);
     size_t nwritten =
         write_sectiondata((char *)bytecode.data, sz, i.position);
     free(bytecode.data);
@@ -1485,7 +1479,6 @@ struct {
 
 static struct directive get_directive(const char *name)
 {
-puts("get_directive");
     for (unsigned long i = 0; i < ARRAY_LENGTH(directive_map); i++)
         if (!strcmp(name, directive_map[i].name))
             return directive_map[i];
@@ -1496,7 +1489,6 @@ puts("get_directive");
 
 int parse_directive(char *line)
 {
-puts("Parse_directive");
     char *directivename = line;
     while (!isspace(*line))
         line++;
@@ -2548,10 +2540,8 @@ int alloc_output(void)
     size_t offset = sizeof(struct elf64header);
     for (int i = 0; i < SECTION_COUNT; i++) {
     if(outputsections[i].size == 0) {
-        puts("ZERO");
     }
     else {
-    puts("NO ZERO");
         outputsections[i].contents = xmalloc(outputsections[i].size);
         logger(DEBUG, no_error, "%d bytes allocated to section (%p)",
                outputsections[i].size, outputsections[i].contents);
@@ -2719,8 +2709,6 @@ int flush_output(FILE *elf)
     }
     
     //elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset;
-printf("base addr %p\n", BASE_ADDR);
-printf("entry %x\n", elfheader.entry);
 
     // ===== プログラムヘッダ（PHDR）作成 =====
     //   ※ p_filesz はページ丸め **しない**（実ファイル上の終端まで）
@@ -2800,9 +2788,6 @@ printf("entry %x\n", elfheader.entry);
     fseek(elf, (long)elfheader.shoffset, SEEK_SET);
     fwrite(sectionheaders, sizeof(struct elf64sectionheader), SECTION_COUNT, elf);
 
-printf("GP END %p\n", *(long long*)0x6790);    
-
-
     return 0;
 }
 
@@ -2879,20 +2864,13 @@ void open_files(void)
 /*
 void copy_files(FILE *dest, FILE *src)
 {
-struct stat stf;
-int fd = fileno(src);
-fstat(fd, &stf);
-printf("FSTAT SIZE %d\n", stf.size);
     const long pos = ftell(src);
     fflush(src);                    // 念のため：書き→読みの切替
     rewind(src);                    // ★ ここを outputtempfile ではなく src にする
-printf("GUHI\n");
 
     char *buffer = xmalloc(BUFSIZ);
     for (;;) {
-puts("KKKK");
         size_t bytes = fread(buffer, 1, BUFSIZ, src);
-puts("KKKK END");
         if (bytes == 0) break;      // EOF or 読み込み失敗
         fwrite(buffer, 1, bytes, dest);
         if (bytes != BUFSIZ) break; // EOF
@@ -2911,7 +2889,6 @@ void copy_files(FILE *dest, FILE *src)
 
     char *buffer = xmalloc(BUFSIZ);
     for (;;) {
-printf("FREED %p\n", buffer);
         const size_t bytes = fread(buffer, 1, BUFSIZ, src);
         fwrite(buffer, 1, bytes, dest);
         if (bytes != BUFSIZ)
@@ -2925,29 +2902,16 @@ printf("FREED %p\n", buffer);
 
 int main(int argc, char *argv[])
 {
-puts("1");
     parse_cmdargs(argc, argv);
-puts("2");
     open_files();
-puts("3");
     parse_file(inputfile, outputtempfile);
-puts("4");
 
     logger(DEBUG, no_error, "Done generating bytecode");
-puts("5");
     copy_files(outputfile, outputtempfile);
-puts("6");
     logger(DEBUG, no_error, "Finished writing bytecode to output");
-puts("7");
     closefiles();
-puts("8");
 
     int n = get_clean_exit(CRITICAL);
-    
-struct stat stf;
-stat("b.elf", &stf);
-
-printf("stf %d\r\n", stf.size);
     
     return n;
 }

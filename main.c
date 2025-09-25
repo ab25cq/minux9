@@ -816,7 +816,6 @@ static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* ou
         if (name[0]=='_' && name[1]=='_' && strcmp(name, target)==0) {
             *out_gp = st_value;   // そのまま gp へ書く（絶対VAの想定）
             
-printf("st_value %x\n", st_value);
             return 0;
         }
     }
@@ -880,10 +879,6 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
             mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
                      PTE_U | PTE_R | PTE_W | PTE_X | PTE_V);
         }
-        
-const unsigned char *p = elf_buf + (eh->entry - 0x1000);
-printf("BYTECODE %02x %02x %02x %02x\n",
-       (unsigned)p[0], (unsigned)p[1], (unsigned)p[2], (unsigned)p[3]);
         
         if (copyout(result->pagetable, ph->vaddr, elf_buf + ph->off, ph->filesz) < 0) {
             panic("copyout");
@@ -1097,7 +1092,6 @@ printf("BYTECODE %02x %02x %02x %02x\n",
     
     /// USER PROGRAM
     result->context.mepc = eh->entry;
-printf("eh->entry %x\n", eh->entry);
     
     if(exec_flag) {
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得

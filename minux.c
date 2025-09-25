@@ -41,7 +41,6 @@ void *sbrk(ptrdiff_t increment) {
     uintptr_t want = cur + (intptr_t)increment;
     if ((increment > 0 && want < cur) || (increment < 0 && want > cur)) {
         errno = 12;                       // ENOMEM
-puts("MALLOC RETUR -1(1)");
         return (void*)-1;
     }
 
@@ -49,7 +48,6 @@ puts("MALLOC RETUR -1(1)");
     long rc = brk((long)want);
     if (rc < 0) { 
         errno = 12; 
-puts("MALLOC RETUR -1(2)");
         return (void*)-1; 
     }
 
@@ -57,7 +55,6 @@ puts("MALLOC RETUR -1(2)");
     long newer = brk(0);
     if (newer < 0) { 
         errno = 12; 
-puts("MALLOC RETUR -1(3)");
         return (void*)-1; 
     }
 
@@ -96,7 +93,6 @@ void *malloc(size_t size) {
 
     mem_block_t *new_mem = (mem_block_t *)sbrk(size);
     if (new_mem == (void *)-1) {
-puts("MALLOC RETURN NULL(0)");
         return NULL; 
     }
 
@@ -1704,28 +1700,21 @@ long ftell(FILE* fp) {
 }
 
 void rewind(FILE* fp) {
-printf("REWIND %p\n", fp);
   if (!fp) {
-puts("RETURN");
       return;
   }
   fp->eof = 0;
   fp->have_push = 0;
   if (fp->is_mem) {
     fp->pos = 0;
-printf("REWIND %d\n", fp->pos);
     fp->err = 0;
     return;
   }
-puts("LSEEK");
   long r = lseek(fp->fd, 0, SEEK_SET);
   if (r < 0) {
-puts("ERR");
     fp->err = 1;
     return;
   }
-puts("OK");
-printf("r %d\n", r);
   fp->pos = r;
   fp->err = 0;
 }
@@ -1759,7 +1748,6 @@ size_t fread(void* ptr, size_t size, size_t nmemb, FILE* fp) {
   } else {
     if (fp->have_push && total > 0) { *p++ = fp->push_ch; fp->have_push = 0; done = 1; }
     while (done < total) {
-printf("fp->fd %d read %p %d\n", fp->fd, p + done, total -done);
       long n = read(fp->fd, p + done, total - done);
       if (n <= 0) { if (n==0) fp->eof = 1; else fp->err=1; break; }
       done += n; fp->pos += n;

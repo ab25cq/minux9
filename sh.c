@@ -41,9 +41,9 @@ static int isdir(const char* path) {
 
 
 
-#define MAX_ARGV 7
-#define MAX_ARG 16
-#define MAX_COMMAND 5
+#define MAX_ARGV 32
+#define MAX_ARG 32
+#define MAX_COMMAND 16
 
 #define PATH_MAX 32
 

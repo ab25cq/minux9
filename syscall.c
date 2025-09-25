@@ -37,7 +37,6 @@ int Sys_write() {
         }
         else {
             ssize_t w = fs_write(fd, kbuf, n);
-printf("FS_WRITE %d\n", n);
             if (w < 0) return (total > 0) ? total : (int)w;
             total += w;
         }
@@ -132,7 +131,6 @@ int Sys_write()
 
 int Sys_exit()
 {
-puts("Sys_exit()");
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
@@ -147,9 +145,6 @@ puts("Sys_exit()");
     struct proc *p = gProc[gActiveProc]; // 現在のプロセスを取得
     
     fs_exit(p->file_table);
-    
-printf("gActiveProc %d\n", gActiveProc);
-printf("xstatus %d\n", arg0);
     
     p->xstatus = arg0;
     p->zombie = 1;
@@ -770,8 +765,6 @@ int Sys_execv()
 
     // alloc_prog with exec_flag=1 replaces the current process's page table etc.
     int child_proc_index = 0;
-puts("alloc_prog");
-puts(path);
     alloc_prog(elf_buf, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index);
     
     // elf_buf is no longer needed after alloc_prog; free it now.
