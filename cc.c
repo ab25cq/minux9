@@ -3,7 +3,7 @@
 static bool OptDebug;
 
 #define GP_MAX 8
-#define FP_MAX 8
+#define FP_MAX 0 //8
 #define FS_SAVE_COUNT 12
 #define FS_SAVE_BYTES (FS_SAVE_COUNT * 8)
 
