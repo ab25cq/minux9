@@ -154,6 +154,8 @@ printf("xstatus %d\n", arg0);
     p->xstatus = arg0;
     p->zombie = 1;
     
+    yield();
+    
     return 0;
 }
 
