@@ -1,8 +1,0 @@
-#!/bin/bash
-
-set -e -o pipefail
-
-# RISC-V エミュレータで動かすラッパー
-# 冒頭に "bbl loader" ってでてくるのを消したりする
-
-spike "$RISCV/riscv64-$RISCV_HOST/bin/pk" "$@" | perl -nle 'print unless $.==1 && /^bbl loader\r$/'
