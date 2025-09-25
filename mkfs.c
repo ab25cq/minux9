@@ -582,7 +582,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("a.txt", 7);
     write_file_to_file_system("b.txt", 8);
     write_file_to_file_system("c.txt", 9);
-    write_file_to_file_system("d.txt", 10);
+    write_file_to_file_system("c.s", 10);
     write_file_to_file_system("echo", 11);
     write_file_to_file_system("hello", 12);
     write_file_to_file_system("ls", 13);

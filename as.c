@@ -2708,11 +2708,16 @@ int flush_output(FILE *elf)
 
     // ===== エントリポイントは .text 先頭（_start がそこにある前提） =====
     struct symbol *s = get_symbol("_start");   // 見つからなければ NULL
+    struct symbol *s2 = get_symbol("main");   // 見つからなければ NULL
     if (s && s->section == SECTION_TEXT) {
         elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset + (uint64_t)s->value;
+    } 
+    else if (s2 && s2->section == SECTION_TEXT) {
+        elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset + (uint64_t)s2->value;
     } else {
         elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset; // フォールバック
     }
+    
     //elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset;
 printf("base addr %p\n", BASE_ADDR);
 printf("entry %x\n", elfheader.entry);
