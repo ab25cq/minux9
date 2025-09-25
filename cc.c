@@ -2049,6 +2049,89 @@ static void genExpr(Node *Nd) {
   errorTok(Nd->Tok, "invalid expression");
 }
 
+typedef struct
+{
+    char* str;
+    int len;
+    int size;
+} StringBuilder;
+
+void sb_putc(StringBuilder* self, char c)
+{
+    if(self->len == 0 && self->size == 0) {
+        int new_size = 32;
+        self->str = calloc(1, sizeof(char)*new_size);
+        self->size = new_size;
+    }
+    else if(self->len+1 >= self->size) {
+        int new_size = (self->size + 1) * 2;
+        char* old_str = self->str;
+        
+        self->str = calloc(1, sizeof(char)*new_size);
+        strncpy(self->str, old_str, self->size);
+        
+        self->size = new_size;
+        
+        free(old_str);
+    }
+    
+    self->str[self->len] = c;
+    self->str[self->len+1] = '\0';
+    self->len++;
+}
+
+void sb_putint(StringBuilder* self, int n)
+{
+    if(self->len == 0 && self->size == 0) {
+        int new_size = 32;
+        self->str = calloc(1, sizeof(char)*new_size);
+        self->size = new_size;
+    }
+    else if(self->len+sizeof(int)+1 >= self->size) {
+        int new_size = (self->size + sizeof(int) + 1) * 2;
+        char* old_str = self->str;
+        
+        self->str = calloc(1, sizeof(char)*new_size);
+        strncpy(self->str, old_str, self->size);
+        
+        self->size = new_size;
+        
+        free(old_str);
+    }
+    
+    memcpy(self->str + self->len, &n, sizeof(int));
+    *(self->str + self->len + sizeof(int)) = '\0';
+    self->len+=sizeof(int);
+}
+
+void sb_puts(StringBuilder* self, char* str)
+{
+    if(self->len == 0 && self->size == 0) {
+        int new_size = (strlen(str) + 1) * 2;
+        self->str = calloc(1, sizeof(char)*new_size);
+        self->size = new_size;
+    }
+    else if(self->len+strlen(str)+1 >= self->size) {
+        int new_size = (self->size + strlen(str) + 1) * 2;
+        char* old_str = self->str;
+        
+        self->str = calloc(1, sizeof(char)*new_size);
+        strncpy(self->str, old_str, self->size);
+        
+        self->size = new_size;
+        
+        free(old_str);
+    }
+    
+    strncat(self->str, str, self->size);
+    self->len+=strlen(str);
+}
+
+char* sb_build(StringBuilder* self)
+{
+    return self->str;
+}
+
 // 生成语句
 static void genStmt(Node *Nd) {
   // .loc 文件编号 行号
@@ -2242,10 +2325,54 @@ static void genStmt(Node *Nd) {
   case ND_EXPR_STMT:
     genExpr(Nd->LHS);
     return;
+    
+  case ND_ASM: {
+      // 1) 引数を t0.. に積む
+      int idx = 0;
+      for (Node *A = Nd->Args; A; A = A->Next, idx++) {
+        if (idx > 6) errorTok(Nd->Tok, "asm operands > 7 not supported");
+        genExpr(A);
+        printLn("  mv t%d, a0", idx);
+      }
+    
+      // 2) 文字列置換
+      char *fmt = Nd->AsmStr;
+      StringBuilder sb = {0}; // 好きなやり方で実装（あるいは malloc + 手書き）
+      for (char *p = fmt; *p; ) {
+        if (*p != '%') { sb_putc(&sb, *p++); continue; }
+        p++;
+        if (*p == '%') { sb_putc(&sb, '%'); p++; continue; } // "%%" エスケープ
+    
+        bool isImm = false;
+        if (*p == 'c') { isImm = true; p++; }
+        if (*p < '0' || *p > '6') errorTok(Nd->Tok, "bad asm placeholder");
+        int n = *p - '0'; p++;
+    
+        if (isImm) {
+          // Nd->Args の n 番目が ND_NUM か確認して数値を出力
+          Node *A = Nd->Args;
+          for (int i = 0; i < n; i++) A = A->Next;
+          if (!A || A->Kind != ND_NUM) errorTok(Nd->Tok, "%%c%d needs an immediate constant", n);
+          sb_putint(&sb, (long)A->Val);
+        } else {
+          // レジスタ名 t<n>
+          sb_puts(&sb, (char*[]){"t0","t1","t2","t3","t4","t5","t6"}[n]);
+        }
+      }
+      char *out = sb_build(&sb);
+    
+      printLn("  # 插入のASM");
+      // out は複数行でも OK：printLn は %s をそのまま出してくれる
+      printLn("  %s", out);
+      free(out);
+      return;
+  }
+/*
   case ND_ASM:
     printLn("  # 插入的ASM代码片段");
     printLn("  %s", Nd->AsmStr);
     return;
+*/
   default:
     break;
   }
@@ -5829,20 +5956,31 @@ static Node *asmStmt(Token **Rest, Token *Tok) {
   Node *Nd = newNode(ND_ASM, Tok);
   Tok = Tok->Next;
 
-  // ("volatile" | "inline")*
   while (equal(Tok, "volatile") || equal(Tok, "inline"))
     Tok = Tok->Next;
 
-  // "("
   Tok = skip(Tok, "(");
-  // stringLiteral
+
   if (Tok->Kind != TK_STR || Tok->Ty->Base->Kind != TY_CHAR)
     errorTok(Tok, "expected string literal");
   Nd->AsmStr = Tok->Str;
-  // ")"
-  *Rest = skip(Tok->Next, ")");
+  Tok = Tok->Next;
+
+  // ここから : 引数リスト（任意個）
+  Node Head = {};
+  Node *Cur = &Head;
+  while (equal(Tok, ",")) {
+    Tok = Tok->Next;
+    Node *Arg = assign(&Tok, Tok); // expr を読む（既存の式パーサを流用）
+    addType(Arg);
+    Cur = Cur->Next = Arg;
+  }
+  Nd->Args = Head.Next;
+
+  *Rest = skip(Tok, ")");
   return Nd;
 }
+
 
 // 解析语句
 // stmt = "return" expr? ";"

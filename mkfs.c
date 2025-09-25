@@ -603,7 +603,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("vi", 28);
     write_file_to_file_system("as", 29);
     write_file_to_file_system("ld", 30);
-    write_file_to_file_system("minux_syscall.h", 31);
+    write_file_to_file_system("minux9.h", 31);
     write_file_to_file_system("readelf", 32);
     write_file_to_file_system("objdump", 33);
     write_file_to_file_system("hexdump", 34);
