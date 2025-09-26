@@ -7,6 +7,7 @@ static bool OptDebug;
 #define FS_SAVE_COUNT 12
 #define FS_SAVE_BYTES (FS_SAVE_COUNT * 8)
 
+
 // 输出文件
 static FILE *OutputFile;
 // 记录栈深度
@@ -2080,30 +2081,6 @@ void sb_putc(StringBuilder* self, char c)
     self->len++;
 }
 
-void sb_putint(StringBuilder* self, int n)
-{
-    if(self->len == 0 && self->size == 0) {
-        int new_size = 32;
-        self->str = calloc(1, sizeof(char)*new_size);
-        self->size = new_size;
-    }
-    else if(self->len+sizeof(int)+1 >= self->size) {
-        int new_size = (self->size + sizeof(int) + 1) * 2;
-        char* old_str = self->str;
-        
-        self->str = calloc(1, sizeof(char)*new_size);
-        strncpy(self->str, old_str, self->size);
-        
-        self->size = new_size;
-        
-        free(old_str);
-    }
-    
-    memcpy(self->str + self->len, &n, sizeof(int));
-    *(self->str + self->len + sizeof(int)) = '\0';
-    self->len+=sizeof(int);
-}
-
 void sb_puts(StringBuilder* self, char* str)
 {
     if(self->len == 0 && self->size == 0) {
@@ -2125,6 +2102,13 @@ void sb_puts(StringBuilder* self, char* str)
     
     strncat(self->str, str, self->size);
     self->len+=strlen(str);
+}
+void sb_putint(StringBuilder* self, int n)
+{
+    char buf[16];
+    snprintf(buf, 16, "%ld", (long)n);
+    
+    sb_puts(self, buf);
 }
 
 char* sb_build(StringBuilder* self)
@@ -3299,6 +3283,8 @@ static char *quoteMakefile(char *S) {
   return Buf;
 }
 
+char OptOFName[32];
+
 // 解析传入程序的参数
 static void parseArgs(int Argc, char **Argv) {
   // 确保需要一个参数的选项，存在一个参数
@@ -3349,6 +3335,7 @@ static void parseArgs(int Argc, char **Argv) {
       OptS = true;
       continue;
     }
+    OptS = true;
 
     // // 解析-fcommon
     if (!strcmp(Argv[I], "-fcommon")) {
@@ -3575,7 +3562,24 @@ static void parseArgs(int Argc, char **Argv) {
     if (Argv[I][0] == '-' && Argv[I][1] != '\0')
       error("unknown argument: %s", Argv[I]);
 
+char* p = Argv[I];
+bool in_opt_o = false;
+
+while(*p) {
+    if(*p == '.' && (p - Argv[I]) < 20) {
+        memcpy(OptOFName, Argv[I], p - Argv[I]);
+        OptOFName[p - Argv[I]] = '.';
+        OptOFName[p - Argv[I]+1] = 's';
+        OptOFName[p - Argv[I]+2] = '\0';
+        in_opt_o = true;
+        OptO = OptOFName;
+        break;
+    }    
+    p++;
+}
+
     // 其他情况则匹配为输入文件
+    
     strArrayPush(&InputPaths, Argv[I]);
   }
 
