@@ -127,7 +127,7 @@ struct cpu* mycpu() {
 #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
 
 #define KERNBASE 0x80000000UL
-#define PHYSTOP 0x81000000UL
+#define PHYSTOP 0x81100000UL
 
 void* walkaddr(pagetable_t pagetable, uint64_t va);
 void free_pagetable(pagetable_t pagetable, int level);

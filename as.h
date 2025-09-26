@@ -305,11 +305,17 @@ struct instruction {
 };
 
 struct rawdata {
-	void *data;
-	size_t size;
-	struct sectionpos position;
-	size_t line;
+    void *data;
+    size_t size;
+    struct sectionpos position;
+    size_t line;
+    struct symbol *sym; // ← .quad <symbol> 用：解決対象シンボル
+    int is_abs64;       // ← これが 1 なら 8B を絶対アドレスに置換して出力
+    long addend;        // ← 将来の拡張用（今回は 0 固定）
 };
+
+int parse_quad(const char *arg);
+
 
 int add_instruction(struct instruction);
 int add_data(struct rawdata);

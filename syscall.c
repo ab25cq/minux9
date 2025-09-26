@@ -17,7 +17,7 @@ int Sys_write() {
     while (left > 0) {
         int n = left > (int)sizeof(kbuf) ? (int)sizeof(kbuf) : left;
         if (copyin(p->pagetable, kbuf, u, n) < 0) {
-            puts("copyin failed");
+            printf("copyin failed %p\r\n", u);
             return -1;
         }
         

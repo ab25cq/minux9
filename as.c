@@ -1429,15 +1429,28 @@ int write_all_data(void)
             return 1;
     return 0;
 }
+enum sections outputsection = SECTION_TEXT;
+static struct section outputsections[SECTION_COUNT] = { { .size = 0,
+                              .contents = NULL } };
 
 int write_data(struct rawdata data)
 {
     linenumber = data.line;
-    logger(DEBUG, no_error, "Writing data (offset: %zu)",
-           data.position.offset);
+    logger(DEBUG, no_error, "Writing data (offset: %zu)", data.position.offset);
     set_section(data.position.section);
-    const size_t written =
-        write_sectiondata(data.data, data.size, data.position);
+
+    const void *src = data.data;
+    char buf8[8];
+
+    if (data.is_abs64 && data.sym && data.size == 8) {
+        // 最終VMA = BASE_ADDR + セクションのファイルオフセット + セクション内オフセット + addend
+        uint64_t sect_off = outputsections[data.sym->section].offset;
+        uint64_t v = (uint64_t)(BASE_ADDR + sect_off + (uint64_t)data.sym->value + (uint64_t)data.addend);
+        memcpy(buf8, &v, 8);
+        src = buf8;
+    }
+
+    const size_t written = write_sectiondata(src, data.size, data.position);
     free(data.data);
     if (written != data.size) {
         logger(CRITICAL, error_system, "Error writing bytes to output");
@@ -1445,6 +1458,7 @@ int write_data(struct rawdata data)
     }
     return 0;
 }
+
 
 void free_instructions(void)
 {
@@ -1468,6 +1482,7 @@ struct directive directive_map[] = {
     { ".string", parse_asciz }, { ".asciz", parse_asciz },
     { ".ascii", parse_ascii },  { ".section", parse_section },
     { ".globl", parse_global },
+    { ".quad",   parse_quad },   // ★ これを追加
 };
 struct {
     const char *name;
@@ -1486,6 +1501,43 @@ static struct directive get_directive(const char *name)
            "Unknown directive found with name: %s", name);
     return (struct directive){ NULL, NULL };
 }
+
+int parse_quad(const char *arg)
+{
+    // オペランドは「数値（0x.., 10進等）」か「シンボル名」のどちらか
+    char *tok = trim_whitespace((char*)arg);
+    if (!tok || !*tok) {
+        logger(ERROR, error_invalid_instruction, ".quad needs an operand");
+        return 1;
+    }
+
+    struct sectionpos pos = get_outputpos();
+
+    // 1) 即値なら 8 バイトをそのまま書く
+    size_t imm;
+    if (get_immediate(tok, &imm) == 0) {
+        uint64_t v = (uint64_t)imm;
+        char *buf = xmalloc(8);
+        memcpy(buf, &v, 8);
+        int res = add_data((struct rawdata){
+            .data = buf, .size = 8, .position = pos, .line = linenumber,
+            .sym = NULL, .is_abs64 = 0, .addend = 0
+        });
+        inc_outputsize(pos.section, 8);
+        return res;
+    }
+
+    // 2) シンボルなら、8B の穴＋「後で ABS64 を解決」印を残す
+    struct symbol *sym = get_or_create_symbol(tok, SYMBOL_LABEL);
+    char *zeros = xcalloc(1, 8);
+    int res = add_data((struct rawdata){
+        .data = zeros, .size = 8, .position = pos, .line = linenumber,
+        .sym = sym, .is_abs64 = 1, .addend = 0
+    });
+    inc_outputsize(pos.section, 8);
+    return res;
+}
+
 
 int parse_directive(char *line)
 {
@@ -2387,9 +2439,6 @@ enum sectiontypes_e {
     SHT_STRTAB = 0x3,
 };
 
-enum sections outputsection = SECTION_TEXT;
-static struct section outputsections[SECTION_COUNT] = { { .size = 0,
-                              .contents = NULL } };
 
 static struct {
     uint64_t flags;
