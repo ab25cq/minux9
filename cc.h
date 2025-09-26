@@ -143,6 +143,8 @@ struct Obj {
   int Align;    // 对齐量
   // 局部变量
   int Offset; // fp的偏移量
+  
+  int StringLiteral;
 
   // 结构体类型
   bool IsHalfByStack; // 一半用寄存器，一半用栈

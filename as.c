@@ -1538,7 +1538,6 @@ int parse_quad(const char *arg)
     return res;
 }
 
-
 int parse_directive(char *line)
 {
     char *directivename = line;

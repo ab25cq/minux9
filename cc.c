@@ -2515,6 +2515,14 @@ static void emitData(Obj *Prog) {
     // 跳过是函数或者无定义的变量
     if (Var->IsFunction || !Var->IsDefinition)
       continue;
+      
+    static int n = 1;
+    ++n;
+    if(Var->StringLiteral) {
+      printLn("   .globl _g%d", n);
+      printLn("_g%d:", n);
+      printLn("   .quad %s",  Var->Name);
+    }
 
     if (Var->IsStatic) {
       printLn("\n  # static全局变量%s", Var->Name);
@@ -2557,6 +2565,9 @@ static void emitData(Obj *Prog) {
         if (HasTerminator && OnlyZeroPadding) {
           emitAsciiData(".ascii", Data, StrLen + 1);
           emitZeroBytes(Size - (StrLen + 1));
+          if(Var->StringLiteral) {
+snprintf(Var->Name, 5, "_g%d", n);
+          }
           continue;
         }
       }
@@ -4600,6 +4611,7 @@ static Obj *newAnonGVar(Type *Ty) { return newGVar(newUniqueName(), Ty); }
 static Obj *newStringLiteral(char *Str, Type *Ty) {
   Obj *Var = newAnonGVar(Ty);
   Var->InitData = Str;
+  Var->StringLiteral = 1;
   return Var;
 }
 
