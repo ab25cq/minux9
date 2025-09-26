@@ -286,6 +286,10 @@ static void genAddr(Node *Nd) {
 
     // 生成位置无关代码
     if (OptFPIC) {
+      if (Nd->Var->IsStatic && !Nd->Var->IsTLS) {
+        printLn("  la a0, %s", Nd->Var->Name);
+        return;
+      }
       int C = count();
       printLn(".Lpcrel_hi%d:", C);
       // 线程局部变量
@@ -340,6 +344,11 @@ static void genAddr(Node *Nd) {
     }
 
     // 全局变量
+    if (Nd->Var->IsStatic && !Nd->Var->IsTLS) {
+      printLn("  la a0, %s", Nd->Var->Name);
+      return;
+    }
+
     int C = count();
     printLn("  # 获取全局变量的绝对地址");
     printLn(".Lpcrel_hi%d:", C);

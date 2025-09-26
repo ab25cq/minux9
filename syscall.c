@@ -16,7 +16,10 @@ int Sys_write() {
 
     while (left > 0) {
         int n = left > (int)sizeof(kbuf) ? (int)sizeof(kbuf) : left;
-        if (copyin(p->pagetable, kbuf, u, n) < 0) return -1;
+        if (copyin(p->pagetable, kbuf, u, n) < 0) {
+            puts("copyin failed");
+            return -1;
+        }
         
         /* まず TTY/STDOUT を優先して処理する */
         if (is_stdout(fd) || is_tty(fd)) {
