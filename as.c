@@ -1433,6 +1433,31 @@ enum sections outputsection = SECTION_TEXT;
 static struct section outputsections[SECTION_COUNT] = { { .size = 0,
                               .contents = NULL } };
 
+int write_data(struct rawdata data) {
+  linenumber = data.line;
+  set_section(data.position.section);
+
+  const void *src = data.data;
+  char buf8[8];
+
+  if (data.is_abs64 && data.sym && data.size == 8) {
+    // ★ここが肝：対象“シンボルのセクション”の最終ファイルオフセットを使う
+    uint64_t sect_off = outputsections[data.sym->section].offset;
+    uint64_t v = (uint64_t)(BASE_ADDR + sect_off + (uint64_t)data.sym->value + (uint64_t)data.addend);
+    memcpy(buf8, &v, 8);
+    src = buf8;
+  }
+
+  size_t n = write_sectiondata(src, data.size, data.position);
+  free(data.data);
+  if (n != data.size) {
+    logger(CRITICAL, error_system, "Error writing bytes to output");
+    return 1;
+  }
+  return 0;
+}
+
+/*
 int write_data(struct rawdata data)
 {
     linenumber = data.line;
@@ -1458,6 +1483,7 @@ int write_data(struct rawdata data)
     }
     return 0;
 }
+*/
 
 
 void free_instructions(void)
@@ -1502,6 +1528,37 @@ static struct directive get_directive(const char *name)
     return (struct directive){ NULL, NULL };
 }
 
+int parse_quad(const char *arg) {
+  char *tok = trim_whitespace((char*)arg);
+  if (!tok || !*tok) {
+    logger(ERROR, error_invalid_instruction, ".quad needs an operand");
+    return 1;
+  }
+
+  struct sectionpos pos = get_outputpos();
+
+  // 即値？
+  size_t imm;
+  if (get_immediate(tok, &imm) == 0) {
+    uint64_t v = (uint64_t)imm;
+    char *buf = xmalloc(8);
+    memcpy(buf, &v, 8);
+    add_data((struct rawdata){ .data=buf, .size=8, .position=pos, .line=linenumber,
+                               .sym=NULL, .is_abs64=0, .addend=0 });
+    inc_outputsize(pos.section, 8);
+    return 0;
+  }
+
+  // シンボル
+  struct symbol *sym = get_or_create_symbol(tok, SYMBOL_LABEL);
+  char *zeros = xcalloc(1, 8);
+  add_data((struct rawdata){ .data=zeros, .size=8, .position=pos, .line=linenumber,
+                             .sym=sym, .is_abs64=1, .addend=0 });
+  inc_outputsize(pos.section, 8);
+  return 0;
+}
+
+/*
 int parse_quad(const char *arg)
 {
     // オペランドは「数値（0x.., 10進等）」か「シンボル名」のどちらか
@@ -1537,6 +1594,7 @@ int parse_quad(const char *arg)
     inc_outputsize(pos.section, 8);
     return res;
 }
+*/
 
 int parse_directive(char *line)
 {
@@ -1956,6 +2014,7 @@ struct bytecode form_nop(const char *name, struct idata instruction,
 }
 
 int32_t calc_symbol_offset(const struct symbol *sym, size_t position);
+int64_t calc_symbol_offset64(const struct symbol *sym, size_t position_fileoff);
 
 struct bytecode form_load_pseudo(const char *name, struct idata instruction,
                  struct args args, size_t position)
@@ -1966,7 +2025,7 @@ struct bytecode form_load_pseudo(const char *name, struct idata instruction,
     uint8_t rd = args.rd;
 
     uint8_t opcode;
-    uint32_t value;
+    uint64_t value;
     switch (type) {
     case LOAD_IMM:
         opcode = OP_LUI;
@@ -1974,7 +2033,7 @@ struct bytecode form_load_pseudo(const char *name, struct idata instruction,
         break;
     case LOAD_ADDR:
         opcode = OP_AUIPC;
-        value = (uint32_t)calc_symbol_offset(args.sym, position);
+        value = (uint64_t)calc_symbol_offset64(args.sym, position);
         break;
     default:
         UNREACHABLE();
@@ -1987,31 +2046,38 @@ struct bytecode form_load_pseudo(const char *name, struct idata instruction,
 #endif
     }
 
-    logger(DEBUG, no_error, "Load psuedoinstruction has value %d", value);
+    logger(DEBUG, no_error, "Load psuedoinstruction has value %ld", value);
 
     const char *uppernames[] = { "lui (li)", "auipc (la)" };
     const char *lowernames[] = { "addi (li)", "addi (la)" };
 
+    // delta を 64bit で計算
+    int64_t hi20 = (value + 0x800) >> 12;           // 12bit境界で繰上げ
+    int32_t lo12 = (int32_t)(value - (hi20 << 12)); // -2048..+2047 に収まる
+
+    // U-type の即値は [31:12] に入るので 12bit 左シフトした“整列値”を渡す
+    uint32_t u_imm = (uint32_t)(hi20 << 12);
+
     struct bytecode upper = form_utype(uppernames[type],
-                       (struct idata){ 4, opcode, 0, 0 },
-                       (struct args){
-                           .rd = rd,
-                           .imm = value & 0xFFFFF000,
-                       },
-                       position);
+                        (struct idata){ 4, opcode, 0, 0 },
+                        (struct args){
+                            .rd  = rd,
+                            .imm = (int32_t)u_imm,   // U-type: 下位12bitは0のまま
+                        },
+                        position);
+
     struct bytecode lower = form_itype(lowernames[type],
-                       (struct idata){ 4, OP_OPI, 0x0, 0 },
-                       (struct args){
-                           .rd = rd,
-                           .rs1 = rd,
-                           .imm = value & 0xFFF,
-                       },
-                       position + 4);
+                        (struct idata){ 4, OP_OPI, 0x0, 0 },
+                        (struct args){
+                            .rd  = rd,
+                            .rs1 = rd,
+                            .imm = lo12,            // I-type: 符号付き12bit
+                        },
+                        position + 4);
 
     unsigned char *data = malloc(upper.size + lower.size);
     memcpy(data, upper.data, upper.size);
     memcpy(data + upper.size, lower.data, lower.size);
-
     free(upper.data);
     free(lower.data);
 
@@ -2209,6 +2275,21 @@ int32_t calc_symbol_offset(const struct symbol *sym, size_t position)
         .offset = sym->value,
     });
     return (int32_t)(sympos - position);
+}
+
+int64_t calc_symbol_offset64(const struct symbol *sym, size_t position_fileoff) {
+    // シンボルの“出力ファイル内オフセット”を求める
+    uint64_t sym_fileoff = calc_fileoffset((struct sectionpos){
+        .section = sym->section,
+        .offset  = sym->value,
+    });
+
+    // VMA = BASE_ADDR + fileoff
+    uint64_t target_vma = BASE_ADDR + sym_fileoff;
+    uint64_t ref_vma    = BASE_ADDR + (uint64_t)position_fileoff;
+
+    // 64bit差分（PC-relative の delta）
+    return (int64_t)target_vma - (int64_t)ref_vma;
 }
 
 struct bytecode form_empty_bytecode(void)

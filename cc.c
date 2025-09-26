@@ -2565,9 +2565,11 @@ static void emitData(Obj *Prog) {
         if (HasTerminator && OnlyZeroPadding) {
           emitAsciiData(".ascii", Data, StrLen + 1);
           emitZeroBytes(Size - (StrLen + 1));
+/*
           if(Var->StringLiteral) {
 snprintf(Var->Name, 5, "_g%d", n);
           }
+*/
           continue;
         }
       }
