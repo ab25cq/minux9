@@ -2,6 +2,9 @@
 
 #define MAX_LINES 512
 #define MAX_COLS  256
+#define CTRL_D    4
+#define CTRL_L    12
+#define CTRL_U    21
 
 static char buf[MAX_LINES][MAX_COLS];
 static int  nlines = 0;
@@ -80,17 +83,26 @@ static void draw_screen(){
     int maxc = SCREEN_COLS-1 - L;
     for(int i=0; src && src[i] && i<maxc; i++) cur[L++]=src[i];
     cur[L]='\0';
+    int disp_len = L;
+    int pad_len = SCREEN_COLS-1 - disp_len;
+    if (pad_len < 0) pad_len = 0;
     // optionally wrap with reverse-video when in visual line range
-    char curhl[SCREEN_COLS];
+    char curhl[SCREEN_COLS + 16];
     const char* emit = cur;
     int EL = L;
     if (visual_active && idx >= sel_lo && idx <= sel_hi) {
-      int n2 = 0; const char *rvon = "\x1b[7m"; const char *rvoff = "\x1b[0m";
-      for(int i=0; rvon[i] && n2<SCREEN_COLS-1; i++) curhl[n2++] = rvon[i];
-      for(int i=0; cur[i] && n2<SCREEN_COLS-1; i++) curhl[n2++] = cur[i];
-      for(int i=0; rvoff[i] && n2<SCREEN_COLS-1; i++) curhl[n2++] = rvoff[i];
+      int n2 = 0; const int maxhl = (int)sizeof(curhl) - 1;
+      const char *rvon = "\x1b[7m"; const char *rvoff = "\x1b[0m";
+      for(int i=0; rvon[i] && n2<maxhl; i++) curhl[n2++] = rvon[i];
+      for(int i=0; cur[i] && n2<maxhl; i++) curhl[n2++] = cur[i];
+      for(int i=0; rvoff[i] && n2<maxhl; i++) curhl[n2++] = rvoff[i];
+      while(pad_len>0 && n2<maxhl){ curhl[n2++] = ' '; pad_len--; }
       curhl[n2] = '\0';
       emit = curhl; EL = n2;
+    } else {
+      while(pad_len>0 && L<SCREEN_COLS-1){ cur[L++]=' '; pad_len--; }
+      cur[L] = '\0';
+      EL = L;
     }
     // compare with previous
     int diff=0; for(int i=0; emit[i]||screen_prev[r][i]; i++){ if(emit[i]!=screen_prev[r][i]){ diff=1; break; } }
@@ -112,6 +124,9 @@ static void draw_screen(){
   const char* fn = (filename[0]?filename:"[No Name]");
   for(int i=0; fn[i] && n<SCREEN_COLS-1; i++) stat[n++]=fn[i];
   if (dirty && n<SCREEN_COLS-4){ stat[n++]=' '; stat[n++]='['; stat[n++]='+'; stat[n++]=']'; }
+  int stat_pad = SCREEN_COLS-1 - n;
+  if (stat_pad < 0) stat_pad = 0;
+  while(stat_pad>0 && n<SCREEN_COLS-1){ stat[n++]=' '; stat_pad--; }
   stat[n]='\0';
   int sdiff=0; for(int i=0; stat[i]||status_prev[i]; i++){ if(stat[i]!=status_prev[i]){ sdiff=1; break; } }
   if (sdiff){
@@ -437,8 +452,42 @@ int main(int argc, char** argv, char** envp){
     else if(k=='l'){ if(curx<slen(buf[cury])) curx++; }
     else if(k=='k'){ if(cury>0){ cury--; if(curx>slen(buf[cury])) curx=slen(buf[cury]); } }
     else if(k=='j'){ if(cury<nlines-1){ cury++; if(curx>slen(buf[cury])) curx=slen(buf[cury]); } }
+    else if(k==CTRL_D){
+      int half = SCREEN_ROWS/2;
+      if (half < 1) half = 1;
+      int max_rowoff = nlines - SCREEN_ROWS;
+      if (max_rowoff < 0) max_rowoff = 0;
+      int new_rowoff = rowoff + half;
+      if (new_rowoff > max_rowoff) new_rowoff = max_rowoff;
+      rowoff = new_rowoff;
+      int new_cury = cury + half;
+      if (new_cury >= nlines) new_cury = nlines-1;
+      if (new_cury < 0) new_cury = 0;
+      cury = new_cury;
+      if (cury < rowoff) rowoff = cury;
+      if (curx > slen(buf[cury])) curx = slen(buf[cury]);
+    }
+    else if(k==CTRL_U){
+      int half = SCREEN_ROWS/2;
+      if (half < 1) half = 1;
+      int max_rowoff = nlines - SCREEN_ROWS;
+      if (max_rowoff < 0) max_rowoff = 0;
+      int new_rowoff = rowoff - half;
+      if (new_rowoff < 0) new_rowoff = 0;
+      if (new_rowoff > max_rowoff) new_rowoff = max_rowoff;
+      rowoff = new_rowoff;
+      int new_cury = cury - half;
+      if (new_cury < 0) new_cury = 0;
+      if (new_cury >= nlines) new_cury = nlines-1;
+      cury = new_cury;
+      if (cury < rowoff) cury = rowoff;
+      if (curx > slen(buf[cury])) curx = slen(buf[cury]);
+    }
     else if(k=='0'){ curx=0; }
     else if(k=='$'){ curx=slen(buf[cury]); }
+    else if(k==CTRL_L){
+      screen_inited = 0;
+    }
     else if(k=='/'){ char pat[64]; int n = prompt_search(pat,sizeof(pat), ttyfd>=0?ttyfd:0); if(n>0){ for(int i=0;i<n;i++) last_pat[i]=pat[i]; last_pat[n]='\0'; have_last_pat=1; if(!search_forward(last_pat)) status("Pattern not found"); } }
     else if(k=='w'){ move_word_forward(); }
     else if(k=='b'){ move_word_backward(); }
