@@ -1,8 +1,0 @@
-#include "minux9.h"
-
-int main(){ 
-    exit(7);
-    
-    return 0;
-}
-
