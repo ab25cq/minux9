@@ -13,13 +13,15 @@ static int  rowoff = 0;           // top row of screen
 static int  dirty = 0;
 static char filename[128];
 // screen double-buffering and line numbers
-#define SCREEN_ROWS 23
+#define MAX_SCREEN_ROWS 64
 #define SCREEN_COLS  256
 #define LN_WIDTH 6  // 5 digits + space
-static char screen_prev[SCREEN_ROWS][SCREEN_COLS];
+static char screen_prev[MAX_SCREEN_ROWS][SCREEN_COLS];
 static char status_prev[SCREEN_COLS];
 static int screen_inited = 0;
 static char g_status_msg[64];
+// runtime-configured content rows (excludes status line). Default safe for small TTYs.
+static int g_scr_rows = 16;
 // yank buffer (line-wise)
 static char yank_buf[MAX_LINES][MAX_COLS];
 static int  yank_count = 0;
@@ -50,6 +52,30 @@ static void scup(int r,int c){
   prints("\x1b["); print_num(r<=0?1:r); prints(";"); print_num(c<=0?1:c); prints("H");
 }
 
+static int parse_int(const char* s){
+  int v=0; int i=0; int any=0;
+  while(s && s[i]){ if(s[i]>='0' && s[i]<='9'){ v = v*10 + (s[i]-'0'); any=1; i++; } else break; }
+  return any ? v : -1;
+}
+
+static void init_screen_rows(char** envp){
+  // Try to honor LINES or ROWS env; we assume it gives total rows including status.
+  int total = -1;
+  for(char** e=envp; e && *e; e++){
+    const char* s = *e;
+    if(s[0]=='L'&&s[1]=='I'&&s[2]=='N'&&s[3]=='E'&&s[4]=='S'&&s[5]=='='){
+      int t = parse_int(s+6); if(t>0) total = t;
+    } else if(s[0]=='R'&&s[1]=='O'&&s[2]=='W'&&s[3]=='S'&&s[4]=='='){
+      int t = parse_int(s+5); if(t>0) total = t;
+    }
+  }
+  int content;
+  if(total > 0) content = total - 1; else content = g_scr_rows; // keep default if unknown
+  if(content < 5) content = 5; // minimal usable area
+  if(content > MAX_SCREEN_ROWS) content = MAX_SCREEN_ROWS;
+  g_scr_rows = content;
+}
+
 static void status(const char* msg){
   int i=0; while(msg && msg[i] && i < (int)sizeof(g_status_msg)-1){ g_status_msg[i]=msg[i]; i++; }
   g_status_msg[i]='\0';
@@ -57,7 +83,7 @@ static void status(const char* msg){
 
 static void draw_screen(){
   if (!screen_inited){
-    for(int r=0;r<SCREEN_ROWS;r++) screen_prev[r][0]='\0';
+    for(int r=0;r<g_scr_rows;r++) screen_prev[r][0]='\0';
     status_prev[0]='\0';
     sclear();
     screen_inited = 1;
@@ -69,7 +95,7 @@ static void draw_screen(){
     sel_lo = (visual_start < cury) ? visual_start : cury;
     sel_hi = (visual_start > cury) ? visual_start : cury;
   }
-  for(int r=0; r<SCREEN_ROWS; r++){
+  for(int r=0; r<g_scr_rows; r++){
     int idx = rowoff + r;
     const char* src = (idx < nlines) ? buf[idx] : "";
     // build line with left gutter line number
@@ -130,7 +156,7 @@ static void draw_screen(){
   stat[n]='\0';
   int sdiff=0; for(int i=0; stat[i]||status_prev[i]; i++){ if(stat[i]!=status_prev[i]){ sdiff=1; break; } }
   if (sdiff){
-    scup(24,1);
+    scup(g_scr_rows+1,1);
     prints("\x1b[2K");
     if (stat[0]) write(1, stat, slen(stat));
     int i=0; while(stat[i]){ status_prev[i]=stat[i]; i++; } status_prev[i]='\0';
@@ -142,7 +168,7 @@ static void draw_screen(){
 
 static void ensure_cursor_visible(){
   if(cury < rowoff) rowoff = cury;
-  if(cury >= rowoff + 23) rowoff = cury - 22;
+  if(cury >= rowoff + g_scr_rows) rowoff = cury - (g_scr_rows - 1);
 }
 
 static void clamp_cursor(){
@@ -300,26 +326,35 @@ static int save_file(){
 
 static void read_file(const char* path){
   int fd = open(path, O_RDONLY, 0);
-  if(fd < 0){ nlines=1; clr_line(buf[0]); return; }
-  nlines=0; int n; char chunk[256]; int k=0; clr_line(buf[0]);
-  while((n=read(fd, chunk, sizeof(chunk)))>0){
-    for(int i=0;i<n;i++){
-      char ch=chunk[i];
-      if(ch=='\r') continue;
-      if(ch=='\n'){
-        if(nlines < MAX_LINES-1){ nlines++; clr_line(buf[nlines]); k=0; }
-      }else{
-        if(k < MAX_COLS-1){ buf[nlines][k++]=ch; buf[nlines][k]='\0'; }
+  if (fd < 0){ nlines = 1; clr_line(buf[0]); return; }
+  // reset buffer
+  for (int i=0;i<MAX_LINES;i++) buf[i][0]='\0';
+  int n; char chunk[256];
+  int line = 0; // current line index
+  int k = 0;    // column within current line
+  while((n = read(fd, chunk, sizeof(chunk))) > 0){
+    for (int i=0; i<n; i++){
+      char ch = chunk[i];
+      if (ch=='\r') continue; // ignore CR
+      if (ch=='\n'){
+        // finalize current line and move to next if possible
+        if (line < MAX_LINES-1){
+          line++;
+          k = 0;
+          buf[line][0] = '\0';
+        }
+        continue;
       }
+      if (k < MAX_COLS-1){ buf[line][k++] = ch; buf[line][k] = '\0'; }
     }
   }
   close(fd);
-  nlines++;
-  if(nlines<=0){ nlines=1; clr_line(buf[0]); }
+  nlines = line + 1; // total lines is last index + 1
+  if (nlines <= 0){ nlines = 1; clr_line(buf[0]); }
 }
 
 static int prompt_colon(char* out,int max, int ttyfd){
-  status(":"); scup(24,3); prints("\x1b[2K");
+  status(":"); scup(g_scr_rows+1,3); prints("\x1b[2K");
   int n=0; while(n<max-1){
     int k = read_key(ttyfd); if(k<0) break;
     if(k=='\r' || k=='\n') break;
@@ -334,7 +369,7 @@ static char last_pat[64];
 static int  have_last_pat = 0;
 
 static int prompt_search(char* out,int max,int ttyfd){
-  status("/"); scup(24,2); prints("\x1b[2K");
+  status("/"); scup(g_scr_rows+1,2); prints("\x1b[2K");
   int n=0; while(n<max-1){
     int k = read_key(ttyfd);
     if(k<0) break;
@@ -431,6 +466,8 @@ int main(int argc, char** argv, char** envp){
   for(int i=0;i<MAX_LINES;i++) buf[i][0]='\0';
   nlines=0; 
   if(filename[0]) read_file(filename); else { nlines=1; }
+  // detect screen rows from environment (LINES/ROWS)
+  init_screen_rows(envp);
   curx=0; cury=0; rowoff=0; dirty=0;
 
   int insert_mode = 0;
@@ -453,9 +490,9 @@ int main(int argc, char** argv, char** envp){
     else if(k=='k'){ if(cury>0){ cury--; if(curx>slen(buf[cury])) curx=slen(buf[cury]); } }
     else if(k=='j'){ if(cury<nlines-1){ cury++; if(curx>slen(buf[cury])) curx=slen(buf[cury]); } }
     else if(k==CTRL_D){
-      int half = SCREEN_ROWS/2;
+      int half = g_scr_rows/2;
       if (half < 1) half = 1;
-      int max_rowoff = nlines - SCREEN_ROWS;
+      int max_rowoff = nlines - g_scr_rows;
       if (max_rowoff < 0) max_rowoff = 0;
       int new_rowoff = rowoff + half;
       if (new_rowoff > max_rowoff) new_rowoff = max_rowoff;
@@ -468,9 +505,9 @@ int main(int argc, char** argv, char** envp){
       if (curx > slen(buf[cury])) curx = slen(buf[cury]);
     }
     else if(k==CTRL_U){
-      int half = SCREEN_ROWS/2;
+      int half = g_scr_rows/2;
       if (half < 1) half = 1;
-      int max_rowoff = nlines - SCREEN_ROWS;
+      int max_rowoff = nlines - g_scr_rows;
       if (max_rowoff < 0) max_rowoff = 0;
       int new_rowoff = rowoff - half;
       if (new_rowoff < 0) new_rowoff = 0;
@@ -513,7 +550,7 @@ int main(int argc, char** argv, char** envp){
     else if(k=='d'){
       // support minimal "dd"
       int k2 = read_key(ttyfd>=0?ttyfd:0);
-      if (k2=='d') { delete_line(cury); status("deleted line"); draw_screen(); continue; }
+      if (k2=='d') { yank_range(cury, cury); delete_line(cury); status("deleted line"); draw_screen(); continue; }
       else { status("d?"); draw_screen(); continue; }
     }
     else if(k=='V'){

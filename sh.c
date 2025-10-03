@@ -109,13 +109,13 @@ int run_command(int n, struct sCommand* commands, int num_commands)
     }
     else {
         pipe(pipes);
-        
+
         int pid = fork();
-        
+
         if(pid == 0) {
+            close(pipes[1]);
             dup2(pipes[0], 0);
             close(pipes[0]);
-            close(pipes[1]);
             run_command(n+1, commands, num_commands);
         }
         else {
@@ -173,6 +173,7 @@ int main(void) {
         // プロンプト
         write(1, "$ ", 2);
         
+        /*
         m++;
         if(m % 4 == 0) {
             strncpy(buf, "echo 4", BUF_SIZE);
@@ -192,8 +193,8 @@ int main(void) {
         else {
             strncpy(buf, "cat a.txt | grep ABC", BUF_SIZE);
         }
+        */
         
-/*
         // キーボードから１行読み込み（改行込み）
         n = 0;
         while(1) {
@@ -220,8 +221,6 @@ int main(void) {
             }
         }
         buf[n] = '\0';
-        //}
-*/
         
         
         write(1, "\r\n", 2);
