@@ -78,6 +78,7 @@ struct proc {
     pagetable_t pagetable;
     
     char* program;
+    int program_size;
     int xstatus;                // exit
     
     struct file* file_table[MAX_OPEN_FILES];
@@ -316,7 +317,7 @@ static inline void w_stimecmp(uint64_t x)
 
 extern int gNumProc;
 
-void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_index);
+void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index);
 void free_proc(struct proc *p);
 void remove_kernel_state(int active_proc);
 

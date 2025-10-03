@@ -1,5 +1,7 @@
 #include "as.h"
 
+void closefiles(void);
+
 static const char strtab_bytes[] =
   "\0" "__global_pointer$" "\0";   // オフセット0は空、次が __global_pointer$
   
@@ -221,8 +223,10 @@ void logger(enum loglvl_t level, enum error_t id, const char *format, ...)
 
     fputc('\n', out);
 
-    if (level >= exitloglevel)
+    if (level >= exitloglevel) {
+        closefiles();
         exit(1);
+    }
 }
 
 int get_clean_exit(enum loglvl_t level)
@@ -1286,6 +1290,7 @@ char *trim_whitespace(const char *str)
 static void die(const char *function)
 {
     logger(CRITICAL, error_system, "Call to %s failed", function);
+    closefiles();
     exit(1);
 }
 
@@ -1314,32 +1319,19 @@ void *xrealloc(void *ptr, size_t size)
 }
 
 
-static struct instruction *instructions = NULL;
+#define MAX_INSTRUCTIONS 2048
+#define MAX_DATAITEMS 512
+
+static struct instruction instructions[MAX_INSTRUCTIONS];
 static size_t instructions_size = 0;
-static struct rawdata *dataitems = NULL;
+static struct rawdata dataitems[MAX_DATAITEMS];
 static size_t dataitems_size = 0;
 
-/*
-int add_instruction(struct instruction instruction)
-{
-    const size_t sz = instructions_size + 1;
-    instructions = xrealloc(instructions, sz * sizeof(*instructions));
-    instructions[instructions_size] = instruction;
-    instructions_size = sz;
-
-    return 0;
-}
-*/
-
-static struct instruction *instructions;
-static size_t instructions_size, instructions_cap;
-
 int add_instruction(struct instruction ins) {
-    if (instructions_size == instructions_cap) {
-        size_t newcap = instructions_cap ? instructions_cap*2 : 256;
-        void* p = xrealloc(instructions, newcap * sizeof(*instructions));
-        instructions = p;
-        instructions_cap = newcap;
+    if (instructions_size >= MAX_INSTRUCTIONS) {
+        logger(ERROR, error_internal, 0,
+               "Too many instructions (max %d)", MAX_INSTRUCTIONS);
+        return 1;
     }
     instructions[instructions_size++] = ins;
     return 0;
@@ -1347,20 +1339,12 @@ int add_instruction(struct instruction ins) {
 
 int add_data(struct rawdata dataitem)
 {
-    const size_t sz = dataitems_size + 1;
-    struct rawdata *newdataarr =
-        xrealloc(dataitems, sz * sizeof(*dataitems));
-
-    if (newdataarr == NULL) {
+    if (dataitems_size >= MAX_DATAITEMS) {
         logger(ERROR, error_internal, 0,
-               "Unable to allocate memory for label instruction");
+               "Too many data items (max %d)", MAX_DATAITEMS);
         return 1;
     }
-
-    dataitems = newdataarr;
-    dataitems[dataitems_size] = dataitem;
-    dataitems_size = sz;
-
+    dataitems[dataitems_size++] = dataitem;
     return 0;
 }
 
@@ -1488,15 +1472,13 @@ int write_data(struct rawdata data)
 
 void free_instructions(void)
 {
-    free(instructions);
-    instructions = NULL;
+    // instructions is now static array, just reset size
     instructions_size = 0;
 }
 
 void free_data(void)
 {
-    free(dataitems);
-    dataitems = NULL;
+    // dataitems is now static array, just reset size
     dataitems_size = 0;
 }
 
@@ -2954,13 +2936,38 @@ void closefiles(void)
         fclose(outputfile);
 }
 
+FILE* as_tmpfile(void) {
+    int fd = open("AS_TMP", O_CREAT|O_RDWR, 0600);
+    FILE* fp = (FILE*)malloc(sizeof(FILE));
+    if (!fp) {
+      close(fd);
+      return 0;
+    }
+    fp->fd = fd;
+    fp->flags = 1 | 2;
+    fp->pos = 0;
+    fp->eof = 0;
+    fp->err = 0;
+    fp->have_push = 0;
+    fp->push_ch = 0;
+    fp->is_mem = 0;
+    fp->ms_bufp = 0;
+    fp->ms_sizep = 0;
+    fp->ms_buf = 0;
+    fp->ms_cap = 0;
+    fp->ms_len = 0;
+    
+    return fp;
+}
+
 void open_files(void)
 {
     logger(DEBUG, no_error, "Opening files");
 
-    outputtempfile = tmpfile();
+    outputtempfile = as_tmpfile();
     if (!outputtempfile) {
         logger(ERROR, error_system, "Unable to create temporary file");
+        closefiles();
         exit(1);
     }
 
@@ -2968,6 +2975,7 @@ void open_files(void)
     if (fopen2(&inputfile, *cmdargs.inputfile->filename, "r")) {
         puts("Error: ");
         logger(ERROR, error_system, "Unable to open input file");
+        closefiles();
         exit(1);
     }
 
@@ -2981,6 +2989,7 @@ void open_files(void)
     if (fopen2(&outputfile, *cmdargs.outputfile->filename, "wb")) {
         puts("Error: ");
         logger(ERROR, error_system, "Unable to open output file");
+        closefiles();
         exit(1);
     }
 
@@ -3041,6 +3050,8 @@ int main(int argc, char *argv[])
     closefiles();
 
     int n = get_clean_exit(CRITICAL);
+    
+    unlink("AS_TMP");
     
     return n;
 }

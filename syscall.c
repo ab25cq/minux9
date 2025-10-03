@@ -673,7 +673,7 @@ int Sys_fork()
     
     int fork_flag;
     int child_proc_index = -1;
-    alloc_prog((char*)p->program, fork_flag=1, 0, &child_proc_index);
+    alloc_prog((char*)p->program, p->program_size, fork_flag=1, 0, &child_proc_index);
     struct proc* child_proc = gProc[child_proc_index];
     
     uint64_t sp = child_proc->context.sp;
@@ -768,7 +768,7 @@ int Sys_execv()
 
     // alloc_prog with exec_flag=1 replaces the current process's page table etc.
     int child_proc_index = 0;
-    alloc_prog(elf_buf, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index);
+    alloc_prog(elf_buf, size +32, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index);
     
     // elf_buf is no longer needed after alloc_prog; free it now.
     free(elf_buf);
@@ -913,7 +913,7 @@ int Sys_execve()
     if (has_stat && (stx.mode & S_ISGID)) new_gid = stx.gid;
 
     int child_proc_index = 0;
-    alloc_prog(elf_buf, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index);
+    alloc_prog(elf_buf, size + 32, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index);
     free(elf_buf);
 
     struct proc* new_p = gProc[gActiveProc];

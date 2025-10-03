@@ -120,6 +120,7 @@ void dump_inode(uint32_t inum);
 
 // virtio ブロックデバイスを初期化
 void virtio_blk_init(void);
+void bcache_init(void);
 
 typedef int32_t ssize_t;
 int fs_fstat_fd(int fd, struct stat* st);

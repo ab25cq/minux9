@@ -18,8 +18,10 @@ SECTIONS
   .rodata : { *(.rodata*) } :text
   .data : { *(.data .data.*); } :data
   . = ALIGN(16);
+  PROVIDE(_bss_start = .);
   .bss : { *(.bss) *(.bss.*) *(.sbss) *(.sbss.*) } :data
   .sdata : { *(.sdata*) } :data
+  PROVIDE(_bss_end = .);
   PROVIDE(_code_end = .);
   . += STACK_MAX;
   PROVIDE(stack_top = .);
@@ -34,18 +36,19 @@ SECTIONS
   
   PROVIDE(TRAMPOLINE = .);
   .trampoline : { *(.trampoline) }
+  . = . + 4096;
   . = ALIGN(4096);
-  . = 0x80700000;
+/*  . = 0x80700000; */
   PROVIDE(COMMON = .);
   .common : { *(.common) }
-  . = . + STACK_MAX * 2;
+  . = . + 4096 * STACK_PAGES * 10;
   . = ALIGN(4096);
 
   /* End of uninitalized data segement */
   PROVIDE(_end = .);
   . += STACK_MAX;
   PROVIDE(_end2 = .);
-  . = . + 4096 * 8;
+  . = . + 4096 * 512; 
   PROVIDE(_end3 = .);
   
   .debug_info        0 : { *(.debug_info) } 

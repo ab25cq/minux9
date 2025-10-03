@@ -131,6 +131,7 @@ struct cpu* mycpu() {
 
 void* walkaddr(pagetable_t pagetable, uint64_t va);
 void free_pagetable(pagetable_t pagetable, int level);
+void kfree_pagesX(void *pa, int npages);
 
 /// プロセスのユーザー空間を完全に解放
 void free_proc(struct proc *p) {
@@ -143,6 +144,13 @@ void free_proc(struct proc *p) {
     for (int i=0; i<p->num_process_kalloc_address; i++) {
         kfree(p->process_kalloc_address[i]);
     }
+    
+    //free(p->program);
+    
+    /*
+    int npages = (p->program_size * sizeof(char*) + PGSIZE - 1) / PGSIZE;
+    kfree_pagesX(p->program, npages);
+    */
     
     free_pagetable(p->pagetable, 2);
     kfree(p->pagetable);
@@ -388,6 +396,109 @@ void * kalloc(void) {
     }
     
     return (void*)r;
+}
+
+void * kalloc_pagesX(int npages) {
+    if(npages <= 0) return NULL;
+
+    acquire(&kmem.lock);
+
+    // Search for contiguous pages in freelist
+    struct run *prev = NULL;
+    struct run *curr = kmem.freelist;
+
+    while(curr) {
+        // Check if we have npages contiguous from curr
+        uint64_t base = (uint64_t)curr;
+        int found = 1;
+        struct run *check = curr;
+
+        for(int i = 0; i < npages; i++) {
+            uint64_t expected_addr = base + i * PGSIZE;
+
+            if((uint64_t)check != expected_addr) {
+                found = 0;
+                break;
+            }
+
+            if(i < npages - 1) {
+                check = check->next;
+                if(!check) {
+                    found = 0;
+                    break;
+                }
+            }
+        }
+
+        if(found) {
+            // Remove npages from freelist
+            struct run *last = curr;
+            for(int i = 1; i < npages; i++) {
+                last = last->next;
+            }
+
+            if(prev) {
+                prev->next = last->next;
+            } else {
+                kmem.freelist = last->next;
+            }
+
+            release(&kmem.lock);
+
+            // Clear all pages
+            for(int i = 0; i < npages; i++) {
+                memset((char*)(base + i * PGSIZE), 0, PGSIZE);
+            }
+
+            return (void*)base;
+        }
+
+        prev = curr;
+        curr = curr->next;
+    }
+
+    release(&kmem.lock);
+    return NULL;
+}
+
+void kfree_pagesX(void *pa, int npages) {
+    if(npages <= 0 || pa == NULL) return;
+
+    uint64_t base = (uint64_t)pa;
+
+    // Check alignment and bounds for all pages
+    for(int i = 0; i < npages; i++) {
+        uint64_t page_addr = base + i * PGSIZE;
+        if((page_addr % PGSIZE) != 0 || page_addr < (uint64_t)_end3 || page_addr >= PHYSTOP) {
+            puts("kfree_pagesX panic");
+            while(1);
+        }
+    }
+
+    // Free each page individually in reverse order
+    // This helps maintain locality in the freelist
+    for(int i = npages - 1; i >= 0; i--) {
+        void *page = (void*)(base + i * PGSIZE);
+
+        struct run *r = (struct run*)kmem.freelist;
+        int already_free = 0;
+
+        while(r) {
+            if(r == page) {
+                already_free = 1;
+                break;
+            }
+            r = r->next;
+        }
+
+        if(!already_free) {
+            r = (struct run*)page;
+            acquire(&kmem.lock);
+            r->next = kmem.freelist;
+            kmem.freelist = r;
+            release(&kmem.lock);
+        }
+    }
 }
 
 pte_t * walk(pagetable_t pagetable, uint64_t va, int alloc) {
@@ -825,10 +936,19 @@ static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* ou
 
 
 
-void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_index) {
+void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index) {
     struct proc* result = kalloc();
     
-    result->program = elf_buf;
+    /*
+    int npages = (elf_buf_size * sizeof(char*) + PGSIZE - 1) / PGSIZE;
+    result->program = kalloc_pagesX(npages);
+    memcpy(result->program, elf_buf, elf_buf_size);
+    result->program_size = elf_buf_size;
+    */
+    result->program = elf_buf; //calloc(1, elf_buf_size);
+    result->program_size = elf_buf_size;
+    //memcpy(result->program, elf_buf, elf_buf_size);
+    
     // initialize default cwd to root
     result->cwd[0] = '/';
     result->cwd[1] = '\0';
@@ -1000,13 +1120,13 @@ void alloc_prog(char* elf_buf, int fork_flag, int exec_flag, int* child_proc_ind
         }
     }
     if(find_gp_from_file(elf_buf, eh, &gp) < 0) {
-        puts("Warning __global_pointer$ not found(1)\n");
+        //puts("Warning __global_pointer$ not found(1)\n");
     }
     
     if(gp == 0) {
         // Fallback or error if gp not found, but for now we just warn.
         // For non-PIC code this might be okay. For PIC/GP-relative, it will fail.
-        puts("Warning: __global_pointer$ not found(2)\n");
+        //puts("Warning: __global_pointer$ not found(2)\n");
     }
 
 
@@ -1733,7 +1853,7 @@ int main()
 
     int fork_flag;
     int child_proc_index = 0;
-    alloc_prog((char*)sh_elf, fork_flag=0, 0, &child_proc_index);
+    alloc_prog((char*)sh_elf, sizeof(sh_elf), fork_flag=0, 0, &child_proc_index);
 
     /// カーネルページからユーザープロセスをアクセス可能にする
     asm volatile("csrs sstatus, %0" : : "r"(SSTATUS_SUM));

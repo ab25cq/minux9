@@ -190,6 +190,9 @@ static inline void set_flags(uint16_t f0,uint16_t f1,uint16_t f2){
 
 static struct virtio_blk_req req;
 
+// Forward declarations
+static void virtio_blk_write(uint64_t sector, const void *src);
+
 static void virtio_blk_read(uint64_t sector, void *dst)
 {
     req.type = VBLK_T_IN;
@@ -215,9 +218,131 @@ static void virtio_blk_read(uint64_t sector, void *dst)
     memcpy(dst, dma_buf, SECTOR_SIZE);
 }
 
+// ───────────────────────────────────────────────────────────────────────
+// ブロックキャッシュ
+// ────────────────────────────────────────────────────────────────────────
+
+#define BCACHE_SIZE 32  // キャッシュエントリ数
+
+struct bcache_entry {
+    uint32_t blkno;     // ブロック番号 (0 = 未使用)
+    uint8_t data[BSIZE]; // キャッシュされたデータ
+    uint32_t refcnt;    // 参照カウント
+    uint32_t dirty;     // ダーティフラグ (書き込み必要)
+    uint32_t last_use;  // LRU用タイムスタンプ
+};
+
+static struct bcache_entry bcache[BCACHE_SIZE];
+static uint32_t bcache_time = 0;
+static uint32_t bcache_hits = 0;
+static uint32_t bcache_misses = 0;
+
+void bcache_init(void)
+{
+    for (int i = 0; i < BCACHE_SIZE; i++) {
+        bcache[i].blkno = 0;
+        bcache[i].refcnt = 0;
+        bcache[i].dirty = 0;
+        bcache[i].last_use = 0;
+    }
+    bcache_hits = 0;
+    bcache_misses = 0;
+}
+
+void bcache_stats(void)
+{
+    printf("Block cache stats: hits=%u misses=%u hit_rate=%u%%\n",
+           bcache_hits, bcache_misses,
+           (bcache_hits + bcache_misses) > 0 ? (bcache_hits * 100 / (bcache_hits + bcache_misses)) : 0);
+}
+
+// LRU置換で空きエントリを見つける
+static int bcache_evict(void)
+{
+    int victim = -1;
+    uint32_t oldest = 0xFFFFFFFF;
+
+    // refcnt == 0 のエントリから最も古いものを選ぶ
+    for (int i = 0; i < BCACHE_SIZE; i++) {
+        if (bcache[i].refcnt == 0 && bcache[i].last_use < oldest) {
+            oldest = bcache[i].last_use;
+            victim = i;
+        }
+    }
+
+    if (victim >= 0) {
+        // ダーティなら書き戻す
+        if (bcache[victim].dirty && bcache[victim].blkno != 0) {
+            virtio_blk_write(bcache[victim].blkno, bcache[victim].data);
+        }
+        bcache[victim].blkno = 0;
+        bcache[victim].dirty = 0;
+    }
+
+    return victim;
+}
+
+// ブロックをキャッシュから取得（なければディスクから読む）
+static struct bcache_entry* bcache_get(uint32_t blkno)
+{
+    bcache_time++;
+
+    // まずキャッシュ内を探す
+    for (int i = 0; i < BCACHE_SIZE; i++) {
+        if (bcache[i].blkno == blkno) {
+            bcache[i].refcnt++;
+            bcache[i].last_use = bcache_time;
+            bcache_hits++;
+            return &bcache[i];
+        }
+    }
+
+    // キャッシュミス: 空きエントリを探す
+    bcache_misses++;
+    int slot = -1;
+    for (int i = 0; i < BCACHE_SIZE; i++) {
+        if (bcache[i].blkno == 0) {
+            slot = i;
+            break;
+        }
+    }
+
+    // 空きがなければLRUで追い出す
+    if (slot < 0) {
+        slot = bcache_evict();
+    }
+
+    if (slot < 0) {
+        // 全エントリが使用中の場合は最初のエントリを強制的に使う
+        slot = 0;
+        if (bcache[slot].dirty) {
+            virtio_blk_write(bcache[slot].blkno, bcache[slot].data);
+        }
+    }
+
+    // ディスクから読み込む
+    bcache[slot].blkno = blkno;
+    bcache[slot].dirty = 0;
+    bcache[slot].refcnt = 1;
+    bcache[slot].last_use = bcache_time;
+    virtio_blk_read(blkno, bcache[slot].data);
+
+    return &bcache[slot];
+}
+
+// キャッシュエントリの参照を解放
+static void bcache_release(struct bcache_entry *be)
+{
+    if (be->refcnt > 0) {
+        be->refcnt--;
+    }
+}
+
 void read_block(uint32_t blk, void *dst)
 {
-    virtio_blk_read(blk, dst);
+    struct bcache_entry *be = bcache_get(blk);
+    memcpy(dst, be->data, BSIZE);
+    bcache_release(be);
 }
 
 static void virtio_blk_write(uint64_t sector, const void *src)
@@ -247,7 +372,10 @@ static void virtio_blk_write(uint64_t sector, const void *src)
 
 void write_block(uint32_t blk, const void *src)
 {
-    virtio_blk_write(blk, src);
+    struct bcache_entry *be = bcache_get(blk);
+    memcpy(be->data, src, BSIZE);
+    be->dirty = 1;
+    bcache_release(be);
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -825,11 +953,12 @@ struct spipe* pipealloc(void)
 struct file* new_file_table()
 {
     struct file* result = (struct file*)alloc_file(); //1, sizeof(struct file));
+    if (!result) return NULL;  // Check for allocation failure
 //printf("kalloc file table %p\n", result);
     memset(result, 0, sizeof(struct file));
-    
+
     owner_add(result, gProc[gActiveProc]);
-    
+
     return result;
 }
 
@@ -1728,10 +1857,13 @@ int fs_open2(const char *path, int flags, int mode) {
             file_table[i]->write_pipe   = 0;
             file_table[i]->oflags = flags;
 
-            // O_TRUNC: if file, set size to 0
+            // O_TRUNC: release existing blocks and reset size
             if ((flags & O_TRUNC) && file_table[i]->din.type == T_FILE) {
-                file_table[i]->din.size = 0;
-                file_table[i]->din.mtime = fs_now();
+                free_inode_blocks(inum, &file_table[i]->din);
+                uint32_t now = fs_now();
+                file_table[i]->din.mtime = now;
+                file_table[i]->din.ctime = now;
+                file_table[i]->din.atime = now;
                 write_inode(inum, &file_table[i]->din);
                 file_table[i]->off = 0;
             }
@@ -2015,4 +2147,3 @@ long fs_lseek(int fd, long offset, int whence) {
     f->off = (uint32_t)newoff;   // ブロック確保はしない
     return (long)f->off;         // 新しいファイル位置を返す
 }
-

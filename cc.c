@@ -4090,7 +4090,7 @@ static FileType getFileType(char *Filename) {
 
 // rvcc的程序入口函数
 int main(int Argc, char **Argv) {
-  // 在程序退出时，执行cleanup函数
+  // Register cleanup so that temporary files are removed even on early exits.
 //  atexit(cleanup);
   // 初始化预定义的宏
   initMacros();
@@ -4150,6 +4150,7 @@ int main(int Argc, char **Argv) {
     continue;
   }
 
+  cleanup();
   return 0;
 }
 

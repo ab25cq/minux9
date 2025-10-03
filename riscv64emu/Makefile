@@ -14,18 +14,18 @@ ifeq ($(findstring clang,$(RV_CC_BASENAME)),clang)
   RV_TARGET_FLAGS := --target=riscv64
   # Ensure the first PT_LOAD segment starts at 0x80000000
   RV_LDFLAGS      := -nostartfiles -nostdlib -static -Wl,-Ttext-segment=0x80000000
-  RV_CFLAGS       := -march=rv64i_zicsr -mabi=lp64
+  RV_CFLAGS       := -march=rv64i_zicsr -mabi=lp64 -O2
 else
   RV_TARGET_FLAGS :=
   # Ensure the first PT_LOAD segment starts at 0x80000000
   RV_LDFLAGS      := -nostartfiles -nostdlib -static -Wl,-Ttext-segment=0x80000000 -Wl,--no-relax
-  RV_CFLAGS       := -march=rv64i_zicsr -mabi=lp64
+  RV_CFLAGS       := -march=rv64i_zicsr -mabi=lp64 -O2
 endif
 
 # Optional: limit steps when tracing (0 = unlimited)
 STEPS ?= 0
 
-.PHONY: all clean run
+.PHONY: all clean run run-smoke
 
 all: rv64emu x1_set.elf mmu_smoke.elf
 
@@ -49,8 +49,13 @@ mmu_smoke.elf: mmu_smoke.S
 	}
 	$(RV_CC) $(RV_TARGET_FLAGS) $(RV_CFLAGS) $(RV_LDFLAGS) $< -o $@
 
-# Run with trace so registers print each step
+# Run MINUX9 with MMU enabled
 run: all
+	./rv64emu -i ../kernel.elf --disk ../fs.img --mem 128 --mmu sv39
+#	./rv64emu -i ../kernel.elf --disk ../fs.img --mmu sv39 --mem 512
+
+# Run with trace so registers print each step
+run-smoke: all
 	./rv64emu -i mmu_smoke.elf --trace $(if $(filter-out 0,$(STEPS)),--steps $(STEPS),)
 
 clean:
