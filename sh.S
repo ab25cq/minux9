@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9-dev" "sh.c"
+	.file 0 "/Users/ab25cq/minux9" "sh.c"
 	.align	1
 	.type	s_strchr, @function
 s_strchr:
@@ -1104,7 +1104,7 @@ run_command:
 	.string	"echo 4"
 	.align	3
 .LC4:
-	.string	"echo cc b.c"
+	.string	"cc b.c"
 	.align	3
 .LC5:
 	.string	"as -o b b.s"
@@ -4292,6 +4292,6 @@ main:
 .LASF0:
 	.string	"sh.c"
 .LASF1:
-	.string	"/Users/ab25cq/minux9-dev"
+	.string	"/Users/ab25cq/minux9"
 	.ident	"GCC: (g04696df09) 14.2.0"
 	.section	.note.GNU-stack,"",@progbits

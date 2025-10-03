@@ -3023,6 +3023,26 @@ void copy_files(FILE *dest, FILE *src)
 void copy_files(FILE *dest, FILE *src)
 {
     const long pos = ftell(src);
+    fflush(src);
+    rewind(src);
+
+    char *buffer = xmalloc(BUFSIZ);
+    for (;;) {
+        size_t bytes = fread(buffer, 1, BUFSIZ, src);
+        if (bytes == 0) break;      // EOF/読取失敗なら終了
+        fwrite(buffer, 1, bytes, dest);
+        if (bytes != BUFSIZ) break; // EOF
+    }
+    free(buffer);
+    fseek(src, pos, SEEK_SET);
+    fflush(dest);
+}
+
+
+/*
+void copy_files(FILE *dest, FILE *src)
+{
+    const long pos = ftell(src);
     rewind(outputtempfile);
 
     char *buffer = xmalloc(BUFSIZ);
@@ -3036,6 +3056,7 @@ void copy_files(FILE *dest, FILE *src)
 
     fseek(src, pos, SEEK_SET);
 }
+*/
 
 
 int main(int argc, char *argv[])

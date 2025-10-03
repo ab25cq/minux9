@@ -178,7 +178,7 @@ int main(void) {
             strncpy(buf, "echo 4", BUF_SIZE);
         }
         else if(m % 6 == 0) {
-            strncpy(buf, "echo cc b.c", BUF_SIZE);
+            strncpy(buf, "cc b.c", BUF_SIZE);
         }
         else if(m % 5 == 0) {
             strncpy(buf, "as -o b b.s", BUF_SIZE);
