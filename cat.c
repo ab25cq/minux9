@@ -11,14 +11,26 @@ int main(int argc, char** argv) {
         }
     }
     else {
-        int fd = open(argv[1], 0, 0);
         char buf[32];
-        int size = read(fd, buf, 32);
-        close(fd);
-    
-        write(1, buf, size);
-    
+        for (int i = 1; i < argc; i++) {
+            int fd = open(argv[i], 0, 0);
+            if (fd < 0) {
+                printf("cat: cannot open %s\n", argv[i]);
+                continue;
+            }
+
+            int n;
+            while ((n = read(fd, buf, sizeof(buf))) > 0) {
+                write(1, buf, n);
+            }
+
+            if (n < 0) {
+                printf("cat: read error %s\n", argv[i]);
+            }
+
+            close(fd);
+        }
+
     }
     exit(0);
 }
-
