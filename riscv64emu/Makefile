@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 # Host compiler for the emulator
 CC      ?= cc
-CFLAGS  ?= -std=c11 -O2
+CFLAGS  ?= -std=c11 -O2 -DJIT_ENABLED=1 -DJIT_REG_ALLOC_ENABLED=1
 
 # RISC-V cross toolchain for building the sample ELF
 # Override as needed, e.g. `make RV_CC=clang run`

@@ -68,11 +68,28 @@ extern void jit_write_enable(void);
 extern void jit_write_disable(void);
 
 // JIT configuration
-#define JIT_ENABLED 1
+#define JIT_ENABLED 0  // Enable JIT by default now that callee-saved handling is fixed
 #define JIT_CODE_CACHE_SIZE (1 * 1024 * 1024)  // 1MB
 #define JIT_MAX_BLOCKS 1024
-#define JIT_BLOCK_MAX_INSNS 64  // Maximum instructions per block
-#define JIT_HOTNESS_THRESHOLD 5   // Execute N times before JIT compile (lowered for testing)
+#define JIT_BLOCK_MAX_INSNS 64  // Larger blocks amortise helper overhead better
+#define JIT_HOTNESS_THRESHOLD 20   // Compile after fewer interpreter passes
+#define JIT_BLOCK_CHAINING_ENABLED 0  // Temporarily disable direct block chaining for stability
+
+// Register allocation optimization
+// NOTE: Callee-saved handling fixed so register allocation can stay enabled
+#define JIT_REG_ALLOC_ENABLED 0  // Keep hot guest regs in host callee-saved regs
+
+// Register mapping: use callee-saved ARM64 registers x19-x25 for hot RISC-V regs
+// ARM64 x19 -> RISC-V a0 (x10)
+// ARM64 x20 -> RISC-V a1 (x11)
+// ARM64 x21 -> RISC-V a2 (x12)
+// ARM64 x22 -> RISC-V a3 (x13)
+// ARM64 x23 -> RISC-V a4 (x14)
+// ARM64 x24 -> RISC-V a5 (x15)
+// ARM64 x25 -> RISC-V a6 (x16)
+#define NUM_MAPPED_REGS 7
+#define FIRST_MAPPED_GUEST_REG 10  // a0 = x10
+#define FIRST_MAPPED_HOST_REG 19   // ARM64 x19 (callee-saved)
 
 // Forward declaration for self-reference
 typedef struct jit_block_t jit_block_t;
@@ -95,7 +112,7 @@ struct jit_block_t {
     jit_block_t *branch_target_block;     // Linked block for branch taken
     jit_block_t *branch_fallthrough_block; // Linked block for branch not taken
     jit_block_t *jump_target_block;        // Linked block for JAL
-    uint8_t *branch_patch_offset;   // Offset in code to patch branch
+    uint8_t *branch_taken_patch_offset;   // Offset in code to patch branch taken path
     uint8_t *fallthrough_patch_offset; // Offset in code to patch fallthrough
     uint8_t *jump_patch_offset;     // Offset in code to patch jump
 };

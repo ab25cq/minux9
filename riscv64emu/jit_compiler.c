@@ -93,6 +93,90 @@ static void emit_load_from_cpu_reg(uint8_t **code, int arm_dst, int guest_rs) {
     emit32(code, inst);
 }
 
+// Register allocation helpers
+#if JIT_REG_ALLOC_ENABLED
+
+// Check if a RISC-V register is mapped to an ARM64 register
+static inline bool is_reg_mapped(int guest_reg) {
+    return (guest_reg >= FIRST_MAPPED_GUEST_REG &&
+            guest_reg < FIRST_MAPPED_GUEST_REG + NUM_MAPPED_REGS);
+}
+
+// Get the ARM64 register for a mapped RISC-V register
+static inline int get_host_reg(int guest_reg) {
+    if (!is_reg_mapped(guest_reg)) return -1;
+    return FIRST_MAPPED_HOST_REG + (guest_reg - FIRST_MAPPED_GUEST_REG);
+}
+
+// Load mapped registers from memory at block start
+static void emit_load_mapped_regs(uint8_t **code) {
+    for (int i = 0; i < NUM_MAPPED_REGS; i++) {
+        int guest_reg = FIRST_MAPPED_GUEST_REG + i;
+        int host_reg = FIRST_MAPPED_HOST_REG + i;
+        emit_load_from_cpu_reg(code, host_reg, guest_reg);
+    }
+}
+
+// Store mapped registers to memory at block end
+static void emit_store_mapped_regs(uint8_t **code) {
+    for (int i = 0; i < NUM_MAPPED_REGS; i++) {
+        int guest_reg = FIRST_MAPPED_GUEST_REG + i;
+        int host_reg = FIRST_MAPPED_HOST_REG + i;
+        emit_store_to_cpu_reg(code, guest_reg, host_reg);
+    }
+}
+
+// Get ARM64 register for reading a RISC-V register
+// If mapped, return the mapped register; otherwise load to tmp_reg
+static int emit_get_guest_reg(uint8_t **code, int guest_reg, int tmp_reg) {
+    if (guest_reg == 0) {
+        // x0 is always zero
+        emit_load_imm64(code, tmp_reg, 0);
+        return tmp_reg;
+    }
+
+    if (is_reg_mapped(guest_reg)) {
+        return get_host_reg(guest_reg);
+    } else {
+        emit_load_from_cpu_reg(code, tmp_reg, guest_reg);
+        return tmp_reg;
+    }
+}
+
+// Store value to a RISC-V register
+// If mapped, move to mapped register; otherwise store to memory
+static void emit_set_guest_reg(uint8_t **code, int guest_reg, int arm_src) {
+    if (guest_reg == 0) return;  // x0 is always zero
+
+    if (is_reg_mapped(guest_reg)) {
+        int host_reg = get_host_reg(guest_reg);
+        if (arm_src != host_reg) {
+            emit_mov_reg(code, host_reg, arm_src);
+        }
+    } else {
+        emit_store_to_cpu_reg(code, guest_reg, arm_src);
+    }
+}
+
+#else
+// Fallback when register allocation is disabled
+static inline bool is_reg_mapped(int guest_reg) { return false; }
+static inline int get_host_reg(int guest_reg) { return -1; }
+static void emit_load_mapped_regs(uint8_t **code) {}
+static void emit_store_mapped_regs(uint8_t **code) {}
+static int emit_get_guest_reg(uint8_t **code, int guest_reg, int tmp_reg) {
+    if (guest_reg == 0) {
+        emit_load_imm64(code, tmp_reg, 0);
+    } else {
+        emit_load_from_cpu_reg(code, tmp_reg, guest_reg);
+    }
+    return tmp_reg;
+}
+static void emit_set_guest_reg(uint8_t **code, int guest_reg, int arm_src) {
+    emit_store_to_cpu_reg(code, guest_reg, arm_src);
+}
+#endif
+
 // Detect if instruction ends a basic block
 static bool is_block_terminator(uint32_t opcode) {
     // Branches, jumps, system calls
@@ -139,15 +223,15 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
     switch (d->opcode) {
         case 0x03: { // LOAD
             // Calculate address: rs1 + imm
-            emit_load_from_cpu_reg(code, tmp1, d->rs1);
+            int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
             int64_t offset = d->imm_i;
             if (offset >= 0 && offset < 4096) {
-                emit_add_imm(code, tmp1, tmp1, (uint32_t)offset);
+                emit_add_imm(code, tmp1, rs1_reg, (uint32_t)offset);
             } else if (offset < 0 && offset >= -4096) {
-                emit_sub_imm(code, tmp1, tmp1, (uint32_t)(-offset));
+                emit_sub_imm(code, tmp1, rs1_reg, (uint32_t)(-offset));
             } else {
                 emit_load_imm64(code, tmp2, (uint64_t)offset);
-                emit_add_reg(code, tmp1, tmp1, tmp2);
+                emit_add_reg(code, tmp1, rs1_reg, tmp2);
             }
 
             // Address is in tmp1
@@ -159,8 +243,8 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
             // x4 = ACCESS_LOAD (1)
 
             emit_mov_reg(code, 0, 28);  // x0 = cpu
-            emit_load_imm64(code, 1, (uint64_t)mem);  // x1 = mem
-            emit_load_imm64(code, 2, (uint64_t)dev);  // x2 = dev
+            emit_mov_reg(code, 1, 26);   // x1 = mem
+            emit_mov_reg(code, 2, 27);   // x2 = dev
             emit_mov_reg(code, 3, tmp1);  // x3 = vaddr
             emit_load_imm64(code, 4, 1);  // x4 = ACCESS_LOAD
 
@@ -210,69 +294,69 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
                     break;
             }
 
-            emit_store_to_cpu_reg(code, d->rd, tmp1);
+            emit_set_guest_reg(code, d->rd, tmp1);
             return true;
         }
 
         case 0x13: { // OP-IMM
             switch (d->funct3) {
                 case 0: { // ADDI
-                    emit_load_from_cpu_reg(code, tmp1, d->rs1);
+                    int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
 
                     int64_t imm = d->imm_i;
                     if (imm >= 0 && imm < 4096) {
-                        emit_add_imm(code, tmp1, tmp1, (uint32_t)imm);
+                        emit_add_imm(code, tmp1, rs1_reg, (uint32_t)imm);
                     } else if (imm < 0 && imm >= -4096) {
-                        emit_sub_imm(code, tmp1, tmp1, (uint32_t)(-imm));
+                        emit_sub_imm(code, tmp1, rs1_reg, (uint32_t)(-imm));
                     } else {
                         // Large immediate: load into register first
                         emit_load_imm64(code, tmp2, (uint64_t)imm);
-                        emit_add_reg(code, tmp1, tmp1, tmp2);
+                        emit_add_reg(code, tmp1, rs1_reg, tmp2);
                     }
 
-                    emit_store_to_cpu_reg(code, d->rd, tmp1);
+                    emit_set_guest_reg(code, d->rd, tmp1);
                     return true;
                 }
                 case 4: { // XORI
-                    emit_load_from_cpu_reg(code, tmp1, d->rs1);
+                    int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
                     emit_load_imm64(code, tmp2, (uint64_t)d->imm_i);
-                    emit_eor_reg(code, tmp1, tmp1, tmp2);
-                    emit_store_to_cpu_reg(code, d->rd, tmp1);
+                    emit_eor_reg(code, tmp1, rs1_reg, tmp2);
+                    emit_set_guest_reg(code, d->rd, tmp1);
                     return true;
                 }
                 case 6: { // ORI
-                    emit_load_from_cpu_reg(code, tmp1, d->rs1);
+                    int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
                     emit_load_imm64(code, tmp2, (uint64_t)d->imm_i);
-                    emit_orr_reg(code, tmp1, tmp1, tmp2);
-                    emit_store_to_cpu_reg(code, d->rd, tmp1);
+                    emit_orr_reg(code, tmp1, rs1_reg, tmp2);
+                    emit_set_guest_reg(code, d->rd, tmp1);
                     return true;
                 }
                 case 7: { // ANDI
-                    emit_load_from_cpu_reg(code, tmp1, d->rs1);
+                    int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
                     emit_load_imm64(code, tmp2, (uint64_t)d->imm_i);
-                    emit_and_reg(code, tmp1, tmp1, tmp2);
-                    emit_store_to_cpu_reg(code, d->rd, tmp1);
+                    emit_and_reg(code, tmp1, rs1_reg, tmp2);
+                    emit_set_guest_reg(code, d->rd, tmp1);
                     return true;
                 }
                 case 1: { // SLLI
                     uint32_t shamt = d->imm_i & 0x3f;
-                    emit_load_from_cpu_reg(code, tmp1, d->rs1);
+                    int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
                     emit_movz(code, tmp2, shamt, 0);
-                    emit_lsl_reg(code, tmp1, tmp1, tmp2);
-                    emit_store_to_cpu_reg(code, d->rd, tmp1);
+                    emit_lsl_reg(code, tmp1, rs1_reg, tmp2);
+                    emit_set_guest_reg(code, d->rd, tmp1);
                     return true;
                 }
                 case 5: { // SRLI/SRAI
                     uint32_t shamt = d->imm_i & 0x3f;
-                    emit_load_from_cpu_reg(code, tmp1, d->rs1);
+                    int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
                     emit_movz(code, tmp2, shamt, 0);
 
                     if ((d->imm_i & (1 << 10)) == 0) {
-                        emit_lsr_reg(code, tmp1, tmp1, tmp2);  // SRLI
+                        emit_lsr_reg(code, tmp1, rs1_reg, tmp2);  // SRLI
                     } else {
-                        emit_asr_reg(code, tmp1, tmp1, tmp2);  // SRAI
+                        emit_asr_reg(code, tmp1, rs1_reg, tmp2);  // SRAI
                     }
-                    emit_store_to_cpu_reg(code, d->rd, tmp1);
+                    emit_set_guest_reg(code, d->rd, tmp1);
                     return true;
                 }
                 default:
@@ -281,75 +365,75 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
         }
 
         case 0x33: { // OP (register-register)
-            emit_load_from_cpu_reg(code, tmp1, d->rs1);
-            emit_load_from_cpu_reg(code, tmp2, d->rs2);
+            int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
+            int rs2_reg = emit_get_guest_reg(code, d->rs2, tmp2);
 
             // Check for M extension (funct7 = 0x01)
             if (d->funct7 == 0x01) {
                 switch (d->funct3) {
                     case 0: // MUL
-                        emit_mul(code, tmp1, tmp1, tmp2);
+                        emit_mul(code, tmp1, rs1_reg, rs2_reg);
                         break;
                     case 1: // MULH (signed high)
-                        emit_smulh(code, tmp1, tmp1, tmp2);
+                        emit_smulh(code, tmp1, rs1_reg, rs2_reg);
                         break;
                     case 2: // MULHSU (signed * unsigned high)
                         // ARM64 doesn't have this directly, need to emulate
                         // For now, return false
                         return false;
                     case 3: // MULHU (unsigned high)
-                        emit_umulh(code, tmp1, tmp1, tmp2);
+                        emit_umulh(code, tmp1, rs1_reg, rs2_reg);
                         break;
                     case 4: // DIV (signed)
-                        emit_sdiv(code, tmp1, tmp1, tmp2);
+                        emit_sdiv(code, tmp1, rs1_reg, rs2_reg);
                         break;
                     case 5: // DIVU (unsigned)
-                        emit_udiv(code, tmp1, tmp1, tmp2);
+                        emit_udiv(code, tmp1, rs1_reg, rs2_reg);
                         break;
                     case 6: // REM (signed remainder)
                         // REM = dividend - divisor * quotient
                         // = rs1 - rs2 * (rs1/rs2)
-                        emit_sdiv(code, 11, tmp1, tmp2);  // x11 = quotient
-                        emit_msub(code, tmp1, 11, tmp2, tmp1);  // tmp1 = tmp1 - x11*tmp2
+                        emit_sdiv(code, 11, rs1_reg, rs2_reg);  // x11 = quotient
+                        emit_msub(code, tmp1, 11, rs2_reg, rs1_reg);  // tmp1 = rs1_reg - x11*rs2_reg
                         break;
                     case 7: // REMU (unsigned remainder)
-                        emit_udiv(code, 11, tmp1, tmp2);
-                        emit_msub(code, tmp1, 11, tmp2, tmp1);
+                        emit_udiv(code, 11, rs1_reg, rs2_reg);
+                        emit_msub(code, tmp1, 11, rs2_reg, rs1_reg);
                         break;
                     default:
                         return false;
                 }
-                emit_store_to_cpu_reg(code, d->rd, tmp1);
+                emit_set_guest_reg(code, d->rd, tmp1);
                 return true;
             }
 
             switch (d->funct3) {
                 case 0: // ADD/SUB
                     if (d->funct7 == 0x00) {
-                        emit_add_reg(code, tmp1, tmp1, tmp2);
+                        emit_add_reg(code, tmp1, rs1_reg, rs2_reg);
                     } else if (d->funct7 == 0x20) {
-                        emit_sub_reg(code, tmp1, tmp1, tmp2);
+                        emit_sub_reg(code, tmp1, rs1_reg, rs2_reg);
                     } else {
                         return false;
                     }
                     break;
                 case 4: // XOR
-                    emit_eor_reg(code, tmp1, tmp1, tmp2);
+                    emit_eor_reg(code, tmp1, rs1_reg, rs2_reg);
                     break;
                 case 6: // OR
-                    emit_orr_reg(code, tmp1, tmp1, tmp2);
+                    emit_orr_reg(code, tmp1, rs1_reg, rs2_reg);
                     break;
                 case 7: // AND
-                    emit_and_reg(code, tmp1, tmp1, tmp2);
+                    emit_and_reg(code, tmp1, rs1_reg, rs2_reg);
                     break;
                 case 1: // SLL
-                    emit_lsl_reg(code, tmp1, tmp1, tmp2);
+                    emit_lsl_reg(code, tmp1, rs1_reg, rs2_reg);
                     break;
                 case 5: // SRL/SRA
                     if (d->funct7 == 0x00) {
-                        emit_lsr_reg(code, tmp1, tmp1, tmp2);
+                        emit_lsr_reg(code, tmp1, rs1_reg, rs2_reg);
                     } else if (d->funct7 == 0x20) {
-                        emit_asr_reg(code, tmp1, tmp1, tmp2);
+                        emit_asr_reg(code, tmp1, rs1_reg, rs2_reg);
                     } else {
                         return false;
                     }
@@ -358,65 +442,65 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
                     return false;
             }
 
-            emit_store_to_cpu_reg(code, d->rd, tmp1);
+            emit_set_guest_reg(code, d->rd, tmp1);
             return true;
         }
 
         case 0x37: { // LUI
             emit_load_imm64(code, tmp1, (uint64_t)d->imm_u);
-            emit_store_to_cpu_reg(code, d->rd, tmp1);
+            emit_set_guest_reg(code, d->rd, tmp1);
             return true;
         }
 
         case 0x17: { // AUIPC
             uint64_t result = pc + (uint64_t)d->imm_u;
             emit_load_imm64(code, tmp1, result);
-            emit_store_to_cpu_reg(code, d->rd, tmp1);
+            emit_set_guest_reg(code, d->rd, tmp1);
             return true;
         }
 
         case 0x1B: { // OP-IMM-32 (32-bit immediate operations)
             switch (d->funct3) {
                 case 0: { // ADDIW
-                    emit_load_from_cpu_reg(code, tmp1, d->rs1);
+                    int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
 
                     int64_t imm = d->imm_i;
                     if (imm >= 0 && imm < 4096) {
-                        emit_add_imm_32(code, tmp1, tmp1, (uint32_t)imm);
+                        emit_add_imm_32(code, tmp1, rs1_reg, (uint32_t)imm);
                     } else if (imm < 0 && imm >= -4096) {
-                        emit_sub_imm_32(code, tmp1, tmp1, (uint32_t)(-imm));
+                        emit_sub_imm_32(code, tmp1, rs1_reg, (uint32_t)(-imm));
                     } else {
                         // Large immediate: load into register first
                         emit_load_imm64(code, tmp2, (uint64_t)imm);
-                        emit_add_reg_32(code, tmp1, tmp1, tmp2);
+                        emit_add_reg_32(code, tmp1, rs1_reg, tmp2);
                     }
 
                     // Sign extend to 64-bit
                     emit_sxtw(code, tmp1, tmp1);
-                    emit_store_to_cpu_reg(code, d->rd, tmp1);
+                    emit_set_guest_reg(code, d->rd, tmp1);
                     return true;
                 }
                 case 1: { // SLLIW
                     uint32_t shamt = d->imm_i & 0x1f;  // 5-bit shift amount for 32-bit
-                    emit_load_from_cpu_reg(code, tmp1, d->rs1);
+                    int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
                     emit_movz(code, tmp2, shamt, 0);
-                    emit_lsl_reg_32(code, tmp1, tmp1, tmp2);
+                    emit_lsl_reg_32(code, tmp1, rs1_reg, tmp2);
                     emit_sxtw(code, tmp1, tmp1);
-                    emit_store_to_cpu_reg(code, d->rd, tmp1);
+                    emit_set_guest_reg(code, d->rd, tmp1);
                     return true;
                 }
                 case 5: { // SRLIW/SRAIW
                     uint32_t shamt = d->imm_i & 0x1f;
-                    emit_load_from_cpu_reg(code, tmp1, d->rs1);
+                    int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
                     emit_movz(code, tmp2, shamt, 0);
 
                     if ((d->imm_i & (1 << 10)) == 0) {
-                        emit_lsr_reg_32(code, tmp1, tmp1, tmp2);  // SRLIW
+                        emit_lsr_reg_32(code, tmp1, rs1_reg, tmp2);  // SRLIW
                     } else {
-                        emit_asr_reg_32(code, tmp1, tmp1, tmp2);  // SRAIW
+                        emit_asr_reg_32(code, tmp1, rs1_reg, tmp2);  // SRAIW
                     }
                     emit_sxtw(code, tmp1, tmp1);
-                    emit_store_to_cpu_reg(code, d->rd, tmp1);
+                    emit_set_guest_reg(code, d->rd, tmp1);
                     return true;
                 }
                 default:
@@ -425,55 +509,55 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
         }
 
         case 0x3B: { // OP-32 (32-bit register-register operations)
-            emit_load_from_cpu_reg(code, tmp1, d->rs1);
-            emit_load_from_cpu_reg(code, tmp2, d->rs2);
+            int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
+            int rs2_reg = emit_get_guest_reg(code, d->rs2, tmp2);
 
             // Check for M extension (funct7 = 0x01)
             if (d->funct7 == 0x01) {
                 switch (d->funct3) {
                     case 0: // MULW
-                        emit_mul_32(code, tmp1, tmp1, tmp2);
+                        emit_mul_32(code, tmp1, rs1_reg, rs2_reg);
                         break;
                     case 4: // DIVW
-                        emit_sdiv_32(code, tmp1, tmp1, tmp2);
+                        emit_sdiv_32(code, tmp1, rs1_reg, rs2_reg);
                         break;
                     case 5: // DIVUW
-                        emit_udiv_32(code, tmp1, tmp1, tmp2);
+                        emit_udiv_32(code, tmp1, rs1_reg, rs2_reg);
                         break;
                     case 6: // REMW
-                        emit_sdiv_32(code, 11, tmp1, tmp2);
-                        emit_msub_32(code, tmp1, 11, tmp2, tmp1);
+                        emit_sdiv_32(code, 11, rs1_reg, rs2_reg);
+                        emit_msub_32(code, tmp1, 11, rs2_reg, rs1_reg);
                         break;
                     case 7: // REMUW
-                        emit_udiv_32(code, 11, tmp1, tmp2);
-                        emit_msub_32(code, tmp1, 11, tmp2, tmp1);
+                        emit_udiv_32(code, 11, rs1_reg, rs2_reg);
+                        emit_msub_32(code, tmp1, 11, rs2_reg, rs1_reg);
                         break;
                     default:
                         return false;
                 }
                 emit_sxtw(code, tmp1, tmp1);
-                emit_store_to_cpu_reg(code, d->rd, tmp1);
+                emit_set_guest_reg(code, d->rd, tmp1);
                 return true;
             }
 
             switch (d->funct3) {
                 case 0: // ADDW/SUBW
                     if (d->funct7 == 0x00) {
-                        emit_add_reg_32(code, tmp1, tmp1, tmp2);
+                        emit_add_reg_32(code, tmp1, rs1_reg, rs2_reg);
                     } else if (d->funct7 == 0x20) {
-                        emit_sub_reg_32(code, tmp1, tmp1, tmp2);
+                        emit_sub_reg_32(code, tmp1, rs1_reg, rs2_reg);
                     } else {
                         return false;
                     }
                     break;
                 case 1: // SLLW
-                    emit_lsl_reg_32(code, tmp1, tmp1, tmp2);
+                    emit_lsl_reg_32(code, tmp1, rs1_reg, rs2_reg);
                     break;
                 case 5: // SRLW/SRAW
                     if (d->funct7 == 0x00) {
-                        emit_lsr_reg_32(code, tmp1, tmp1, tmp2);
+                        emit_lsr_reg_32(code, tmp1, rs1_reg, rs2_reg);
                     } else if (d->funct7 == 0x20) {
-                        emit_asr_reg_32(code, tmp1, tmp1, tmp2);
+                        emit_asr_reg_32(code, tmp1, rs1_reg, rs2_reg);
                     } else {
                         return false;
                     }
@@ -484,25 +568,25 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
 
             // Sign extend to 64-bit
             emit_sxtw(code, tmp1, tmp1);
-            emit_store_to_cpu_reg(code, d->rd, tmp1);
+            emit_set_guest_reg(code, d->rd, tmp1);
             return true;
         }
 
         case 0x23: { // STORE
             // Calculate address: rs1 + imm
-            emit_load_from_cpu_reg(code, tmp1, d->rs1);
+            int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
             int64_t offset = d->imm_s;
             if (offset >= 0 && offset < 4096) {
-                emit_add_imm(code, tmp1, tmp1, (uint32_t)offset);
+                emit_add_imm(code, tmp1, rs1_reg, (uint32_t)offset);
             } else if (offset < 0 && offset >= -4096) {
-                emit_sub_imm(code, tmp1, tmp1, (uint32_t)(-offset));
+                emit_sub_imm(code, tmp1, rs1_reg, (uint32_t)(-offset));
             } else {
                 emit_load_imm64(code, tmp2, (uint64_t)offset);
-                emit_add_reg(code, tmp1, tmp1, tmp2);
+                emit_add_reg(code, tmp1, rs1_reg, tmp2);
             }
 
             // Load value from rs2
-            emit_load_from_cpu_reg(code, 11, d->rs2);  // x11 will be x5 (5th arg)
+            int rs2_reg = emit_get_guest_reg(code, d->rs2, 11);
 
             // Call vmem_writeXX(cpu, mem, dev, vaddr, val, ACCESS_STORE)
             // x0 = cpu
@@ -513,10 +597,10 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
             // x5 = ACCESS_STORE (2)
 
             emit_mov_reg(code, 0, 28);  // x0 = cpu
-            emit_load_imm64(code, 1, (uint64_t)mem);  // x1 = mem
-            emit_load_imm64(code, 2, (uint64_t)dev);  // x2 = dev
+            emit_mov_reg(code, 1, 26);   // x1 = mem
+            emit_mov_reg(code, 2, 27);   // x2 = dev
             emit_mov_reg(code, 3, tmp1);  // x3 = vaddr
-            emit_mov_reg(code, 4, 11);  // x4 = val
+            emit_mov_reg(code, 4, rs2_reg);  // x4 = val
             emit_load_imm64(code, 5, 2);  // x5 = ACCESS_STORE
 
             // Load function pointer and call
@@ -541,11 +625,11 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
             // We'll emit the comparison and conditional branch, then set pc for both paths
 
             // Load operands
-            emit_load_from_cpu_reg(code, tmp1, d->rs1);
-            emit_load_from_cpu_reg(code, tmp2, d->rs2);
+            int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
+            int rs2_reg = emit_get_guest_reg(code, d->rs2, tmp2);
 
             // Compare registers
-            emit_cmp_reg(code, tmp1, tmp2);
+            emit_cmp_reg(code, rs1_reg, rs2_reg);
 
             // Calculate branch target and fall-through addresses
             int64_t branch_offset = d->imm_b;
@@ -576,7 +660,7 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
             //   (falls through to epilogue)
 
             uint8_t *bcond_pos = *code;
-            emit_bcond(code, arm_cond, 0);  // Will patch offset later
+            emit_bcond(code, arm_cond, 0);  // Will patch offset locally
 
             // Fall-through path: set PC to fall_through
             emit_load_imm64(code, 9, fall_through);
@@ -592,18 +676,26 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
             emit_load_imm64(code, 9, branch_target);
             emit32(code, str_pc);
 
-            // Patch the conditional branch offset
+            // Insert a branch we can later retarget for chaining the taken path
+            uint8_t *taken_branch_pos = *code;
+            emit_b(code, 0);
+
+            // Patch the conditional branch offset to reach the local taken path
             int32_t bcond_offset = (int32_t)(taken_label - bcond_pos);
             *(uint32_t*)bcond_pos = 0x54000000 | (((bcond_offset / 4) & 0x7ffff) << 5) | arm_cond;
 
-            // Patch the unconditional branch to skip taken path (goes to same place - after taken path)
+            // Patch the unconditional branch to skip taken path (default: fallthrough to epilogue)
             int32_t b_offset = (int32_t)(*code - b_epilogue_pos);
             *(uint32_t*)b_epilogue_pos = 0x14000000 | ((b_offset / 4) & 0x3ffffff);
+
+            // Default taken-branch jumps to the same place (skip chaining) until patched
+            int32_t taken_skip = (int32_t)(*code - taken_branch_pos);
+            *(uint32_t*)taken_branch_pos = 0x14000000 | ((taken_skip / 4) & 0x3ffffff);
 
             // Save block chaining information
             block->branch_target = branch_target;
             block->branch_fallthrough = fall_through;
-            block->branch_patch_offset = bcond_pos;  // Conditional branch to patch
+            block->branch_taken_patch_offset = taken_branch_pos;  // Taken path branch to patch
             block->fallthrough_patch_offset = b_epilogue_pos;  // Unconditional branch to patch
 
             return true;
@@ -617,7 +709,7 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
 
             // Save return address to rd
             emit_load_imm64(code, tmp1, return_addr);
-            emit_store_to_cpu_reg(code, d->rd, tmp1);
+            emit_set_guest_reg(code, d->rd, tmp1);
 
             // Calculate jump target
             int64_t offset = d->imm_j;
@@ -648,18 +740,18 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
 
             // Save return address to rd first (before potentially overwriting rs1)
             emit_load_imm64(code, tmp1, return_addr);
-            emit_store_to_cpu_reg(code, d->rd, tmp1);
+            emit_set_guest_reg(code, d->rd, tmp1);
 
             // Calculate jump target: rs1 + imm
-            emit_load_from_cpu_reg(code, tmp1, d->rs1);
+            int rs1_reg = emit_get_guest_reg(code, d->rs1, tmp1);
             int64_t offset = d->imm_i;
             if (offset >= 0 && offset < 4096) {
-                emit_add_imm(code, tmp1, tmp1, (uint32_t)offset);
+                emit_add_imm(code, tmp1, rs1_reg, (uint32_t)offset);
             } else if (offset < 0 && offset >= -4096) {
-                emit_sub_imm(code, tmp1, tmp1, (uint32_t)(-offset));
+                emit_sub_imm(code, tmp1, rs1_reg, (uint32_t)(-offset));
             } else {
                 emit_load_imm64(code, tmp2, (uint64_t)offset);
-                emit_add_reg(code, tmp1, tmp1, tmp2);
+                emit_add_reg(code, tmp1, rs1_reg, tmp2);
             }
 
             // Clear lowest bit: AND tmp1, tmp1, #~1
@@ -692,7 +784,7 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
             // Step 1: Read old CSR value
             // Call jit_csr_read(cpu, dev, csr_addr) -> returns in x0
             emit_mov_reg(code, 0, 28);  // x0 = cpu (from x28)
-            emit_load_imm64(code, 1, (uint64_t)dev);  // x1 = dev pointer
+            emit_mov_reg(code, 1, 27);   // x1 = dev pointer
             emit_load_imm64(code, 2, csr_addr);  // x2 = csr_addr
             emit_load_imm64(code, tmp1, (uint64_t)jit_csr_read);
             emit_blr(code, tmp1);
@@ -704,7 +796,10 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
                 emit_load_imm64(code, src_reg, d->rs1);
             } else {
                 // Register form: read from cpu->x[rs1]
-                emit_load_from_cpu_reg(code, src_reg, d->rs1);
+                int rs1_reg = emit_get_guest_reg(code, d->rs1, src_reg);
+                if (rs1_reg != src_reg) {
+                    emit_mov_reg(code, src_reg, rs1_reg);
+                }
             }
 
             // Step 3: Calculate new value
@@ -734,7 +829,7 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
 
             // Step 5: Write old value to rd (CSR instructions return old value)
             if (d->rd != 0) {
-                emit_store_to_cpu_reg(code, d->rd, old_val_reg);
+                emit_set_guest_reg(code, d->rd, old_val_reg);
             }
 
             return true;
@@ -747,6 +842,11 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
 
 // Link blocks for direct branching (block chaining optimization)
 static void jit_link_blocks(jit_cache_t *cache, jit_block_t *block) {
+#if !JIT_BLOCK_CHAINING_ENABLED
+    (void)cache;
+    (void)block;
+    return;
+#else
     bool linked = false;
 
     // Try to find and link branch target
@@ -785,28 +885,22 @@ static void jit_link_blocks(jit_cache_t *cache, jit_block_t *block) {
 
         // Patch BRANCH instruction if at least one target is linked
         if (block->branch_target_block || block->branch_fallthrough_block) {
-            uint8_t *branch_code = block->branch_patch_offset;
             uint8_t *fallthrough_code = block->fallthrough_patch_offset;
 
             // Patch taken path if linked
-            if (block->branch_target_block) {
-                // Direct jump to taken path (skip target's prologue)
-                int64_t taken_offset = (uint8_t*)block->branch_target_block->host_code_chained - branch_code;
-                if (taken_offset >= -(1LL<<20) && taken_offset < (1LL<<20)) {
-                    // Within range for conditional branch
-                    // Keep the conditional branch, but make it jump directly to target block
-                    uint32_t cond = *(uint32_t*)branch_code & 0xF;  // Extract condition
-                    int32_t imm19 = (int32_t)(taken_offset / 4);
-                    *(uint32_t*)branch_code = 0x54000000 | ((imm19 & 0x7ffff) << 5) | cond;
-                    // fprintf(stderr, "JIT: Patched branch taken at 0x%016llx -> 0x%016llx\n",
-                    //         block->guest_pc, block->branch_target);
+            if (block->branch_target_block && block->branch_taken_patch_offset) {
+                void *target_code = block->branch_target_block->host_code_chained;
+                int64_t taken_offset = (uint8_t*)target_code - block->branch_taken_patch_offset;
+                if (taken_offset >= -(1LL<<27) && taken_offset < (1LL<<27)) {
+                    int32_t imm26 = (int32_t)(taken_offset / 4);
+                    *(uint32_t*)block->branch_taken_patch_offset = 0x14000000 | (imm26 & 0x3ffffff);
                 }
             }
 
             // Patch fallthrough path if linked
             if (block->branch_fallthrough_block) {
-                // Direct jump to fallthrough path (skip target's prologue)
-                int64_t fall_offset = (uint8_t*)block->branch_fallthrough_block->host_code_chained - fallthrough_code;
+                void *target_code = block->branch_fallthrough_block->host_code_chained;
+                int64_t fall_offset = (uint8_t*)target_code - fallthrough_code;
                 if (fall_offset >= -(1LL<<27) && fall_offset < (1LL<<27)) {
                     // Within range for unconditional branch
                     int32_t imm26 = (int32_t)(fall_offset / 4);
@@ -821,8 +915,8 @@ static void jit_link_blocks(jit_cache_t *cache, jit_block_t *block) {
         if (block->jump_target_block && block->jump_patch_offset) {
             uint8_t *jump_code = block->jump_patch_offset;
 
-            // Direct jump to target (skip target's prologue)
-            int64_t jump_offset = (uint8_t*)block->jump_target_block->host_code_chained - jump_code;
+            void *target_code = block->jump_target_block->host_code_chained;
+            int64_t jump_offset = (uint8_t*)target_code - jump_code;
             if (jump_offset >= -(1LL<<27) && jump_offset < (1LL<<27)) {
                 // Within range for unconditional branch
                 int32_t imm26 = (int32_t)(jump_offset / 4);
@@ -841,6 +935,7 @@ static void jit_link_blocks(jit_cache_t *cache, jit_block_t *block) {
         __builtin___clear_cache((char*)block->host_code, (char*)block->host_code + block->host_size);
         #endif
     }
+#endif
 }
 
 // Full JIT block compilation
@@ -879,23 +974,34 @@ jit_block_t* jit_compile_block(jit_cache_t *cache, struct cpu_t *cpu, struct mem
     block->branch_target_block = NULL;
     block->branch_fallthrough_block = NULL;
     block->jump_target_block = NULL;
-    block->branch_patch_offset = NULL;
+    block->branch_taken_patch_offset = NULL;
     block->fallthrough_patch_offset = NULL;
     block->jump_patch_offset = NULL;
 
     uint8_t *code = (uint8_t*)block->host_code;
     uint8_t *code_start = code;
 
-    // Prologue: Save x28 and x30 (link register)
-    // STP x28, x30, [sp, #-16]!  (push x28 and x30)
-    uint32_t stp_inst = 0xa9bf77fe; // STP x28, x30, [sp, #-16]!
-    emit32(&code, stp_inst);
+    // Prologue: save callee-saved registers that the JIT uses
+    #if JIT_REG_ALLOC_ENABLED
+    emit32(&code, 0xa9bf53f3); // STP x19, x20, [sp, #-16]!
+    emit32(&code, 0xa9bf5bf5); // STP x21, x22, [sp, #-16]!
+    emit32(&code, 0xa9bf63f7); // STP x23, x24, [sp, #-16]!
+    #endif
+    emit32(&code, 0xa9bf6bf9); // STP x25, x26, [sp, #-16]!
+    emit32(&code, 0xa9bf73fb); // STP x27, x28, [sp, #-16]!
+    emit32(&code, 0xa9bf7bfd); // STP x29, x30, [sp, #-16]!
 
     // MOV x28, x0  (first argument is cpu pointer)
     emit_mov_reg(&code, 28, 0);
 
-    // Save the position after prologue for block chaining
-    // Chained blocks jump here to skip the prologue
+    // Cache frequently used pointers in callee-saved registers
+    emit_load_imm64(&code, 26, (uint64_t)mem);  // x26 = mem pointer
+    emit_load_imm64(&code, 27, (uint64_t)dev);  // x27 = dev pointer
+
+    // Load mapped registers at block start
+    emit_load_mapped_regs(&code);
+
+    // Save the position after prologue for block chaining (skips reloads)
     block->host_code_chained = (void*)code;
 
     // Compile instructions until we hit a block terminator
@@ -910,8 +1016,9 @@ jit_block_t* jit_compile_block(jit_cache_t *cache, struct cpu_t *cpu, struct mem
             break;
         }
 
-        // Use jit_read_insn helper that handles physical memory access
-        uint32_t inst = jit_read_insn(mem, pc);
+        // Fetch instruction with MMU translation if enabled
+        // Use vmem_read32 for instruction fetch to support virtual addressing
+        uint32_t inst = vmem_read32(cpu, mem, dev, pc, ACCESS_FETCH);
 
         // Decode
         dec_t d = decode(inst);
@@ -962,10 +1069,18 @@ jit_block_t* jit_compile_block(jit_cache_t *cache, struct cpu_t *cpu, struct mem
         emit32(&code, str_pc_inst);
     }
 
-    // Epilogue: Restore x28 and x30, then return
-    // LDP x28, x30, [sp], #16  (pop x28 and x30)
-    uint32_t ldp_inst = 0xa8c177fe; // LDP x28, x30, [sp], #16
-    emit32(&code, ldp_inst);
+    // Store mapped registers at block end
+    emit_store_mapped_regs(&code);
+
+    // Epilogue: restore saved registers and return
+    emit32(&code, 0xa8c17bfd); // LDP x29, x30, [sp], #16
+    emit32(&code, 0xa8c173fb); // LDP x27, x28, [sp], #16
+    emit32(&code, 0xa8c16bf9); // LDP x25, x26, [sp], #16
+    #if JIT_REG_ALLOC_ENABLED
+    emit32(&code, 0xa8c163f7); // LDP x23, x24, [sp], #16
+    emit32(&code, 0xa8c15bf5); // LDP x21, x22, [sp], #16
+    emit32(&code, 0xa8c153f3); // LDP x19, x20, [sp], #16
+    #endif
 
     // RET
     emit_ret(&code);

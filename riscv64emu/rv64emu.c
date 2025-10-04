@@ -2107,17 +2107,17 @@ static void step(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) 
             rd_val = next_pc;
             do_write = true;
             next_pc = t;
-            // Track key function calls
-            if (t == 0x800097ce) {
+            // Track key function calls (updated addresses for current kernel.elf)
+            if (t == 0x8000a142) {
                 fprintf(stderr, ">>> Calling main() from PC=0x%016" PRIx64 "\n", pc);
-            } else if (t == 0x800096e2) {
-                fprintf(stderr, ">>> Calling timerinit() from PC=0x%016" PRIx64 "\n", pc);
-            } else if (t == 0x80006bdc) {
+            } else if (t == 0x800071b8) {
                 fprintf(stderr, ">>> Calling kinit() from PC=0x%016" PRIx64 "\n", pc);
-            } else if (t == 0x80007296) {
+            } else if (t == 0x80007b76) {
                 fprintf(stderr, ">>> Calling mmu_init() from PC=0x%016" PRIx64 "\n", pc);
-            } else if (t == 0x80006664) {
-                fprintf(stderr, ">>> Calling trap_init() from PC=0x%016" PRIx64 "\n", pc);
+                fprintf(stderr, ">>> CPU state: pc=0x%016" PRIx64 " sp=0x%016" PRIx64 " ra=0x%016" PRIx64 "\n",
+                        pc, cpu->x[2], cpu->x[1]);
+            } else if (t == 0x80007acc) {
+                fprintf(stderr, ">>> Calling uart_init() from PC=0x%016" PRIx64 "\n", pc);
             }
             break;
         }
@@ -2474,10 +2474,10 @@ static void step(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) 
                     return;
                 } else if (sys_imm12 == 0x302) { // MRET
                     static int mret_debug_count = 0;
-                    // if (mret_debug_count++ < 3) {
-                    //     fprintf(stderr, "MRET: mepc=0x%016" PRIx64 ", priv %d -> %d, mstatus=0x%016" PRIx64 "\n",
-                    //             cpu->csr_mepc, cpu->priv, (int)((cpu->csr_mstatus >> 11) & 3), cpu->csr_mstatus);
-                    // }
+                    if (mret_debug_count++ < 5) {
+                        fprintf(stderr, "MRET: mepc=0x%016" PRIx64 ", priv %d -> %d, mstatus=0x%016" PRIx64 "\n",
+                                cpu->csr_mepc, cpu->priv, (int)((cpu->csr_mstatus >> 11) & 3), cpu->csr_mstatus);
+                    }
                     if (cpu->csr_mepc == 0) {
                         fprintf(stderr, "MRET with mepc=0, halting\n");
                         cpu->halt = true;
@@ -2777,6 +2777,25 @@ static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
     setup_stdin();
 
     while (!cpu->halt) {
+        // Debug: Print PC periodically to detect infinite loops (disabled for performance)
+        /*
+        static uint64_t last_pc_log = 0;
+        static uint64_t same_pc_count = 0;
+        if (steps % 100000 == 0) {
+            if (cpu->pc == last_pc_log) {
+                same_pc_count++;
+                if (same_pc_count > 3) {
+                    fprintf(stderr, ">>> STUCK at PC=0x%016" PRIx64 " for %lu iterations\n",
+                            cpu->pc, same_pc_count * 100000);
+                }
+            } else {
+                same_pc_count = 0;
+            }
+            last_pc_log = cpu->pc;
+            fprintf(stderr, ">>> PC=0x%016" PRIx64 " steps=%lu\n", cpu->pc, steps);
+        }
+        */
+
         // Check for UART RX input every step for immediate responsiveness
         check_uart_rx(dev);
 
@@ -2789,15 +2808,22 @@ static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
         check_pending_interrupts(cpu, dev);
 
 #if JIT_ENABLED
-        // Try JIT execution for hot code (disabled during interrupts or MMU translation)
-        if (jit_cache && !cpu->pending_interrupt && cpu->csr_satp == 0) {
+        // Try JIT execution for hot code (disabled during interrupts)
+        // Note: JIT now supports MMU translation via vmem_* helper functions
+        if (jit_cache && !cpu->pending_interrupt) {
             // Check if we have a compiled block
             jit_block_t *block = jit_cache_lookup(jit_cache, cpu->pc);
 
             if (block) {
                 // Execute compiled block
+                static int exec_count = 0;
+                uint64_t old_pc = cpu->pc;
                 block->exec_count++;
                 jit_execute_block(block, cpu);
+                if (exec_count++ < 20) {
+                    fprintf(stderr, "JIT: Executed block at PC=0x%016" PRIx64 " -> 0x%016" PRIx64 "\n",
+                            old_pc, cpu->pc);
+                }
                 // PC was updated by JIT code, skip interpreter step
                 steps++;
                 continue;
@@ -2807,8 +2833,13 @@ static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
 
                 // Compile if hot enough
                 if (hotness_tracker_should_compile(hotness, cpu->pc)) {
+                    static int compile_count = 0;
                     jit_block_t *new_block = jit_compile_block(jit_cache, cpu, mem, dev, cpu->pc);
                     if (new_block) {
+                        if (compile_count++ < 10) {
+                            fprintf(stderr, "JIT: Compiled block at PC=0x%016" PRIx64 " (%d insns)\n",
+                                    new_block->guest_pc, new_block->num_insns);
+                        }
                         // Successfully compiled, execute it now
                         new_block->exec_count++;
                         jit_execute_block(new_block, cpu);
