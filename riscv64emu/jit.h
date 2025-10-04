@@ -57,6 +57,10 @@ extern void vmem_write32(cpu_t *cpu, mem_t *mem,
 extern void vmem_write64(cpu_t *cpu, mem_t *mem,
                          devices_t *dev, uint64_t vaddr, uint64_t val, access_t acc);
 
+// CSR access functions for JIT (from rv64emu.c)
+extern uint64_t jit_csr_read(cpu_t *cpu, devices_t *dev, uint32_t csr_addr);
+extern void jit_csr_write(cpu_t *cpu, uint32_t csr_addr, uint64_t val);
+
 // External functions from jit_cache.c
 extern uint32_t hash_pc(uint64_t pc);
 extern void emit32(uint8_t **code, uint32_t inst);

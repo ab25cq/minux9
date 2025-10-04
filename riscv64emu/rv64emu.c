@@ -1427,6 +1427,15 @@ uint32_t jit_read_insn(const mem_t *mem, uint64_t paddr) {
     return mem_read32(m, paddr);
 }
 
+// JIT helpers for CSR access
+uint64_t jit_csr_read(cpu_t *cpu, devices_t *dev, uint32_t csr_addr) {
+    return csr_read(cpu, csr_addr, dev);
+}
+
+void jit_csr_write(cpu_t *cpu, uint32_t csr_addr, uint64_t val) {
+    csr_write(cpu, csr_addr, val);
+}
+
 uint32_t vmem_read32(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vaddr, access_t acc) {
     if (is_device_addr(dev, vaddr)) {
         return device_read32(dev, vaddr);

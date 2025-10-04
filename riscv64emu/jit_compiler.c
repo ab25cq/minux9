@@ -96,10 +96,12 @@ static void emit_load_from_cpu_reg(uint8_t **code, int arm_dst, int guest_rs) {
 // Detect if instruction ends a basic block
 static bool is_block_terminator(uint32_t opcode) {
     // Branches, jumps, system calls
+    // Note: CSR instructions (0x73 with funct3 1-7) are NOT block terminators
+    // Only ECALL/EBREAK/SRET/MRET (funct3=0) are terminators
     return (opcode == 0x63 ||  // BRANCH
             opcode == 0x67 ||  // JALR
-            opcode == 0x6F ||  // JAL
-            opcode == 0x73);   // SYSTEM (ECALL, etc)
+            opcode == 0x6F);   // JAL
+            // 0x73 SYSTEM removed - handled by is_compilable check
 }
 
 // Check if instruction can be JIT compiled
@@ -117,6 +119,9 @@ static bool is_compilable(dec_t *d) {
         case 0x67: // JALR
         case 0x6F: // JAL
             return true;
+        case 0x73: // SYSTEM (CSR instructions)
+            // Only CSR instructions (funct3 1-7), not ECALL/EBREAK/SRET/MRET
+            return (d->funct3 >= 1 && d->funct3 <= 7);
         default:
             return false;
     }
@@ -669,6 +674,72 @@ static bool compile_instruction(uint8_t **code, dec_t *d, uint64_t pc,
             return true;
         }
 
+        case 0x73: { // SYSTEM - CSR instructions
+            // funct3: 1=CSRRW, 2=CSRRS, 3=CSRRC, 5=CSRRWI, 6=CSRRSI, 7=CSRRCI
+            uint32_t csr_funct = d->funct3;
+            if (csr_funct < 1 || csr_funct > 7) {
+                return false;  // ECALL, EBREAK, SRET, MRET not supported in JIT
+            }
+
+            uint32_t csr_addr = (d->raw >> 20) & 0xFFF;
+            bool is_imm = (csr_funct & 0x4) != 0;  // CSR*I instructions
+
+            // Use x11-x15 for CSR operation (tmp1=x9, tmp2=x10 are general purpose)
+            const int old_val_reg = 11;  // x11 = old CSR value
+            const int src_reg = 12;      // x12 = source value
+            const int new_val_reg = 13;  // x13 = new CSR value
+
+            // Step 1: Read old CSR value
+            // Call jit_csr_read(cpu, dev, csr_addr) -> returns in x0
+            emit_mov_reg(code, 0, 28);  // x0 = cpu (from x28)
+            emit_load_imm64(code, 1, (uint64_t)dev);  // x1 = dev pointer
+            emit_load_imm64(code, 2, csr_addr);  // x2 = csr_addr
+            emit_load_imm64(code, tmp1, (uint64_t)jit_csr_read);
+            emit_blr(code, tmp1);
+            emit_mov_reg(code, old_val_reg, 0);  // Save old value to x11
+
+            // Step 2: Get source value
+            if (is_imm) {
+                // Immediate form: zimm = rs1 field (5 bits)
+                emit_load_imm64(code, src_reg, d->rs1);
+            } else {
+                // Register form: read from cpu->x[rs1]
+                emit_load_from_cpu_reg(code, src_reg, d->rs1);
+            }
+
+            // Step 3: Calculate new value
+            switch (csr_funct & 0x3) {
+                case 1: // CSRRW - new = src (always write)
+                    emit_mov_reg(code, new_val_reg, src_reg);
+                    break;
+                case 2: // CSRRS - new = old | src (only if src != 0)
+                    // For immediate form with zimm=0, this is just a read (no write)
+                    // For now, always calculate new value
+                    emit_orr_reg(code, new_val_reg, old_val_reg, src_reg);
+                    break;
+                case 3: // CSRRC - new = old & ~src (only if src != 0)
+                    // MVN (NOT) on src_reg, result to tmp1
+                    emit32(code, 0xaa2003e0 | (src_reg << 16) | tmp1);  // MVN x9, x12
+                    emit_and_reg(code, new_val_reg, old_val_reg, tmp1);
+                    break;
+            }
+
+            // Step 4: Write new CSR value
+            // Call jit_csr_write(cpu, csr_addr, new_val)
+            emit_mov_reg(code, 0, 28);  // x0 = cpu
+            emit_load_imm64(code, 1, csr_addr);  // x1 = csr_addr
+            emit_mov_reg(code, 2, new_val_reg);  // x2 = new_val
+            emit_load_imm64(code, tmp1, (uint64_t)jit_csr_write);
+            emit_blr(code, tmp1);
+
+            // Step 5: Write old value to rd (CSR instructions return old value)
+            if (d->rd != 0) {
+                emit_store_to_cpu_reg(code, d->rd, old_val_reg);
+            }
+
+            return true;
+        }
+
         default:
             return false;
     }
@@ -683,11 +754,8 @@ static void jit_link_blocks(jit_cache_t *cache, jit_block_t *block) {
         block->branch_target_block = jit_cache_lookup(cache, block->branch_target);
         if (block->branch_target_block) {
             linked = true;
-            fprintf(stderr, "JIT: Linked branch target 0x%016llx -> block at 0x%016llx\n",
-                    block->branch_target, block->branch_target_block->guest_pc);
-        } else {
-            fprintf(stderr, "JIT: Failed to link branch target 0x%016llx from block 0x%016llx\n",
-                    block->branch_target, block->guest_pc);
+            // fprintf(stderr, "JIT: Linked branch target 0x%016llx -> block at 0x%016llx\n",
+            //         block->branch_target, block->branch_target_block->guest_pc);
         }
     }
 
@@ -696,11 +764,8 @@ static void jit_link_blocks(jit_cache_t *cache, jit_block_t *block) {
         block->branch_fallthrough_block = jit_cache_lookup(cache, block->branch_fallthrough);
         if (block->branch_fallthrough_block) {
             linked = true;
-            fprintf(stderr, "JIT: Linked fallthrough 0x%016llx -> block at 0x%016llx\n",
-                    block->branch_fallthrough, block->branch_fallthrough_block->guest_pc);
-        } else {
-            fprintf(stderr, "JIT: Failed to link fallthrough 0x%016llx from block 0x%016llx\n",
-                    block->branch_fallthrough, block->guest_pc);
+            // fprintf(stderr, "JIT: Linked fallthrough 0x%016llx -> block at 0x%016llx\n",
+            //         block->branch_fallthrough, block->branch_fallthrough_block->guest_pc);
         }
     }
 
@@ -709,11 +774,8 @@ static void jit_link_blocks(jit_cache_t *cache, jit_block_t *block) {
         block->jump_target_block = jit_cache_lookup(cache, block->jump_target);
         if (block->jump_target_block) {
             linked = true;
-            fprintf(stderr, "JIT: Linked jump target 0x%016llx -> block at 0x%016llx\n",
-                    block->jump_target, block->jump_target_block->guest_pc);
-        } else {
-            fprintf(stderr, "JIT: Failed to link jump target 0x%016llx from block 0x%016llx\n",
-                    block->jump_target, block->guest_pc);
+            // fprintf(stderr, "JIT: Linked jump target 0x%016llx -> block at 0x%016llx\n",
+            //         block->jump_target, block->jump_target_block->guest_pc);
         }
     }
 
@@ -736,8 +798,8 @@ static void jit_link_blocks(jit_cache_t *cache, jit_block_t *block) {
                     uint32_t cond = *(uint32_t*)branch_code & 0xF;  // Extract condition
                     int32_t imm19 = (int32_t)(taken_offset / 4);
                     *(uint32_t*)branch_code = 0x54000000 | ((imm19 & 0x7ffff) << 5) | cond;
-                    fprintf(stderr, "JIT: Patched branch taken at 0x%016llx -> 0x%016llx\n",
-                            block->guest_pc, block->branch_target);
+                    // fprintf(stderr, "JIT: Patched branch taken at 0x%016llx -> 0x%016llx\n",
+                    //         block->guest_pc, block->branch_target);
                 }
             }
 
@@ -749,8 +811,8 @@ static void jit_link_blocks(jit_cache_t *cache, jit_block_t *block) {
                     // Within range for unconditional branch
                     int32_t imm26 = (int32_t)(fall_offset / 4);
                     *(uint32_t*)fallthrough_code = 0x14000000 | (imm26 & 0x3ffffff);
-                    fprintf(stderr, "JIT: Patched branch fallthrough at 0x%016llx -> 0x%016llx\n",
-                            block->guest_pc, block->branch_fallthrough);
+                    // fprintf(stderr, "JIT: Patched branch fallthrough at 0x%016llx -> 0x%016llx\n",
+                    //         block->guest_pc, block->branch_fallthrough);
                 }
             }
         }
@@ -767,7 +829,7 @@ static void jit_link_blocks(jit_cache_t *cache, jit_block_t *block) {
                 *(uint32_t*)jump_code = 0x14000000 | (imm26 & 0x3ffffff);
             }
 
-            fprintf(stderr, "JIT: Patched JAL at 0x%016llx for direct chaining\n", block->guest_pc);
+            // fprintf(stderr, "JIT: Patched JAL at 0x%016llx for direct chaining\n", block->guest_pc);
         }
 
         jit_write_disable();
@@ -859,7 +921,7 @@ jit_block_t* jit_compile_block(jit_cache_t *cache, struct cpu_t *cpu, struct mem
             // Stop at first non-compilable instruction
             if (num_insns == 0) {
                 // Can't compile even the first instruction
-                // Silently return NULL - this is normal for branches, loads, stores, etc.
+                // Silently return NULL - this is normal for ECALL, EBREAK, etc.
                 return NULL;
             }
             break;
