@@ -133,8 +133,14 @@ typedef struct {
     uint64_t external_interrupt_count;
 } devices_t;
 
+// Mark that cpu_t, mem_t, devices_t are defined
+#define CPU_T_DEFINED
+
+// Include JIT header after struct definitions
+#include "jit.h"
+
 // MMU / address translation helpers (SV39)
-typedef enum { ACCESS_FETCH, ACCESS_LOAD, ACCESS_STORE } access_t;
+// access_t is now defined in jit.h
 
 // Global debug counters
 static int g_vtp_debug_count = 0;
@@ -1384,7 +1390,7 @@ static void take_trap(cpu_t *cpu, uint64_t cause, uint64_t tval) {
     }
 }
 
-static uint8_t vmem_read8(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vaddr, access_t acc) {
+uint8_t vmem_read8(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vaddr, access_t acc) {
     // Check if this is a device address first - device I/O bypasses MMU
     if (is_device_addr(dev, vaddr)) {
         return mem_read8_dev(mem, dev, vaddr);
@@ -1398,7 +1404,7 @@ static uint8_t vmem_read8(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t
     }
     return mem_read8_dev(mem, dev, pa);
 }
-static uint16_t vmem_read16(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vaddr, access_t acc) {
+uint16_t vmem_read16(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vaddr, access_t acc) {
     if (!is_device_addr(dev, vaddr) && !vaddr_crosses_page(vaddr, 2)) {
         uint64_t pa;
         if (!virt_to_phys(cpu, mem, vaddr, acc, &pa)) {
@@ -1414,7 +1420,14 @@ static uint16_t vmem_read16(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64
     v |= (uint16_t)vmem_read8(cpu, mem, dev, vaddr+1, acc) << 8;
     return v;
 }
-static uint32_t vmem_read32(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vaddr, access_t acc) {
+// Made public for JIT compiler
+// JIT helper: Read instruction directly from physical memory (no MMU/device handling)
+uint32_t jit_read_insn(const mem_t *mem, uint64_t paddr) {
+    const mem_t *m = (const mem_t*)mem;
+    return mem_read32(m, paddr);
+}
+
+uint32_t vmem_read32(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vaddr, access_t acc) {
     if (is_device_addr(dev, vaddr)) {
         return device_read32(dev, vaddr);
     }
@@ -1436,7 +1449,7 @@ static uint32_t vmem_read32(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64
     v |= (uint32_t)vmem_read8(cpu, mem, dev, vaddr+3, acc) << 24;
     return v;
 }
-static uint64_t vmem_read64(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vaddr, access_t acc) {
+uint64_t vmem_read64(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vaddr, access_t acc) {
     if (is_device_addr(dev, vaddr)) {
         uint64_t v = 0;
         for (int i = 0; i < 8; i++) v |= (uint64_t)mem_read8_dev(mem, dev, vaddr+i) << (8*i);
@@ -1457,7 +1470,7 @@ static uint64_t vmem_read64(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64
     for (int i = 0; i < 8; i++) v |= (uint64_t)vmem_read8(cpu, mem, dev, vaddr+i, acc) << (8*i);
     return v;
 }
-static void vmem_write8(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint8_t val, access_t acc) {
+void vmem_write8(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint8_t val, access_t acc) {
     // Check if this is a device address first - device I/O bypasses MMU
     if (is_device_addr(dev, vaddr)) {
         mem_write8_dev(mem, dev, vaddr, val);
@@ -1472,7 +1485,7 @@ static void vmem_write8(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, 
     }
     mem_write8_dev(mem, dev, pa, val);
 }
-static void vmem_write16(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint16_t val, access_t acc) {
+void vmem_write16(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint16_t val, access_t acc) {
     if (!is_device_addr(dev, vaddr) && !vaddr_crosses_page(vaddr, 2)) {
         uint64_t pa;
         if (!virt_to_phys(cpu, mem, vaddr, acc, &pa)) {
@@ -1487,7 +1500,7 @@ static void vmem_write16(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr,
     vmem_write8(cpu, mem, dev, vaddr, (uint8_t)(val & 0xff), acc);
     vmem_write8(cpu, mem, dev, vaddr+1, (uint8_t)((val >> 8) & 0xff), acc);
 }
-static void vmem_write32(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint32_t val, access_t acc) {
+void vmem_write32(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint32_t val, access_t acc) {
     // Check if this is a device address first - device I/O bypasses MMU
     if (is_device_addr(dev, vaddr)) {
         device_write32_dev(mem, dev, vaddr, val);
@@ -1509,7 +1522,7 @@ static void vmem_write32(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr,
         vmem_write8(cpu, mem, dev, vaddr + i, (uint8_t)((val >> (8*i)) & 0xff), acc);
     }
 }
-static void vmem_write64(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint64_t val, access_t acc) {
+void vmem_write64(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint64_t val, access_t acc) {
     // Check if this is a device address first - device I/O bypasses MMU
     if (is_device_addr(dev, vaddr)) {
         for (int i = 0; i < 8; i++) mem_write8_dev(mem, dev, vaddr+i, (uint8_t)((val >> (8*i)) & 0xff));
@@ -1615,18 +1628,15 @@ static bool load_raw(mem_t *mem, const char *path, uint64_t addr) {
 
 // Decode helpers
 // 日本語: 命令デコードのためのフィールド抽出と即値生成（I/S/B/U/J）。
-typedef struct {
-    uint32_t raw;
-    uint32_t opcode, rd, rs1, rs2, funct3, funct7;
-    int64_t imm_i, imm_s, imm_b, imm_u, imm_j;
-} dec_t;
+// dec_t is now defined in jit.h
 
 static inline int64_t sext32i(int32_t v, int bits) {
     int32_t m = 1 << (bits - 1);
     return (int64_t)((v ^ m) - m);
 }
 
-static dec_t decode(uint32_t inst) {
+// Make decode function accessible to JIT compiler
+dec_t decode(uint32_t inst) {
     dec_t d = {0};
     d.raw = inst;
     d.opcode = inst & 0x7f;
@@ -2745,6 +2755,15 @@ static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
     uint64_t steps = 0;
     uint64_t last_pc_report = 0;
 
+    // Initialize JIT (if enabled)
+    jit_cache_t *jit_cache = NULL;
+    hotness_tracker_t *hotness = NULL;
+#if JIT_ENABLED
+    jit_cache = jit_cache_create();
+    hotness = hotness_tracker_create();
+    fprintf(stderr, "JIT: Enabled (hotness threshold=%d)\n", JIT_HOTNESS_THRESHOLD);
+#endif
+
     // Setup non-blocking stdin for UART input
     setup_stdin();
 
@@ -2759,6 +2778,39 @@ static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
 
         // Check for pending interrupts before executing instruction
         check_pending_interrupts(cpu, dev);
+
+#if JIT_ENABLED
+        // Try JIT execution for hot code (disabled during interrupts or MMU translation)
+        if (jit_cache && !cpu->pending_interrupt && cpu->csr_satp == 0) {
+            // Check if we have a compiled block
+            jit_block_t *block = jit_cache_lookup(jit_cache, cpu->pc);
+
+            if (block) {
+                // Execute compiled block
+                block->exec_count++;
+                jit_execute_block(block, cpu);
+                // PC was updated by JIT code, skip interpreter step
+                steps++;
+                continue;
+            } else {
+                // Track hotness
+                hotness_tracker_record(hotness, cpu->pc);
+
+                // Compile if hot enough
+                if (hotness_tracker_should_compile(hotness, cpu->pc)) {
+                    jit_block_t *new_block = jit_compile_block(jit_cache, cpu, mem, dev, cpu->pc);
+                    if (new_block) {
+                        // Successfully compiled, execute it now
+                        new_block->exec_count++;
+                        jit_execute_block(new_block, cpu);
+                        steps++;
+                        continue;
+                    }
+                    // Compilation failed, fall through to interpreter
+                }
+            }
+        }
+#endif
 
         step(cpu, mem, dev, opt);
         steps++;
@@ -2785,6 +2837,25 @@ static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
         //     fprintf(stderr, "First jump to user space: Step %" PRIu64 " PC=0x%016" PRIx64 "\n", steps, cpu->pc);
         // }
     }
+
+#if JIT_ENABLED
+    // Print JIT statistics before cleanup
+    if (jit_cache && jit_cache->num_blocks > 0) {
+        uint64_t total_exec = 0;
+        for (size_t i = 0; i < jit_cache->num_blocks; i++) {
+            total_exec += jit_cache->blocks[i].exec_count;
+        }
+        fprintf(stderr, "JIT: Compiled %zu blocks, executed %lu times\n",
+                jit_cache->num_blocks, total_exec);
+    }
+    // Cleanup JIT resources
+    if (jit_cache) {
+        jit_cache_destroy(jit_cache);
+    }
+    if (hotness) {
+        hotness_tracker_destroy(hotness);
+    }
+#endif
 }
 // 日本語: 実行ループ。停止フラグまたはステップ上限に達するまで step を繰り返す。
 

@@ -29,9 +29,10 @@ STEPS ?= 0
 
 all: rv64emu x1_set.elf mmu_smoke.elf
 
-# Build the emulator (native)
-rv64emu: rv64emu.c
-	$(CC) $(CFLAGS) $< -o $@
+# Build the emulator (native) with JIT support
+JIT_SOURCES = jit_cache.c jit_compiler.c
+rv64emu: rv64emu.c $(JIT_SOURCES) jit.h
+	$(CC) $(CFLAGS) rv64emu.c $(JIT_SOURCES) -o $@
 
 # Build minimal ELF that writes x1 and exits via ecall
 x1_set.elf: x1_set.S
