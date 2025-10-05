@@ -38,7 +38,6 @@ SECTIONS
   .trampoline : { *(.trampoline) }
   . = . + 4096;
   . = ALIGN(4096);
-/*  . = 0x80700000; */
   PROVIDE(COMMON = .);
   .common : { *(.common) }
   . = . + 4096 * STACK_PAGES * 10;

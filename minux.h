@@ -552,7 +552,6 @@ extern int errno;
     (int)_a0;                                                           \
 })
 #define SYS_realpath 101
-#define SYS_getlogin 103
 #define SYS_isatty 104
 // realpath: resolve to canonical absolute path; returns 0 on success
 #define realpath_user(path, outbuf, outsz) ({                             \
@@ -578,29 +577,6 @@ extern int errno;
     (int)_a0;                                                      \
 })
 
-// getlogin: write username into buf; returns length
-#define getlogin_user(buf, size) ({                                      \
-    register long _a0 asm("a0") = (long)(buf);                           \
-    register long _a1 asm("a1") = (long)(size);                          \
-    register long _a7 asm("a7") = SYS_getlogin;                          \
-    asm volatile("ecall"                                               \
-                 : "+r"(_a0)                                          \
-                 : "r"(_a1), "r"(_a7)                                   \
-                 : "memory");                                          \
-    (int)_a0;                                                           \
-})
-#define SYS_login 102
-// login: authenticate and switch credentials
-#define login_user(name, pass) ({                                        \
-    register long _a0 asm("a0") = (long)(name);                         \
-    register long _a1 asm("a1") = (long)(pass);                         \
-    register long _a7 asm("a7") = SYS_login;                            \
-    asm volatile("ecall"                                               \
-                 : "+r"(_a0)                                          \
-                 : "r"(_a1), "r"(_a7)                                   \
-                 : "memory");                                          \
-    (int)_a0;                                                           \
-})
 
 #define SYS_lseek 192
 #ifndef SEEK_SET

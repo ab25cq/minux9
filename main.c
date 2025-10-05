@@ -1687,10 +1687,6 @@ uintptr_t syscall_handler()
             result = Sys_realpath();
             }
             break;
-        case SYS_getlogin: {
-            result = Sys_getlogin();
-            }
-            break;
         case SYS_fstat: {
             result = Sys_fstat();
             }

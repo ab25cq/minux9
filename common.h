@@ -249,7 +249,6 @@ int Sys_execv();
 int Sys_fork();
 int Sys_closedir();
 int Sys_readdir();
-int Sys_getlogin();
 int Sys_realpath();
 int Sys_setgid();
 int Sys_setuid();

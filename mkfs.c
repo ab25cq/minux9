@@ -587,7 +587,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("pwd", 14);
     write_file_to_file_system("passwd", 15);
     write_file_to_file_system("group", 16);
-    write_file_to_file_system("login", 17);
+    write_file_to_file_system("hexdump", 17);
     write_file_to_file_system("sh.elf", 18);
     write_file_to_file_system("touch", 19);
     write_file_to_file_system("mkdir", 20);
@@ -602,7 +602,6 @@ main(int argc, char *argv[])
     write_file_to_file_system("c.h", 29);
     write_file_to_file_system("readelf", 30);
     write_file_to_file_system("objdump", 31);
-    write_file_to_file_system("hexdump", 32);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);

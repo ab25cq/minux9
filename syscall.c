@@ -583,22 +583,6 @@ int Sys_realpath()
     return 0;
 }
 
-int Sys_getlogin()
-{
-    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
-    uint64_t u_buf = trapframe->a0; int sz = (int)trapframe->a1;
-    if (sz <= 0) return -1;
-    struct proc *p = gProc[gActiveProc];
-    const char* name = p->username[0] ? p->username : NULL;
-    char tmp[32];
-    if (!name) { // fallback uid numeric
-        int uid = p->uid; int n=0; char b[12]; if(uid==0){b[n++]='0';} else { int x=uid; char t[12]; int i=0; while(x){ t[i++]='0'+(x%10); x/=10; } while(i--) b[n++]=t[i]; } b[n]='\0';
-        int i=0; tmp[i++]='u'; tmp[i++]='i'; tmp[i++]='d'; tmp[i++]='_'; for(int j=0;b[j]&&i<31;j++) tmp[i++]=b[j]; tmp[i]='\0'; name = tmp;
-    }
-    int len = strlen(name)+1; if (len > sz) len = sz;
-    if (copyout(p->pagetable, u_buf, (void*)name, len) < 0) return -1;
-    return len;
-}
 
 // readdir: return next valid dirent for a directory fd.
 // args: a0=fd, a1=user_buf (struct dirent*)

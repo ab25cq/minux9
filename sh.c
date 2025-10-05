@@ -169,31 +169,8 @@ int main(void) {
     int m = 0;
     
     for (;;) {
-        //write(1, "\r\n", 2);
         // プロンプト
         write(1, "$ ", 2);
-        
-        /*
-        m++;
-        if(m % 4 == 0) {
-            strncpy(buf, "echo 4", BUF_SIZE);
-        }
-        else if(m % 6 == 0) {
-            strncpy(buf, "cc b.c", BUF_SIZE);
-        }
-        else if(m % 5 == 0) {
-            strncpy(buf, "as -o b b.s", BUF_SIZE);
-        }
-        else if(m % 3 == 0) {
-            strncpy(buf, "echo 3", BUF_SIZE);
-        }
-        else if(m % 2 == 0) {
-            strncpy(buf, "echo 2", BUF_SIZE);
-        }
-        else {
-            strncpy(buf, "cat a.txt | grep ABC", BUF_SIZE);
-        }
-        */
         
         // キーボードから１行読み込み（改行込み）
         n = 0;

@@ -73,10 +73,6 @@ kernel.elf: minux.o crt0.o cc
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o touch -g touch.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o touch crt0.o touch.c $(CHILD_CFLAGS)
 
-	# build login user program (required by mkfs)
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o login -g login.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o login crt0.o login.c $(CHILD_CFLAGS)
-
 	# more user program
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o more -g more.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o more crt0.o more.c $(CHILD_CFLAGS)
