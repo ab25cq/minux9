@@ -30,18 +30,15 @@ kernel.elf: minux.o crt0.o cc
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cat -g cat.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cat crt0.o cat.c $(CHILD_CFLAGS)
 #	$(CCPREFIX)gcc -S $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o b.s b.c
-	xxd -i cat > cat.h  
 
 #	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cc -g cc.c -mcmodel=medany $(CHILD_CFLAGS)
 #	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc crt0.o cc.c $(CHILD_CFLAGS)
 
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o hello -g hello.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o hello crt0.o hello.c $(CHILD_CFLAGS)
-	xxd -i hello > hello.h  
 
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o echo -g echo.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o echo crt0.o echo.c $(CHILD_CFLAGS)
-	xxd -i echo > echo.h  
 
 #	comelang -S -bare grep.c
 #	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o grep grep.c.c $(CHILD_CFLAGS)
@@ -98,11 +95,6 @@ kernel.elf: minux.o crt0.o cc
 #	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cc -g cc.c -mcmodel=medany $(CHILD_CFLAGS)
 #	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc crt0.o cc.c $(CHILD_CFLAGS)
 
-	# toy C: compiler + VM
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o toycc -g toycc.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o toycc crt0.o toycc.c $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o toyvm -g toyvm.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o toyvm crt0.o toyvm.c $(CHILD_CFLAGS)
 
 	$(CCPREFIX)gcc $(CFLAGS) -I. -nostdlib -S -O0 -static -o sh.S -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -I. -nostdlib -O0 -static -o sh.elf -I. -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
@@ -121,9 +113,9 @@ kernel.elf: minux.o crt0.o cc
 	./mkfs fs.img
 
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o main.o main.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o sub.o sub.c
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o libc.o libc.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o syscall.o syscall.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -g -O0 -T kernel.ld -Wl,-Map=map.txt -mcmodel=medany -o kernel.elf entry.o start.o userret.o trap.o fs.o plic.o trap_c.o main.o sub.o syscall.o
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -g -O0 -T kernel.ld -Wl,-Map=map.txt -mcmodel=medany -o kernel.elf entry.o start.o userret.o trap.o fs.o plic.o trap_c.o main.o libc.o syscall.o
 
 	$(CCPREFIX)objcopy -O binary kernel.elf kernel.bin
 

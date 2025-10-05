@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/root/minux9" "sh.c"
+	.file 0 "/Users/ab25cq/minux9" "sh.c"
 	.align	1
 	.type	s_strchr, @function
 s_strchr:
@@ -4319,6 +4319,8 @@ main:
 	.string	"long unsigned int"
 .LASF6:
 	.string	"short unsigned int"
+.LASF42:
+	.string	"GNU C17 14.2.0 -mno-small-data-limit=0 -mcmodel=medany -mcmodel=medany -mno-small-data-limit=0 -mabi=lp64 -mtune=rocket -misa-spec=20191213 -march=rv64imafdc_zicsr_zifencei -g -O0 -ffreestanding -fno-stack-protector -fno-builtin -fno-pie"
 .LASF26:
 	.string	"target"
 .LASF40:
@@ -4329,8 +4331,6 @@ main:
 	.string	"xisdigit"
 .LASF45:
 	.string	"puts"
-.LASF42:
-	.string	"GNU C17 14.2.0 -mcmodel=medany -mcmodel=medany -mno-small-data-limit=0 -mabi=lp64 -misa-spec=20191213 -march=rv64imafdc_zicsr_zifencei -g -O0 -ffreestanding -fno-stack-protector -fno-builtin -fno-pie"
 .LASF24:
 	.string	"num_commands"
 .LASF11:
@@ -4377,6 +4377,6 @@ main:
 .LASF0:
 	.string	"sh.c"
 .LASF1:
-	.string	"/root/minux9"
-	.ident	"GCC: (Alpine Linux) 14.2.0"
+	.string	"/Users/ab25cq/minux9"
+	.ident	"GCC: (g04696df09) 14.2.0"
 	.section	.note.GNU-stack,"",@progbits

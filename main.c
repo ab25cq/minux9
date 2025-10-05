@@ -1,11 +1,6 @@
 #include "common.h"
 #include "sh.h"
-
-// forward declaration for time offset used by FS/time syscalls
-int Sys_login(void);
-int Sys_fstat();
-int Sys_lseek();
-                        
+#include "minux.h"
 
 uint64_t kernel_sp __attribute__((section(".common")));
 uint64_t user_sp __attribute__((section(".common")));
@@ -13,15 +8,11 @@ uint64_t user_sp __attribute__((section(".common")));
 uint64_t kernel_satp __attribute__((section(".common")));    // trap.S から参照する
 uint64_t user_satp __attribute__((section(".common")));
 
-#include "minux.h"
-
-
 pagetable_t kernel_pagetable;
-
 
 #define PGSIZE 4096 // bytes per page
 
-#define USER_STACK_TOP  0x40000000UL  // 例: UTOP に近い値
+#define USER_STACK_TOP  0x40000000UL
 #define STACK_PAGES     64
 #define STACK_MAX (4096*STACK_PAGES)
 
@@ -34,7 +25,6 @@ static char* heap_limit = (char*)0x88000000;
 #define UART_THR     (*(volatile uint8_t*)(UART0 + 0x00))  // Transmit Holding Register
 #define UART_LSR     (*(volatile uint8_t*)(UART0 + 0x05))  // Line Status Register
 #define UART_LSR_THRE 0x20                                // THR Empty ビット
-
 
 void* sbrk(ptrdiff_t incr) {
     if (heap_end == 0)
@@ -1701,10 +1691,6 @@ uintptr_t syscall_handler()
             result = Sys_getlogin();
             }
             break;
-        case SYS_login: {
-            result = Sys_login();
-            }
-            break;
         case SYS_fstat: {
             result = Sys_fstat();
             }
@@ -1903,58 +1889,5 @@ static int parse_uint(const char* s, uint32_t *out)
     uint32_t v=0; if(!s||!*s) return -1; while(*s){ if(*s<'0'||*s>'9') return -1; v = v*10 + (*s-'0'); s++; } *out=v; return 0;
 }
 
-int Sys_login()
-{
-    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
-    uint64_t u_name = trapframe->a0; uint64_t u_pass = trapframe->a1;
-    char kname[32], kpass[32]; struct proc *p = gProc[gActiveProc];
-    if (copyinstr(p->pagetable, kname, u_name, sizeof(kname)) < 0) return -1;
-    if (copyinstr(p->pagetable, kpass, u_pass, sizeof(kpass)) < 0) return -1;
-    // 1) try /etc/passwd or /passwd
-    const char* paths[2] = { "/etc/passwd", "/passwd" };
-    char fbuf[1024]; int found=-1; uint32_t fsz=0;
-    for (int ip=0; ip<2; ip++) {
-        int fd = fs_open2(paths[ip], 0, 0);
-        if (fd >= 0) {
-            int n = fs_read(fd, fbuf, sizeof(fbuf)-1); if(n<0) n=0; fbuf[n]='\0'; found=ip; fs_close(fd,0); break;
-        }
-    }
-    if (found >= 0) {
-        // format: name:pass:uid:gid[:g1,g2,...]\n
-        char *s = fbuf;
-        while (*s) {
-            char *line = s; while (*s && *s!='\n' && *s!='\r') s++; if (*s) *s++='\0';
-            if (!*line) continue;
-            // split by ':'
-            char *name = line;
-            char *pass = strchr(line, ':'); if(!pass) continue; *pass++='\0';
-            char *uidp = strchr(pass, ':'); if(!uidp) continue; *uidp++='\0';
-            char *gidp = strchr(uidp, ':'); char *groups=NULL; if(gidp){ *gidp++='\0'; groups=gidp; }
-            // match
-            if (strcmp(name, kname)==0 && strcmp(pass, kpass)==0) {
-                uint32_t uidv,gidv; if(parse_uint(uidp,&uidv)<0||parse_uint(gidp?gidp:uidp,&gidv)<0) break;
-                p->uid = (uint16_t)uidv; p->gid = (uint16_t)gidv; p->nsupp=0; strncpy(p->username, name, sizeof(p->username)-1); p->username[sizeof(p->username)-1]='\0';
-                if (groups) {
-                    // parse comma-separated gids
-                    char *g = groups; while (*g) {
-                        char *e = g; while (*e && *e!=',') e++; char save=*e; *e='\0';
-                        uint32_t gv; if(parse_uint(g,&gv)==0 && p->nsupp < 8) p->supp_gids[p->nsupp++] = (uint16_t)gv;
-                        *e = save; if (save==',') g = e+1; else break;
-                    }
-                }
-                return 0;
-            }
-        }
-    }
-    // fallback hardcoded
-    for (int i=0;i<MAX_USERS;i++) {
-        if (!gUsers[i].name) continue;
-        if (strcmp(kname, gUsers[i].name)==0 && strcmp(kpass, gUsers[i].pass)==0) {
-            p->uid = gUsers[i].uid; p->gid = gUsers[i].gid; p->nsupp=0; strncpy(p->username, kname, sizeof(p->username)-1); p->username[sizeof(p->username)-1]='\0';
-            return 0;
-        }
-    }
-    return -1;
-}
 // Wall-clock base seconds set by settimeofday
 uint32_t g_time_offset = 0;

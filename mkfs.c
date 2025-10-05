@@ -593,18 +593,16 @@ main(int argc, char *argv[])
     write_file_to_file_system("mkdir", 20);
     write_file_to_file_system("rmdir", 21);
     write_file_to_file_system("more", 22);
-    write_file_to_file_system("toycc", 23);
-    write_file_to_file_system("toyvm", 24);
-    write_file_to_file_system("b.s", 25);
-    write_file_to_file_system("b.c", 26);
-    write_file_to_file_system("cc", 27);
-    write_file_to_file_system("vi", 28);
-    write_file_to_file_system("as", 29);
-    write_file_to_file_system("ld", 30);
-    write_file_to_file_system("minux9.h", 31);
-    write_file_to_file_system("readelf", 32);
-    write_file_to_file_system("objdump", 33);
-    write_file_to_file_system("hexdump", 34);
+    write_file_to_file_system("b.s", 23);
+    write_file_to_file_system("b.c", 24);
+    write_file_to_file_system("cc", 25);
+    write_file_to_file_system("vi", 26);
+    write_file_to_file_system("as", 27);
+    write_file_to_file_system("ld", 28);
+    write_file_to_file_system("c.h", 29);
+    write_file_to_file_system("readelf", 30);
+    write_file_to_file_system("objdump", 31);
+    write_file_to_file_system("hexdump", 32);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);

@@ -243,6 +243,8 @@ void printlonglong(unsigned long long val_, int base, int sign);
 int printf(const char* fmt, ...);
 void* sbrk(ptrdiff_t incr);
 int Sys_execve();
+int Sys_fstat();
+int Sys_lseek();
 int Sys_execv();
 int Sys_fork();
 int Sys_closedir();
