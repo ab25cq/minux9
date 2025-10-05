@@ -965,10 +965,6 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     for (int i = 0; i < eh->phnum; i++, ph++) {
         if (ph->type != ELF_PROG_LOAD)
             continue;
-
-        if (ph->vaddr + ph->memsz > max_va_end) {
-            max_va_end = ph->vaddr + ph->memsz;
-        }
     
         for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
             void *pa = kalloc();
@@ -985,6 +981,10 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
 
             mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
                      PTE_U | PTE_R | PTE_W | PTE_X | PTE_V);
+        }
+
+        if (va + PGSIZE > max_va_end) {
+            max_va_end = va + PGSIZE;
         }
         
         if (copyout(result->pagetable, ph->vaddr, elf_buf + ph->off, ph->filesz) < 0) {
@@ -1005,48 +1005,6 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         }
     }
 
-    // --- after copying all PT_LOAD segments ---
-    
-/*
-    for (int i = 0; i < eh->shnum; i++) {
-        if (!(sh[i].flags & 0x2) || sh[i].size == 0) continue; // SHF_ALLOC 以外は無視
-        uint64_t lo = sh[i].addr, hi = sh[i].addr + sh[i].size;
-
-        if (sh[i].type == SHT_PROGBITS) {
-            if (!covered_by_load((struct proghdr *)(elf_buf + eh->phoff), eh->phnum, lo, hi)) {
-                // 未カバーの .data/.rodata を補填
-                for (uint64_t va = PGROUNDDOWN(lo); va < hi; va += PGSIZE) {
-                    if (walkaddr(result->pagetable, va) == 0) {
-                        void *pa = kalloc(); if (!pa) panic("data kalloc");
-                        memset(pa, 0, PGSIZE);
-                        mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
-                                 PTE_U|PTE_R|PTE_W|PTE_V);
-                    }
-                }
-                if (copyout(result->pagetable, lo, elf_buf + sh[i].offset, sh[i].size) < 0)
-                    panic("sect copyout");
-                // printf("FIXUP copy %s [%p..%p)\n", shstrtab + sh[i].name, (void*)lo, (void*)hi);
-            }
-        } else if (sh[i].type == SHT_NOBITS) {
-            // .bss/.sbss は必ずゼロ
-            for (uint64_t va = PGROUNDDOWN(lo); va < hi; va += PGSIZE) {
-                if (walkaddr(result->pagetable, va) == 0) {
-                    void *pa = kalloc(); if (!pa) panic("bss kalloc");
-                    memset(pa, 0, PGSIZE);
-                    mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
-                             PTE_U|PTE_R|PTE_W|PTE_V);
-                }
-            }
-            uint64_t pos = lo;
-            while (pos < hi) {
-                uint64_t n = hi - pos; if (n > PGSIZE) n = PGSIZE;
-                if (copyout(result->pagetable, pos, (void*)zpg, n) < 0) panic("bss zero");
-                pos += n;
-            }
-            // printf("FIXUP zero %s [%p..%p)\n", shstrtab + sh[i].name, (void*)lo, (void*)hi);
-        }
-    }
-*/
     struct elfshdr *sh = (struct elfshdr *)(elf_buf + eh->shoff);
     const char *shstrtab = elf_buf + sh[eh->shstrndx].offset;
     static const char zpg[PGSIZE] = {0};
@@ -1064,6 +1022,10 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
                     memset(pa, 0, PGSIZE);
                     mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
                              PTE_U|PTE_R|PTE_W|PTE_V);
+
+                    if (va + PGSIZE > max_va_end) {
+                        max_va_end = va + PGSIZE;
+                    }
                 }
             }
             // つぎにセクション範囲を**必ず**0クリア
@@ -1077,10 +1039,11 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             // printf("start2 %p end2 %p (%s)\n", (void*)sh[i].addr, (void*)(sh[i].addr+sh[i].size), shstrtab+sh[i].name);
         }
     }
-
     
     result->vaddr = ph->vaddr;
     result->memsz = ph->memsz;
+
+    result->sz = PGROUNDUP(max_va_end);
 
     // Find global pointer
     uint64_t gp = 0;
@@ -1504,8 +1467,8 @@ void uvm_dealloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
 int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
     if(new_sz <= old_sz) return 0;
 
-    uint64_t a = PGROUNDUP(old_sz);
-    for(; a < new_sz; a += PGSIZE) {
+    uint64_t va = PGROUNDUP(old_sz);
+    for(; va < new_sz; va += PGSIZE) {
         char *mem = kalloc();
         
         p->process_kalloc_address[p->num_process_kalloc_address++] = mem;
@@ -1516,13 +1479,13 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
         }
         
         if(mem == 0){
-            uvm_dealloc(pagetable, a, old_sz);
+            uvm_dealloc(pagetable, va, old_sz);
             return -1;
         }
         memset(mem, 0, PGSIZE);
-        if(mappages(pagetable, a, PGSIZE, (uint64_t)mem, PTE_W|PTE_R|PTE_U|PTE_V) < 0){
+        if(mappages(pagetable, va, PGSIZE, (uint64_t)mem, PTE_W|PTE_R|PTE_U|PTE_V) < 0){
             kfree(mem);
-            uvm_dealloc(pagetable, a, old_sz);
+            uvm_dealloc(pagetable, va, old_sz);
             return -1;
         }
     }
