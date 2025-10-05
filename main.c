@@ -134,6 +134,7 @@ void free_proc(struct proc *p) {
     for (int i=0; i<p->num_process_kalloc_address; i++) {
         kfree(p->process_kalloc_address[i]);
     }
+    kfree(p->process_kalloc_address);
     
     //free(p->program);
     
@@ -929,12 +930,8 @@ static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* ou
 void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index) {
     struct proc* result = kalloc();
     
-    /*
-    int npages = (elf_buf_size * sizeof(char*) + PGSIZE - 1) / PGSIZE;
-    result->program = kalloc_pagesX(npages);
-    memcpy(result->program, elf_buf, elf_buf_size);
-    result->program_size = elf_buf_size;
-    */
+    result->process_kalloc_address = kalloc();
+    
     result->program = elf_buf; //calloc(1, elf_buf_size);
     result->program_size = elf_buf_size;
     //memcpy(result->program, elf_buf, elf_buf_size);

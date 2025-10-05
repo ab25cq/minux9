@@ -60,7 +60,7 @@ struct context_t {
 
 struct file;
 
-#define NUM_PROC_VA_MAX 128
+#define NUM_PROC_VA_MAX 512
 
 struct proc {
     struct context_t trapframe;
@@ -83,7 +83,7 @@ struct proc {
     
     struct file* file_table[MAX_OPEN_FILES];
     
-    char* process_kalloc_address[NUM_PROC_VA_MAX];
+    char** process_kalloc_address;
     int num_process_kalloc_address;
     
     int deleted;

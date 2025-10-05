@@ -2103,7 +2103,7 @@ check_perm:
 	sw	a5,-20(s0)
 	.loc 1 402 10
 	ld	a5,-40(s0)
-	lhu	a4,1882(a5)
+	lhu	a4,866(a5)
 	.loc 1 402 21
 	ld	a5,-56(s0)
 	lhu	a5,16(a5)
@@ -2118,7 +2118,7 @@ check_perm:
 .L62:
 	.loc 1 403 15
 	ld	a5,-40(s0)
-	lhu	a4,1884(a5)
+	lhu	a4,868(a5)
 	.loc 1 403 26
 	ld	a5,-56(s0)
 	lhu	a5,18(a5)
@@ -2143,10 +2143,10 @@ check_perm:
 	.loc 1 406 54 discriminator 5
 	ld	a4,-40(s0)
 	lw	a5,-28(s0)
-	addi	a5,a5,936
+	addi	a5,a5,432
 	slli	a5,a5,1
 	add	a5,a4,a5
-	lhu	a4,14(a5)
+	lhu	a4,6(a5)
 	.loc 1 406 63 discriminator 5
 	ld	a5,-56(s0)
 	lhu	a5,18(a5)
@@ -2167,7 +2167,7 @@ check_perm:
 .L65:
 	.loc 1 406 25 discriminator 4
 	ld	a5,-40(s0)
-	lw	a5,1904(a5)
+	lw	a5,888(a5)
 	.loc 1 406 23 discriminator 4
 	lw	a4,-28(s0)
 	sext.w	a4,a4
@@ -7948,7 +7948,7 @@ build_abs_normalized:
 .LBB61:
 	.loc 1 1374 26
 	ld	a5,-80(s0)
-	addi	a4,a5,1752
+	addi	a4,a5,736
 	.loc 1 1374 9
 	addi	a5,s0,-368
 	li	a2,255
@@ -8639,7 +8639,7 @@ fs_mkdir:
 	add	a5,a4,a5
 	ld	a5,0(a5)
 	.loc 1 1459 20
-	lhu	a5,1880(a5)
+	lhu	a5,864(a5)
 	sh	a5,-30(s0)
 	.loc 1 1460 28
 	lw	a5,-164(s0)
@@ -8659,7 +8659,7 @@ fs_mkdir:
 	add	a5,a4,a5
 	ld	a5,0(a5)
 	.loc 1 1461 59
-	lhu	a5,1882(a5)
+	lhu	a5,866(a5)
 	.loc 1 1461 39
 	sh	a5,-432(s0)
 	.loc 1 1462 24
@@ -8681,7 +8681,7 @@ fs_mkdir:
 	add	a5,a4,a5
 	ld	a5,0(a5)
 	.loc 1 1462 14 discriminator 2
-	lhu	a5,1884(a5)
+	lhu	a5,868(a5)
 .L432:
 	.loc 1 1462 14 is_stmt 0 discriminator 4
 	sh	a5,-430(s0)
@@ -9269,12 +9269,12 @@ fs_unlink:
 	sd	a5,-40(s0)
 	.loc 1 1544 17
 	ld	a5,-40(s0)
-	lhu	a5,1882(a5)
+	lhu	a5,866(a5)
 	.loc 1 1544 12
 	beq	a5,zero,.L475
 	.loc 1 1544 33 discriminator 1
 	ld	a5,-40(s0)
-	lhu	a4,1882(a5)
+	lhu	a4,866(a5)
 	.loc 1 1544 44 discriminator 1
 	lhu	a5,-248(s0)
 	.loc 1 1544 28 discriminator 1
@@ -9283,7 +9283,7 @@ fs_unlink:
 	beq	a4,a5,.L475
 	.loc 1 1544 54 discriminator 2
 	ld	a5,-40(s0)
-	lhu	a4,1882(a5)
+	lhu	a4,866(a5)
 	.loc 1 1544 67 discriminator 2
 	lhu	a5,-448(s0)
 	.loc 1 1544 13 discriminator 2
@@ -10002,12 +10002,12 @@ fs_rename:
 	sd	a5,-32(s0)
 	.loc 1 1633 17
 	ld	a5,-32(s0)
-	lhu	a5,1882(a5)
+	lhu	a5,866(a5)
 	.loc 1 1633 12
 	beq	a5,zero,.L518
 	.loc 1 1633 33 discriminator 1
 	ld	a5,-32(s0)
-	lhu	a4,1882(a5)
+	lhu	a4,866(a5)
 	.loc 1 1633 48 discriminator 1
 	lhu	a5,-664(s0)
 	.loc 1 1633 28 discriminator 1
@@ -10016,7 +10016,7 @@ fs_rename:
 	beq	a4,a5,.L518
 	.loc 1 1633 58 discriminator 2
 	ld	a5,-32(s0)
-	lhu	a4,1882(a5)
+	lhu	a4,866(a5)
 	.loc 1 1633 72 discriminator 2
 	lhu	a5,-576(s0)
 	.loc 1 1633 13 discriminator 2
@@ -10811,12 +10811,12 @@ fs_chmod:
 	sd	a5,-32(s0)
 	.loc 1 1721 12
 	ld	a5,-32(s0)
-	lhu	a5,1882(a5)
+	lhu	a5,866(a5)
 	.loc 1 1721 8
 	beq	a5,zero,.L567
 	.loc 1 1721 27 discriminator 1
 	ld	a5,-32(s0)
-	lhu	a4,1882(a5)
+	lhu	a4,866(a5)
 	.loc 1 1721 38 discriminator 1
 	lhu	a5,-232(s0)
 	.loc 1 1721 9 discriminator 1
@@ -10920,7 +10920,7 @@ fs_chown:
 	add	a5,a4,a5
 	ld	a5,0(a5)
 	.loc 1 1734 27
-	lhu	a5,1882(a5)
+	lhu	a5,866(a5)
 	.loc 1 1734 8
 	beq	a5,zero,.L572
 	.loc 1 1734 46 discriminator 1
@@ -11166,7 +11166,7 @@ fs_open2:
 	sd	a5,-80(s0)
 	.loc 1 1764 53
 	ld	a5,-80(s0)
-	addi	a4,a5,1752
+	addi	a4,a5,736
 	.loc 1 1764 9
 	addi	a5,s0,-224
 	mv	a2,a4
@@ -11398,7 +11398,7 @@ fs_open2:
 	add	a5,a4,a5
 	ld	a5,0(a5)
 	.loc 1 1809 28
-	lhu	a5,1880(a5)
+	lhu	a5,864(a5)
 	sh	a5,-86(s0)
 .LBB95:
 	.loc 1 1811 59
@@ -11430,7 +11430,7 @@ fs_open2:
 	add	a5,a4,a5
 	ld	a5,0(a5)
 	.loc 1 1812 22
-	lhu	a5,1884(a5)
+	lhu	a5,868(a5)
 	sh	a5,-54(s0)
 	.loc 1 1813 17
 	addi	a3,s0,-360
@@ -11470,7 +11470,7 @@ fs_open2:
 	add	a5,a4,a5
 	ld	a5,0(a5)
 	.loc 1 1817 40
-	lhu	a5,1882(a5)
+	lhu	a5,866(a5)
 	.loc 1 1817 20
 	sh	a5,-296(s0)
 	.loc 1 1818 20
@@ -13289,7 +13289,7 @@ fs_lseek:
 	.file 5 "common.h"
 	.section	.debug_info,"",@progbits
 .Ldebug_info0:
-	.4byte	0x3c6f
+	.4byte	0x3c64
 	.2byte	0x5
 	.byte	0x1
 	.byte	0x8
@@ -13926,7 +13926,7 @@ fs_lseek:
 	.byte	0
 	.uleb128 0x19
 	.4byte	.LASF49
-	.2byte	0x798
+	.2byte	0x3a0
 	.byte	0x5
 	.byte	0x41
 	.4byte	0x600
@@ -14024,7 +14024,7 @@ fs_lseek:
 	.4byte	.LASF62
 	.byte	0x5
 	.byte	0x56
-	.byte	0xb
+	.byte	0xc
 	.4byte	0x6d7
 	.2byte	0x2c8
 	.uleb128 0x8
@@ -14033,67 +14033,67 @@ fs_lseek:
 	.byte	0x57
 	.byte	0x9
 	.4byte	0x48
-	.2byte	0x6c8
+	.2byte	0x2d0
 	.uleb128 0x8
 	.4byte	.LASF64
 	.byte	0x5
 	.byte	0x59
 	.byte	0x9
 	.4byte	0x48
-	.2byte	0x6cc
+	.2byte	0x2d4
 	.uleb128 0x8
 	.4byte	.LASF65
 	.byte	0x5
 	.byte	0x5b
 	.byte	0x12
 	.4byte	0x600
-	.2byte	0x6d0
+	.2byte	0x2d8
 	.uleb128 0x1c
 	.string	"cwd"
 	.byte	0x5e
 	.byte	0xa
-	.4byte	0x6e7
-	.2byte	0x6d8
+	.4byte	0x6dc
+	.2byte	0x2e0
 	.uleb128 0x8
 	.4byte	.LASF66
 	.byte	0x5
 	.byte	0x5f
 	.byte	0x14
 	.4byte	0x84
-	.2byte	0x758
+	.2byte	0x360
 	.uleb128 0x1c
 	.string	"uid"
 	.byte	0x62
 	.byte	0xe
 	.4byte	0x78
-	.2byte	0x75a
+	.2byte	0x362
 	.uleb128 0x1c
 	.string	"gid"
 	.byte	0x63
 	.byte	0xe
 	.4byte	0x78
-	.2byte	0x75c
+	.2byte	0x364
 	.uleb128 0x8
 	.4byte	.LASF67
 	.byte	0x5
 	.byte	0x64
 	.byte	0xe
-	.4byte	0x6f7
-	.2byte	0x75e
+	.4byte	0x6ec
+	.2byte	0x366
 	.uleb128 0x8
 	.4byte	.LASF68
 	.byte	0x5
 	.byte	0x65
 	.byte	0x9
 	.4byte	0x48
-	.2byte	0x770
+	.2byte	0x378
 	.uleb128 0x8
 	.4byte	.LASF69
 	.byte	0x5
 	.byte	0x66
 	.byte	0xa
-	.4byte	0x707
-	.2byte	0x774
+	.4byte	0x6fc
+	.2byte	0x37c
 	.byte	0
 	.uleb128 0xd
 	.4byte	0x4a8
@@ -14119,7 +14119,7 @@ fs_lseek:
 	.byte	0x5
 	.byte	0x86
 	.byte	0x47
-	.4byte	0x7e2
+	.4byte	0x7d7
 	.byte	0
 	.uleb128 0x6
 	.4byte	.LASF37
@@ -14154,7 +14154,7 @@ fs_lseek:
 	.byte	0x5
 	.byte	0x8b
 	.byte	0x13
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.byte	0x68
 	.uleb128 0x6
 	.4byte	.LASF74
@@ -14196,7 +14196,7 @@ fs_lseek:
 	.byte	0x5
 	.byte	0x95
 	.byte	0x12
-	.4byte	0x813
+	.4byte	0x808
 	.byte	0x88
 	.uleb128 0x8
 	.4byte	.LASF80
@@ -14206,30 +14206,25 @@ fs_lseek:
 	.4byte	0x48
 	.2byte	0x488
 	.byte	0
-	.uleb128 0xc
+	.uleb128 0xd
 	.4byte	0x605
-	.4byte	0x6e7
-	.uleb128 0xf
-	.4byte	0xaa
-	.byte	0x7f
-	.byte	0
 	.uleb128 0xc
 	.4byte	0x234
-	.4byte	0x6f7
+	.4byte	0x6ec
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0x7f
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x78
-	.4byte	0x707
+	.4byte	0x6fc
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0x7
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x234
-	.4byte	0x717
+	.4byte	0x70c
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0x1f
@@ -14239,13 +14234,13 @@ fs_lseek:
 	.2byte	0x330
 	.byte	0x5
 	.byte	0x70
-	.4byte	0x7be
+	.4byte	0x7b3
 	.uleb128 0x6
 	.4byte	.LASF82
 	.byte	0x5
 	.byte	0x71
 	.byte	0xa
-	.4byte	0x7be
+	.4byte	0x7b3
 	.byte	0
 	.uleb128 0x8
 	.4byte	.LASF83
@@ -14301,7 +14296,7 @@ fs_lseek:
 	.byte	0x5
 	.byte	0x7a
 	.byte	0x12
-	.4byte	0x7cd
+	.4byte	0x7c2
 	.2byte	0x220
 	.uleb128 0x8
 	.4byte	.LASF90
@@ -14315,30 +14310,30 @@ fs_lseek:
 	.byte	0x5
 	.byte	0x7d
 	.byte	0x13
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.2byte	0x328
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x234
-	.4byte	0x7cd
+	.4byte	0x7c2
 	.uleb128 0x21
 	.4byte	0xaa
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x61a
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0x1f
 	.byte	0
 	.uleb128 0xd
-	.4byte	0x717
+	.4byte	0x70c
 	.uleb128 0x25
 	.4byte	0x97
 	.byte	0x5
 	.byte	0x86
 	.byte	0xa
-	.4byte	0x813
+	.4byte	0x808
 	.uleb128 0x15
 	.4byte	.LASF91
 	.byte	0
@@ -14360,7 +14355,7 @@ fs_lseek:
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x600
-	.4byte	0x823
+	.4byte	0x818
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0x7f
@@ -14369,7 +14364,7 @@ fs_lseek:
 	.4byte	.LASF97
 	.byte	0xc1
 	.byte	0x15
-	.4byte	0x813
+	.4byte	0x808
 	.uleb128 0x26
 	.4byte	.LASF98
 	.byte	0xc3
@@ -14386,7 +14381,7 @@ fs_lseek:
 	.byte	0x10
 	.byte	0x1
 	.byte	0x57
-	.4byte	0x887
+	.4byte	0x87c
 	.uleb128 0x6
 	.4byte	.LASF101
 	.byte	0x1
@@ -14420,7 +14415,7 @@ fs_lseek:
 	.4byte	.LASF105
 	.byte	0x2
 	.byte	0x5e
-	.4byte	0x8ba
+	.4byte	0x8af
 	.uleb128 0x6
 	.4byte	.LASF102
 	.byte	0x1
@@ -14440,12 +14435,12 @@ fs_lseek:
 	.byte	0x1
 	.byte	0x61
 	.byte	0xe
-	.4byte	0x8ba
+	.4byte	0x8af
 	.byte	0x4
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x78
-	.4byte	0x8c9
+	.4byte	0x8be
 	.uleb128 0x28
 	.4byte	0xaa
 	.byte	0
@@ -14454,7 +14449,7 @@ fs_lseek:
 	.byte	0x8
 	.byte	0x1
 	.byte	0x64
-	.4byte	0x8ef
+	.4byte	0x8e4
 	.uleb128 0x7
 	.string	"id"
 	.byte	0x1
@@ -14474,7 +14469,7 @@ fs_lseek:
 	.4byte	.LASF106
 	.byte	0x4
 	.byte	0x65
-	.4byte	0x922
+	.4byte	0x917
 	.uleb128 0x6
 	.4byte	.LASF102
 	.byte	0x1
@@ -14494,12 +14489,12 @@ fs_lseek:
 	.byte	0x1
 	.byte	0x68
 	.byte	0x1c
-	.4byte	0x922
+	.4byte	0x917
 	.byte	0x4
 	.byte	0
 	.uleb128 0xc
-	.4byte	0x8c9
-	.4byte	0x931
+	.4byte	0x8be
+	.4byte	0x926
 	.uleb128 0x28
 	.4byte	0xaa
 	.byte	0
@@ -14508,7 +14503,7 @@ fs_lseek:
 	.byte	0x10
 	.byte	0x1
 	.byte	0x6e
-	.4byte	0x965
+	.4byte	0x95a
 	.uleb128 0x6
 	.4byte	.LASF27
 	.byte	0x1
@@ -14551,37 +14546,37 @@ fs_lseek:
 	.4byte	.LASF111
 	.byte	0x79
 	.byte	0x1c
-	.4byte	0x9a2
+	.4byte	0x997
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	desc
 	.uleb128 0xd
-	.4byte	0x846
+	.4byte	0x83b
 	.uleb128 0xe
 	.4byte	.LASF112
 	.byte	0x7a
 	.byte	0x1c
-	.4byte	0x9bc
+	.4byte	0x9b1
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	avail
 	.uleb128 0xd
-	.4byte	0x887
+	.4byte	0x87c
 	.uleb128 0xe
 	.4byte	.LASF72
 	.byte	0x7b
 	.byte	0x1c
-	.4byte	0x9d6
+	.4byte	0x9cb
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	used
 	.uleb128 0xd
-	.4byte	0x8ef
+	.4byte	0x8e4
 	.uleb128 0xe
 	.4byte	.LASF113
 	.byte	0x7c
 	.byte	0x1c
-	.4byte	0x9f0
+	.4byte	0x9e5
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	vq_area
@@ -14607,18 +14602,18 @@ fs_lseek:
 	.8byte	status_byte
 	.uleb128 0xc
 	.4byte	0x67
-	.4byte	0xa30
+	.4byte	0xa25
 	.uleb128 0x21
 	.4byte	0xaa
 	.byte	0
 	.uleb128 0x1f
-	.4byte	0xa21
+	.4byte	0xa16
 	.uleb128 0x2e
 	.4byte	.LASF116
 	.byte	0x1
 	.byte	0x80
 	.byte	0x1a
-	.4byte	0xa30
+	.4byte	0xa25
 	.2byte	0x200
 	.uleb128 0x9
 	.byte	0x3
@@ -14627,7 +14622,7 @@ fs_lseek:
 	.string	"req"
 	.byte	0xbf
 	.byte	0x1e
-	.4byte	0x931
+	.4byte	0x926
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	req
@@ -14636,7 +14631,7 @@ fs_lseek:
 	.2byte	0x210
 	.byte	0x1
 	.byte	0xe3
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x6
 	.4byte	.LASF118
 	.byte	0x1
@@ -14649,7 +14644,7 @@ fs_lseek:
 	.byte	0x1
 	.byte	0xe5
 	.byte	0xd
-	.4byte	0xab4
+	.4byte	0xaa9
 	.byte	0x4
 	.uleb128 0x8
 	.4byte	.LASF119
@@ -14675,13 +14670,13 @@ fs_lseek:
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x5b
-	.4byte	0xac3
+	.4byte	0xab8
 	.uleb128 0x21
 	.4byte	0xaa
 	.byte	0
 	.uleb128 0xc
-	.4byte	0xa62
-	.4byte	0xad3
+	.4byte	0xa57
+	.4byte	0xac8
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0x1f
@@ -14690,7 +14685,7 @@ fs_lseek:
 	.4byte	.LASF122
 	.byte	0xeb
 	.byte	0x1c
-	.4byte	0xac3
+	.4byte	0xab8
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	bcache
@@ -14730,13 +14725,13 @@ fs_lseek:
 	.4byte	.LASF126
 	.2byte	0x182
 	.byte	0x17
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	block_buf
 	.uleb128 0xc
-	.4byte	0x717
-	.4byte	0xb62
+	.4byte	0x70c
+	.4byte	0xb57
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0xf
@@ -14745,13 +14740,13 @@ fs_lseek:
 	.4byte	.LASF127
 	.2byte	0x366
 	.byte	0xe
-	.4byte	0xb52
+	.4byte	0xb47
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	gPipes
 	.uleb128 0xc
 	.4byte	0x61f
-	.4byte	0xb88
+	.4byte	0xb7d
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0xf
@@ -14760,7 +14755,7 @@ fs_lseek:
 	.4byte	.LASF128
 	.2byte	0x367
 	.byte	0xd
-	.4byte	0xb78
+	.4byte	0xb6d
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	gFiles
@@ -14768,7 +14763,7 @@ fs_lseek:
 	.4byte	.LASF129
 	.2byte	0x369
 	.byte	0xf
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	gFreePipes
@@ -14785,7 +14780,7 @@ fs_lseek:
 	.byte	0x1
 	.2byte	0x44f
 	.byte	0x6
-	.4byte	0xbd9
+	.4byte	0xbce
 	.uleb128 0x22
 	.byte	0
 	.uleb128 0x30
@@ -14793,7 +14788,7 @@ fs_lseek:
 	.byte	0x1
 	.2byte	0x44e
 	.byte	0x6
-	.4byte	0xbec
+	.4byte	0xbe1
 	.uleb128 0xb
 	.4byte	0x605
 	.byte	0
@@ -14802,8 +14797,8 @@ fs_lseek:
 	.byte	0x5
 	.byte	0xb9
 	.byte	0xf
-	.4byte	0xbfe
-	.4byte	0xbfe
+	.4byte	0xbf3
+	.4byte	0xbf3
 	.uleb128 0x22
 	.byte	0
 	.uleb128 0xd
@@ -14813,11 +14808,11 @@ fs_lseek:
 	.byte	0x12
 	.byte	0x7
 	.4byte	0x605
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0xb
 	.4byte	0x605
 	.uleb128 0xb
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0xb
 	.4byte	0xbd
 	.byte	0
@@ -14828,31 +14823,31 @@ fs_lseek:
 	.byte	0x10
 	.byte	0x5
 	.4byte	0x48
-	.4byte	0xc3c
+	.4byte	0xc31
 	.uleb128 0xb
-	.4byte	0xc22
+	.4byte	0xc17
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF135
 	.byte	0x14
 	.byte	0x7
 	.4byte	0x605
-	.4byte	0xc56
+	.4byte	0xc4b
 	.uleb128 0xb
 	.4byte	0x605
 	.uleb128 0xb
-	.4byte	0xc22
+	.4byte	0xc17
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF136
 	.byte	0x13
 	.byte	0x7
 	.4byte	0x605
-	.4byte	0xc75
+	.4byte	0xc6a
 	.uleb128 0xb
 	.4byte	0x605
 	.uleb128 0xb
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0xb
 	.4byte	0x48
 	.byte	0
@@ -14861,22 +14856,22 @@ fs_lseek:
 	.byte	0x16
 	.byte	0x5
 	.4byte	0x48
-	.4byte	0xc8f
+	.4byte	0xc84
 	.uleb128 0xb
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0xb
-	.4byte	0xc22
+	.4byte	0xc17
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF138
 	.byte	0x17
 	.byte	0x5
 	.4byte	0x48
-	.4byte	0xcae
+	.4byte	0xca3
 	.uleb128 0xb
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0xb
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0xb
 	.4byte	0x97
 	.byte	0
@@ -14885,37 +14880,37 @@ fs_lseek:
 	.byte	0x11
 	.byte	0x5
 	.4byte	0x48
-	.4byte	0xcc4
+	.4byte	0xcb9
 	.uleb128 0xb
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x22
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF140
 	.byte	0xf
 	.byte	0x7
-	.4byte	0xce3
-	.4byte	0xce3
+	.4byte	0xcd8
+	.4byte	0xcd8
 	.uleb128 0xb
-	.4byte	0xce3
+	.4byte	0xcd8
 	.uleb128 0xb
-	.4byte	0xce5
+	.4byte	0xcda
 	.uleb128 0xb
 	.4byte	0x97
 	.byte	0
 	.uleb128 0x32
 	.byte	0x8
 	.uleb128 0xd
-	.4byte	0xcea
+	.4byte	0xcdf
 	.uleb128 0x33
 	.uleb128 0x13
 	.4byte	.LASF141
 	.byte	0xe
 	.byte	0x7
-	.4byte	0xce3
-	.4byte	0xd0a
+	.4byte	0xcd8
+	.4byte	0xcff
 	.uleb128 0xb
-	.4byte	0xce3
+	.4byte	0xcd8
 	.uleb128 0xb
 	.4byte	0x48
 	.uleb128 0xb
@@ -14925,8 +14920,8 @@ fs_lseek:
 	.4byte	.LASF142
 	.byte	0xd
 	.byte	0x7
-	.4byte	0xce3
-	.4byte	0xd1f
+	.4byte	0xcd8
+	.4byte	0xd14
 	.uleb128 0xb
 	.4byte	0xbd
 	.byte	0
@@ -14935,9 +14930,9 @@ fs_lseek:
 	.byte	0x1
 	.byte	0x15
 	.byte	0xd
-	.4byte	0xd31
+	.4byte	0xd26
 	.uleb128 0xb
-	.4byte	0xc22
+	.4byte	0xc17
 	.byte	0
 	.uleb128 0x9
 	.4byte	.LASF148
@@ -14948,7 +14943,7 @@ fs_lseek:
 	.8byte	.LFE81-.LFB81
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xdb9
+	.4byte	0xdae
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x852
@@ -14977,7 +14972,7 @@ fs_lseek:
 	.string	"ft"
 	.2byte	0x854
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -15015,7 +15010,7 @@ fs_lseek:
 	.8byte	.LFE80-.LFB80
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xe13
+	.4byte	0xe08
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x832
@@ -15028,7 +15023,7 @@ fs_lseek:
 	.string	"st"
 	.2byte	0x832
 	.byte	0x26
-	.4byte	0xe13
+	.4byte	0xe08
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
@@ -15036,7 +15031,7 @@ fs_lseek:
 	.string	"ft"
 	.2byte	0x836
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -15058,7 +15053,7 @@ fs_lseek:
 	.8byte	.LFE79-.LFB79
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xe62
+	.4byte	0xe57
 	.uleb128 0x3
 	.4byte	.LASF150
 	.2byte	0x824
@@ -15079,7 +15074,7 @@ fs_lseek:
 	.string	"ft"
 	.2byte	0x825
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -15091,12 +15086,12 @@ fs_lseek:
 	.8byte	.LFE78-.LFB78
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xe8f
+	.4byte	0xe84
 	.uleb128 0x3
 	.4byte	.LASF61
 	.2byte	0x812
 	.byte	0x22
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -15108,7 +15103,7 @@ fs_lseek:
 	.8byte	.LFE77-.LFB77
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xef9
+	.4byte	0xeee
 	.uleb128 0x3
 	.4byte	.LASF155
 	.2byte	0x7ed
@@ -15121,7 +15116,7 @@ fs_lseek:
 	.4byte	.LASF156
 	.2byte	0x7ed
 	.byte	0x35
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
@@ -15129,7 +15124,7 @@ fs_lseek:
 	.4byte	.LASF157
 	.2byte	0x7ed
 	.byte	0x4b
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -56
@@ -15153,12 +15148,12 @@ fs_lseek:
 	.8byte	.LFE76-.LFB76
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xf45
+	.4byte	0xf3a
 	.uleb128 0x3
 	.4byte	.LASF61
 	.2byte	0x7e6
 	.byte	0x1c
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -40
@@ -15184,7 +15179,7 @@ fs_lseek:
 	.8byte	.LFE75-.LFB75
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xfcc
+	.4byte	0xfc1
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x7c0
@@ -15205,7 +15200,7 @@ fs_lseek:
 	.string	"ft"
 	.2byte	0x7c1
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -15221,7 +15216,7 @@ fs_lseek:
 	.string	"p"
 	.2byte	0x7d3
 	.byte	0x13
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
@@ -15247,7 +15242,7 @@ fs_lseek:
 	.8byte	.LFE74-.LFB74
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x1028
+	.4byte	0x101d
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x7ae
@@ -15260,7 +15255,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x7af
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -15290,7 +15285,7 @@ fs_lseek:
 	.8byte	.LFE73-.LFB73
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x1145
+	.4byte	0x113a
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x778
@@ -15303,7 +15298,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x778
 	.byte	0x26
-	.4byte	0xce5
+	.4byte	0xcda
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -608
@@ -15319,7 +15314,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x779
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
@@ -15343,7 +15338,7 @@ fs_lseek:
 	.string	"src"
 	.2byte	0x785
 	.byte	0x14
-	.4byte	0x1145
+	.4byte	0x113a
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -15417,7 +15412,7 @@ fs_lseek:
 	.4byte	.LASF172
 	.2byte	0x798
 	.byte	0x11
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -592
@@ -15434,7 +15429,7 @@ fs_lseek:
 	.8byte	.LFE72-.LFB72
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x11e3
+	.4byte	0x11d8
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x75e
@@ -15447,7 +15442,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x75e
 	.byte	0x1f
-	.4byte	0xce3
+	.4byte	0xcd8
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -64
@@ -15463,7 +15458,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x75f
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -15509,12 +15504,12 @@ fs_lseek:
 	.8byte	.LFE71-.LFB71
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x6df
 	.byte	0x1a
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -456
@@ -15538,7 +15533,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x6e0
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -72
@@ -15546,7 +15541,7 @@ fs_lseek:
 	.4byte	.LASF178
 	.2byte	0x6e1
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -224
@@ -15577,7 +15572,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB91
 	.8byte	.LBE91-.LBB91
-	.4byte	0x12a6
+	.4byte	0x129b
 	.uleb128 0x1
 	.string	"p"
 	.2byte	0x6e3
@@ -15590,7 +15585,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB92
 	.8byte	.LBE92-.LBB92
-	.4byte	0x12c9
+	.4byte	0x12be
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x6eb
@@ -15603,7 +15598,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB93
 	.8byte	.LBE93-.LBB93
-	.4byte	0x13b6
+	.4byte	0x13ab
 	.uleb128 0x2
 	.4byte	.LASF52
 	.2byte	0x703
@@ -15616,7 +15611,7 @@ fs_lseek:
 	.4byte	.LASF180
 	.2byte	0x704
 	.byte	0x12
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -336
@@ -15648,7 +15643,7 @@ fs_lseek:
 	.4byte	.LASF183
 	.2byte	0x713
 	.byte	0x22
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -360
@@ -15663,7 +15658,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB94
 	.8byte	.LBE94-.LBB94
-	.4byte	0x136f
+	.4byte	0x1364
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x705
@@ -15676,7 +15671,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB95
 	.8byte	.LBE95-.LBB95
-	.4byte	0x1393
+	.4byte	0x1388
 	.uleb128 0x1
 	.string	"ii"
 	.2byte	0x713
@@ -15702,7 +15697,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB97
 	.8byte	.LBE97-.LBB97
-	.4byte	0x13db
+	.4byte	0x13d0
 	.uleb128 0x2
 	.4byte	.LASF185
 	.2byte	0x72a
@@ -15739,7 +15734,7 @@ fs_lseek:
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x234
-	.4byte	0x142d
+	.4byte	0x1422
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0xe
@@ -15753,12 +15748,12 @@ fs_lseek:
 	.8byte	.LFE70-.LFB70
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x145f
+	.4byte	0x1454
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x6d9
 	.byte	0x19
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -15772,12 +15767,12 @@ fs_lseek:
 	.8byte	.LFE69-.LFB69
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x14ef
+	.4byte	0x14e4
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x6cc
 	.byte	0x1b
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -248
@@ -15801,7 +15796,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x6ce
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -152
@@ -15839,12 +15834,12 @@ fs_lseek:
 	.8byte	.LFE68-.LFB68
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x1570
+	.4byte	0x1565
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x6bf
 	.byte	0x1a
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -248
@@ -15868,7 +15863,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x6c1
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -152
@@ -15898,12 +15893,12 @@ fs_lseek:
 	.8byte	.LFE67-.LFB67
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x15ee
+	.4byte	0x15e3
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x6b1
 	.byte	0x1a
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -264
@@ -15919,7 +15914,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x6b3
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -160
@@ -15957,12 +15952,12 @@ fs_lseek:
 	.8byte	.LFE66-.LFB66
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x16ad
+	.4byte	0x16a2
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x6a2
 	.byte	0x1a
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -360
@@ -15970,7 +15965,7 @@ fs_lseek:
 	.string	"st"
 	.2byte	0x6a2
 	.byte	0x2d
-	.4byte	0xe13
+	.4byte	0xe08
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -368
@@ -15978,7 +15973,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x6a5
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -152
@@ -15994,7 +15989,7 @@ fs_lseek:
 	.4byte	.LASF180
 	.2byte	0x6a6
 	.byte	0x1b
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -176
@@ -16044,12 +16039,12 @@ fs_lseek:
 	.8byte	.LFE65-.LFB65
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x178a
+	.4byte	0x177f
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x693
 	.byte	0x1d
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -376
@@ -16073,7 +16068,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x696
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -160
@@ -16089,7 +16084,7 @@ fs_lseek:
 	.4byte	.LASF180
 	.2byte	0x697
 	.byte	0x1b
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -184
@@ -16147,12 +16142,12 @@ fs_lseek:
 	.8byte	.LFE64-.LFB64
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x17fa
+	.4byte	0x17ef
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x686
 	.byte	0x19
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -248
@@ -16160,7 +16155,7 @@ fs_lseek:
 	.string	"st"
 	.2byte	0x686
 	.byte	0x2c
-	.4byte	0xe13
+	.4byte	0xe08
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -256
@@ -16168,7 +16163,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x689
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -152
@@ -16198,12 +16193,12 @@ fs_lseek:
 	.8byte	.LFE63-.LFB63
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x18ca
+	.4byte	0x18bf
 	.uleb128 0x3
 	.4byte	.LASF195
 	.2byte	0x669
 	.byte	0x19
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -488
@@ -16211,7 +16206,7 @@ fs_lseek:
 	.4byte	.LASF196
 	.2byte	0x669
 	.byte	0x2e
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -496
@@ -16219,7 +16214,7 @@ fs_lseek:
 	.4byte	.LASF197
 	.2byte	0x66b
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -152
@@ -16227,7 +16222,7 @@ fs_lseek:
 	.4byte	.LASF198
 	.2byte	0x66b
 	.byte	0x17
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -280
@@ -16259,7 +16254,7 @@ fs_lseek:
 	.4byte	.LASF180
 	.2byte	0x677
 	.byte	0x1b
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -392
@@ -16293,12 +16288,12 @@ fs_lseek:
 	.8byte	.LFE62-.LFB62
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x19fd
+	.4byte	0x19f2
 	.uleb128 0x3
 	.4byte	.LASF195
 	.2byte	0x642
 	.byte	0x1b
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -696
@@ -16306,7 +16301,7 @@ fs_lseek:
 	.4byte	.LASF196
 	.2byte	0x642
 	.byte	0x30
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -704
@@ -16314,7 +16309,7 @@ fs_lseek:
 	.4byte	.LASF197
 	.2byte	0x644
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -160
@@ -16322,7 +16317,7 @@ fs_lseek:
 	.4byte	.LASF198
 	.2byte	0x644
 	.byte	0x17
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -288
@@ -16354,7 +16349,7 @@ fs_lseek:
 	.4byte	.LASF200
 	.2byte	0x64f
 	.byte	0x1b
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -312
@@ -16362,7 +16357,7 @@ fs_lseek:
 	.4byte	.LASF201
 	.2byte	0x64f
 	.byte	0x31
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -328
@@ -16401,7 +16396,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB86
 	.8byte	.LBE86-.LBB86
-	.4byte	0x19dc
+	.4byte	0x19d1
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x650
@@ -16433,12 +16428,12 @@ fs_lseek:
 	.8byte	.LFE61-.LFB61
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x1b0e
+	.4byte	0x1b03
 	.uleb128 0x3
 	.4byte	.LASF205
 	.2byte	0x625
 	.byte	0x1c
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -696
@@ -16446,7 +16441,7 @@ fs_lseek:
 	.4byte	.LASF206
 	.2byte	0x625
 	.byte	0x30
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -704
@@ -16454,7 +16449,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x627
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -160
@@ -16470,7 +16465,7 @@ fs_lseek:
 	.4byte	.LASF180
 	.2byte	0x62b
 	.byte	0x1b
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -184
@@ -16518,14 +16513,14 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x63b
 	.byte	0xd
-	.4byte	0x1b0e
+	.4byte	0x1b03
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -688
 	.uleb128 0xa
 	.8byte	.LBB84
 	.8byte	.LBE84-.LBB84
-	.4byte	0x1aee
+	.4byte	0x1ae3
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x62b
@@ -16550,7 +16545,7 @@ fs_lseek:
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x5b
-	.4byte	0x1b1e
+	.4byte	0x1b13
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0xef
@@ -16564,7 +16559,7 @@ fs_lseek:
 	.8byte	.LFE60-.LFB60
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x3
 	.4byte	.LASF37
 	.2byte	0x614
@@ -16577,7 +16572,7 @@ fs_lseek:
 	.string	"ip"
 	.2byte	0x614
 	.byte	0x3b
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -64
@@ -16585,7 +16580,7 @@ fs_lseek:
 	.string	"src"
 	.2byte	0x614
 	.byte	0x4e
-	.4byte	0x1145
+	.4byte	0x113a
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -72
@@ -16617,7 +16612,7 @@ fs_lseek:
 	.string	"s"
 	.2byte	0x616
 	.byte	0x3c
-	.4byte	0x1145
+	.4byte	0x113a
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -16669,12 +16664,12 @@ fs_lseek:
 	.8byte	.LFE59-.LFB59
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x1d52
+	.4byte	0x1d47
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x5e9
 	.byte	0x1b
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -568
@@ -16682,7 +16677,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x5eb
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -176
@@ -16714,7 +16709,7 @@ fs_lseek:
 	.4byte	.LASF180
 	.2byte	0x5ff
 	.byte	0x1b
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -288
@@ -16745,7 +16740,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB78
 	.8byte	.LBE78-.LBB78
-	.4byte	0x1d0e
+	.4byte	0x1d03
 	.uleb128 0x1
 	.string	"pi"
 	.2byte	0x5f5
@@ -16761,7 +16756,7 @@ fs_lseek:
 	.string	"ft"
 	.2byte	0x5f7
 	.byte	0x17
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
@@ -16782,7 +16777,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB81
 	.8byte	.LBE81-.LBB81
-	.4byte	0x1d31
+	.4byte	0x1d26
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x5ff
@@ -16814,12 +16809,12 @@ fs_lseek:
 	.8byte	.LFE58-.LFB58
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x1e88
+	.4byte	0x1e7d
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x5c0
 	.byte	0x1a
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -488
@@ -16827,7 +16822,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x5c2
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -184
@@ -16859,7 +16854,7 @@ fs_lseek:
 	.4byte	.LASF180
 	.2byte	0x5d9
 	.byte	0x1b
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -296
@@ -16882,7 +16877,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB73
 	.8byte	.LBE73-.LBB73
-	.4byte	0x1e68
+	.4byte	0x1e5d
 	.uleb128 0x1
 	.string	"off"
 	.2byte	0x5cd
@@ -16905,7 +16900,7 @@ fs_lseek:
 	.string	"de"
 	.2byte	0x5d0
 	.byte	0x1c
-	.4byte	0x1e88
+	.4byte	0x1e7d
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
@@ -16955,12 +16950,12 @@ fs_lseek:
 	.8byte	.LFE57-.LFB57
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x1f9e
+	.4byte	0x1f93
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x595
 	.byte	0x1a
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -552
@@ -16976,7 +16971,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x598
 	.byte	0xa
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -160
@@ -16992,7 +16987,7 @@ fs_lseek:
 	.4byte	.LASF180
 	.2byte	0x5a1
 	.byte	0xa
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -184
@@ -17047,7 +17042,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB71
 	.8byte	.LBE71-.LBB71
-	.4byte	0x1f7e
+	.4byte	0x1f73
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x5a1
@@ -17077,7 +17072,7 @@ fs_lseek:
 	.8byte	.LFE56-.LFB56
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x216b
+	.4byte	0x2160
 	.uleb128 0x5
 	.string	"out"
 	.2byte	0x555
@@ -17098,7 +17093,7 @@ fs_lseek:
 	.4byte	.LASF177
 	.2byte	0x555
 	.byte	0x47
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1128
@@ -17114,7 +17109,7 @@ fs_lseek:
 	.4byte	.LASF219
 	.2byte	0x558
 	.byte	0xa
-	.4byte	0x216b
+	.4byte	0x2160
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -368
@@ -17122,7 +17117,7 @@ fs_lseek:
 	.string	"tmp"
 	.2byte	0x568
 	.byte	0xa
-	.4byte	0x216b
+	.4byte	0x2160
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -624
@@ -17130,7 +17125,7 @@ fs_lseek:
 	.string	"s"
 	.2byte	0x56b
 	.byte	0x11
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -40
@@ -17138,7 +17133,7 @@ fs_lseek:
 	.string	"end"
 	.2byte	0x56c
 	.byte	0x11
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -96
@@ -17146,7 +17141,7 @@ fs_lseek:
 	.4byte	.LASF220
 	.2byte	0x56d
 	.byte	0x11
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -104
@@ -17154,7 +17149,7 @@ fs_lseek:
 	.4byte	.LASF221
 	.2byte	0x56e
 	.byte	0xa
-	.4byte	0x217b
+	.4byte	0x2170
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1104
@@ -17177,7 +17172,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB61
 	.8byte	.LBE61-.LBB61
-	.4byte	0x2098
+	.4byte	0x208d
 	.uleb128 0x1
 	.string	"n"
 	.2byte	0x560
@@ -17189,7 +17184,7 @@ fs_lseek:
 	.byte	0
 	.uleb128 0x29
 	.4byte	.LLRL3
-	.4byte	0x2115
+	.4byte	0x210a
 	.uleb128 0x1
 	.string	"len"
 	.2byte	0x575
@@ -17212,7 +17207,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB64
 	.8byte	.LBE64-.LBB64
-	.4byte	0x20f4
+	.4byte	0x20e9
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x57d
@@ -17274,14 +17269,14 @@ fs_lseek:
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x234
-	.4byte	0x217b
+	.4byte	0x2170
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0xff
 	.byte	0
 	.uleb128 0xc
 	.4byte	0x234
-	.4byte	0x2191
+	.4byte	0x2186
 	.uleb128 0xf
 	.4byte	0xaa
 	.byte	0x1f
@@ -17298,7 +17293,7 @@ fs_lseek:
 	.8byte	.LFE55-.LFB55
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2251
+	.4byte	0x2246
 	.uleb128 0x3
 	.4byte	.LASF227
 	.2byte	0x537
@@ -17311,7 +17306,7 @@ fs_lseek:
 	.4byte	.LASF38
 	.2byte	0x537
 	.byte	0x3c
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -160
@@ -17335,7 +17330,7 @@ fs_lseek:
 	.4byte	.LASF228
 	.2byte	0x53e
 	.byte	0xa
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -144
@@ -17346,7 +17341,7 @@ fs_lseek:
 	.string	"de"
 	.2byte	0x541
 	.byte	0x18
-	.4byte	0x1e88
+	.4byte	0x1e7d
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -17381,7 +17376,7 @@ fs_lseek:
 	.8byte	.LFE54-.LFB54
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x23f2
+	.4byte	0x23e7
 	.uleb128 0x3
 	.4byte	.LASF227
 	.2byte	0x4f7
@@ -17394,7 +17389,7 @@ fs_lseek:
 	.4byte	.LASF38
 	.2byte	0x4f7
 	.byte	0x39
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -720
@@ -17466,7 +17461,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x52a
 	.byte	0xd
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -704
@@ -17474,14 +17469,14 @@ fs_lseek:
 	.4byte	.LASF231
 	.2byte	0x52c
 	.byte	0x14
-	.4byte	0x1e88
+	.4byte	0x1e7d
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -56
 	.uleb128 0xa
 	.8byte	.LBB55
 	.8byte	.LBE55-.LBB55
-	.4byte	0x234f
+	.4byte	0x2344
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x503
@@ -17498,7 +17493,7 @@ fs_lseek:
 	.4byte	.LASF231
 	.2byte	0x50a
 	.byte	0x18
-	.4byte	0x1e88
+	.4byte	0x1e7d
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -64
@@ -17569,7 +17564,7 @@ fs_lseek:
 	.8byte	.LFE53-.LFB53
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2467
+	.4byte	0x245c
 	.uleb128 0x1
 	.string	"di"
 	.2byte	0x4e3
@@ -17612,12 +17607,12 @@ fs_lseek:
 	.8byte	.LFE52-.LFB52
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x4b4
 	.byte	0x2f
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -264
@@ -17625,7 +17620,7 @@ fs_lseek:
 	.4byte	.LASF227
 	.2byte	0x4b4
 	.byte	0x3f
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -272
@@ -17641,7 +17636,7 @@ fs_lseek:
 	.4byte	.LASF237
 	.2byte	0x4ba
 	.byte	0xa
-	.4byte	0x2583
+	.4byte	0x2578
 	.uleb128 0x4
 	.byte	0x91
 	.sleb128 -144
@@ -17697,7 +17692,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB51
 	.8byte	.LBE51-.LBB51
-	.4byte	0x255d
+	.4byte	0x2552
 	.uleb128 0x2
 	.4byte	.LASF240
 	.2byte	0x4c6
@@ -17732,7 +17727,7 @@ fs_lseek:
 	.4byte	0x8b
 	.uleb128 0xc
 	.4byte	0x234
-	.4byte	0x2597
+	.4byte	0x258c
 	.uleb128 0x35
 	.4byte	0xaa
 	.uleb128 0x4
@@ -17749,7 +17744,7 @@ fs_lseek:
 	.8byte	.LFE51-.LFB51
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x261f
+	.4byte	0x2614
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x485
@@ -17778,7 +17773,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x487
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -17786,7 +17781,7 @@ fs_lseek:
 	.string	"p"
 	.2byte	0x490
 	.byte	0x13
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -17812,7 +17807,7 @@ fs_lseek:
 	.8byte	.LFE50-.LFB50
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x26b4
+	.4byte	0x26a9
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x453
@@ -17841,7 +17836,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x455
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -17849,7 +17844,7 @@ fs_lseek:
 	.string	"p"
 	.2byte	0x45e
 	.byte	0x13
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -17881,12 +17876,12 @@ fs_lseek:
 	.8byte	.LFE49-.LFB49
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2746
+	.4byte	0x273b
 	.uleb128 0x5
 	.string	"fd1"
 	.2byte	0x410
 	.byte	0x15
-	.4byte	0x2746
+	.4byte	0x273b
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -72
@@ -17894,7 +17889,7 @@ fs_lseek:
 	.string	"fd2"
 	.2byte	0x410
 	.byte	0x1f
-	.4byte	0x2746
+	.4byte	0x273b
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -80
@@ -17902,7 +17897,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x411
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
@@ -17910,14 +17905,14 @@ fs_lseek:
 	.string	"pip"
 	.2byte	0x413
 	.byte	0x13
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -56
 	.uleb128 0xa
 	.8byte	.LBB46
 	.8byte	.LBE46-.LBB46
-	.4byte	0x2732
+	.4byte	0x2727
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x415
@@ -17950,7 +17945,7 @@ fs_lseek:
 	.8byte	.LFE48-.LFB48
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2798
+	.4byte	0x278d
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x407
@@ -17963,7 +17958,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x409
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -17985,7 +17980,7 @@ fs_lseek:
 	.8byte	.LFE47-.LFB47
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x27d8
+	.4byte	0x27cd
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x3fa
@@ -17998,7 +17993,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x3fc
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -18012,7 +18007,7 @@ fs_lseek:
 	.8byte	.LFE46-.LFB46
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2818
+	.4byte	0x280d
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x3ee
@@ -18025,7 +18020,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x3f0
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -18039,7 +18034,7 @@ fs_lseek:
 	.8byte	.LFE45-.LFB45
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2858
+	.4byte	0x284d
 	.uleb128 0x5
 	.string	"fd"
 	.2byte	0x3d9
@@ -18052,7 +18047,7 @@ fs_lseek:
 	.4byte	.LASF61
 	.2byte	0x3db
 	.byte	0x13
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -18064,12 +18059,12 @@ fs_lseek:
 	.8byte	.LFE44-.LFB44
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2885
+	.4byte	0x287a
 	.uleb128 0x3
 	.4byte	.LASF61
 	.2byte	0x3c5
 	.byte	0x1c
-	.4byte	0xbfe
+	.4byte	0xbf3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -40
@@ -18083,7 +18078,7 @@ fs_lseek:
 	.8byte	.LFE43-.LFB43
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x28b7
+	.4byte	0x28ac
 	.uleb128 0x2
 	.4byte	.LASF156
 	.2byte	0x3bb
@@ -18097,17 +18092,17 @@ fs_lseek:
 	.4byte	.LASF251
 	.2byte	0x3a3
 	.byte	0xf
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.8byte	.LFB42
 	.8byte	.LFE42-.LFB42
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2904
+	.4byte	0x28f9
 	.uleb128 0x1
 	.string	"p"
 	.2byte	0x3a5
 	.byte	0x13
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -18115,7 +18110,7 @@ fs_lseek:
 	.4byte	.LASF252
 	.2byte	0x3b1
 	.byte	0xb
-	.4byte	0xce3
+	.4byte	0xcd8
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -18123,7 +18118,7 @@ fs_lseek:
 	.string	"pa"
 	.2byte	0x3b2
 	.byte	0xb
-	.4byte	0xce3
+	.4byte	0xcd8
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -40
@@ -18135,7 +18130,7 @@ fs_lseek:
 	.8byte	.LFE41-.LFB41
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x292f
+	.4byte	0x2924
 	.uleb128 0x5
 	.string	"p"
 	.2byte	0x39a
@@ -18154,7 +18149,7 @@ fs_lseek:
 	.8byte	.LFE40-.LFB40
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x295f
+	.4byte	0x2954
 	.uleb128 0x1
 	.string	"p"
 	.2byte	0x393
@@ -18171,12 +18166,12 @@ fs_lseek:
 	.8byte	.LFE39-.LFB39
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x298a
+	.4byte	0x297f
 	.uleb128 0x5
 	.string	"p"
 	.2byte	0x38b
 	.byte	0x1e
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -18185,17 +18180,17 @@ fs_lseek:
 	.4byte	.LASF256
 	.2byte	0x380
 	.byte	0xf
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.8byte	.LFB38
 	.8byte	.LFE38-.LFB38
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x29ba
+	.4byte	0x29af
 	.uleb128 0x1
 	.string	"p"
 	.2byte	0x382
 	.byte	0x13
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -18209,11 +18204,11 @@ fs_lseek:
 	.8byte	.LFE37-.LFB37
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2a5a
+	.4byte	0x2a4f
 	.uleb128 0xa
 	.8byte	.LBB42
 	.8byte	.LBE42-.LBB42
-	.4byte	0x2a1b
+	.4byte	0x2a10
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x371
@@ -18229,7 +18224,7 @@ fs_lseek:
 	.string	"p"
 	.2byte	0x372
 	.byte	0x17
-	.4byte	0x7dd
+	.4byte	0x7d2
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -40
@@ -18267,7 +18262,7 @@ fs_lseek:
 	.8byte	.LFE36-.LFB36
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2acd
+	.4byte	0x2ac2
 	.uleb128 0x5
 	.string	"f"
 	.2byte	0x359
@@ -18320,7 +18315,7 @@ fs_lseek:
 	.8byte	.LFE35-.LFB35
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2b3e
+	.4byte	0x2b33
 	.uleb128 0x5
 	.string	"f"
 	.2byte	0x34b
@@ -18347,7 +18342,7 @@ fs_lseek:
 	.sleb128 -28
 	.uleb128 0x29
 	.4byte	.LLRL0
-	.4byte	0x2b2a
+	.4byte	0x2b1f
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x34e
@@ -18378,7 +18373,7 @@ fs_lseek:
 	.8byte	.LFE34-.LFB34
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2b6e
+	.4byte	0x2b63
 	.uleb128 0x5
 	.string	"f"
 	.2byte	0x348
@@ -18395,7 +18390,7 @@ fs_lseek:
 	.8byte	.LFE33-.LFB33
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2bca
+	.4byte	0x2bbf
 	.uleb128 0x3
 	.4byte	.LASF37
 	.2byte	0x330
@@ -18434,12 +18429,12 @@ fs_lseek:
 	.8byte	.LFE32-.LFB32
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2d57
+	.4byte	0x2d4c
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x307
 	.byte	0x1d
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1672
@@ -18463,7 +18458,7 @@ fs_lseek:
 	.string	"abs"
 	.2byte	0x30a
 	.byte	0xa
-	.4byte	0x216b
+	.4byte	0x2160
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -328
@@ -18479,7 +18474,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x30f
 	.byte	0xa
-	.4byte	0x216b
+	.4byte	0x2160
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -672
@@ -18553,12 +18548,12 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB34
 	.8byte	.LBE34-.LBB34
-	.4byte	0x2d36
+	.4byte	0x2d2b
 	.uleb128 0x2
 	.4byte	.LASF266
 	.2byte	0x31b
 	.byte	0x12
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1568
@@ -18574,7 +18569,7 @@ fs_lseek:
 	.4byte	.LASF267
 	.2byte	0x31d
 	.byte	0x12
-	.4byte	0x216b
+	.4byte	0x2160
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1440
@@ -18590,7 +18585,7 @@ fs_lseek:
 	.4byte	.LASF268
 	.2byte	0x31f
 	.byte	0x12
-	.4byte	0x7be
+	.4byte	0x7b3
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1184
@@ -18618,12 +18613,12 @@ fs_lseek:
 	.8byte	.LFE31-.LFB31
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2e84
+	.4byte	0x2e79
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x2c5
 	.byte	0x2d
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1400
@@ -18647,7 +18642,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x2ce
 	.byte	0xa
-	.4byte	0x216b
+	.4byte	0x2160
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -400
@@ -18679,7 +18674,7 @@ fs_lseek:
 	.4byte	.LASF270
 	.2byte	0x2d3
 	.byte	0xa
-	.4byte	0x216b
+	.4byte	0x2160
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -656
@@ -18709,7 +18704,7 @@ fs_lseek:
 	.4byte	.LASF266
 	.2byte	0x2df
 	.byte	0x12
-	.4byte	0x6e7
+	.4byte	0x6dc
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1296
@@ -18725,7 +18720,7 @@ fs_lseek:
 	.4byte	.LASF267
 	.2byte	0x2e4
 	.byte	0x12
-	.4byte	0x216b
+	.4byte	0x2160
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1168
@@ -18741,7 +18736,7 @@ fs_lseek:
 	.4byte	.LASF268
 	.2byte	0x2ec
 	.byte	0x12
-	.4byte	0x216b
+	.4byte	0x2160
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -912
@@ -18757,12 +18752,12 @@ fs_lseek:
 	.8byte	.LFE30-.LFB30
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2eb6
+	.4byte	0x2eab
 	.uleb128 0x3
 	.4byte	.LASF177
 	.2byte	0x2c1
 	.byte	0x22
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -18776,12 +18771,12 @@ fs_lseek:
 	.8byte	.LFE29-.LFB29
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x2f65
+	.4byte	0x2f5a
 	.uleb128 0x3
 	.4byte	.LASF52
 	.2byte	0x2aa
 	.byte	0x24
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -72
@@ -18789,7 +18784,7 @@ fs_lseek:
 	.4byte	.LASF38
 	.2byte	0x2aa
 	.byte	0x38
-	.4byte	0xc22
+	.4byte	0xc17
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -80
@@ -18805,7 +18800,7 @@ fs_lseek:
 	.4byte	.LASF228
 	.2byte	0x2ac
 	.byte	0xa
-	.4byte	0x141d
+	.4byte	0x1412
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -56
@@ -18816,7 +18811,7 @@ fs_lseek:
 	.string	"de"
 	.2byte	0x2b0
 	.byte	0x18
-	.4byte	0x1e88
+	.4byte	0x1e7d
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -18849,12 +18844,12 @@ fs_lseek:
 	.8byte	.LFE28-.LFB28
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x303a
+	.4byte	0x302f
 	.uleb128 0x5
 	.string	"ip"
 	.2byte	0x292
 	.byte	0x1f
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -56
@@ -18870,7 +18865,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x292
 	.byte	0x3d
-	.4byte	0x9f0
+	.4byte	0x9e5
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -72
@@ -18902,7 +18897,7 @@ fs_lseek:
 	.string	"dst"
 	.2byte	0x295
 	.byte	0xe
-	.4byte	0x9f0
+	.4byte	0x9e5
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -18952,7 +18947,7 @@ fs_lseek:
 	.8byte	.LFE27-.LFB27
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x323b
+	.4byte	0x3230
 	.uleb128 0x3
 	.4byte	.LASF37
 	.2byte	0x249
@@ -18965,7 +18960,7 @@ fs_lseek:
 	.string	"ip"
 	.2byte	0x249
 	.byte	0x40
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1664
@@ -19013,7 +19008,7 @@ fs_lseek:
 	.4byte	.LASF278
 	.2byte	0x27a
 	.byte	0xd
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -616
@@ -19021,7 +19016,7 @@ fs_lseek:
 	.4byte	.LASF279
 	.2byte	0x27c
 	.byte	0xf
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -56
@@ -19037,7 +19032,7 @@ fs_lseek:
 	.4byte	.LASF281
 	.2byte	0x286
 	.byte	0xd
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1128
@@ -19045,14 +19040,14 @@ fs_lseek:
 	.4byte	.LASF282
 	.2byte	0x288
 	.byte	0xf
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -72
 	.uleb128 0xa
 	.8byte	.LBB21
 	.8byte	.LBE21-.LBB21
-	.4byte	0x3138
+	.4byte	0x312d
 	.uleb128 0x1
 	.string	"b"
 	.2byte	0x24d
@@ -19065,7 +19060,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB22
 	.8byte	.LBE22-.LBB22
-	.4byte	0x31d1
+	.4byte	0x31c6
 	.uleb128 0x2
 	.4byte	.LASF283
 	.2byte	0x256
@@ -19078,7 +19073,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x25f
 	.byte	0x11
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -1640
@@ -19086,7 +19081,7 @@ fs_lseek:
 	.4byte	.LASF215
 	.2byte	0x261
 	.byte	0x13
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -88
@@ -19101,7 +19096,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB23
 	.8byte	.LBE23-.LBB23
-	.4byte	0x31af
+	.4byte	0x31a4
 	.uleb128 0x1
 	.string	"nb"
 	.2byte	0x258
@@ -19127,7 +19122,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB25
 	.8byte	.LBE25-.LBB25
-	.4byte	0x31f5
+	.4byte	0x31ea
 	.uleb128 0x1
 	.string	"nb"
 	.2byte	0x273
@@ -19140,7 +19135,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB26
 	.8byte	.LBE26-.LBB26
-	.4byte	0x3219
+	.4byte	0x320e
 	.uleb128 0x1
 	.string	"nb"
 	.2byte	0x27f
@@ -19172,12 +19167,12 @@ fs_lseek:
 	.8byte	.LFE26-.LFB26
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x331e
+	.4byte	0x3313
 	.uleb128 0x5
 	.string	"ip"
 	.2byte	0x229
 	.byte	0x2e
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -88
@@ -19192,7 +19187,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB19
 	.8byte	.LBE19-.LBB19
-	.4byte	0x32b1
+	.4byte	0x32a6
 	.uleb128 0x2
 	.4byte	.LASF283
 	.2byte	0x22f
@@ -19205,7 +19200,7 @@ fs_lseek:
 	.4byte	.LASF215
 	.2byte	0x232
 	.byte	0x13
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -72
@@ -19241,7 +19236,7 @@ fs_lseek:
 	.4byte	.LASF279
 	.2byte	0x23e
 	.byte	0x13
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -40
@@ -19257,7 +19252,7 @@ fs_lseek:
 	.4byte	.LASF282
 	.2byte	0x244
 	.byte	0x13
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -56
@@ -19272,7 +19267,7 @@ fs_lseek:
 	.8byte	.LFE25-.LFB25
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x339e
+	.4byte	0x3393
 	.uleb128 0x2
 	.4byte	.LASF288
 	.2byte	0x21a
@@ -19307,7 +19302,7 @@ fs_lseek:
 	.string	"z"
 	.2byte	0x220
 	.byte	0x15
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -544
@@ -19321,7 +19316,7 @@ fs_lseek:
 	.8byte	.LFE24-.LFB24
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3501
+	.4byte	0x34f6
 	.uleb128 0x3
 	.4byte	.LASF37
 	.2byte	0x1ea
@@ -19334,14 +19329,14 @@ fs_lseek:
 	.string	"ip"
 	.2byte	0x1ea
 	.byte	0x3d
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -608
 	.uleb128 0xa
 	.8byte	.LBB10
 	.8byte	.LBE10-.LBB10
-	.4byte	0x33fd
+	.4byte	0x33f2
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x1ed
@@ -19354,7 +19349,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB11
 	.8byte	.LBE11-.LBB11
-	.4byte	0x3450
+	.4byte	0x3445
 	.uleb128 0x2
 	.4byte	.LASF291
 	.2byte	0x1f6
@@ -19367,7 +19362,7 @@ fs_lseek:
 	.4byte	.LASF231
 	.2byte	0x1f8
 	.byte	0x13
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
@@ -19399,7 +19394,7 @@ fs_lseek:
 	.4byte	.LASF265
 	.2byte	0x204
 	.byte	0x13
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -64
@@ -19429,7 +19424,7 @@ fs_lseek:
 	.4byte	.LASF294
 	.2byte	0x208
 	.byte	0x15
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -592
@@ -19437,7 +19432,7 @@ fs_lseek:
 	.4byte	.LASF295
 	.2byte	0x20a
 	.byte	0x17
-	.4byte	0x257e
+	.4byte	0x2573
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -80
@@ -19464,7 +19459,7 @@ fs_lseek:
 	.8byte	.LFE23-.LFB23
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x355a
+	.4byte	0x354f
 	.uleb128 0x5
 	.string	"b"
 	.2byte	0x1de
@@ -19485,7 +19480,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x1e2
 	.byte	0xd
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -536
@@ -19505,7 +19500,7 @@ fs_lseek:
 	.8byte	.LFE22-.LFB22
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x35b3
+	.4byte	0x35a8
 	.uleb128 0x5
 	.string	"b"
 	.2byte	0x1d4
@@ -19526,7 +19521,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x1d7
 	.byte	0xd
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -536
@@ -19548,7 +19543,7 @@ fs_lseek:
 	.8byte	.LFE21-.LFB21
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3611
+	.4byte	0x3606
 	.uleb128 0x5
 	.string	"b"
 	.2byte	0x1cb
@@ -19569,7 +19564,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x1ce
 	.byte	0xd
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -536
@@ -19589,7 +19584,7 @@ fs_lseek:
 	.8byte	.LFE20-.LFB20
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x369b
+	.4byte	0x3690
 	.uleb128 0x3
 	.4byte	.LASF37
 	.2byte	0x1bd
@@ -19602,7 +19597,7 @@ fs_lseek:
 	.string	"src"
 	.2byte	0x1bd
 	.byte	0x3d
-	.4byte	0x369b
+	.4byte	0x3690
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -576
@@ -19634,7 +19629,7 @@ fs_lseek:
 	.string	"buf"
 	.2byte	0x1c4
 	.byte	0xd
-	.4byte	0xab4
+	.4byte	0xaa9
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -552
@@ -19642,7 +19637,7 @@ fs_lseek:
 	.string	"dip"
 	.2byte	0x1c6
 	.byte	0x14
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -40
@@ -19658,7 +19653,7 @@ fs_lseek:
 	.8byte	.LFE19-.LFB19
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x36d0
+	.4byte	0x36c5
 	.uleb128 0x5
 	.string	"b"
 	.2byte	0x1bb
@@ -19675,7 +19670,7 @@ fs_lseek:
 	.8byte	.LFE18-.LFB18
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3748
+	.4byte	0x373d
 	.uleb128 0x3
 	.4byte	.LASF37
 	.2byte	0x1a6
@@ -19688,7 +19683,7 @@ fs_lseek:
 	.4byte	.LASF304
 	.2byte	0x1a6
 	.byte	0x2f
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -64
@@ -19720,7 +19715,7 @@ fs_lseek:
 	.string	"dip"
 	.2byte	0x1b4
 	.byte	0x14
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -40
@@ -19743,12 +19738,12 @@ fs_lseek:
 	.8byte	.LFE16-.LFB16
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x381d
+	.4byte	0x3812
 	.uleb128 0x5
 	.string	"ip"
 	.2byte	0x18d
 	.byte	0x26
-	.4byte	0x1bf6
+	.4byte	0x1beb
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -56
@@ -19826,7 +19821,7 @@ fs_lseek:
 	.8byte	.LFE15-.LFB15
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x384d
+	.4byte	0x3842
 	.uleb128 0x1
 	.string	"x"
 	.2byte	0x186
@@ -19843,7 +19838,7 @@ fs_lseek:
 	.8byte	.LFE14-.LFB14
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3897
+	.4byte	0x388c
 	.uleb128 0x5
 	.string	"blk"
 	.2byte	0x175
@@ -19856,7 +19851,7 @@ fs_lseek:
 	.string	"src"
 	.2byte	0x175
 	.byte	0x2c
-	.4byte	0xce5
+	.4byte	0xcda
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
@@ -19864,13 +19859,13 @@ fs_lseek:
 	.string	"be"
 	.2byte	0x177
 	.byte	0x1a
-	.4byte	0x3897
+	.4byte	0x388c
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
 	.byte	0
 	.uleb128 0xd
-	.4byte	0xa62
+	.4byte	0xa57
 	.uleb128 0x17
 	.4byte	.LASF311
 	.2byte	0x15c
@@ -19878,7 +19873,7 @@ fs_lseek:
 	.8byte	.LFE13-.LFB13
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x38d8
+	.4byte	0x38cd
 	.uleb128 0x3
 	.4byte	.LASF109
 	.2byte	0x15c
@@ -19891,7 +19886,7 @@ fs_lseek:
 	.string	"src"
 	.2byte	0x15c
 	.byte	0x3b
-	.4byte	0xce5
+	.4byte	0xcda
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -19903,7 +19898,7 @@ fs_lseek:
 	.8byte	.LFE12-.LFB12
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3922
+	.4byte	0x3917
 	.uleb128 0x5
 	.string	"blk"
 	.2byte	0x155
@@ -19916,7 +19911,7 @@ fs_lseek:
 	.string	"dst"
 	.2byte	0x155
 	.byte	0x25
-	.4byte	0xce3
+	.4byte	0xcd8
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
@@ -19924,7 +19919,7 @@ fs_lseek:
 	.string	"be"
 	.2byte	0x157
 	.byte	0x1a
-	.4byte	0x3897
+	.4byte	0x388c
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -19938,12 +19933,12 @@ fs_lseek:
 	.8byte	.LFE11-.LFB11
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3950
+	.4byte	0x3945
 	.uleb128 0x5
 	.string	"be"
 	.2byte	0x14e
 	.byte	0x31
-	.4byte	0x3897
+	.4byte	0x388c
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -19952,12 +19947,12 @@ fs_lseek:
 	.4byte	.LASF314
 	.2byte	0x11e
 	.byte	0x1d
-	.4byte	0x3897
+	.4byte	0x388c
 	.8byte	.LFB10
 	.8byte	.LFE10-.LFB10
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x39d3
+	.4byte	0x39c8
 	.uleb128 0x3
 	.4byte	.LASF118
 	.2byte	0x11e
@@ -19977,7 +19972,7 @@ fs_lseek:
 	.uleb128 0xa
 	.8byte	.LBB6
 	.8byte	.LBE6-.LBB6
-	.4byte	0x39b3
+	.4byte	0x39a8
 	.uleb128 0x1
 	.string	"i"
 	.2byte	0x123
@@ -20009,7 +20004,7 @@ fs_lseek:
 	.8byte	.LFE9-.LFB9
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3a33
+	.4byte	0x3a28
 	.uleb128 0x2
 	.4byte	.LASF317
 	.2byte	0x106
@@ -20057,7 +20052,7 @@ fs_lseek:
 	.8byte	.LFE7-.LFB7
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3a8a
+	.4byte	0x3a7f
 	.uleb128 0x4
 	.8byte	.LBB4
 	.8byte	.LBE4-.LBB4
@@ -20080,7 +20075,7 @@ fs_lseek:
 	.8byte	.LFE6-.LFB6
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3ac6
+	.4byte	0x3abb
 	.uleb128 0x3c
 	.4byte	.LASF109
 	.byte	0x1
@@ -20094,7 +20089,7 @@ fs_lseek:
 	.string	"dst"
 	.byte	0xc4
 	.byte	0x34
-	.4byte	0xce3
+	.4byte	0xcd8
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -20108,7 +20103,7 @@ fs_lseek:
 	.8byte	.LFE5-.LFB5
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3b0c
+	.4byte	0x3b01
 	.uleb128 0x16
 	.string	"f0"
 	.byte	0xb9
@@ -20143,7 +20138,7 @@ fs_lseek:
 	.8byte	.LFE4-.LFB4
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3bf8
+	.4byte	0x3bed
 	.uleb128 0xe
 	.4byte	.LASF325
 	.byte	0x92
@@ -20259,7 +20254,7 @@ fs_lseek:
 	.8byte	.LFE3-.LFB3
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x3c33
+	.4byte	0x3c28
 	.uleb128 0x16
 	.string	"b"
 	.byte	0x83
