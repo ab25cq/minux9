@@ -1,5 +1,43 @@
 #include "as.h"
 
+// 静的メモリプール
+#define AS_POOL_SIZE (512 * 1024)  // 512KB for malloc/calloc
+
+static char AsPool[AS_POOL_SIZE] __attribute__((aligned(16)));
+static size_t AsPoolIndex = 0;
+
+// 静的malloc代替関数
+static void *static_malloc(size_t size) {
+    if (size == 0) return NULL;
+
+    // アライメントを16バイトに調整
+    size_t align = 16;
+    size_t aligned_index = (AsPoolIndex + align - 1) & ~(align - 1);
+
+    if (aligned_index + size > AS_POOL_SIZE) {
+        puts("As pool exhausted");
+        exit(1);
+    }
+
+    void *ptr = &AsPool[aligned_index];
+    AsPoolIndex = aligned_index + size;
+    return ptr;
+}
+
+// 静的calloc代替関数
+static void *static_calloc(size_t nmemb, size_t size) {
+    size_t total = nmemb * size;
+    void *ptr = static_malloc(total);
+    if (ptr) {
+        memset(ptr, 0, total);
+    }
+    return ptr;
+}
+
+#define malloc static_malloc
+#define calloc static_calloc
+#define free(ptr) ((void)0)
+
 void closefiles(void);
 
 static const char strtab_bytes[] =
@@ -1539,44 +1577,6 @@ int parse_quad(const char *arg) {
   inc_outputsize(pos.section, 8);
   return 0;
 }
-
-/*
-int parse_quad(const char *arg)
-{
-    // オペランドは「数値（0x.., 10進等）」か「シンボル名」のどちらか
-    char *tok = trim_whitespace((char*)arg);
-    if (!tok || !*tok) {
-        logger(ERROR, error_invalid_instruction, ".quad needs an operand");
-        return 1;
-    }
-
-    struct sectionpos pos = get_outputpos();
-
-    // 1) 即値なら 8 バイトをそのまま書く
-    size_t imm;
-    if (get_immediate(tok, &imm) == 0) {
-        uint64_t v = (uint64_t)imm;
-        char *buf = xmalloc(8);
-        memcpy(buf, &v, 8);
-        int res = add_data((struct rawdata){
-            .data = buf, .size = 8, .position = pos, .line = linenumber,
-            .sym = NULL, .is_abs64 = 0, .addend = 0
-        });
-        inc_outputsize(pos.section, 8);
-        return res;
-    }
-
-    // 2) シンボルなら、8B の穴＋「後で ABS64 を解決」印を残す
-    struct symbol *sym = get_or_create_symbol(tok, SYMBOL_LABEL);
-    char *zeros = xcalloc(1, 8);
-    int res = add_data((struct rawdata){
-        .data = zeros, .size = 8, .position = pos, .line = linenumber,
-        .sym = sym, .is_abs64 = 1, .addend = 0
-    });
-    inc_outputsize(pos.section, 8);
-    return res;
-}
-*/
 
 int parse_directive(char *line)
 {

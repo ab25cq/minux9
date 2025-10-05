@@ -1,8 +1,8 @@
 #include "cc.h"
 
 // 静的メモリプール（大きなバッファとして定義）
-#define STRUCT_POOL_SIZE (768 * 1024)  // 768KB for structures
-#define CHAR_BUF_SIZE (256 * 1024)      // 256KB for char arrays
+#define STRUCT_POOL_SIZE (384 * 1024)  // 384KB for structures
+#define CHAR_BUF_SIZE (128 * 1024)      // 128KB for char arrays
 
 static char StructPool[STRUCT_POOL_SIZE] __attribute__((aligned(16)));
 static size_t StructPoolIndex = 0;
