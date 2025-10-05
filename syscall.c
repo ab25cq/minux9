@@ -17,7 +17,6 @@ int Sys_write() {
     while (left > 0) {
         int n = left > (int)sizeof(kbuf) ? (int)sizeof(kbuf) : left;
         if (copyin(p->pagetable, kbuf, u, n) < 0) {
-            printf("copyin failed %p\r\n", u);
             return -1;
         }
         
@@ -323,9 +322,6 @@ int Sys_getcwd()
     struct proc *p = gProc[gActiveProc];
     
     int len = strlen(p->cwd);
-#ifdef DEBUG_CWD
-    printf("[getcwd] proc=%d cwd='%s' len=%d max=%d\n", gActiveProc, p->cwd, len, maxlen);
-#endif
     // Defensive: ensure cwd is never empty when reported
     const char* src = p->cwd;
     
@@ -377,9 +373,6 @@ int Sys_chdir()
     // Set as new cwd
     strncpy(p->cwd, abs, sizeof(p->cwd));
     p->cwd[sizeof(p->cwd)-1] = '\0';
-#ifdef DEBUG_CWD
-    printf("[chdir] proc=%d new cwd='%s'\n", gActiveProc, p->cwd);
-#endif
     return 0;
 }
 
@@ -731,9 +724,6 @@ int Sys_execv()
     kargv[argc] = NULL;
 
     // Read ELF file
-#ifdef DEBUG_CWD
-    printf("[execv] proc=%d path='%s' cwd(before)='%s'\n", gActiveProc, path, gProc[gActiveProc]->cwd);
-#endif
 
     // Preserve current working directory across exec explicitly.
     // Although alloc_prog(exec_flag=1) copies it, keep a backup to be safe.
@@ -777,9 +767,6 @@ int Sys_execv()
     // Apply setuid/setgid semantics
     new_p->uid = new_uid;
     new_p->gid = new_gid;
-#ifdef DEBUG_CWD
-    printf("[execv] after replace proc=%d cwd(now)='%s'\n", gActiveProc, new_p->cwd);
-#endif
 
     // Final safeguard: if cwd became empty or root handling broke, restore backup
     if (!(new_p->cwd[0])) {
@@ -1003,8 +990,7 @@ int Sys_brk(void) {
     if (req > old) {
         //map_user_pages(old, req - old, PTE_U|PTE_R|PTE_W);
         if(uvm_alloc(p, p->pagetable, old, req) < 0) {
-            printf("Sys_brk: uvm_alloc failed!\n");
-            return -1; 
+            return -1;
         }
     } else if (req < old) {
         uvm_dealloc(p->pagetable, old, req);
@@ -1032,8 +1018,7 @@ int Sys_brk() {
 
     if (addr > old_sz) {
         if(uvm_alloc(p, p->pagetable, old_sz, addr) < 0) {
-            printf("Sys_brk: uvm_alloc failed!\n");
-            return -1; 
+            return -1;
         }
     } else if (addr < old_sz) {
         uvm_dealloc(p->pagetable, old_sz, addr);

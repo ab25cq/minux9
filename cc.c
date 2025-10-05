@@ -3143,7 +3143,6 @@ void hashmapTest(void) {
     hashmapPut(Map, format("key %d", I), (void *)(size_t)I);
 
   assert(hashmapGet(Map, "no such key") == NULL);
-  printf("OK\n");
 }
 
 // 【注意】

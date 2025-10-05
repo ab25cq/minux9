@@ -374,8 +374,6 @@ bitmap_is_allocated(uint32_t blkno)
 
 void write_file_to_file_system(char* elfpath, uint32_t new_inum)
 {
-    // progress log for debugging build failures
-    fprintf(stderr, "[mkfs] embed '%s' -> inum %u\n", elfpath, new_inum);
     struct stat st;
     if (stat(elfpath, &st) < 0) {
         perror(elfpath);

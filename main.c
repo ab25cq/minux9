@@ -690,49 +690,38 @@ void putchar(char c) {
 }
 
 void mmu_init() {
-    puts("mmu_init: start\n");
     kernel_pagetable = (pagetable_t)kalloc();
-    puts("mmu_init: kalloc done\n");
     memset(kernel_pagetable, 0, PGSIZE);
-    puts("mmu_init: memset done\n");
 
     // 0x80000000
-    puts("mmu_init: mapping kernel\n");
     for (uint64_t addr = KERNBASE; addr < PHYSTOP; addr += PGSIZE) {
         mappages(kernel_pagetable, addr, PGSIZE, addr, PTE_R | PTE_W | PTE_X | PTE_V);
     }
 
     // UART
-    puts("mmu_init: mapping UART\n");
     mappages(kernel_pagetable, 0x10000000, PGSIZE, 0x10000000, PTE_R | PTE_W | PTE_V);
     mappages(kernel_pagetable, 0x10001000L, PGSIZE, 0x10001000L, PTE_R | PTE_W | PTE_V);
 
     // PLIC
-    puts("mmu_init: mapping PLIC\n");
     mappages(kernel_pagetable, 0x02000000, 0x00020000, 0x02000000, PTE_V|PTE_R|PTE_W);
 
     mappages(kernel_pagetable, 0x0C000000, 0x00400000, 0x0C000000, PTE_V|PTE_R|PTE_W);
 
     /// VIRTIO ///
-    puts("mmu_init: mapping VIRTIO\n");
     for (int i = 0; i < VIRTIO_NUM; i++) {
         uint64_t va = VIRTIO_MMIO_BASE0 + i * VIRTIO_MMIO_STRIDE;
         uint64_t pa = va;  // QEMU virt では VA=PA の identity map
 
         mappages(kernel_pagetable, va, VIRTIO_MMIO_STRIDE, pa, PTE_V | PTE_R | PTE_W);
     }
-    puts("mmu_init: mapping CLINT\n");
     mappages(kernel_pagetable, CLINT_MTIME, PGSIZE, CLINT_MTIME, PTE_R|PTE_W|PTE_V);
     mappages(kernel_pagetable, CLINT_MTIMECMP,  PGSIZE, CLINT_MTIMECMP, PTE_R|PTE_W|PTE_V);
 
-    puts("mmu_init: sfence.vma\n");
     asm volatile("sfence.vma zero, zero");
 
     kernel_satp = MAKE_SATP(kernel_pagetable);
-    puts("mmu_init: enabling MMU\n");
 
     enable_mmu(kernel_pagetable);
-    puts("mmu_init: MMU enabled\n");
 }
 
 void* walkaddr(pagetable_t pagetable, uint64_t va) {
