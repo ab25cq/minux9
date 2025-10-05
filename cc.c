@@ -1,5 +1,51 @@
 #include "cc.h"
 
+// 静的メモリプール（大きなバッファとして定義）
+#define STRUCT_POOL_SIZE (768 * 1024)  // 768KB for structures
+#define CHAR_BUF_SIZE (256 * 1024)      // 256KB for char arrays
+
+static char StructPool[STRUCT_POOL_SIZE] __attribute__((aligned(16)));
+static size_t StructPoolIndex = 0;
+
+static char CharBuf[CHAR_BUF_SIZE];
+static size_t CharBufIndex = 0;
+
+// 静的calloc代替関数
+static void *static_calloc(size_t nmemb, size_t size) {
+    size_t total = nmemb * size;
+
+    // アライメントを16バイトに調整
+    size_t align = 16;
+
+    // 小さいサイズの場合は構造体プールから割り当て
+    if (total <= 1024 || nmemb == 1) {
+        // アライメント調整
+        size_t aligned_index = (StructPoolIndex + align - 1) & ~(align - 1);
+
+        if (aligned_index + total > STRUCT_POOL_SIZE) {
+            error("Struct pool exhausted");
+        }
+
+        void *ptr = &StructPool[aligned_index];
+        memset(ptr, 0, total);
+        StructPoolIndex = aligned_index + total;
+        return ptr;
+    }
+
+    // 大きいサイズ（主にchar配列）はCharBufから割り当て
+    if (CharBufIndex + total > CHAR_BUF_SIZE) {
+        error("Char buffer exhausted");
+    }
+
+    void *ptr = &CharBuf[CharBufIndex];
+    memset(ptr, 0, total);
+    CharBufIndex += total;
+    return ptr;
+}
+
+#define calloc static_calloc
+#define free(ptr) ((void)0)
+
 static bool OptDebug;
 
 #define GP_MAX 8
