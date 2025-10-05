@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9" "fs.c"
+	.file 0 "/root/minux9" "fs.c"
 	.local	vbase
 	.comm	vbase,8,8
 	.local	Q
@@ -5331,6 +5331,7 @@ gPipes:
 gFiles:
 	.zero	18688
 	.globl	gFreePipes
+	.section	.sbss,"aw",@nobits
 	.align	3
 	.type	gFreePipes, @object
 	.size	gFreePipes, 8
@@ -13283,8 +13284,8 @@ fs_lseek:
 	.dword	4835703278458516699
 	.text
 .Letext0:
-	.file 2 "/opt/homebrew/Cellar/riscv-gnu-toolchain/main/lib/gcc/riscv64-unknown-elf/14.2.0/include/stdint-gcc.h"
-	.file 3 "/opt/homebrew/Cellar/riscv-gnu-toolchain/main/lib/gcc/riscv64-unknown-elf/14.2.0/include/stddef.h"
+	.file 2 "/usr/lib/gcc/riscv-none-elf/14.2.0/include/stdint-gcc.h"
+	.file 3 "/usr/lib/gcc/riscv-none-elf/14.2.0/include/stddef.h"
 	.file 4 "fs.h"
 	.file 5 "common.h"
 	.section	.debug_info,"",@progbits
@@ -21595,8 +21596,6 @@ fs_lseek:
 	.string	"SEEK_SET"
 .LASF142:
 	.string	"kalloc_pages"
-.LASF188:
-	.string	"fs_chown"
 .LASF226:
 	.string	"remove_dirent"
 .LASF208:
@@ -22089,8 +22088,8 @@ fs_lseek:
 	.string	"orig"
 .LASF224:
 	.string	"need"
-.LASF335:
-	.string	"GNU C17 14.2.0 -mabi=lp64 -mno-small-data-limit=0 -mcmodel=medany -mtune=rocket -misa-spec=20191213 -march=rv64imafdc_zicsr_zifencei -g -fno-pie -ffreestanding"
+.LASF188:
+	.string	"fs_chown"
 .LASF329:
 	.string	"sz_avail"
 .LASF218:
@@ -22179,6 +22178,8 @@ fs_lseek:
 	.string	"written"
 .LASF178:
 	.string	"path2"
+.LASF335:
+	.string	"GNU C17 14.2.0 -mabi=lp64 -mcmodel=medany -misa-spec=20191213 -march=rv64imafdc_zicsr_zifencei -g -ffreestanding"
 .LASF244:
 	.string	"pipe_open"
 .LASF106:
@@ -22210,9 +22211,9 @@ fs_lseek:
 .LASF91:
 	.string	"FK_STDIN"
 	.section	.debug_line_str,"MS",@progbits,1
-.LASF1:
-	.string	"/Users/ab25cq/minux9"
 .LASF0:
 	.string	"fs.c"
-	.ident	"GCC: (g04696df09) 14.2.0"
+.LASF1:
+	.string	"/root/minux9"
+	.ident	"GCC: (Alpine Linux) 14.2.0"
 	.section	.note.GNU-stack,"",@progbits

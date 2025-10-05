@@ -224,7 +224,7 @@ LOAD syscall.o
  *fill*         0x00000000800126c1        0x7 
  .rodata        0x00000000800126c8      0x198 syscall.o
 
-.data           0x0000000080012860    0x18b30
+.data           0x0000000080012860    0x18a78
  *(.data .data.*)
  .data          0x0000000080012860        0x0 entry.o
  .data          0x0000000080012860        0x0 start.o
@@ -233,22 +233,18 @@ LOAD syscall.o
  .data          0x0000000080012860        0x0 fs.o
  .data          0x0000000080012860        0x0 plic.o
  .data          0x0000000080012860        0x0 trap_c.o
- .data          0x0000000080012860    0x18a28 main.o
+ .data          0x0000000080012860    0x18988 main.o
                 0x0000000080012860                sh_elf
-                0x000000008002b218                sh_elf_len
-                0x000000008002b228                gUsers
- .data          0x000000008002b288      0x108 sub.o
-                0x000000008002b288                __stdin
-                0x000000008002b2d8                __stdout
-                0x000000008002b328                __stderr
-                0x000000008002b378                stdin
-                0x000000008002b380                stdout
-                0x000000008002b388                stderr
- .data          0x000000008002b390        0x0 syscall.o
-                0x000000008002b390                . = ALIGN (0x10)
+                0x000000008002b188                gUsers
+ .data          0x000000008002b1e8       0xf0 sub.o
+                0x000000008002b1e8                __stdin
+                0x000000008002b238                __stdout
+                0x000000008002b288                __stderr
+ .data          0x000000008002b2d8        0x0 syscall.o
+                0x000000008002b2e0                . = ALIGN (0x10)
                 [!provide]                        PROVIDE (_bss_start = .)
 
-.bss            0x000000008002b400     0xc9b0
+.bss            0x000000008002b400     0xc9c0
  *(.bss)
  .bss           0x000000008002b400        0x0 entry.o
  .bss           0x000000008002b400        0x0 start.o
@@ -257,32 +253,41 @@ LOAD syscall.o
  .bss           0x000000008002b400     0xc440 fs.o
                 0x000000008002b400                gPipes
                 0x000000008002e700                gFiles
-                0x0000000080033000                gFreePipes
-                0x0000000080033008                gFreeFiles
  .bss           0x0000000080037840        0x0 plic.o
  .bss           0x0000000080037840        0x0 trap_c.o
- .bss           0x0000000080037840      0x550 main.o
-                0x0000000080037840                kernel_pagetable
-                0x0000000080037848                gCPU
-                0x0000000080037958                gProc
-                0x0000000080037d58                gNumProc
-                0x0000000080037d5c                gActiveProc
-                0x0000000080037d60                kmem
-                0x0000000080037d80                last_key
-                0x0000000080037d84                g_time_offset
- .bss           0x0000000080037d90       0x10 sub.o
-                0x0000000080037d90                free_list
- .bss           0x0000000080037da0       0x10 syscall.o
+ .bss           0x0000000080037840      0x538 main.o
+                0x0000000080037840                gCPU
+                0x0000000080037950                gProc
+                0x0000000080037d50                kmem
+ .bss           0x0000000080037d78        0x8 sub.o
+ .bss           0x0000000080037d80       0x10 syscall.o
  *(.bss.*)
  *(.sbss)
+ .sbss          0x0000000080037d90       0x10 fs.o
+                0x0000000080037d90                gFreePipes
+                0x0000000080037d98                gFreeFiles
+ .sbss          0x0000000080037da0       0x18 main.o
+                0x0000000080037da0                kernel_pagetable
+                0x0000000080037da8                gNumProc
+                0x0000000080037dac                gActiveProc
+                0x0000000080037db0                last_key
+                0x0000000080037db4                g_time_offset
+ .sbss          0x0000000080037db8        0x8 sub.o
+                0x0000000080037db8                free_list
  *(.sbss.*)
 
-.sdata
+.sdata          0x0000000080037dc0       0x28
  *(.sdata*)
+ .sdata         0x0000000080037dc0       0x10 main.o
+                0x0000000080037dc0                sh_elf_len
+ .sdata         0x0000000080037dd0       0x18 sub.o
+                0x0000000080037dd0                stdin
+                0x0000000080037dd8                stdout
+                0x0000000080037de0                stderr
                 [!provide]                        PROVIDE (_bss_end = .)
                 [!provide]                        PROVIDE (_code_end = .)
-                0x0000000080077db0                . = (. + STACK_MAX)
-                0x0000000080077db0                PROVIDE (stack_top = .)
+                0x0000000080077de8                . = (. + STACK_MAX)
+                0x0000000080077de8                PROVIDE (stack_top = .)
                 0x0000000080078000                . = ALIGN (0x1000)
                 0x0000000080078000                TRAPFRAME = .
                 0x0000000080079000                . = (. + 0x1000)
@@ -331,37 +336,37 @@ LOAD syscall.o
                 0x000000008097f000                PROVIDE (_end3 = .)
 
 .riscv.attributes
-                0x0000000000000000       0x6a
+                0x0000000000000000       0x57
  .riscv.attributes
-                0x0000000000000000       0x64 entry.o
+                0x0000000000000000       0x51 entry.o
  .riscv.attributes
-                0x0000000000000064       0x6a start.o
+                0x0000000000000051       0x57 start.o
  .riscv.attributes
-                0x00000000000000ce       0x64 userret.o
+                0x00000000000000a8       0x51 userret.o
  .riscv.attributes
-                0x0000000000000132       0x68 trap.o
+                0x00000000000000f9       0x55 trap.o
  .riscv.attributes
-                0x000000000000019a       0x6a fs.o
+                0x000000000000014e       0x57 fs.o
  .riscv.attributes
-                0x0000000000000204       0x66 plic.o
+                0x00000000000001a5       0x53 plic.o
  .riscv.attributes
-                0x000000000000026a       0x6a trap_c.o
+                0x00000000000001f8       0x57 trap_c.o
  .riscv.attributes
-                0x00000000000002d4       0x6a main.o
+                0x000000000000024f       0x57 main.o
  .riscv.attributes
-                0x000000000000033e       0x66 sub.o
+                0x00000000000002a6       0x53 sub.o
  .riscv.attributes
-                0x00000000000003a4       0x6a syscall.o
+                0x00000000000002f9       0x57 syscall.o
 
-.comment        0x0000000000000000       0x19
- .comment       0x0000000000000000       0x19 start.o
-                                         0x1a (size before relaxing)
- .comment       0x0000000000000019       0x1a fs.o
- .comment       0x0000000000000019       0x1a plic.o
- .comment       0x0000000000000019       0x1a trap_c.o
- .comment       0x0000000000000019       0x1a main.o
- .comment       0x0000000000000019       0x1a sub.o
- .comment       0x0000000000000019       0x1a syscall.o
+.comment        0x0000000000000000       0x1b
+ .comment       0x0000000000000000       0x1b start.o
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b       0x1c fs.o
+ .comment       0x000000000000001b       0x1c plic.o
+ .comment       0x000000000000001b       0x1c trap_c.o
+ .comment       0x000000000000001b       0x1c main.o
+ .comment       0x000000000000001b       0x1c sub.o
+ .comment       0x000000000000001b       0x1c syscall.o
 
 .note.GNU-stack
                 0x0000000000000000        0x0
@@ -416,37 +421,37 @@ LOAD syscall.o
  .debug_line    0x000000000000a54a     0x18c4 sub.o
  .debug_line    0x000000000000be0e     0x2b1d syscall.o
 
-.debug_str      0x0000000000000000     0x1a1f
+.debug_str      0x0000000000000000     0x19b7
  *(.debug_str)
- .debug_str     0x0000000000000000     0x1a1f entry.o
-                                         0x2b (size before relaxing)
- .debug_str     0x0000000000001a1f      0x1d0 start.o
- .debug_str     0x0000000000001a1f       0x2a trap.o
- .debug_str     0x0000000000001a1f      0xc7a fs.o
- .debug_str     0x0000000000001a1f      0x198 plic.o
- .debug_str     0x0000000000001a1f      0x16c trap_c.o
- .debug_str     0x0000000000001a1f      0xe83 main.o
- .debug_str     0x0000000000001a1f      0x45a sub.o
- .debug_str     0x0000000000001a1f      0x9e2 syscall.o
+ .debug_str     0x0000000000000000     0x19b7 entry.o
+                                         0x21 (size before relaxing)
+ .debug_str     0x00000000000019b7      0x1a1 start.o
+ .debug_str     0x00000000000019b7       0x20 trap.o
+ .debug_str     0x00000000000019b7      0xc4b fs.o
+ .debug_str     0x00000000000019b7      0x169 plic.o
+ .debug_str     0x00000000000019b7      0x13d trap_c.o
+ .debug_str     0x00000000000019b7      0xe54 main.o
+ .debug_str     0x00000000000019b7      0x42b sub.o
+ .debug_str     0x00000000000019b7      0x9b3 syscall.o
 
 .debug_line_str
-                0x0000000000000000       0xe0
+                0x0000000000000000       0xaa
  *(.debug_line_str)
  .debug_line_str
-                0x0000000000000000       0xe0 start.o
-                                         0xa8 (size before relaxing)
+                0x0000000000000000       0xaa start.o
+                                         0x6a (size before relaxing)
  .debug_line_str
-                0x00000000000000e0       0xb6 fs.o
+                0x00000000000000aa       0x78 fs.o
  .debug_line_str
-                0x00000000000000e0       0xa5 plic.o
+                0x00000000000000aa       0x67 plic.o
  .debug_line_str
-                0x00000000000000e0       0xa5 trap_c.o
+                0x00000000000000aa       0x67 trap_c.o
  .debug_line_str
-                0x00000000000000e0       0xcf main.o
+                0x00000000000000aa       0x91 main.o
  .debug_line_str
-                0x00000000000000e0       0xbd sub.o
+                0x00000000000000aa       0x7f sub.o
  .debug_line_str
-                0x00000000000000e0       0xc5 syscall.o
+                0x00000000000000aa       0x87 syscall.o
 OUTPUT(kernel.elf elf64-littleriscv)
 
 .debug_aranges  0x0000000000000000      0x1b0
