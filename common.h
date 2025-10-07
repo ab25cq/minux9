@@ -62,6 +62,12 @@ struct file;
 
 #define NUM_PROC_VA_MAX 512
 
+struct process_pages
+{
+    char** process_kalloc_address;
+    int num_process_kalloc_address;
+};
+
 struct proc {
     struct context_t trapframe;
     
@@ -83,13 +89,8 @@ struct proc {
     
     struct file* file_table[MAX_OPEN_FILES];
     
-    int kind_process_kalloc_address;
-    
-    char** process_kalloc_address;
-    int num_process_kalloc_address;
-    
-    char** process_kalloc_address2;
-    int num_process_kalloc_address2;
+    struct process_pages** process_pages;
+    int num_process_pages;
     
     int deleted;
 

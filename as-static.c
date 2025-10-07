@@ -1,11 +1,12 @@
 #include "as.h"
 
 // 静的メモリプール
-#define AS_POOL_SIZE (512 * 1024)  // 512KB for malloc/calloc
+#define AS_POOL_SIZE (1024 * 1024)  // 1MB pool for malloc/calloc
 
 static char AsPool[AS_POOL_SIZE] __attribute__((aligned(16)));
 static size_t AsPoolIndex = 0;
 
+// 静的malloc代替関数
 static void *static_malloc(size_t size) {
     if (size == 0) return NULL;
 
@@ -57,7 +58,6 @@ static void *static_realloc(void* ptr, size_t size) {
     return new_ptr;
 }
 
-/*
 #define malloc static_malloc
 #define xmalloc static_malloc
 #define calloc static_calloc
@@ -65,6 +65,33 @@ static void *static_realloc(void* ptr, size_t size) {
 #define realloc static_realloc
 #define xrealloc static_realloc
 #define free(ptr) ((void)0)
+
+static void die(const char *function);
+
+/*
+void *xmalloc(size_t sz)
+{
+    void *ptr = malloc(sz);
+    if (!ptr)
+        die("malloc");
+    return ptr;
+}
+
+void *xcalloc(size_t nitems, size_t size)
+{
+    void *ptr = calloc(nitems, size);
+    if (!ptr)
+        die("calloc");
+    return ptr;
+}
+
+void *xrealloc(void *ptr, size_t size)
+{
+    ptr = realloc(ptr, size);
+    if (!ptr)
+        die("xrealloc");
+    return ptr;
+}
 */
 
 void closefiles(void);
@@ -193,6 +220,7 @@ void parse_cmdargs(int argc, char *argv[])
         arg_litn("v", "verbose", 0, 1, "verbose output");
     argtable[3] = cmdargs.inputfile =
         arg_filen(NULL, NULL, "<input>", 1, 3, "input file");
+    char output_file_name[32];
     argtable[4] = cmdargs.outputfile =
         arg_filen("o", "output", "<filename>", 1, 3, "output file");
     argtable[5] = cmdargs.end = arg_end(20);
@@ -1361,6 +1389,7 @@ static void die(const char *function)
     exit(1);
 }
 
+/*
 void *xmalloc(size_t sz)
 {
     void *ptr = malloc(sz);
@@ -1368,7 +1397,9 @@ void *xmalloc(size_t sz)
         die("malloc");
     return ptr;
 }
+*/
 
+/*
 void *xcalloc(size_t nitems, size_t size)
 {
     void *ptr = calloc(nitems, size);
@@ -1376,7 +1407,9 @@ void *xcalloc(size_t nitems, size_t size)
         die("calloc");
     return ptr;
 }
+*/
 
+/*
 void *xrealloc(void *ptr, size_t size)
 {
     ptr = realloc(ptr, size);
@@ -1384,6 +1417,7 @@ void *xrealloc(void *ptr, size_t size)
         die("xrealloc");
     return ptr;
 }
+*/
 
 
 #define MAX_INSTRUCTIONS 2048
@@ -1428,9 +1462,10 @@ int write_all_instructions(void)
 {
     linenumber = 0;
     logger(DEBUG, no_error, "Generating all instruction bytecode...");
-    for (size_t i = 0; i < instructions_size; i++)
+    for (size_t i = 0; i < instructions_size; i++) {
         if (write_instruction(instructions[i]))
             return 1;
+    }
     return 0;
 }
 
@@ -1451,6 +1486,15 @@ int write_instruction(struct instruction i)
         i.formation.form_handler(i.formation.name, i.formation.idata,
                      i.args, calc_fileoffset(i.position));
     logger(DEBUG, no_error, "Bytecode finished generating");
+//    if (bytecode.size != i.formation.idata.sz) {
+/*
+        printf("bytecode size mismatch: instr=%s declared=%u actual=%u line=%u\n",
+               i.formation.name,
+               (size_t)i.formation.idata.sz,
+               (size_t)bytecode.size,
+               (size_t)i.line);
+*/
+//    }
     if (!bytecode.size) {
         logger(WARN, no_error,
                "No bytecode generated from instruction");
@@ -3688,4 +3732,3 @@ uint16_t get_csr(const char *csr)
             return csr_map[i].encoding;
     return 0xFFFF;
 }
-
