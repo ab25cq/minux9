@@ -131,7 +131,6 @@ void free_proc(struct proc *p) {
 
         kfree(pa);
     }
-/*
     for (int i=0; i<p->num_process_pages; i++) {
         struct process_pages* page = p->process_pages[i];
         
@@ -142,7 +141,6 @@ void free_proc(struct proc *p) {
         kfree(page);
     }
     kfree(p->process_pages);
-*/
     
     //free(p->program);
     

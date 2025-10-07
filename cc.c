@@ -1,5 +1,6 @@
 #include "cc.h"
 
+/*
 // 静的メモリプール（大きなバッファとして定義）
 #define STRUCT_POOL_SIZE (384 * 1024)  // 384KB for structures
 #define CHAR_BUF_SIZE (128 * 1024)      // 128KB for char arrays
@@ -45,6 +46,7 @@ static void *static_calloc(size_t nmemb, size_t size) {
 
 #define calloc static_calloc
 #define free(ptr) ((void)0)
+*/
 
 static bool OptDebug;
 
