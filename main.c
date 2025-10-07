@@ -135,6 +135,10 @@ void free_proc(struct proc *p) {
         kfree(p->process_kalloc_address[i]);
     }
     kfree(p->process_kalloc_address);
+    for (int i=0; i<p->num_process_kalloc_address2; i++) {
+        kfree(p->process_kalloc_address2[i]);
+    }
+    kfree(p->process_kalloc_address2);
     
     //free(p->program);
     
@@ -930,7 +934,12 @@ static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* ou
 void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index) {
     struct proc* result = kalloc();
     
+    result->kind_process_kalloc_address = 1;
+    result->num_process_kalloc_address = 0;
+    result->num_process_kalloc_address2 = 0;
+    
     result->process_kalloc_address = kalloc();
+    result->process_kalloc_address2 = kalloc();
     
     result->program = elf_buf; //calloc(1, elf_buf_size);
     result->program_size = elf_buf_size;
@@ -958,8 +967,6 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         
     struct proghdr *ph = (struct proghdr *)(elf_buf + eh->phoff);
     
-    result->num_process_kalloc_address = 0;
-    
     uint64_t va = 0;
     uint64_t max_va_end = 0;
     for (int i = 0; i < eh->phnum; i++, ph++) {
@@ -969,11 +976,20 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
             void *pa = kalloc();
             
-            result->process_kalloc_address[result->num_process_kalloc_address++] = pa;
-            
-            if(result->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
-                puts("ELF MAX ERROR");
-                while(1);
+            if(result->kind_process_kalloc_address == 1) {
+                result->process_kalloc_address[result->num_process_kalloc_address++] = pa;
+                
+                if(result->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
+                    result->kind_process_kalloc_address = 2;
+                }
+            }
+            else {
+                result->process_kalloc_address2[result->num_process_kalloc_address2++] = pa;
+                
+                if(result->num_process_kalloc_address2 >= NUM_PROC_VA_MAX) {
+                    puts("ELF MAX ERROR");
+                    while(1);
+                }
             }
             
             if (!pa) panic("kalloc");
@@ -1471,11 +1487,28 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
     for(; va < new_sz; va += PGSIZE) {
         char *mem = kalloc();
         
+        /*
         p->process_kalloc_address[p->num_process_kalloc_address++] = mem;
         
         if(p->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
             puts("ELF MAX ERROR");
             while(1);
+        }
+        */
+        if(p->kind_process_kalloc_address == 1) {
+            p->process_kalloc_address[p->num_process_kalloc_address++] = mem;
+            
+            if(p->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
+                p->kind_process_kalloc_address = 2;
+            }
+        }
+        else {
+            p->process_kalloc_address2[p->num_process_kalloc_address2++] = mem;
+            
+            if(p->num_process_kalloc_address2 >= NUM_PROC_VA_MAX) {
+                puts("ELF MAX ERROR");
+                while(1);
+            }
         }
         
         if(mem == 0){

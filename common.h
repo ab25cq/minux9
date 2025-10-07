@@ -83,8 +83,13 @@ struct proc {
     
     struct file* file_table[MAX_OPEN_FILES];
     
+    int kind_process_kalloc_address;
+    
     char** process_kalloc_address;
     int num_process_kalloc_address;
+    
+    char** process_kalloc_address2;
+    int num_process_kalloc_address2;
     
     int deleted;
 
