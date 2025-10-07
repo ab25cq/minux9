@@ -1043,8 +1043,6 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     result->vaddr = ph->vaddr;
     result->memsz = ph->memsz;
 
-    result->sz = PGROUNDUP(max_va_end);
-
     // Find global pointer
     uint64_t gp = 0;
     struct elfsym *symtab = (void*)0;
@@ -1069,6 +1067,8 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             }
         }
     }
+
+    result->sz = 0; //PGROUNDUP(max_va_end);
     if(find_gp_from_file(elf_buf, eh, &gp) < 0) {
         //puts("Warning __global_pointer$ not found(1)\n");
     }
