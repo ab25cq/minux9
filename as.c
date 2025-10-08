@@ -377,11 +377,14 @@ void parse_file(FILE *ifp, FILE *ofp)
 
     fseek(ifp, 0L, SEEK_SET);
 
+//puts("a");
     while ((nread = getl(&line, &linesize, ifp)) != (size_t)-1) {
+//puts("b");
         linenumber++;
         logger(DEBUG, no_error, "Parsing line \"%s\"", line);
         if (parse_line(line, get_outputpos()))
             return;
+//puts("c");
         logger(DEBUG, no_error, " | Finished parsing line");
     }
 
@@ -391,12 +394,15 @@ void parse_file(FILE *ifp, FILE *ofp)
     gp->binding  = (1u<<4) | 1u;                  // STB_GLOBAL | STT_OBJECT（NOTYPEでもよいがOBJECTが無難）
     gp->section = SHN_ABS;                       // ★絶対シンボル（ローダ側の加算不）
     gp->value = compute_gp_value_abs();        // ★完成した仮想アドレスを入れる
+//puts("d");
 
     calc_strtab();
     calc_symtab();
     alloc_output();
+//puts("c");
 
     write_all();
+//puts("d");
 
     free(line);
 
@@ -3090,9 +3096,13 @@ void copy_files(FILE *dest, FILE *src)
 
 int main(int argc, char *argv[])
 {
+puts("1");
     parse_cmdargs(argc, argv);
+puts("2");
     open_files();
+puts("3");
     parse_file(inputfile, outputtempfile);
+puts("4");
 
     logger(DEBUG, no_error, "Done generating bytecode");
     copy_files(outputfile, outputtempfile);

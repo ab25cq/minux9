@@ -979,7 +979,6 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
             void *pa = kalloc();
             
-            
             struct process_pages* page = result->process_pages[result->num_process_pages - 1];
             
             page->process_kalloc_address[page->num_process_kalloc_address++] = pa;
@@ -1078,9 +1077,15 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
                 break;
             }
         }
+        for (int i = 0; i < symtab_size / sizeof(struct elfsym); i++) {
+            if (strcmp(strtab + symtab[i].name, "_end") == 0) {
+                max_va_end = symtab[i].value;
+                break;
+            }
+        }
     }
 
-    result->sz = 0; //PGROUNDUP(max_va_end);
+    result->sz = PGROUNDUP(max_va_end);
     if(find_gp_from_file(elf_buf, eh, &gp) < 0) {
         //puts("Warning __global_pointer$ not found(1)\n");
     }
@@ -1483,14 +1488,6 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
     for(; va < new_sz; va += PGSIZE) {
         char *mem = kalloc();
         
-        /*
-        p->process_kalloc_address[p->num_process_kalloc_address++] = mem;
-        
-        if(p->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
-            puts("ELF MAX ERROR");
-            while(1);
-        }
-        */
         struct process_pages* page = p->process_pages[p->num_process_pages - 1];
         
         page->process_kalloc_address[page->num_process_kalloc_address++] = mem;
@@ -1504,6 +1501,7 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
             return -1;
         }
         memset(mem, 0, PGSIZE);
+printf("va %p\n", va);
         if(mappages(pagetable, va, PGSIZE, (uint64_t)mem, PTE_W|PTE_R|PTE_U|PTE_V) < 0){
             kfree(mem);
             uvm_dealloc(pagetable, va, old_sz);
