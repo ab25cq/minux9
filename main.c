@@ -1501,7 +1501,6 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
             return -1;
         }
         memset(mem, 0, PGSIZE);
-printf("va %p\n", va);
         if(mappages(pagetable, va, PGSIZE, (uint64_t)mem, PTE_W|PTE_R|PTE_U|PTE_V) < 0){
             kfree(mem);
             uvm_dealloc(pagetable, va, old_sz);

@@ -1735,25 +1735,49 @@ int ungetc(int c, FILE* fp) {
 }
 
 size_t fread(void* ptr, size_t size, size_t nmemb, FILE* fp) {
-  if (!fp) return 0;
+  if (!fp || size == 0 || nmemb == 0) return 0;
+
   size_t total = size * nmemb;
+  if (size != 0 && total / size != nmemb) {
+    fp->err = 1;
+    return 0;
+  }
+
   size_t done = 0;
   unsigned char* p = (unsigned char*)ptr;
+
   if (fp->is_mem) {
     size_t avail = (fp->ms_len > (size_t)fp->pos) ? (fp->ms_len - (size_t)fp->pos) : 0;
     size_t tocopy = (total < avail) ? total : avail;
-    if (tocopy) { memcpy(p, fp->ms_buf + fp->pos, tocopy); fp->pos += tocopy; done = tocopy; }
-    if (done < total) fp->eof = 1;
-    return done / (size ? size : 1);
-  } else {
-    if (fp->have_push && total > 0) { *p++ = fp->push_ch; fp->have_push = 0; done = 1; }
-    while (done < total) {
-      long n = read(fp->fd, p + done, total - done);
-      if (n <= 0) { if (n==0) fp->eof = 1; else fp->err=1; break; }
-      done += n; fp->pos += n;
+    if (tocopy) {
+      memcpy(p, fp->ms_buf + fp->pos, tocopy);
+      fp->pos += tocopy;
+      done = tocopy;
     }
-    return done / (size ? size : 1);
+    if (done < total) fp->eof = 1;
+    return done / size;
   }
+
+  if (fp->have_push && total > 0) {
+    *p++ = fp->push_ch;
+    fp->have_push = 0;
+    done = 1;
+  }
+
+  while (done < total) {
+    size_t want = total - done;
+    if (want > 4096) want = 4096;
+    long n = read(fp->fd, p + done, want);
+    if (n <= 0) {
+      if (n == 0) fp->eof = 1;
+      else fp->err = 1;
+      break;
+    }
+    done += (size_t)n;
+    fp->pos += n;
+  }
+
+  return done / size;
 }
 
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* fp) {
