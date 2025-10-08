@@ -57,7 +57,6 @@ static void *static_realloc(void* ptr, size_t size) {
     return new_ptr;
 }
 
-/*
 #define malloc static_malloc
 #define xmalloc static_malloc
 #define calloc static_calloc
@@ -65,7 +64,6 @@ static void *static_realloc(void* ptr, size_t size) {
 #define realloc static_realloc
 #define xrealloc static_realloc
 #define free(ptr) ((void)0)
-*/
 
 void closefiles(void);
 
@@ -335,9 +333,11 @@ size_t getl(char **lineptr, size_t *n, FILE *stream)
     }
     p = bufptr;
     while (c != EOF) {
-        if ((size_t)(p - bufptr) > (size - 1)) {
+        if ((size_t)(p - bufptr) >= (size - 1)) {
             size = size + 128;
+            size_t offset = (size_t)(p - bufptr);
             bufptr = xrealloc(bufptr, size);
+            p = bufptr + offset;
         }
         if (c == '\n')
             break;
@@ -1367,6 +1367,7 @@ static void die(const char *function)
     exit(1);
 }
 
+/*
 void *xmalloc(size_t sz)
 {
     void *ptr = malloc(sz);
@@ -1390,6 +1391,7 @@ void *xrealloc(void *ptr, size_t size)
         die("xrealloc");
     return ptr;
 }
+*/
 
 
 #define MAX_INSTRUCTIONS 2048
@@ -2950,6 +2952,27 @@ FILE *inputfile = NULL;
 FILE *outputtempfile = NULL;
 FILE *outputfile = NULL;
 
+static void close_tempfile(FILE **fpp)
+{
+    if (!fpp || !*fpp)
+        return;
+
+    FILE *fp = *fpp;
+
+    if (fp == stdin || fp == stdout || fp == stderr)
+        return;
+
+    fflush(fp);
+
+    if (fp->fd >= 0)
+        close(fp->fd);
+    if (fp->is_mem && fp->ms_buf)
+        free(fp->ms_buf);
+    free(fp);
+
+    *fpp = NULL;
+}
+
 static int fopen2(FILE **f, const char *filename, const char *flags)
 {
 #ifdef __STDC_LIB_EXT1__
@@ -2962,13 +2985,16 @@ static int fopen2(FILE **f, const char *filename, const char *flags)
 
 void closefiles(void)
 {
-    if (inputfile)
+    if (inputfile) {
         fclose(inputfile);
-    if (outputtempfile)
-        fclose(outputtempfile);
+        inputfile = NULL;
+    }
+    close_tempfile(&outputtempfile);
     if (outputfile && outputfile != stdin && outputfile != stdout &&
-        outputfile != stderr)
+        outputfile != stderr) {
         fclose(outputfile);
+        outputfile = NULL;
+    }
 }
 
 FILE* as_tmpfile(void) {
@@ -3116,7 +3142,7 @@ puts("4");
     return n;
 }
 
-struct symbolmap symbols[] = { { .count = 0, .data = NULL } };
+struct symbolmap symbols[SYMBOLMAP_ENTRIES] = { { .count = 0, .data = NULL } };
 
 static size_t hash_str(const char *str)
 {
@@ -3213,6 +3239,8 @@ void free_symbols(void)
         for (size_t index = 0; index < symbols[hash].count; index++)
             free(symbols[hash].data[index].name);
         free(symbols[hash].data);
+        symbols[hash].data = NULL;
+        symbols[hash].count = 0;
     }
 }
 
@@ -3698,4 +3726,3 @@ uint16_t get_csr(const char *csr)
             return csr_map[i].encoding;
     return 0xFFFF;
 }
-
