@@ -1101,36 +1101,33 @@ run_command:
 	.string	"$ "
 	.align	3
 .LC3:
-	.string	"cc b.c"
-	.align	3
-.LC4:
 	.string	"as -o b b.s"
 	.align	3
-.LC5:
+.LC4:
 	.string	"\r\n"
 	.align	3
-.LC6:
+.LC5:
 	.string	"ARG NUM ERROR"
 	.align	3
-.LC7:
+.LC6:
 	.string	"ERR MAX COMMAND"
 	.align	3
-.LC8:
+.LC7:
 	.string	"FILE NAME IS TOO LONG"
 	.align	3
-.LC9:
+.LC8:
 	.string	"ERR ARG NUM"
 	.align	3
-.LC10:
+.LC9:
 	.string	"cd"
 	.align	3
-.LC11:
+.LC10:
 	.string	"/"
 	.align	3
-.LC12:
+.LC11:
 	.string	"cd: failed\n"
 	.align	3
-.LC13:
+.LC12:
 	.string	"=> %d\r\n"
 	.text
 	.align	1
@@ -1193,14 +1190,14 @@ main:
 	.loc 1 181 13
 	addi	a5,s0,-160
 	li	a2,64
-	lla	a1,.LC4
+	lla	a1,.LC3
 	mv	a0,a5
 	call	strncpy
 .L66:
 .LBB35:
 	.loc 1 214 9
 	li	a0,1
-	lla	a5,.LC5
+	lla	a5,.LC4
 	mv	a1,a5
 	li	a2,2
 	li	a7,64
@@ -1306,7 +1303,7 @@ main:
 	li	a5,31
 	ble	a4,a5,.L73
 	.loc 1 236 25
-	lla	a0,.LC6
+	lla	a0,.LC5
 	call	puts
 	.loc 1 237 25
 	j	.L74
@@ -1370,7 +1367,7 @@ main:
 	li	a5,15
 	ble	a4,a5,.L105
 	.loc 1 253 21
-	lla	a0,.LC7
+	lla	a0,.LC6
 	call	puts
 	.loc 1 254 21
 	j	.L74
@@ -1419,7 +1416,7 @@ main:
 	li	a5,31
 	ble	a4,a5,.L80
 	.loc 1 263 25
-	lla	a0,.LC6
+	lla	a0,.LC5
 	call	puts
 	.loc 1 264 25
 	j	.L74
@@ -1484,7 +1481,7 @@ main:
 	li	a5,32
 	ble	a4,a5,.L83
 	.loc 1 279 25
-	lla	a0,.LC8
+	lla	a0,.LC7
 	call	puts
 .LBB37:
 	.loc 1 280 25
@@ -1625,7 +1622,7 @@ main:
 	li	a5,31
 	ble	a4,a5,.L90
 	.loc 1 296 25
-	lla	a0,.LC6
+	lla	a0,.LC5
 	call	puts
 	.loc 1 297 25
 	j	.L74
@@ -1690,7 +1687,7 @@ main:
 	li	a5,32
 	ble	a4,a5,.L93
 	.loc 1 313 25
-	lla	a0,.LC8
+	lla	a0,.LC7
 	call	puts
 .LBB39:
 	.loc 1 314 25
@@ -1853,7 +1850,7 @@ main:
 	li	a5,31
 	ble	a4,a5,.L114
 	.loc 1 333 25
-	lla	a0,.LC6
+	lla	a0,.LC5
 	call	puts
 	.loc 1 334 25
 	j	.L74
@@ -1934,7 +1931,7 @@ main:
 	li	a5,31
 	ble	a4,a5,.L105
 	.loc 1 357 21
-	lla	a0,.LC9
+	lla	a0,.LC8
 	call	puts
 	.loc 1 358 21
 	j	.L74
@@ -1962,7 +1959,7 @@ main:
 	addi	a5,a5,-792
 	addi	a5,a5,-16
 	add	a5,a5,s0
-	lla	a1,.LC10
+	lla	a1,.LC9
 	mv	a0,a5
 	call	strcmp
 	mv	a5,a0
@@ -1970,7 +1967,7 @@ main:
 	bne	a5,zero,.L106
 .LBB40:
 	.loc 1 365 25
-	lla	a5,.LC11
+	lla	a5,.LC10
 	sd	a5,-64(s0)
 	.loc 1 366 28
 	li	a5,-16384
@@ -2015,7 +2012,7 @@ main:
 	sext.w	a5,a5
 	bge	a5,zero,.L115
 	.loc 1 371 17
-	lla	a0,.LC12
+	lla	a0,.LC11
 	call	puts
 	.loc 1 373 13
 	j	.L115
@@ -2076,7 +2073,7 @@ main:
 	add	a5,a5,s0
 	lw	a5,-796(a5)
 	mv	a1,a5
-	lla	a0,.LC13
+	lla	a0,.LC12
 	call	printf
 .LBE44:
 	.loc 1 382 43 discriminator 3

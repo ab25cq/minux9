@@ -175,7 +175,7 @@ int main(void) {
         static int m = 0;
         m++;
         if(m % 2 == 0) {
-            strncpy(buf, "cc b.c",  BUF_SIZE);
+            strncpy(buf, "as -o b b.s",  BUF_SIZE);
         }
         else {
             strncpy(buf, "as -o b b.s",  BUF_SIZE);
