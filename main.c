@@ -1407,7 +1407,7 @@ void kernel_yield_return() {
         
         memmove(yield_stack, gKernelState[index].gYieldStack, STACK_MAX);
         
-        remove_kernel_state(index);
+        remove_kernel_state(gActiveProc);
         
         yield_return();
     }
