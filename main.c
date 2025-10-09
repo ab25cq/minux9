@@ -1341,15 +1341,9 @@ struct sKernelState
 struct sKernelState gKernelState[MAX_KERNEL] __attribute__((section(".common")));
 int gNumKernelState __attribute__((section(".common")));
 
-int gKernelStateHead __attribute__((section(".common")));
-int gKernelStateTail __attribute__((section(".common")));
-
 void remove_kernel_state(int active_proc) {
-    if (gKernelStateHead == gKernelStateTail) {
-        return;
-    }
     int index = -1;
-    for(int i=0; i<MAX_KERNEL; i++) {
+    for(int i=0; i<gNumKernelState; i++) {
         if(gKernelState[i].gYieldUserActiveProc == active_proc) {
             index = i;
             break;
@@ -1360,36 +1354,29 @@ void remove_kernel_state(int active_proc) {
         return;
     }
 
-    // 削除位置から末尾まで、要素を一つずつ前にシフトする
-    // ループは削除する要素の次の要素から開始し、最後の要素まで回る
     for (int i = index; i < gNumKernelState - 1; i++) {
-        int current_index = (gKernelStateHead + i) % MAX_KERNEL;
-        int next_index = (gKernelStateHead + i + 1) % MAX_KERNEL;
-        gKernelState[current_index] = gKernelState[next_index];
+        gKernelState[i] = gKernelState[i+1];
     }
 
-    // tailとcountを更新する
-    gKernelStateTail = (gKernelStateTail - 1 + MAX_KERNEL) % MAX_KERNEL;
     gNumKernelState--;
 }
 
 void timer_handler();
 
 void kernel_yield() {
-    if(((gKernelStateTail + 1) % MAX_KERNEL) == gKernelStateHead) {
-        panic("kernel state queue max");
-    }
-    gKernelState[gKernelStateTail].gYieldReturnContext = *(struct context_t*)TRAPFRAME;
-    gKernelState[gKernelStateTail].gYieldUserSatp = user_satp;
-    gKernelState[gKernelStateTail].gYieldUserSP = user_sp;
-    gKernelState[gKernelStateTail].gYieldUserActiveProc = gActiveProc;
-    gKernelState[gKernelStateTail].gYieldContext = *(struct context_t*)TRAPFRAME2;
-    
-    memmove(gKernelState[gKernelStateTail].gYieldStack, yield_stack, STACK_MAX);
-    
-    gKernelStateTail = (gKernelStateTail + 1) % MAX_KERNEL;
+    gKernelState[gNumKernelState].gYieldReturnContext = *(struct context_t*)TRAPFRAME;
+    gKernelState[gNumKernelState].gYieldUserSatp = user_satp;
+    gKernelState[gNumKernelState].gYieldUserSP = user_sp;
+    gKernelState[gNumKernelState].gYieldUserActiveProc = gActiveProc;
+    gKernelState[gNumKernelState].gYieldContext = *(struct context_t*)TRAPFRAME2;
+    memmove(gKernelState[gNumKernelState].gYieldStack, yield_stack, STACK_MAX);
     
     gNumKernelState++;
+    
+    if(gNumKernelState >= MAX_KERNEL) {
+        puts("MAX KERNEL");
+        while(1);
+    }
     
     timer_handler();
 }
@@ -1397,24 +1384,33 @@ void kernel_yield() {
 void yield_return();
 
 void kernel_yield_return() {
-    gNumKernelState--;
+    int index = -1;
+    for(int i=0; i<gNumKernelState; i++) {
+        if(gKernelState[i].gYieldUserActiveProc == gActiveProc) {
+            index = i;
+            break;
+        }
+    }
     
-    user_satp = gKernelState[gKernelStateHead].gYieldUserSatp;
-    user_sp = gKernelState[gKernelStateHead].gYieldUserSP;
-    
-    gActiveProc = gKernelState[gKernelStateHead].gYieldUserActiveProc;
-    struct context_t* trapframe = (struct context_t*)TRAPFRAME2;
-    
-    *trapframe = gKernelState[gKernelStateHead].gYieldContext;
-    
-    trapframe = (struct context_t*)TRAPFRAME;
-    *trapframe = gKernelState[gKernelStateHead].gYieldReturnContext;
-    
-    memmove(yield_stack, gKernelState[gKernelStateHead].gYieldStack, STACK_MAX);
-    
-    gKernelStateHead = (gKernelStateHead + 1) % MAX_KERNEL;
-    
-    yield_return();
+    if(index != -1) {
+        user_satp = gKernelState[index].gYieldUserSatp;
+        user_sp = gKernelState[index].gYieldUserSP;
+        
+        gActiveProc = gKernelState[index].gYieldUserActiveProc;
+        
+        struct context_t* trapframe = (struct context_t*)TRAPFRAME2;
+        
+        *trapframe = gKernelState[index].gYieldContext;
+        
+        trapframe = (struct context_t*)TRAPFRAME;
+        *trapframe = gKernelState[index].gYieldReturnContext;
+        
+        memmove(yield_stack, gKernelState[index].gYieldStack, STACK_MAX);
+        
+        remove_kernel_state(index);
+        
+        yield_return();
+    }
 }
 
 void timer_handler() {
@@ -1438,9 +1434,17 @@ void timer_handler() {
         gActiveProc = 0;
     }
     
-    if(gActiveProc == gKernelState[gKernelStateHead].gYieldUserActiveProc && gNumKernelState > 0) 
-    {
+    int index = -1;
+    for(int i=0; i<gNumKernelState; i++) {
+        if(gKernelState[i].gYieldUserActiveProc == gActiveProc) {
+            index = i;
+            break;
+        }
+    }
+    
+    if(index != -1) {
         kernel_yield_return();
+        return;
     }
     
     struct proc* new_ = gProc[gActiveProc];
@@ -1700,9 +1704,6 @@ uintptr_t syscall_handler()
             memset(gKernelState, 0, sizeof(struct sKernelState)*MAX_KERNEL);
             gNumKernelState = 0;
 
-            gKernelStateHead = 0;
-            gKernelStateTail = 0;
-            
             result = 0;
             }
             break;
@@ -1784,8 +1785,6 @@ void global_init()
 {
     memset(gProc, 0, sizeof(struct proc*)*PROC_MAX);
     gNumProc = 0;
-    gKernelStateHead = 0;
-    gKernelStateTail = 0;
     gNumKernelState = 0;
     memset(gKernelState, 0, sizeof(struct sKernelState)*MAX_KERNEL);
 }

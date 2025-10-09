@@ -151,6 +151,8 @@ int Sys_exit()
     p->xstatus = arg0;
     p->zombie = 1;
     
+    remove_kernel_state(gActiveProc);
+    
     yield();
     
     return 0;
