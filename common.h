@@ -15,7 +15,7 @@ typedef int32_t ssize_t;
 typedef long ptrdiff_t;
 typedef int pid_t;
 
-#define MAX_OPEN_FILES 16
+#define MAX_OPEN_FILES 32
 
 typedef uint64_t pte_t;
 typedef uint64_t pde_t;

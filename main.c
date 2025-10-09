@@ -142,12 +142,11 @@ void free_proc(struct proc *p) {
     }
     kfree(p->process_pages);
     
-    //free(p->program);
-    
-    /*
-    int npages = (p->program_size * sizeof(char*) + PGSIZE - 1) / PGSIZE;
-    kfree_pagesX(p->program, npages);
-    */
+    if (p->program) {
+        free(p->program);
+        p->program = NULL;
+    }
+    p->program_size = 0;
     
     free_pagetable(p->pagetable, 2);
     kfree(p->pagetable);
@@ -944,9 +943,13 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     
     result->num_process_pages = 1;
     
-    result->program = elf_buf; //calloc(1, elf_buf_size);
     result->program_size = elf_buf_size;
-    //memcpy(result->program, elf_buf, elf_buf_size);
+    char *prog_copy = malloc(elf_buf_size);
+    if (!prog_copy) {
+        panic("alloc_prog: program malloc");
+    }
+    memcpy(prog_copy, elf_buf, elf_buf_size);
+    result->program = prog_copy;
     
     // initialize default cwd to root
     result->cwd[0] = '/';

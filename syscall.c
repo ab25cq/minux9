@@ -5,6 +5,7 @@ size_t uart_readline(char *buf, size_t maxlen);
 size_t uart_readn(char *buf, size_t len) ;
 
 int Sys_write() {
+//*(char*)0x10000000UL = 'Y';
     struct context_t* tf = (struct context_t*)TRAPFRAME;
     int fd = (int)tf->a0;
     uint64_t u = tf->a1;
@@ -71,6 +72,7 @@ int Sys_write() {
         u += n; left -= n; total += n;
 */
     }
+//*(char*)0x10000000UL = 'Z';
     return total;
 }
 
@@ -1092,6 +1094,7 @@ int Sys_pipe(void)
 
 int Sys_read()
 {
+//*(char*)0x10000000UL = 'X';
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     
     uintptr_t arg0 = trapframe->a0;
@@ -1142,6 +1145,7 @@ int Sys_read()
         panic("read: copyout failed");
     }
 
+//*(char*)0x10000000UL = 'B';
     return ret;
 }
 
