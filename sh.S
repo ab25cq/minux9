@@ -1101,33 +1101,36 @@ run_command:
 	.string	"$ "
 	.align	3
 .LC3:
-	.string	"\b \b"
+	.string	"cc b.c"
 	.align	3
 .LC4:
-	.string	"\r\n"
+	.string	"as -o b b.s"
 	.align	3
 .LC5:
-	.string	"ARG NUM ERROR"
+	.string	"\r\n"
 	.align	3
 .LC6:
-	.string	"ERR MAX COMMAND"
+	.string	"ARG NUM ERROR"
 	.align	3
 .LC7:
-	.string	"FILE NAME IS TOO LONG"
+	.string	"ERR MAX COMMAND"
 	.align	3
 .LC8:
-	.string	"ERR ARG NUM"
+	.string	"FILE NAME IS TOO LONG"
 	.align	3
 .LC9:
-	.string	"cd"
+	.string	"ERR ARG NUM"
 	.align	3
 .LC10:
-	.string	"/"
+	.string	"cd"
 	.align	3
 .LC11:
-	.string	"cd: failed\n"
+	.string	"/"
 	.align	3
 .LC12:
+	.string	"cd: failed\n"
+	.align	3
+.LC13:
 	.string	"=> %d\r\n"
 	.text
 	.align	1
@@ -1137,19 +1140,19 @@ main:
 .LFB7:
 	.loc 1 157 16
 	.cfi_startproc
-	addi	sp,sp,-848
-	.cfi_def_cfa_offset 848
-	sd	ra,840(sp)
-	sd	s0,832(sp)
+	addi	sp,sp,-816
+	.cfi_def_cfa_offset 816
+	sd	ra,808(sp)
+	sd	s0,800(sp)
 	.cfi_offset 1, -8
 	.cfi_offset 8, -16
-	addi	s0,sp,848
+	addi	s0,sp,816
 	.cfi_def_cfa 8, 0
 	li	t0,-16384
 	add	sp,sp,t0
 	.loc 1 169 9
 	sw	zero,-72(s0)
-.L117:
+.L112:
 .LBB33:
 .LBB34:
 	.loc 1 173 9
@@ -1165,183 +1168,101 @@ main:
  #NO_APP
 	sd	a0,-80(s0)
 .LBE34:
-	.loc 1 176 11
-	sd	zero,-24(s0)
-.L71:
-.LBB35:
+	.loc 1 176 10
+	lla	a5,m.0
+	lw	a5,0(a5)
+	addiw	a5,a5,1
+	sext.w	a4,a5
+	lla	a5,m.0
+	sw	a4,0(a5)
+	.loc 1 177 18
+	lla	a5,m.0
+	lw	a5,0(a5)
+	andi	a5,a5,1
+	sext.w	a5,a5
+	.loc 1 177 11
+	bne	a5,zero,.L65
 	.loc 1 178 13
-	li	a0,0
-	addi	a5,s0,-192
+	addi	a5,s0,-160
+	li	a2,64
+	lla	a1,.LC3
+	mv	a0,a5
+	call	strncpy
+	j	.L66
+.L65:
+	.loc 1 181 13
+	addi	a5,s0,-160
+	li	a2,64
+	lla	a1,.LC4
+	mv	a0,a5
+	call	strncpy
+.L66:
+.LBB35:
+	.loc 1 214 9
+	li	a0,1
+	lla	a5,.LC5
 	mv	a1,a5
-	li	a2,1
-	li	a7,65
+	li	a2,2
+	li	a7,64
  #APP
-# 178 "sh.c" 1
+# 214 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
 	sd	a0,-88(s0)
 .LBE35:
-.LBB36:
-	.loc 1 179 13
-	li	a0,1
-	addi	a5,s0,-192
-	mv	a1,a5
-	li	a2,1
-	li	a7,64
- #APP
-# 179 "sh.c" 1
-	ecall
-# 0 "" 2
- #NO_APP
-	sd	a0,-96(s0)
-.LBE36:
-	.loc 1 182 22
-	lbu	a5,-192(s0)
-	.loc 1 182 16
-	mv	a4,a5
-	li	a5,8
-	beq	a4,a5,.L65
-	.loc 1 182 41 discriminator 2
-	lbu	a5,-192(s0)
-	.loc 1 182 34 discriminator 2
-	mv	a4,a5
-	li	a5,127
-	bne	a4,a5,.L66
-.L65:
-	.loc 1 182 53 discriminator 3
-	ld	a5,-24(s0)
-	ble	a5,zero,.L66
-	.loc 1 184 18
-	ld	a5,-24(s0)
-	addi	a5,a5,-1
-	sd	a5,-24(s0)
-	.loc 1 185 24
-	ld	a5,-24(s0)
-	addi	a5,a5,-16
-	add	a5,a5,s0
-	sb	zero,-168(a5)
-.LBB37:
-	.loc 1 187 17
-	li	a0,1
-	lla	a5,.LC3
-	mv	a1,a5
-	li	a2,3
-	li	a7,64
- #APP
-# 187 "sh.c" 1
-	ecall
-# 0 "" 2
- #NO_APP
-	sd	a0,-104(s0)
-.LBE37:
-	j	.L67
-.L66:
-	.loc 1 189 25
-	lbu	a5,-192(s0)
-	.loc 1 189 20
-	mv	a4,a5
-	li	a5,13
-	beq	a4,a5,.L118
-	.loc 1 192 25
-	lbu	a5,-192(s0)
-	.loc 1 192 20
-	mv	a4,a5
-	li	a5,10
-	beq	a4,a5,.L119
-	.loc 1 196 30
-	lbu	a4,-192(s0)
-	.loc 1 196 24
-	ld	a5,-24(s0)
-	addi	a5,a5,-16
-	add	a5,a5,s0
-	sb	a4,-168(a5)
-	.loc 1 197 18
-	ld	a5,-24(s0)
-	addi	a5,a5,1
-	sd	a5,-24(s0)
-.L67:
-	.loc 1 178 13
-	j	.L71
-.L118:
-	.loc 1 190 17
-	nop
-	j	.L69
-.L119:
-	.loc 1 193 17
-	nop
-.L69:
-	.loc 1 200 16
-	ld	a5,-24(s0)
-	addi	a5,a5,-16
-	add	a5,a5,s0
-	sb	zero,-168(a5)
-.LBB38:
-	.loc 1 203 9
-	li	a0,1
-	lla	a5,.LC4
-	mv	a1,a5
-	li	a2,2
-	li	a7,64
- #APP
-# 203 "sh.c" 1
-	ecall
-# 0 "" 2
- #NO_APP
-	sd	a0,-112(s0)
-.LBE38:
-	.loc 1 205 13
+	.loc 1 216 13
 	sw	zero,-44(s0)
-	.loc 1 205 27
-	j	.L72
-.L74:
-	.loc 1 205 77 discriminator 5
+	.loc 1 216 27
+	j	.L67
+.L69:
+	.loc 1 216 77 discriminator 5
 	lw	a5,-44(s0)
 	addi	a5,a5,-16
 	add	a5,a5,s0
-	lbu	a4,-168(a5)
-	.loc 1 205 72 discriminator 5
+	lbu	a4,-144(a5)
+	.loc 1 216 72 discriminator 5
 	lla	a3,g_cmdline
 	lw	a5,-44(s0)
 	add	a5,a3,a5
 	sb	a4,0(a5)
-	.loc 1 205 85 discriminator 5
+	.loc 1 216 85 discriminator 5
 	lw	a5,-44(s0)
 	addiw	a5,a5,1
 	sw	a5,-44(s0)
-.L72:
-	.loc 1 205 31 discriminator 1
+.L67:
+	.loc 1 216 31 discriminator 1
 	lw	a5,-44(s0)
 	addi	a5,a5,-16
 	add	a5,a5,s0
-	lbu	a5,-168(a5)
-	.loc 1 205 36 discriminator 1
-	beq	a5,zero,.L73
-	.loc 1 205 36 is_stmt 0 discriminator 3
+	lbu	a5,-144(a5)
+	.loc 1 216 36 discriminator 1
+	beq	a5,zero,.L68
+	.loc 1 216 36 is_stmt 0 discriminator 3
 	lw	a5,-44(s0)
 	sext.w	a4,a5
 	li	a5,62
-	ble	a4,a5,.L74
-.L73:
-	.loc 1 205 105 is_stmt 1 discriminator 6
+	ble	a4,a5,.L69
+.L68:
+	.loc 1 216 105 is_stmt 1 discriminator 6
 	lla	a4,g_cmdline
 	lw	a5,-44(s0)
 	add	a5,a4,a5
 	sb	zero,0(a5)
-	.loc 1 207 15
-	lbu	a5,-184(s0)
-	.loc 1 207 11
-	beq	a5,zero,.L120
-	.loc 1 211 22
+	.loc 1 218 15
+	lbu	a5,-160(s0)
+	.loc 1 218 11
+	beq	a5,zero,.L113
+	.loc 1 222 22
 	sw	zero,-28(s0)
-	.loc 1 212 17
+	.loc 1 223 17
 	sw	zero,-32(s0)
-	.loc 1 213 11
-	addi	a5,s0,-184
+	.loc 1 224 11
+	addi	a5,s0,-160
 	sd	a5,-40(s0)
-	.loc 1 214 11
+	.loc 1 225 11
 	sd	zero,-24(s0)
-	.loc 1 216 49
+	.loc 1 227 49
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a4,a5,s0
@@ -1349,19 +1270,19 @@ main:
 	li	a5,1064
 	mul	a5,a3,a5
 	add	a5,a4,a5
-	sb	zero,212(a5)
-.L110:
-	.loc 1 219 16
+	sb	zero,236(a5)
+.L105:
+	.loc 1 230 16
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 219 15
+	.loc 1 230 15
 	mv	a4,a5
 	li	a5,124
-	bne	a4,a5,.L77
-	.loc 1 221 19
+	bne	a4,a5,.L72
+	.loc 1 232 19
 	ld	a5,-24(s0)
-	ble	a5,zero,.L78
-	.loc 1 222 61
+	ble	a5,zero,.L73
+	.loc 1 233 61
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a4,a5,s0
@@ -1374,49 +1295,49 @@ main:
 	add	a4,a4,a5
 	ld	a5,-24(s0)
 	add	a5,a4,a5
-	sb	zero,-816(a5)
-	.loc 1 223 28
+	sb	zero,-792(a5)
+	.loc 1 234 28
 	lw	a5,-32(s0)
 	addiw	a5,a5,1
 	sw	a5,-32(s0)
-	.loc 1 224 23
+	.loc 1 235 23
 	lw	a5,-32(s0)
 	sext.w	a4,a5
 	li	a5,31
-	ble	a4,a5,.L78
-	.loc 1 225 25
-	lla	a0,.LC5
+	ble	a4,a5,.L73
+	.loc 1 236 25
+	lla	a0,.LC6
 	call	puts
-	.loc 1 226 25
-	j	.L79
-.L78:
-	.loc 1 229 18
+	.loc 1 237 25
+	j	.L74
+.L73:
+	.loc 1 240 18
 	ld	a5,-40(s0)
 	addi	a5,a5,1
 	sd	a5,-40(s0)
-	.loc 1 230 22
-	j	.L80
-.L81:
-	.loc 1 231 22
+	.loc 1 241 22
+	j	.L75
+.L76:
+	.loc 1 242 22
 	ld	a5,-40(s0)
 	addi	a5,a5,1
 	sd	a5,-40(s0)
-.L80:
-	.loc 1 230 23
+.L75:
+	.loc 1 241 23
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 230 33
+	.loc 1 241 33
 	mv	a4,a5
 	li	a5,32
-	beq	a4,a5,.L81
-	.loc 1 230 36 discriminator 1
+	beq	a4,a5,.L76
+	.loc 1 241 36 discriminator 1
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 230 33 discriminator 1
+	.loc 1 241 33 discriminator 1
 	mv	a4,a5
 	li	a5,9
-	beq	a4,a5,.L81
-	.loc 1 233 48
+	beq	a4,a5,.L76
+	.loc 1 244 48
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a4,a5,s0
@@ -1425,16 +1346,16 @@ main:
 	mul	a5,a3,a5
 	add	a5,a4,a5
 	lw	a4,-32(s0)
-	sw	a4,208(a5)
-	.loc 1 235 29
+	sw	a4,232(a5)
+	.loc 1 246 29
 	lw	a5,-28(s0)
 	addiw	a5,a5,1
 	sw	a5,-28(s0)
-	.loc 1 236 19
+	.loc 1 247 19
 	sd	zero,-24(s0)
-	.loc 1 237 25
+	.loc 1 248 25
 	sw	zero,-32(s0)
-	.loc 1 239 57
+	.loc 1 250 57
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a4,a5,s0
@@ -1442,39 +1363,39 @@ main:
 	li	a5,1064
 	mul	a5,a3,a5
 	add	a5,a4,a5
-	sb	zero,212(a5)
-	.loc 1 241 19
+	sb	zero,236(a5)
+	.loc 1 252 19
 	lw	a5,-28(s0)
 	sext.w	a4,a5
 	li	a5,15
-	ble	a4,a5,.L110
-	.loc 1 242 21
-	lla	a0,.LC6
+	ble	a4,a5,.L105
+	.loc 1 253 21
+	lla	a0,.LC7
 	call	puts
-	.loc 1 243 21
-	j	.L79
-.L77:
-	.loc 1 246 21
+	.loc 1 254 21
+	j	.L74
+.L72:
+	.loc 1 257 21
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 246 20
+	.loc 1 257 20
 	mv	a4,a5
 	li	a5,62
-	bne	a4,a5,.L83
-	.loc 1 246 37 discriminator 1
+	bne	a4,a5,.L78
+	.loc 1 257 37 discriminator 1
 	ld	a5,-40(s0)
 	addi	a5,a5,1
-	.loc 1 246 34 discriminator 1
+	.loc 1 257 34 discriminator 1
 	lbu	a5,0(a5)
-	.loc 1 246 31 discriminator 1
+	.loc 1 257 31 discriminator 1
 	mv	a4,a5
 	li	a5,62
-	beq	a4,a5,.L83
-.LBB39:
-	.loc 1 248 19
+	beq	a4,a5,.L78
+.LBB36:
+	.loc 1 259 19
 	ld	a5,-24(s0)
-	ble	a5,zero,.L84
-	.loc 1 249 61
+	ble	a5,zero,.L79
+	.loc 1 260 61
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a4,a5,s0
@@ -1487,200 +1408,200 @@ main:
 	add	a4,a4,a5
 	ld	a5,-24(s0)
 	add	a5,a4,a5
-	sb	zero,-816(a5)
-	.loc 1 250 28
+	sb	zero,-792(a5)
+	.loc 1 261 28
 	lw	a5,-32(s0)
 	addiw	a5,a5,1
 	sw	a5,-32(s0)
-	.loc 1 251 23
+	.loc 1 262 23
 	lw	a5,-32(s0)
 	sext.w	a4,a5
 	li	a5,31
-	ble	a4,a5,.L85
-	.loc 1 252 25
-	lla	a0,.LC5
+	ble	a4,a5,.L80
+	.loc 1 263 25
+	lla	a0,.LC6
 	call	puts
-	.loc 1 253 25
-	j	.L79
-.L85:
-	.loc 1 255 23
+	.loc 1 264 25
+	j	.L74
+.L80:
+	.loc 1 266 23
 	sd	zero,-24(s0)
-.L84:
-	.loc 1 257 18
+.L79:
+	.loc 1 268 18
 	ld	a5,-40(s0)
 	addi	a5,a5,1
 	sd	a5,-40(s0)
-	.loc 1 258 22
+	.loc 1 269 22
+	j	.L81
+.L82:
+	.loc 1 270 22
+	ld	a5,-40(s0)
+	addi	a5,a5,1
+	sd	a5,-40(s0)
+.L81:
+	.loc 1 269 23
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	.loc 1 269 33
+	mv	a4,a5
+	li	a5,32
+	beq	a4,a5,.L82
+	.loc 1 269 36 discriminator 1
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	.loc 1 269 33 discriminator 1
+	mv	a4,a5
+	li	a5,9
+	beq	a4,a5,.L82
+	.loc 1 273 21
+	sw	zero,-48(s0)
+	.loc 1 275 22
+	j	.L83
+.L85:
+	.loc 1 276 67
+	ld	a5,-40(s0)
+	addi	a4,a5,1
+	sd	a4,-40(s0)
+	.loc 1 276 59
+	lw	a4,-48(s0)
+	addiw	a3,a4,1
+	sw	a3,-48(s0)
+	.loc 1 276 65
+	lbu	a3,0(a5)
+	.loc 1 276 63
+	li	a5,-16384
+	addi	a5,a5,-16
+	add	a2,a5,s0
+	lw	a1,-28(s0)
+	li	a5,1064
+	mul	a5,a1,a5
+	add	a5,a2,a5
+	add	a5,a5,a4
+	sb	a3,236(a5)
+	.loc 1 278 23
+	lw	a5,-48(s0)
+	sext.w	a4,a5
+	li	a5,32
+	ble	a4,a5,.L83
+	.loc 1 279 25
+	lla	a0,.LC8
+	call	puts
+.LBB37:
+	.loc 1 280 25
+	li	a0,2
+	li	a7,70
+ #APP
+# 280 "sh.c" 1
+	ecall
+# 0 "" 2
+ #NO_APP
+.L84:
+	j	.L84
+.L83:
+.LBE37:
+	.loc 1 275 23
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	mv	a0,a5
+	call	xisalnum
+	mv	a5,a0
+	.loc 1 275 75 discriminator 1
+	bne	a5,zero,.L85
+	.loc 1 275 39 discriminator 1
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	.loc 1 275 36 discriminator 1
+	mv	a4,a5
+	li	a5,46
+	beq	a4,a5,.L85
+	.loc 1 275 52 discriminator 2
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	.loc 1 275 49 discriminator 2
+	mv	a4,a5
+	li	a5,95
+	beq	a4,a5,.L85
+	.loc 1 275 65 discriminator 3
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	.loc 1 275 62 discriminator 3
+	mv	a4,a5
+	li	a5,45
+	beq	a4,a5,.L85
+	.loc 1 275 78 discriminator 4
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	.loc 1 275 75 discriminator 4
+	mv	a4,a5
+	li	a5,47
+	beq	a4,a5,.L85
+	.loc 1 283 57
+	li	a5,-16384
+	addi	a5,a5,-16
+	add	a3,a5,s0
+	lw	a4,-48(s0)
+	lw	a2,-28(s0)
+	li	a5,1064
+	mul	a5,a2,a5
+	add	a5,a3,a5
+	add	a5,a5,a4
+	sb	zero,236(a5)
+	.loc 1 284 56
+	li	a5,-16384
+	addi	a5,a5,-16
+	add	a4,a5,s0
+	lw	a3,-28(s0)
+	li	a5,1064
+	mul	a5,a3,a5
+	add	a5,a4,a5
+	sw	zero,268(a5)
+	.loc 1 286 22
 	j	.L86
 .L87:
-	.loc 1 259 22
+	.loc 1 287 22
 	ld	a5,-40(s0)
 	addi	a5,a5,1
 	sd	a5,-40(s0)
 .L86:
-	.loc 1 258 23
+	.loc 1 286 23
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 258 33
+	.loc 1 286 33
 	mv	a4,a5
 	li	a5,32
 	beq	a4,a5,.L87
-	.loc 1 258 36 discriminator 1
+	.loc 1 286 36 discriminator 1
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 258 33 discriminator 1
+	.loc 1 286 33 discriminator 1
 	mv	a4,a5
 	li	a5,9
 	beq	a4,a5,.L87
-	.loc 1 262 21
-	sw	zero,-48(s0)
-	.loc 1 264 22
-	j	.L88
-.L90:
-	.loc 1 265 67
-	ld	a5,-40(s0)
-	addi	a4,a5,1
-	sd	a4,-40(s0)
-	.loc 1 265 59
-	lw	a4,-48(s0)
-	addiw	a3,a4,1
-	sw	a3,-48(s0)
-	.loc 1 265 65
-	lbu	a3,0(a5)
-	.loc 1 265 63
-	li	a5,-16384
-	addi	a5,a5,-16
-	add	a2,a5,s0
-	lw	a1,-28(s0)
-	li	a5,1064
-	mul	a5,a1,a5
-	add	a5,a2,a5
-	add	a5,a5,a4
-	sb	a3,212(a5)
-	.loc 1 267 23
-	lw	a5,-48(s0)
-	sext.w	a4,a5
-	li	a5,32
-	ble	a4,a5,.L88
-	.loc 1 268 25
-	lla	a0,.LC7
-	call	puts
-.LBB40:
-	.loc 1 269 25
-	li	a0,2
-	li	a7,70
- #APP
-# 269 "sh.c" 1
-	ecall
-# 0 "" 2
- #NO_APP
-.L89:
-	j	.L89
-.L88:
-.LBE40:
-	.loc 1 264 23
+.LBE36:
+	.loc 1 257 49
+	j	.L77
+.L78:
+	.loc 1 290 21
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	mv	a0,a5
-	call	xisalnum
-	mv	a5,a0
-	.loc 1 264 75 discriminator 1
-	bne	a5,zero,.L90
-	.loc 1 264 39 discriminator 1
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 264 36 discriminator 1
-	mv	a4,a5
-	li	a5,46
-	beq	a4,a5,.L90
-	.loc 1 264 52 discriminator 2
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 264 49 discriminator 2
-	mv	a4,a5
-	li	a5,95
-	beq	a4,a5,.L90
-	.loc 1 264 65 discriminator 3
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 264 62 discriminator 3
-	mv	a4,a5
-	li	a5,45
-	beq	a4,a5,.L90
-	.loc 1 264 78 discriminator 4
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 264 75 discriminator 4
-	mv	a4,a5
-	li	a5,47
-	beq	a4,a5,.L90
-	.loc 1 272 57
-	li	a5,-16384
-	addi	a5,a5,-16
-	add	a3,a5,s0
-	lw	a4,-48(s0)
-	lw	a2,-28(s0)
-	li	a5,1064
-	mul	a5,a2,a5
-	add	a5,a3,a5
-	add	a5,a5,a4
-	sb	zero,212(a5)
-	.loc 1 273 56
-	li	a5,-16384
-	addi	a5,a5,-16
-	add	a4,a5,s0
-	lw	a3,-28(s0)
-	li	a5,1064
-	mul	a5,a3,a5
-	add	a5,a4,a5
-	sw	zero,244(a5)
-	.loc 1 275 22
-	j	.L91
-.L92:
-	.loc 1 276 22
-	ld	a5,-40(s0)
-	addi	a5,a5,1
-	sd	a5,-40(s0)
-.L91:
-	.loc 1 275 23
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 275 33
-	mv	a4,a5
-	li	a5,32
-	beq	a4,a5,.L92
-	.loc 1 275 36 discriminator 1
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 275 33 discriminator 1
-	mv	a4,a5
-	li	a5,9
-	beq	a4,a5,.L92
-.LBE39:
-	.loc 1 246 49
-	j	.L82
-.L83:
-	.loc 1 279 21
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 279 20
+	.loc 1 290 20
 	mv	a4,a5
 	li	a5,62
-	bne	a4,a5,.L93
-	.loc 1 279 37 discriminator 1
+	bne	a4,a5,.L88
+	.loc 1 290 37 discriminator 1
 	ld	a5,-40(s0)
 	addi	a5,a5,1
-	.loc 1 279 34 discriminator 1
+	.loc 1 290 34 discriminator 1
 	lbu	a5,0(a5)
-	.loc 1 279 31 discriminator 1
+	.loc 1 290 31 discriminator 1
 	mv	a4,a5
 	li	a5,62
-	bne	a4,a5,.L93
-.LBB41:
-	.loc 1 281 19
+	bne	a4,a5,.L88
+.LBB38:
+	.loc 1 292 19
 	ld	a5,-24(s0)
-	ble	a5,zero,.L94
-	.loc 1 282 61
+	ble	a5,zero,.L89
+	.loc 1 293 61
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a4,a5,s0
@@ -1693,67 +1614,67 @@ main:
 	add	a4,a4,a5
 	ld	a5,-24(s0)
 	add	a5,a4,a5
-	sb	zero,-816(a5)
-	.loc 1 283 28
+	sb	zero,-792(a5)
+	.loc 1 294 28
 	lw	a5,-32(s0)
 	addiw	a5,a5,1
 	sw	a5,-32(s0)
-	.loc 1 284 23
+	.loc 1 295 23
 	lw	a5,-32(s0)
 	sext.w	a4,a5
 	li	a5,31
-	ble	a4,a5,.L95
-	.loc 1 285 25
-	lla	a0,.LC5
+	ble	a4,a5,.L90
+	.loc 1 296 25
+	lla	a0,.LC6
 	call	puts
-	.loc 1 286 25
-	j	.L79
-.L95:
-	.loc 1 288 23
+	.loc 1 297 25
+	j	.L74
+.L90:
+	.loc 1 299 23
 	sd	zero,-24(s0)
-.L94:
-	.loc 1 291 19
+.L89:
+	.loc 1 302 19
 	ld	a5,-40(s0)
 	addi	a5,a5,2
 	sd	a5,-40(s0)
-	.loc 1 292 22
-	j	.L96
-.L97:
-	.loc 1 293 22
+	.loc 1 303 22
+	j	.L91
+.L92:
+	.loc 1 304 22
 	ld	a5,-40(s0)
 	addi	a5,a5,1
 	sd	a5,-40(s0)
-.L96:
-	.loc 1 292 23
+.L91:
+	.loc 1 303 23
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 292 33
+	.loc 1 303 33
 	mv	a4,a5
 	li	a5,32
-	beq	a4,a5,.L97
-	.loc 1 292 36 discriminator 1
+	beq	a4,a5,.L92
+	.loc 1 303 36 discriminator 1
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 292 33 discriminator 1
+	.loc 1 303 33 discriminator 1
 	mv	a4,a5
 	li	a5,9
-	beq	a4,a5,.L97
-	.loc 1 296 21
+	beq	a4,a5,.L92
+	.loc 1 307 21
 	sw	zero,-52(s0)
-	.loc 1 298 22
-	j	.L98
-.L100:
-	.loc 1 299 67
+	.loc 1 309 22
+	j	.L93
+.L95:
+	.loc 1 310 67
 	ld	a5,-40(s0)
 	addi	a4,a5,1
 	sd	a4,-40(s0)
-	.loc 1 299 59
+	.loc 1 310 59
 	lw	a4,-52(s0)
 	addiw	a3,a4,1
 	sw	a3,-52(s0)
-	.loc 1 299 65
+	.loc 1 310 65
 	lbu	a3,0(a5)
-	.loc 1 299 63
+	.loc 1 310 63
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a2,a5,s0
@@ -1762,65 +1683,65 @@ main:
 	mul	a5,a1,a5
 	add	a5,a2,a5
 	add	a5,a5,a4
-	sb	a3,212(a5)
-	.loc 1 301 23
+	sb	a3,236(a5)
+	.loc 1 312 23
 	lw	a5,-52(s0)
 	sext.w	a4,a5
 	li	a5,32
-	ble	a4,a5,.L98
-	.loc 1 302 25
-	lla	a0,.LC7
+	ble	a4,a5,.L93
+	.loc 1 313 25
+	lla	a0,.LC8
 	call	puts
-.LBB42:
-	.loc 1 303 25
+.LBB39:
+	.loc 1 314 25
 	li	a0,2
 	li	a7,70
  #APP
-# 303 "sh.c" 1
+# 314 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
-.L99:
-	j	.L99
-.L98:
-.LBE42:
-	.loc 1 298 23
+.L94:
+	j	.L94
+.L93:
+.LBE39:
+	.loc 1 309 23
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
 	mv	a0,a5
 	call	xisalnum
 	mv	a5,a0
-	.loc 1 298 75 discriminator 1
-	bne	a5,zero,.L100
-	.loc 1 298 39 discriminator 1
+	.loc 1 309 75 discriminator 1
+	bne	a5,zero,.L95
+	.loc 1 309 39 discriminator 1
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 298 36 discriminator 1
+	.loc 1 309 36 discriminator 1
 	mv	a4,a5
 	li	a5,46
-	beq	a4,a5,.L100
-	.loc 1 298 52 discriminator 2
+	beq	a4,a5,.L95
+	.loc 1 309 52 discriminator 2
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 298 49 discriminator 2
+	.loc 1 309 49 discriminator 2
 	mv	a4,a5
 	li	a5,95
-	beq	a4,a5,.L100
-	.loc 1 298 65 discriminator 3
+	beq	a4,a5,.L95
+	.loc 1 309 65 discriminator 3
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 298 62 discriminator 3
+	.loc 1 309 62 discriminator 3
 	mv	a4,a5
 	li	a5,45
-	beq	a4,a5,.L100
-	.loc 1 298 78 discriminator 4
+	beq	a4,a5,.L95
+	.loc 1 309 78 discriminator 4
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 298 75 discriminator 4
+	.loc 1 309 75 discriminator 4
 	mv	a4,a5
 	li	a5,47
-	beq	a4,a5,.L100
-	.loc 1 306 57
+	beq	a4,a5,.L95
+	.loc 1 317 57
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a3,a5,s0
@@ -1830,8 +1751,8 @@ main:
 	mul	a5,a2,a5
 	add	a5,a3,a5
 	add	a5,a5,a4
-	sb	zero,212(a5)
-	.loc 1 307 56
+	sb	zero,236(a5)
+	.loc 1 318 56
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a4,a5,s0
@@ -1840,73 +1761,73 @@ main:
 	mul	a5,a3,a5
 	add	a5,a4,a5
 	li	a4,1
-	sw	a4,244(a5)
-	.loc 1 309 22
-	j	.L101
-.L102:
-	.loc 1 310 22
+	sw	a4,268(a5)
+	.loc 1 320 22
+	j	.L96
+.L97:
+	.loc 1 321 22
 	ld	a5,-40(s0)
 	addi	a5,a5,1
 	sd	a5,-40(s0)
+.L96:
+	.loc 1 320 23
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	.loc 1 320 33
+	mv	a4,a5
+	li	a5,32
+	beq	a4,a5,.L97
+	.loc 1 320 36 discriminator 1
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	.loc 1 320 33 discriminator 1
+	mv	a4,a5
+	li	a5,9
+	beq	a4,a5,.L97
+.LBE38:
+	.loc 1 290 49
+	j	.L77
+.L88:
+	.loc 1 324 21
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	.loc 1 324 20
+	mv	a4,a5
+	li	a5,32
+	beq	a4,a5,.L100
+	.loc 1 324 34 discriminator 1
+	ld	a5,-40(s0)
+	lbu	a5,0(a5)
+	.loc 1 324 31 discriminator 1
+	mv	a4,a5
+	li	a5,9
+	bne	a4,a5,.L99
+	.loc 1 325 22
+	j	.L100
 .L101:
-	.loc 1 309 23
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 309 33
-	mv	a4,a5
-	li	a5,32
-	beq	a4,a5,.L102
-	.loc 1 309 36 discriminator 1
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 309 33 discriminator 1
-	mv	a4,a5
-	li	a5,9
-	beq	a4,a5,.L102
-.LBE41:
-	.loc 1 279 49
-	j	.L82
-.L93:
-	.loc 1 313 21
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 313 20
-	mv	a4,a5
-	li	a5,32
-	beq	a4,a5,.L105
-	.loc 1 313 34 discriminator 1
-	ld	a5,-40(s0)
-	lbu	a5,0(a5)
-	.loc 1 313 31 discriminator 1
-	mv	a4,a5
-	li	a5,9
-	bne	a4,a5,.L104
-	.loc 1 314 22
-	j	.L105
-.L106:
-	.loc 1 315 22
+	.loc 1 326 22
 	ld	a5,-40(s0)
 	addi	a5,a5,1
 	sd	a5,-40(s0)
-.L105:
-	.loc 1 314 23
+.L100:
+	.loc 1 325 23
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 314 33
+	.loc 1 325 33
 	mv	a4,a5
 	li	a5,32
-	beq	a4,a5,.L106
-	.loc 1 314 36 discriminator 1
+	beq	a4,a5,.L101
+	.loc 1 325 36 discriminator 1
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 314 33 discriminator 1
+	.loc 1 325 33 discriminator 1
 	mv	a4,a5
 	li	a5,9
-	beq	a4,a5,.L106
-	.loc 1 317 19
+	beq	a4,a5,.L101
+	.loc 1 328 19
 	ld	a5,-24(s0)
-	ble	a5,zero,.L121
-	.loc 1 318 61
+	ble	a5,zero,.L114
+	.loc 1 329 61
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a4,a5,s0
@@ -1919,33 +1840,33 @@ main:
 	add	a4,a4,a5
 	ld	a5,-24(s0)
 	add	a5,a4,a5
-	sb	zero,-816(a5)
-	.loc 1 319 28
+	sb	zero,-792(a5)
+	.loc 1 330 28
 	lw	a5,-32(s0)
 	addiw	a5,a5,1
 	sw	a5,-32(s0)
-	.loc 1 320 23
+	.loc 1 331 23
 	sd	zero,-24(s0)
-	.loc 1 321 23
+	.loc 1 332 23
 	lw	a5,-32(s0)
 	sext.w	a4,a5
 	li	a5,31
-	ble	a4,a5,.L121
-	.loc 1 322 25
-	lla	a0,.LC5
+	ble	a4,a5,.L114
+	.loc 1 333 25
+	lla	a0,.LC6
 	call	puts
-	.loc 1 323 25
-	j	.L79
-.L104:
-	.loc 1 328 21
+	.loc 1 334 25
+	j	.L74
+.L99:
+	.loc 1 339 21
 	ld	a5,-40(s0)
 	lbu	a5,0(a5)
-	.loc 1 328 20
-	bne	a5,zero,.L108
-	.loc 1 330 20
+	.loc 1 339 20
+	bne	a5,zero,.L103
+	.loc 1 341 20
 	ld	a5,-24(s0)
-	ble	a5,zero,.L109
-	.loc 1 331 61
+	ble	a5,zero,.L104
+	.loc 1 342 61
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a4,a5,s0
@@ -1958,15 +1879,15 @@ main:
 	add	a4,a4,a5
 	ld	a5,-24(s0)
 	add	a5,a4,a5
-	sb	zero,-816(a5)
-	.loc 1 332 28
+	sb	zero,-792(a5)
+	.loc 1 343 28
 	lw	a5,-32(s0)
 	addiw	a5,a5,1
 	sw	a5,-32(s0)
-	.loc 1 333 23
+	.loc 1 344 23
 	sd	zero,-24(s0)
-.L109:
-	.loc 1 336 48
+.L104:
+	.loc 1 347 48
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a4,a5,s0
@@ -1975,18 +1896,18 @@ main:
 	mul	a5,a3,a5
 	add	a5,a4,a5
 	lw	a4,-32(s0)
-	sw	a4,208(a5)
-	.loc 1 337 29
+	sw	a4,232(a5)
+	.loc 1 348 29
 	lw	a5,-28(s0)
 	addiw	a5,a5,1
 	sw	a5,-28(s0)
-	.loc 1 338 17
-	j	.L79
-.L108:
-	.loc 1 341 59
+	.loc 1 349 17
+	j	.L74
+.L103:
+	.loc 1 352 59
 	ld	a5,-40(s0)
 	lbu	a4,0(a5)
-	.loc 1 341 57
+	.loc 1 352 57
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a3,a5,s0
@@ -1999,205 +1920,207 @@ main:
 	add	a3,a3,a5
 	ld	a5,-24(s0)
 	add	a5,a3,a5
-	sb	a4,-816(a5)
-	.loc 1 342 18
+	sb	a4,-792(a5)
+	.loc 1 353 18
 	ld	a5,-40(s0)
 	addi	a5,a5,1
 	sd	a5,-40(s0)
-	.loc 1 343 18
+	.loc 1 354 18
 	ld	a5,-24(s0)
 	addi	a5,a5,1
 	sd	a5,-24(s0)
-	.loc 1 345 19
+	.loc 1 356 19
 	ld	a4,-24(s0)
 	li	a5,31
-	ble	a4,a5,.L110
-	.loc 1 346 21
-	lla	a0,.LC8
+	ble	a4,a5,.L105
+	.loc 1 357 21
+	lla	a0,.LC9
 	call	puts
-	.loc 1 347 21
-	j	.L79
-.L121:
-	.loc 1 317 19
+	.loc 1 358 21
+	j	.L74
+.L114:
+	.loc 1 328 19
 	nop
-.L82:
-	.loc 1 219 15
-	j	.L110
-.L79:
-	.loc 1 353 12
+.L77:
+	.loc 1 230 15
+	j	.L105
+.L74:
+	.loc 1 364 12
 	lw	a5,-28(s0)
 	sext.w	a4,a5
 	li	a5,1
-	bne	a4,a5,.L111
-	.loc 1 353 45 discriminator 1
+	bne	a4,a5,.L106
+	.loc 1 364 45 discriminator 1
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a5,a5,s0
-	lw	a5,208(a5)
-	.loc 1 353 31 discriminator 1
-	ble	a5,zero,.L111
-	.loc 1 353 62 discriminator 2
+	lw	a5,232(a5)
+	.loc 1 364 31 discriminator 1
+	ble	a5,zero,.L106
+	.loc 1 364 62 discriminator 2
 	li	a5,-16384
-	addi	a5,a5,-816
+	addi	a5,a5,-792
 	addi	a5,a5,-16
 	add	a5,a5,s0
-	lla	a1,.LC9
+	lla	a1,.LC10
 	mv	a0,a5
 	call	strcmp
 	mv	a5,a0
-	.loc 1 353 59 discriminator 1
-	bne	a5,zero,.L111
-.LBB43:
-	.loc 1 354 25
-	lla	a5,.LC10
+	.loc 1 364 59 discriminator 1
+	bne	a5,zero,.L106
+.LBB40:
+	.loc 1 365 25
+	lla	a5,.LC11
 	sd	a5,-64(s0)
-	.loc 1 355 28
+	.loc 1 366 28
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a5,a5,s0
-	lw	a4,208(a5)
-	.loc 1 355 16
+	lw	a4,232(a5)
+	.loc 1 366 16
 	li	a5,1
-	ble	a4,a5,.L112
-	.loc 1 355 64 discriminator 1
+	ble	a4,a5,.L107
+	.loc 1 366 64 discriminator 1
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a5,a5,s0
-	lbu	a5,-784(a5)
-	.loc 1 355 42 discriminator 1
-	beq	a5,zero,.L112
-	.loc 1 356 24
+	lbu	a5,-760(a5)
+	.loc 1 366 42 discriminator 1
+	beq	a5,zero,.L107
+	.loc 1 367 24
 	li	a5,-16384
-	addi	a5,a5,-816
+	addi	a5,a5,-792
 	addi	a5,a5,-16
 	add	a5,a5,s0
 	addi	a5,a5,32
 	sd	a5,-64(s0)
-.L112:
-.LBB44:
-	.loc 1 358 22
+.L107:
+.LBB41:
+	.loc 1 369 22
 	ld	a5,-64(s0)
 	mv	a0,a5
 	li	a7,80
  #APP
-# 358 "sh.c" 1
+# 369 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
 	mv	a5,a0
 	sext.w	a5,a5
-.LBE44:
-	.loc 1 358 17
-	sw	a5,-116(s0)
-	.loc 1 359 16
-	lw	a5,-116(s0)
+.LBE41:
+	.loc 1 369 17
+	sw	a5,-92(s0)
+	.loc 1 370 16
+	lw	a5,-92(s0)
 	sext.w	a5,a5
-	bge	a5,zero,.L122
-	.loc 1 360 17
-	lla	a0,.LC11
+	bge	a5,zero,.L115
+	.loc 1 371 17
+	lla	a0,.LC12
 	call	puts
-	.loc 1 362 13
-	j	.L122
-.L111:
-.LBE43:
-.LBB45:
-	.loc 1 365 15
+	.loc 1 373 13
+	j	.L115
+.L106:
+.LBE40:
+.LBB42:
+	.loc 1 376 15
 	li	a7,68
  #APP
-# 365 "sh.c" 1
+# 376 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
 	mv	a5,a0
-.LBE45:
-	.loc 1 365 13
-	sw	a5,-120(s0)
-	.loc 1 367 11
-	lw	a5,-120(s0)
+.LBE42:
+	.loc 1 376 13
+	sw	a5,-96(s0)
+	.loc 1 378 11
+	lw	a5,-96(s0)
 	sext.w	a5,a5
-	bne	a5,zero,.L114
-	.loc 1 368 13
+	bne	a5,zero,.L109
+	.loc 1 379 13
 	lw	a4,-28(s0)
 	li	a5,-16384
-	addi	a5,a5,-816
+	addi	a5,a5,-792
 	addi	a5,a5,-16
 	add	a5,a5,s0
 	mv	a2,a4
 	mv	a1,a5
 	li	a0,0
 	call	run_command
-	j	.L117
-.L114:
-.LBB46:
-	.loc 1 371 21
+	j	.L112
+.L109:
+.LBB43:
+	.loc 1 382 21
 	sw	zero,-68(s0)
-	.loc 1 371 13
-	j	.L115
-.L116:
-.LBB47:
-.LBB48:
-	.loc 1 373 17
+	.loc 1 382 13
+	j	.L110
+.L111:
+.LBB44:
+.LBB45:
+	.loc 1 384 17
 	li	a5,-16384
-	addi	a5,a5,-820
+	addi	a5,a5,-796
 	addi	a5,a5,-16
 	add	a5,a5,s0
 	mv	a0,a5
 	li	a7,71
  #APP
-# 373 "sh.c" 1
+# 384 "sh.c" 1
 	ecall
 # 0 "" 2
  #NO_APP
-.LBE48:
-	.loc 1 374 17
+.LBE45:
+	.loc 1 385 17
 	li	a5,-16384
 	addi	a5,a5,-16
 	add	a5,a5,s0
-	lw	a5,-820(a5)
+	lw	a5,-796(a5)
 	mv	a1,a5
-	lla	a0,.LC12
+	lla	a0,.LC13
 	call	printf
-.LBE47:
-	.loc 1 371 43 discriminator 3
+.LBE44:
+	.loc 1 382 43 discriminator 3
 	lw	a5,-68(s0)
 	addiw	a5,a5,1
 	sw	a5,-68(s0)
-.L115:
-	.loc 1 371 27 discriminator 1
+.L110:
+	.loc 1 382 27 discriminator 1
 	lw	a5,-68(s0)
 	mv	a4,a5
 	lw	a5,-28(s0)
 	sext.w	a4,a4
 	sext.w	a5,a5
-	blt	a4,a5,.L116
-	j	.L117
-.L120:
+	blt	a4,a5,.L111
+	j	.L112
+.L113:
+.LBE43:
+	.loc 1 219 13
+	nop
+	j	.L112
+.L115:
+.LBB46:
+	.loc 1 373 13
+	nop
 .LBE46:
-	.loc 1 208 13
-	nop
-	j	.L117
-.L122:
-.LBB49:
-	.loc 1 362 13
-	nop
-.LBE49:
 .LBE33:
 	.loc 1 171 14
-	j	.L117
+	j	.L112
 	.cfi_endproc
 .LFE7:
 	.size	main, .-main
+	.local	m.0
+	.comm	m.0,4,4
 .Letext0:
 	.file 2 "minux.h"
 	.section	.debug_info,"",@progbits
 .Ldebug_info0:
-	.4byte	0xe37
+	.4byte	0xd61
 	.2byte	0x5
 	.byte	0x1
 	.byte	0x8
 	.4byte	.Ldebug_abbrev0
 	.uleb128 0x13
-	.4byte	.LASF42
+	.4byte	.LASF43
 	.byte	0x1d
 	.4byte	.LASF0
 	.4byte	.LASF1
@@ -2257,7 +2180,7 @@ main:
 	.uleb128 0xc
 	.4byte	0x7b
 	.uleb128 0x16
-	.4byte	.LASF43
+	.4byte	.LASF44
 	.byte	0x2
 	.byte	0x2a
 	.byte	0xd
@@ -2272,7 +2195,7 @@ main:
 	.byte	0x3f
 	.byte	0
 	.uleb128 0x3
-	.4byte	.LASF19
+	.4byte	.LASF20
 	.byte	0xc
 	.byte	0xd
 	.4byte	0x9d
@@ -2280,7 +2203,7 @@ main:
 	.byte	0x3
 	.8byte	g_cmdline
 	.uleb128 0x17
-	.4byte	.LASF44
+	.4byte	.LASF45
 	.2byte	0x428
 	.byte	0x1
 	.byte	0x32
@@ -2329,43 +2252,58 @@ main:
 	.4byte	0x6d
 	.byte	0x1f
 	.byte	0
-	.uleb128 0x11
+	.uleb128 0xe
 	.4byte	.LASF17
 	.2byte	0x26a
+	.byte	0x5
 	.4byte	0x3c
-	.4byte	0x141
-	.uleb128 0xa
+	.4byte	0x142
+	.uleb128 0x9
 	.4byte	0x98
 	.uleb128 0x19
 	.byte	0
-	.uleb128 0x11
+	.uleb128 0xe
 	.4byte	.LASF18
 	.2byte	0x294
+	.byte	0x5
 	.4byte	0x3c
-	.4byte	0x15b
-	.uleb128 0xa
+	.4byte	0x15d
+	.uleb128 0x9
 	.4byte	0x98
-	.uleb128 0xa
-	.4byte	0x98
-	.byte	0
-	.uleb128 0x1a
-	.4byte	.LASF45
-	.byte	0x2
-	.2byte	0x27f
-	.byte	0x6
-	.4byte	0x16e
-	.uleb128 0xa
+	.uleb128 0x9
 	.4byte	0x98
 	.byte	0
 	.uleb128 0xe
-	.4byte	.LASF28
+	.4byte	.LASF19
+	.2byte	0x28d
+	.byte	0x7
+	.4byte	0x87
+	.4byte	0x17d
+	.uleb128 0x9
+	.4byte	0x87
+	.uleb128 0x9
+	.4byte	0x98
+	.uleb128 0x9
+	.4byte	0x3c
+	.byte	0
+	.uleb128 0x1a
+	.4byte	.LASF46
+	.byte	0x2
+	.2byte	0x27f
+	.byte	0x6
+	.4byte	0x190
+	.uleb128 0x9
+	.4byte	0x98
+	.byte	0
+	.uleb128 0xf
+	.4byte	.LASF29
 	.byte	0x9d
 	.4byte	0x3c
 	.8byte	.LFB7
 	.8byte	.LFE7-.LFB7
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x598
+	.4byte	0x4c2
 	.uleb128 0x1
 	.string	"buf"
 	.byte	0x9e
@@ -2373,7 +2311,7 @@ main:
 	.4byte	0x9d
 	.uleb128 0x3
 	.byte	0x91
-	.sleb128 -184
+	.sleb128 -160
 	.uleb128 0x1
 	.string	"n"
 	.byte	0x9f
@@ -2383,13 +2321,13 @@ main:
 	.byte	0x91
 	.sleb128 -24
 	.uleb128 0x3
-	.4byte	.LASF20
+	.4byte	.LASF21
 	.byte	0xa0
 	.byte	0xa
-	.4byte	0x598
+	.4byte	0x4c2
 	.uleb128 0x3
 	.byte	0x91
-	.sleb128 -192
+	.sleb128 -168
 	.uleb128 0x1
 	.string	"pid"
 	.byte	0xa1
@@ -2397,25 +2335,25 @@ main:
 	.4byte	0x8c
 	.uleb128 0x3
 	.byte	0x91
-	.sleb128 -120
+	.sleb128 -96
 	.uleb128 0x12
-	.4byte	.LASF21
+	.4byte	.LASF22
 	.byte	0xa2
 	.4byte	0x3c
 	.uleb128 0x12
-	.4byte	.LASF22
+	.4byte	.LASF23
 	.byte	0xa3
 	.4byte	0x3c
 	.uleb128 0x3
-	.4byte	.LASF23
+	.4byte	.LASF24
 	.byte	0xa5
 	.byte	0x15
-	.4byte	0x5a8
+	.4byte	0x4d2
 	.uleb128 0x4
 	.byte	0x91
-	.sleb128 -17216
+	.sleb128 -17192
 	.uleb128 0x3
-	.4byte	.LASF24
+	.4byte	.LASF25
 	.byte	0xa6
 	.byte	0x9
 	.4byte	0x3c
@@ -2450,8 +2388,16 @@ main:
 	.8byte	.LBB33
 	.8byte	.LBE33-.LBB33
 	.uleb128 0x1
+	.string	"m"
+	.byte	0xaf
+	.byte	0x14
+	.4byte	0x3c
+	.uleb128 0x9
+	.byte	0x3
+	.8byte	m.0
+	.uleb128 0x1
 	.string	"gi"
-	.byte	0xcd
+	.byte	0xd8
 	.byte	0xd
 	.4byte	0x3c
 	.uleb128 0x2
@@ -2460,9 +2406,9 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB34
 	.8byte	.LBE34-.LBB34
-	.4byte	0x297
+	.4byte	0x2cc
 	.uleb128 0x3
-	.4byte	.LASF25
+	.4byte	.LASF26
 	.byte	0xad
 	.byte	0x9
 	.4byte	0x66
@@ -2501,40 +2447,40 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB35
 	.8byte	.LBE35-.LBB35
-	.4byte	0x2f0
+	.4byte	0x325
 	.uleb128 0x3
-	.4byte	.LASF25
-	.byte	0xb2
-	.byte	0xd
+	.4byte	.LASF26
+	.byte	0xd6
+	.byte	0x9
 	.4byte	0x66
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -88
 	.uleb128 0x1
 	.string	"_a0"
-	.byte	0xb2
-	.byte	0xd
+	.byte	0xd6
+	.byte	0x9
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x5a
 	.uleb128 0x1
 	.string	"_a1"
-	.byte	0xb2
-	.byte	0xd
+	.byte	0xd6
+	.byte	0x9
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x5b
 	.uleb128 0x1
 	.string	"_a2"
-	.byte	0xb2
-	.byte	0xd
+	.byte	0xd6
+	.byte	0x9
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x5c
 	.uleb128 0x1
 	.string	"_a7"
-	.byte	0xb2
-	.byte	0xd
+	.byte	0xd6
+	.byte	0x9
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x61
@@ -2542,151 +2488,28 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB36
 	.8byte	.LBE36-.LBB36
-	.4byte	0x349
-	.uleb128 0x3
-	.4byte	.LASF25
-	.byte	0xb3
-	.byte	0xd
-	.4byte	0x66
-	.uleb128 0x3
-	.byte	0x91
-	.sleb128 -96
-	.uleb128 0x1
-	.string	"_a0"
-	.byte	0xb3
-	.byte	0xd
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x5a
-	.uleb128 0x1
-	.string	"_a1"
-	.byte	0xb3
-	.byte	0xd
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x5b
-	.uleb128 0x1
-	.string	"_a2"
-	.byte	0xb3
-	.byte	0xd
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x5c
-	.uleb128 0x1
-	.string	"_a7"
-	.byte	0xb3
-	.byte	0xd
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x61
-	.byte	0
-	.uleb128 0x2
-	.8byte	.LBB37
-	.8byte	.LBE37-.LBB37
-	.4byte	0x3a2
-	.uleb128 0x3
-	.4byte	.LASF25
-	.byte	0xbb
-	.byte	0x11
-	.4byte	0x66
-	.uleb128 0x3
-	.byte	0x91
-	.sleb128 -104
-	.uleb128 0x1
-	.string	"_a0"
-	.byte	0xbb
-	.byte	0x11
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x5a
-	.uleb128 0x1
-	.string	"_a1"
-	.byte	0xbb
-	.byte	0x11
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x5b
-	.uleb128 0x1
-	.string	"_a2"
-	.byte	0xbb
-	.byte	0x11
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x5c
-	.uleb128 0x1
-	.string	"_a7"
-	.byte	0xbb
-	.byte	0x11
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x61
-	.byte	0
-	.uleb128 0x2
-	.8byte	.LBB38
-	.8byte	.LBE38-.LBB38
-	.4byte	0x3fb
-	.uleb128 0x3
-	.4byte	.LASF25
-	.byte	0xcb
-	.byte	0x9
-	.4byte	0x66
-	.uleb128 0x3
-	.byte	0x91
-	.sleb128 -112
-	.uleb128 0x1
-	.string	"_a0"
-	.byte	0xcb
-	.byte	0x9
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x5a
-	.uleb128 0x1
-	.string	"_a1"
-	.byte	0xcb
-	.byte	0x9
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x5b
-	.uleb128 0x1
-	.string	"_a2"
-	.byte	0xcb
-	.byte	0x9
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x5c
-	.uleb128 0x1
-	.string	"_a7"
-	.byte	0xcb
-	.byte	0x9
-	.4byte	0x66
-	.uleb128 0x1
-	.byte	0x61
-	.byte	0
-	.uleb128 0x2
-	.8byte	.LBB39
-	.8byte	.LBE39-.LBB39
-	.4byte	0x44c
+	.4byte	0x376
 	.uleb128 0x5
 	.string	"i"
-	.2byte	0x106
+	.2byte	0x111
 	.byte	0x15
 	.4byte	0x3c
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
 	.uleb128 0x4
-	.8byte	.LBB40
-	.8byte	.LBE40-.LBB40
+	.8byte	.LBB37
+	.8byte	.LBE37-.LBB37
 	.uleb128 0x5
 	.string	"_a0"
-	.2byte	0x10d
+	.2byte	0x118
 	.byte	0x19
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x5a
 	.uleb128 0x5
 	.string	"_a7"
-	.2byte	0x10d
+	.2byte	0x118
 	.byte	0x19
 	.4byte	0x66
 	.uleb128 0x1
@@ -2694,30 +2517,30 @@ main:
 	.byte	0
 	.byte	0
 	.uleb128 0x2
-	.8byte	.LBB41
-	.8byte	.LBE41-.LBB41
-	.4byte	0x49d
+	.8byte	.LBB38
+	.8byte	.LBE38-.LBB38
+	.4byte	0x3c7
 	.uleb128 0x5
 	.string	"i"
-	.2byte	0x128
+	.2byte	0x133
 	.byte	0x15
 	.4byte	0x3c
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -52
 	.uleb128 0x4
-	.8byte	.LBB42
-	.8byte	.LBE42-.LBB42
+	.8byte	.LBB39
+	.8byte	.LBE39-.LBB39
 	.uleb128 0x5
 	.string	"_a0"
-	.2byte	0x12f
+	.2byte	0x13a
 	.byte	0x19
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x5a
 	.uleb128 0x5
 	.string	"_a7"
-	.2byte	0x12f
+	.2byte	0x13a
 	.byte	0x19
 	.4byte	0x66
 	.uleb128 0x1
@@ -2726,10 +2549,10 @@ main:
 	.byte	0
 	.uleb128 0x1b
 	.4byte	.LLRL0
-	.4byte	0x4f3
+	.4byte	0x41d
 	.uleb128 0xb
-	.4byte	.LASF26
-	.2byte	0x162
+	.4byte	.LASF27
+	.2byte	0x16d
 	.byte	0x19
 	.4byte	0x98
 	.uleb128 0x2
@@ -2737,25 +2560,25 @@ main:
 	.sleb128 -64
 	.uleb128 0x5
 	.string	"rc"
-	.2byte	0x166
+	.2byte	0x171
 	.byte	0x11
 	.4byte	0x3c
 	.uleb128 0x3
 	.byte	0x91
-	.sleb128 -116
+	.sleb128 -92
 	.uleb128 0x4
-	.8byte	.LBB44
-	.8byte	.LBE44-.LBB44
+	.8byte	.LBB41
+	.8byte	.LBE41-.LBB41
 	.uleb128 0x5
 	.string	"_a0"
-	.2byte	0x166
+	.2byte	0x171
 	.byte	0x16
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x5a
 	.uleb128 0x5
 	.string	"_a7"
-	.2byte	0x166
+	.2byte	0x171
 	.byte	0x16
 	.4byte	0x66
 	.uleb128 0x1
@@ -2763,59 +2586,59 @@ main:
 	.byte	0
 	.byte	0
 	.uleb128 0x2
-	.8byte	.LBB45
-	.8byte	.LBE45-.LBB45
-	.4byte	0x525
+	.8byte	.LBB42
+	.8byte	.LBE42-.LBB42
+	.4byte	0x44f
 	.uleb128 0xb
-	.4byte	.LASF27
-	.2byte	0x16d
+	.4byte	.LASF28
+	.2byte	0x178
 	.byte	0xf
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x61
 	.uleb128 0xb
-	.4byte	.LASF25
-	.2byte	0x16d
+	.4byte	.LASF26
+	.2byte	0x178
 	.byte	0xf
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x5a
 	.byte	0
 	.uleb128 0x4
-	.8byte	.LBB46
-	.8byte	.LBE46-.LBB46
+	.8byte	.LBB43
+	.8byte	.LBE43-.LBB43
 	.uleb128 0x5
 	.string	"k"
-	.2byte	0x173
+	.2byte	0x17e
 	.byte	0x15
 	.4byte	0x3c
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -68
 	.uleb128 0x4
-	.8byte	.LBB47
-	.8byte	.LBE47-.LBB47
+	.8byte	.LBB44
+	.8byte	.LBE44-.LBB44
 	.uleb128 0xb
-	.4byte	.LASF22
-	.2byte	0x174
+	.4byte	.LASF23
+	.2byte	0x17f
 	.byte	0x15
 	.4byte	0x3c
 	.uleb128 0x4
 	.byte	0x91
-	.sleb128 -17220
+	.sleb128 -17196
 	.uleb128 0x4
-	.8byte	.LBB48
-	.8byte	.LBE48-.LBB48
+	.8byte	.LBB45
+	.8byte	.LBE45-.LBB45
 	.uleb128 0x5
 	.string	"_a0"
-	.2byte	0x175
+	.2byte	0x180
 	.byte	0x11
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x5a
 	.uleb128 0x5
 	.string	"_a7"
-	.2byte	0x175
+	.2byte	0x180
 	.byte	0x11
 	.4byte	0x66
 	.uleb128 0x1
@@ -2827,28 +2650,28 @@ main:
 	.byte	0
 	.uleb128 0x8
 	.4byte	0x7b
-	.4byte	0x5a8
+	.4byte	0x4d2
 	.uleb128 0x7
 	.4byte	0x6d
 	.byte	0x1
 	.byte	0
 	.uleb128 0x8
 	.4byte	0xc2
-	.4byte	0x5b8
+	.4byte	0x4e2
 	.uleb128 0x7
 	.4byte	0x6d
 	.byte	0xf
 	.byte	0
-	.uleb128 0xe
-	.4byte	.LASF29
+	.uleb128 0xf
+	.4byte	.LASF30
 	.byte	0x3a
 	.4byte	0x3c
 	.8byte	.LFB6
 	.8byte	.LFE6-.LFB6
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xc61
-	.uleb128 0x9
+	.4byte	0xb8b
+	.uleb128 0xa
 	.string	"n"
 	.byte	0x3a
 	.byte	0x15
@@ -2856,16 +2679,16 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -548
-	.uleb128 0xf
-	.4byte	.LASF23
+	.uleb128 0x10
+	.4byte	.LASF24
 	.byte	0x3a
 	.byte	0x29
-	.4byte	0xc61
+	.4byte	0xb8b
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -560
-	.uleb128 0xf
-	.4byte	.LASF24
+	.uleb128 0x10
+	.4byte	.LASF25
 	.byte	0x3a
 	.byte	0x37
 	.4byte	0x3c
@@ -2873,30 +2696,30 @@ main:
 	.byte	0x91
 	.sleb128 -552
 	.uleb128 0x3
-	.4byte	.LASF30
+	.4byte	.LASF31
 	.byte	0x3c
 	.byte	0x9
-	.4byte	0xc66
+	.4byte	0xb90
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -104
 	.uleb128 0x3
-	.4byte	.LASF31
+	.4byte	.LASF32
 	.byte	0x3e
 	.byte	0x16
-	.4byte	0xc61
+	.4byte	0xb8b
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -72
 	.uleb128 0x2
 	.8byte	.LBB4
 	.8byte	.LBE4-.LBB4
-	.4byte	0x90d
+	.4byte	0x837
 	.uleb128 0x3
 	.4byte	.LASF13
 	.byte	0x41
 	.byte	0xf
-	.4byte	0xc76
+	.4byte	0xba0
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -392
@@ -2909,10 +2732,10 @@ main:
 	.byte	0x91
 	.sleb128 -20
 	.uleb128 0x3
-	.4byte	.LASF32
+	.4byte	.LASF33
 	.byte	0x48
 	.byte	0xe
-	.4byte	0xc86
+	.4byte	0xbb0
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -472
@@ -2925,7 +2748,7 @@ main:
 	.byte	0x91
 	.sleb128 -24
 	.uleb128 0x3
-	.4byte	.LASF33
+	.4byte	.LASF34
 	.byte	0x4a
 	.byte	0x15
 	.4byte	0x98
@@ -2933,17 +2756,17 @@ main:
 	.byte	0x91
 	.sleb128 -96
 	.uleb128 0x3
-	.4byte	.LASF34
+	.4byte	.LASF35
 	.byte	0x4e
 	.byte	0xf
-	.4byte	0xc96
+	.4byte	0xbc0
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -120
 	.uleb128 0x2
 	.8byte	.LBB5
 	.8byte	.LBE5-.LBB5
-	.4byte	0x6ad
+	.4byte	0x5d7
 	.uleb128 0x1
 	.string	"k"
 	.byte	0x4b
@@ -2956,7 +2779,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB6
 	.8byte	.LBE6-.LBB6
-	.4byte	0x6cf
+	.4byte	0x5f9
 	.uleb128 0x1
 	.string	"k"
 	.byte	0x4c
@@ -2969,7 +2792,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB7
 	.8byte	.LBE7-.LBB7
-	.4byte	0x81f
+	.4byte	0x749
 	.uleb128 0x1
 	.string	"fd"
 	.byte	0x51
@@ -2981,7 +2804,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB8
 	.8byte	.LBE8-.LBB8
-	.4byte	0x73b
+	.4byte	0x665
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x53
@@ -3014,7 +2837,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB9
 	.8byte	.LBE9-.LBB9
-	.4byte	0x785
+	.4byte	0x6af
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x56
@@ -3047,7 +2870,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB10
 	.8byte	.LBE10-.LBB10
-	.4byte	0x7b5
+	.4byte	0x6df
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x5b
@@ -3066,7 +2889,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB11
 	.8byte	.LBE11-.LBB11
-	.4byte	0x7f2
+	.4byte	0x71c
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x5e
@@ -3111,7 +2934,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB13
 	.8byte	.LBE13-.LBB13
-	.4byte	0x869
+	.4byte	0x793
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x63
@@ -3144,9 +2967,9 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB14
 	.8byte	.LBE14-.LBB14
-	.4byte	0x8e0
+	.4byte	0x80a
 	.uleb128 0x3
-	.4byte	.LASF35
+	.4byte	.LASF36
 	.byte	0x65
 	.byte	0x12
 	.4byte	0x9d
@@ -3227,7 +3050,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB18
 	.8byte	.LBE18-.LBB18
-	.4byte	0x95d
+	.4byte	0x887
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x6f
@@ -3246,16 +3069,16 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB19
 	.8byte	.LBE19-.LBB19
-	.4byte	0x98d
+	.4byte	0x8b7
 	.uleb128 0x3
-	.4byte	.LASF27
+	.4byte	.LASF28
 	.byte	0x71
 	.byte	0x13
 	.4byte	0x66
 	.uleb128 0x1
 	.byte	0x61
 	.uleb128 0x3
-	.4byte	.LASF25
+	.4byte	.LASF26
 	.byte	0x71
 	.byte	0x13
 	.4byte	0x66
@@ -3265,7 +3088,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB20
 	.8byte	.LBE20-.LBB20
-	.4byte	0x9bd
+	.4byte	0x8e7
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x74
@@ -3284,7 +3107,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB21
 	.8byte	.LBE21-.LBB21
-	.4byte	0x9fa
+	.4byte	0x924
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x75
@@ -3310,7 +3133,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB22
 	.8byte	.LBE22-.LBB22
-	.4byte	0xa2a
+	.4byte	0x954
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x76
@@ -3333,7 +3156,7 @@ main:
 	.4byte	.LASF13
 	.byte	0x7e
 	.byte	0x13
-	.4byte	0xc76
+	.4byte	0xba0
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -392
@@ -3346,10 +3169,10 @@ main:
 	.byte	0x91
 	.sleb128 -44
 	.uleb128 0x3
-	.4byte	.LASF32
+	.4byte	.LASF33
 	.byte	0x85
 	.byte	0x12
-	.4byte	0xc86
+	.4byte	0xbb0
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -472
@@ -3362,7 +3185,7 @@ main:
 	.byte	0x91
 	.sleb128 -48
 	.uleb128 0x3
-	.4byte	.LASF33
+	.4byte	.LASF34
 	.byte	0x87
 	.byte	0x19
 	.4byte	0x98
@@ -3370,17 +3193,17 @@ main:
 	.byte	0x91
 	.sleb128 -88
 	.uleb128 0x3
-	.4byte	.LASF34
+	.4byte	.LASF35
 	.byte	0x8b
 	.byte	0x13
-	.4byte	0xc96
+	.4byte	0xbc0
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -136
 	.uleb128 0x2
 	.8byte	.LBB24
 	.8byte	.LBE24-.LBB24
-	.4byte	0xac0
+	.4byte	0x9ea
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x7a
@@ -3399,7 +3222,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB25
 	.8byte	.LBE25-.LBB25
-	.4byte	0xafd
+	.4byte	0xa27
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x7b
@@ -3425,7 +3248,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB26
 	.8byte	.LBE26-.LBB26
-	.4byte	0xb2d
+	.4byte	0xa57
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x7c
@@ -3444,7 +3267,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB27
 	.8byte	.LBE27-.LBB27
-	.4byte	0xb4f
+	.4byte	0xa79
 	.uleb128 0x1
 	.string	"k"
 	.byte	0x88
@@ -3457,7 +3280,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB28
 	.8byte	.LBE28-.LBB28
-	.4byte	0xb71
+	.4byte	0xa9b
 	.uleb128 0x1
 	.string	"k"
 	.byte	0x89
@@ -3470,7 +3293,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB29
 	.8byte	.LBE29-.LBB29
-	.4byte	0xbbb
+	.4byte	0xae5
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x8d
@@ -3503,9 +3326,9 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB30
 	.8byte	.LBE30-.LBB30
-	.4byte	0xc32
+	.4byte	0xb5c
 	.uleb128 0x3
-	.4byte	.LASF35
+	.4byte	.LASF36
 	.byte	0x8f
 	.byte	0x16
 	.4byte	0x9d
@@ -3578,34 +3401,34 @@ main:
 	.4byte	0xc2
 	.uleb128 0x8
 	.4byte	0x3c
-	.4byte	0xc76
+	.4byte	0xba0
 	.uleb128 0x7
 	.4byte	0x6d
 	.byte	0x1
 	.byte	0
 	.uleb128 0x8
 	.4byte	0x87
-	.4byte	0xc86
+	.4byte	0xbb0
 	.uleb128 0x7
 	.4byte	0x6d
 	.byte	0x1f
 	.byte	0
 	.uleb128 0x8
 	.4byte	0x7b
-	.4byte	0xc96
+	.4byte	0xbc0
 	.uleb128 0x7
 	.4byte	0x6d
 	.byte	0x4f
 	.byte	0
 	.uleb128 0x8
 	.4byte	0x87
-	.4byte	0xca6
+	.4byte	0xbd0
 	.uleb128 0x7
 	.4byte	0x6d
 	.byte	0x1
 	.byte	0
 	.uleb128 0x1c
-	.4byte	.LASF46
+	.4byte	.LASF47
 	.byte	0x1
 	.byte	0x24
 	.byte	0xc
@@ -3614,9 +3437,9 @@ main:
 	.8byte	.LFE5-.LFB5
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xd40
-	.uleb128 0xf
-	.4byte	.LASF36
+	.4byte	0xc6a
+	.uleb128 0x10
+	.4byte	.LASF37
 	.byte	0x24
 	.byte	0x1e
 	.4byte	0x98
@@ -3634,7 +3457,7 @@ main:
 	.uleb128 0x2
 	.8byte	.LBB2
 	.8byte	.LBE2-.LBB2
-	.4byte	0xd13
+	.4byte	0xc3d
 	.uleb128 0x1
 	.string	"_a0"
 	.byte	0x25
@@ -3669,16 +3492,16 @@ main:
 	.byte	0x61
 	.byte	0
 	.byte	0
-	.uleb128 0xe
-	.4byte	.LASF37
+	.uleb128 0xf
+	.4byte	.LASF38
 	.byte	0x1e
 	.4byte	0x3c
 	.8byte	.LFB4
 	.8byte	.LFE4-.LFB4
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xd6d
-	.uleb128 0x9
+	.4byte	0xc97
+	.uleb128 0xa
 	.string	"c"
 	.byte	0x1e
 	.byte	0x13
@@ -3687,16 +3510,16 @@ main:
 	.byte	0x91
 	.sleb128 -17
 	.byte	0
-	.uleb128 0x10
-	.4byte	.LASF38
+	.uleb128 0x11
+	.4byte	.LASF39
 	.byte	0x19
 	.4byte	0x3c
 	.8byte	.LFB3
 	.8byte	.LFE3-.LFB3
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xd9a
-	.uleb128 0x9
+	.4byte	0xcc4
+	.uleb128 0xa
 	.string	"c"
 	.byte	0x19
 	.byte	0x13
@@ -3705,16 +3528,16 @@ main:
 	.byte	0x91
 	.sleb128 -17
 	.byte	0
-	.uleb128 0x10
-	.4byte	.LASF39
+	.uleb128 0x11
+	.4byte	.LASF40
 	.byte	0x14
 	.4byte	0x3c
 	.8byte	.LFB2
 	.8byte	.LFE2-.LFB2
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xdc7
-	.uleb128 0x9
+	.4byte	0xcf1
+	.uleb128 0xa
 	.string	"c"
 	.byte	0x14
 	.byte	0x13
@@ -3723,16 +3546,16 @@ main:
 	.byte	0x91
 	.sleb128 -17
 	.byte	0
-	.uleb128 0x10
-	.4byte	.LASF40
+	.uleb128 0x11
+	.4byte	.LASF41
 	.byte	0xe
 	.4byte	0x3c
 	.8byte	.LFB1
 	.8byte	.LFE1-.LFB1
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0xe02
-	.uleb128 0x9
+	.4byte	0xd2c
+	.uleb128 0xa
 	.string	"c"
 	.byte	0xe
 	.byte	0x13
@@ -3741,7 +3564,7 @@ main:
 	.byte	0x91
 	.sleb128 -33
 	.uleb128 0x3
-	.4byte	.LASF41
+	.4byte	.LASF42
 	.byte	0x10
 	.byte	0x9
 	.4byte	0x3c
@@ -3750,7 +3573,7 @@ main:
 	.sleb128 -20
 	.byte	0
 	.uleb128 0x1d
-	.4byte	.LASF47
+	.4byte	.LASF48
 	.byte	0x1
 	.byte	0x5
 	.byte	0x14
@@ -3759,7 +3582,7 @@ main:
 	.8byte	.LFE0-.LFB0
 	.uleb128 0x1
 	.byte	0x9c
-	.uleb128 0x9
+	.uleb128 0xa
 	.string	"s"
 	.byte	0x5
 	.byte	0x29
@@ -3767,7 +3590,7 @@ main:
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
-	.uleb128 0x9
+	.uleb128 0xa
 	.string	"ch"
 	.byte	0x5
 	.byte	0x30
@@ -3885,6 +3708,13 @@ main:
 	.uleb128 0x9
 	.uleb128 0x5
 	.byte	0
+	.uleb128 0x49
+	.uleb128 0x13
+	.byte	0
+	.byte	0
+	.uleb128 0xa
+	.uleb128 0x5
+	.byte	0
 	.uleb128 0x3
 	.uleb128 0x8
 	.uleb128 0x3a
@@ -3898,13 +3728,6 @@ main:
 	.uleb128 0x13
 	.uleb128 0x2
 	.uleb128 0x18
-	.byte	0
-	.byte	0
-	.uleb128 0xa
-	.uleb128 0x5
-	.byte	0
-	.uleb128 0x49
-	.uleb128 0x13
 	.byte	0
 	.byte	0
 	.uleb128 0xb
@@ -3962,6 +3785,30 @@ main:
 	.uleb128 0xe
 	.uleb128 0x3a
 	.uleb128 0x21
+	.sleb128 2
+	.uleb128 0x3b
+	.uleb128 0x5
+	.uleb128 0x39
+	.uleb128 0xb
+	.uleb128 0x27
+	.uleb128 0x19
+	.uleb128 0x49
+	.uleb128 0x13
+	.uleb128 0x3c
+	.uleb128 0x19
+	.uleb128 0x1
+	.uleb128 0x13
+	.byte	0
+	.byte	0
+	.uleb128 0xf
+	.uleb128 0x2e
+	.byte	0x1
+	.uleb128 0x3f
+	.uleb128 0x19
+	.uleb128 0x3
+	.uleb128 0xe
+	.uleb128 0x3a
+	.uleb128 0x21
 	.sleb128 1
 	.uleb128 0x3b
 	.uleb128 0xb
@@ -3984,7 +3831,7 @@ main:
 	.uleb128 0x13
 	.byte	0
 	.byte	0
-	.uleb128 0xf
+	.uleb128 0x10
 	.uleb128 0x5
 	.byte	0
 	.uleb128 0x3
@@ -4002,7 +3849,7 @@ main:
 	.uleb128 0x18
 	.byte	0
 	.byte	0
-	.uleb128 0x10
+	.uleb128 0x11
 	.uleb128 0x2e
 	.byte	0x1
 	.uleb128 0x3f
@@ -4028,31 +3875,6 @@ main:
 	.uleb128 0x40
 	.uleb128 0x18
 	.uleb128 0x7a
-	.uleb128 0x19
-	.uleb128 0x1
-	.uleb128 0x13
-	.byte	0
-	.byte	0
-	.uleb128 0x11
-	.uleb128 0x2e
-	.byte	0x1
-	.uleb128 0x3f
-	.uleb128 0x19
-	.uleb128 0x3
-	.uleb128 0xe
-	.uleb128 0x3a
-	.uleb128 0x21
-	.sleb128 2
-	.uleb128 0x3b
-	.uleb128 0x5
-	.uleb128 0x39
-	.uleb128 0x21
-	.sleb128 5
-	.uleb128 0x27
-	.uleb128 0x19
-	.uleb128 0x49
-	.uleb128 0x13
-	.uleb128 0x3c
 	.uleb128 0x19
 	.uleb128 0x1
 	.uleb128 0x13
@@ -4271,11 +4093,11 @@ main:
 	.4byte	0
 .LLRL0:
 	.byte	0x4
-	.uleb128 .LBB43-.Ltext0
-	.uleb128 .LBE43-.Ltext0
+	.uleb128 .LBB40-.Ltext0
+	.uleb128 .LBE40-.Ltext0
 	.byte	0x4
-	.uleb128 .LBB49-.Ltext0
-	.uleb128 .LBE49-.Ltext0
+	.uleb128 .LBB46-.Ltext0
+	.uleb128 .LBE46-.Ltext0
 	.byte	0
 .Ldebug_ranges3:
 	.section	.debug_line,"",@progbits
@@ -4285,9 +4107,11 @@ main:
 	.string	"redirect_file"
 .LASF18:
 	.string	"strcmp"
-.LASF20:
+.LASF21:
 	.string	"buf2"
-.LASF36:
+.LASF19:
+	.string	"strncpy"
+.LASF37:
 	.string	"path"
 .LASF17:
 	.string	"printf"
@@ -4295,83 +4119,83 @@ main:
 	.string	"long long unsigned int"
 .LASF16:
 	.string	"redirect_append"
-.LASF32:
+.LASF33:
 	.string	"envbuf"
 .LASF4:
 	.string	"long long int"
 .LASF2:
 	.string	"signed char"
-.LASF19:
+.LASF20:
 	.string	"g_cmdline"
 .LASF9:
 	.string	"long int"
-.LASF29:
+.LASF30:
 	.string	"run_command"
-.LASF34:
+.LASF35:
 	.string	"envp"
-.LASF28:
+.LASF29:
 	.string	"main"
 .LASF7:
 	.string	"unsigned int"
-.LASF31:
+.LASF32:
 	.string	"command"
 .LASF10:
 	.string	"long unsigned int"
 .LASF6:
 	.string	"short unsigned int"
-.LASF42:
+.LASF43:
 	.string	"GNU C17 14.2.0 -mno-small-data-limit=0 -mcmodel=medany -mcmodel=medany -mno-small-data-limit=0 -mabi=lp64 -mtune=rocket -misa-spec=20191213 -march=rv64imafdc_zicsr_zifencei -g -O0 -ffreestanding -fno-stack-protector -fno-builtin -fno-pie"
-.LASF26:
+.LASF27:
 	.string	"target"
-.LASF40:
+.LASF41:
 	.string	"xisalpha"
-.LASF33:
+.LASF34:
 	.string	"prefix"
-.LASF38:
+.LASF39:
 	.string	"xisdigit"
-.LASF45:
+.LASF46:
 	.string	"puts"
-.LASF24:
+.LASF25:
 	.string	"num_commands"
 .LASF11:
 	.string	"long double"
-.LASF30:
+.LASF31:
 	.string	"pipes"
-.LASF37:
+.LASF38:
 	.string	"xisalnum"
-.LASF23:
+.LASF24:
 	.string	"commands"
-.LASF39:
+.LASF40:
 	.string	"xisblank"
 .LASF5:
 	.string	"unsigned char"
-.LASF44:
+.LASF45:
 	.string	"sCommand"
 .LASF3:
 	.string	"short int"
-.LASF35:
+.LASF36:
 	.string	"abuf"
 .LASF14:
 	.string	"num_arg"
-.LASF27:
+.LASF28:
 	.string	"_num"
-.LASF46:
+.LASF47:
 	.string	"isdir"
 .LASF12:
 	.string	"char"
-.LASF47:
+.LASF48:
 	.string	"s_strchr"
-.LASF22:
+.LASF23:
 	.string	"status"
-.LASF25:
+.LASF26:
 	.string	"_ret"
-.LASF21:
+.LASF22:
 	.string	"argc"
-.LASF43:
+.LASF44:
 	.string	"pid_t"
 .LASF13:
 	.string	"argv"
-.LASF41:
+.LASF42:
 	.string	"result"
 	.section	.debug_line_str,"MS",@progbits,1
 .LASF0:

@@ -222,7 +222,7 @@ LOAD syscall.o
  *fill*         0x00000000800116a1        0x7 
  .rodata        0x00000000800116a8      0x198 syscall.o
 
-.data           0x0000000080011840    0x18b58
+.data           0x0000000080011840    0x18b10
  *(.data .data.*)
  .data          0x0000000080011840        0x0 entry.o
  .data          0x0000000080011840        0x0 start.o
@@ -231,20 +231,20 @@ LOAD syscall.o
  .data          0x0000000080011840        0x0 fs.o
  .data          0x0000000080011840        0x0 plic.o
  .data          0x0000000080011840        0x0 trap_c.o
- .data          0x0000000080011840    0x18a50 main.o
+ .data          0x0000000080011840    0x18a08 main.o
                 0x0000000080011840                sh_elf
-                0x000000008002a220                sh_elf_len
-                0x000000008002a230                gUsers
- .data          0x000000008002a290      0x108 libc.o
-                0x000000008002a290                __stdin
-                0x000000008002a2e0                __stdout
-                0x000000008002a330                __stderr
-                0x000000008002a380                stdin
-                0x000000008002a388                stdout
-                0x000000008002a390                stderr
- .data          0x000000008002a398        0x0 syscall.o
-                0x000000008002a3a0                . = ALIGN (0x10)
-                0x000000008002a3a0                PROVIDE (_bss_start = .)
+                0x000000008002a1d8                sh_elf_len
+                0x000000008002a1e8                gUsers
+ .data          0x000000008002a248      0x108 libc.o
+                0x000000008002a248                __stdin
+                0x000000008002a298                __stdout
+                0x000000008002a2e8                __stderr
+                0x000000008002a338                stdin
+                0x000000008002a340                stdout
+                0x000000008002a348                stderr
+ .data          0x000000008002a350        0x0 syscall.o
+                0x000000008002a350                . = ALIGN (0x10)
+                0x000000008002a350                PROVIDE (_bss_start = .)
 
 .bss            0x000000008002a400     0xc9b0
  *(.bss)

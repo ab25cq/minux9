@@ -172,6 +172,16 @@ int main(void) {
         // プロンプト
         write(1, "$ ", 2);
         
+        static int m = 0;
+        m++;
+        if(m % 2 == 0) {
+            strncpy(buf, "cc b.c",  BUF_SIZE);
+        }
+        else {
+            strncpy(buf, "as -o b b.s",  BUF_SIZE);
+        }
+        
+        /*
         // キーボードから１行読み込み（改行込み）
         n = 0;
         while(1) {
@@ -198,6 +208,7 @@ int main(void) {
             }
         }
         buf[n] = '\0';
+        */
         
         
         write(1, "\r\n", 2);
