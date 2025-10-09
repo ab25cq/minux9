@@ -3,7 +3,7 @@ OUTPUT_ARCH( "riscv" )
 ENTRY( main ) /* エントリーポイントをmainに指定 */
 
 /* ユーザープログラムの開始アドレスを定義 */
-BASE_ADDRESS = 0x70000000;
+BASE_ADDRESS = 0x1000;
 
 SECTIONS
 {

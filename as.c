@@ -57,6 +57,7 @@ static void *static_realloc(void* ptr, size_t size) {
     return new_ptr;
 }
 
+/*
 #define malloc static_malloc
 #define xmalloc static_malloc
 #define calloc static_calloc
@@ -64,6 +65,7 @@ static void *static_realloc(void* ptr, size_t size) {
 #define realloc static_realloc
 #define xrealloc static_realloc
 #define free(ptr) ((void)0)
+*/
 
 void closefiles(void);
 
@@ -1361,7 +1363,6 @@ static void die(const char *function)
     exit(1);
 }
 
-/*
 void *xmalloc(size_t sz)
 {
     void *ptr = malloc(sz);
@@ -1385,7 +1386,6 @@ void *xrealloc(void *ptr, size_t size)
         die("xrealloc");
     return ptr;
 }
-*/
 
 
 #define MAX_INSTRUCTIONS 2048
