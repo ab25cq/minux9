@@ -343,6 +343,12 @@ enter_user:
     # ユーザー用エントリ設定
     csrw  sepc, a0
 
+        
+    # Set initial argc/argv/envp for the very first user entry.
+    mv    a0, zero
+    mv    a1, zero
+    mv    a2, zero
+
     # Supervisor タイマー割り込み許可
     li    t0, STIE_BIT
     csrs  sie, t0

@@ -169,13 +169,16 @@ int main(int argc, char** argv) {
     int m = 0;
     int i;
     
+    buf[0] = '\0';
+    
     int run_once = 0;
     for(i=1; i<argc; i++) {
         if(strcmp(argv[i], "-c") == 0) {
             run_once = 1;
         }
         else if(run_once) {
-            strncpy(buf, argv[i], BUF_SIZE);
+            strncat(buf, argv[i], BUF_SIZE);
+            strncat(buf, " ", BUF_SIZE);
         }
     }
     
