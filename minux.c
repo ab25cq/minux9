@@ -1753,6 +1753,26 @@ int fgetc(FILE* fp) {
   fp->err = 1; return EOF;
 }
 
+char* fgets(char* s, int size, FILE* fp) {
+  if (!fp || !s || size <= 0)
+    return NULL;
+
+  int idx = 0;
+  while (idx < size - 1) {
+    int c = fgetc(fp);
+    if (c == EOF) {
+      if (idx == 0)
+        return NULL;
+      break;
+    }
+    s[idx++] = (char)c;
+    if (c == '\n')
+      break;
+  }
+  s[idx] = '\0';
+  return s;
+}
+
 int ungetc(int c, FILE* fp) {
   if (!fp || fp->have_push || c == EOF) return EOF;
   fp->push_ch = (unsigned char)c; fp->have_push = 1; return c;
@@ -2378,4 +2398,14 @@ void perror(char* msg)
 void exit(int status)
 {
     _exit(status);
+}
+
+void* _impure_ptr(void)
+{
+    return NULL;
+}
+
+char* getenv(char* env)
+{
+    return NULL;
 }

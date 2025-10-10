@@ -626,6 +626,7 @@ int vfprintf(FILE* fp, const char* fmt, va_list ap);
 int fputs(const char* s, FILE* fp);
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* fp);
 size_t fread(void* ptr, size_t size, size_t nmemb, FILE* fp);
+char* fgets(char* s, int size, FILE* fp);
 int ungetc(int c, FILE* fp);
 int fgetc(FILE* fp);
 int fseek(FILE* fp, long offset, int whence);
