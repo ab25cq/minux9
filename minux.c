@@ -1,5 +1,29 @@
 #include "minux.h"
 
+// Minimal ctype classification table required by newlib-style ctype macros.
+// Values mirror newlib's _ctype_ so that isalpha/isdigit macros work without
+// pulling in the full libc archive.
+const char _ctype_[1 + 256] = {
+     0,
+    32, 32, 32, 32, 32, 32, 32, 32, 32, 40, 40, 40, 40, 40, 32,
+    32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
+    32,-120, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+    16,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4, 16, 16, 16, 16, 16,
+    16, 16, 65, 65, 65, 65, 65, 65,  1,  1,  1,  1,  1,  1,  1,  1,
+     1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, 16, 16, 16, 16,
+    16, 16, 66, 66, 66, 66, 66, 66,  2,  2,  2,  2,  2,  2,  2,  2,
+     2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2, 16, 16, 16, 16,
+    32,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+     0
+};
+
 static int __append_char(char **p, unsigned long *rem, char c) {
     if (*rem > 1) { **p = c; (*p)++; (*rem)--; return 1; }
     return 0;
@@ -1809,16 +1833,37 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* fp) {
   }
 }
 
-static void __fputs(FILE* fp, const char* s) {
+int fputs(const char* s, FILE* fp) {
+  if (!fp)
+    return EOF;
+
   if (!s)
     s = "(null)";
 
   size_t len = strlen(s);
   if (fp->is_mem) {
-    if (len)
-      fwrite(s, 1, len, fp);
-  } else {
-    write(fp->fd, s, len);
+    if (len == 0)
+      return 0;
+    size_t written = fwrite(s, 1, len, fp);
+    return written == len ? 0 : EOF;
+  }
+
+  size_t done = 0;
+  while (done < len) {
+    long n = write(fp->fd, s + done, len - done);
+    if (n <= 0) {
+      fp->err = 1;
+      return EOF;
+    }
+    done += (size_t)n;
+  }
+  fp->pos += (long)done;
+  return 0;
+}
+
+static void __fputs(FILE* fp, const char* s) {
+  if (fputs(s, fp) == EOF) {
+    fp->err = 1;
   }
 }
 
@@ -2320,3 +2365,17 @@ int fileno(FILE* fp) {
     return fp->fd;
 }
     
+void setlocale(int n, char* m)
+{
+}
+
+void perror(char* msg)
+{
+    puts(msg);
+    _exit(3);
+}
+
+void exit(int status)
+{
+    _exit(status);
+}

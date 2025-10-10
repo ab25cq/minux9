@@ -381,7 +381,7 @@ extern int errno;
     (int)_a0;                                                    \
 })
 
-#define exit(status) __extension__ ({  \
+#define _exit(status) __extension__ ({  \
     register long _a0 asm("a0") = (long)(status);                 \
     register long _a7 asm("a7") = SYS_exit;                    \
     asm volatile("ecall"                                        \
@@ -390,6 +390,8 @@ extern int errno;
                  : "memory");                                  \
     while(1); \
 }) 
+
+void exit(int status);
 
 #define wait(status_ptr) ({                                    \
     register long _a0 asm("a0") = (long)(status_ptr);          \
@@ -621,6 +623,7 @@ FILE* open_memstream(char **bufp, size_t *sizep);
 int fscanf(FILE* fp, const char* fmt, ...);
 int fprintf(FILE* fp, const char* fmt, ...);
 int vfprintf(FILE* fp, const char* fmt, va_list ap);
+int fputs(const char* s, FILE* fp);
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* fp);
 size_t fread(void* ptr, size_t size, size_t nmemb, FILE* fp);
 int ungetc(int c, FILE* fp);

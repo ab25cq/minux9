@@ -3,7 +3,7 @@ CCPREFIX=riscv64-unknown-elf-
 #CHILD_CFLAGS=-I. -fno-omit-frame-pointer #-momit-leaf-frame-pointer #-mstack-alignment=16
 CFLAGS_AS=-march=rv64gc -mabi=lp64
 CFLAGS=-march=rv64gc -mabi=lp64 -msmall-data-limit=0 -fno-pic -fno-pie -Wl,-no-pie
-CHILD_CFLAGS=-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie -nostdlib -mcmodel=medany -static -nostartfiles  -Wl,-e,_start -Wl,-no-pie -msmall-data-limit=0 -march=rv64gc -mabi=lp64 -Tuser.ld minux.o
+CHILD_CFLAGS=-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie -nostdlib -mcmodel=medany -static -nostartfiles  -Wl,-e,_start -Wl,-no-pie -msmall-data-limit=0 -march=rv64gc -mabi=lp64 -Tuser.ld -Wno-incompatible-pointer-types minux.o
 
 all: kernel.elf 
 
@@ -28,6 +28,8 @@ kernel.elf: minux.o crt0.o cc
 	$(CCPREFIX)gcc $(CFLAGS) -c -o crt0.o crt0.S
 
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cat -g cat.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cpp -g ccpp.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o comelang -g comelang.c.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cat crt0.o cat.c $(CHILD_CFLAGS)
 #	$(CCPREFIX)gcc -S $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o b.s b.c
 
