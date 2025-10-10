@@ -45,7 +45,8 @@ SECTIONS
 
   /* End of uninitalized data segement */
   PROVIDE(_end = .);
-  . += STACK_MAX;
+  . = . + 4096 * STACK_PAGES * 10; /* STACK_MAX; */
+  . = ALIGN(4096);
   PROVIDE(_end2 = .);
   . = . + 4096 * 512; 
   PROVIDE(_end3 = .);

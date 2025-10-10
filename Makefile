@@ -119,7 +119,7 @@ kernel.elf: minux.o crt0.o cc
 	$(CCPREFIX)objcopy -O binary kernel.elf kernel.bin
 
 #QEMU_OPTION=-machine virt -bios none -nographic -m 512M -kernel kernel.elf -nic none
-QEMU_OPTION=-machine virt -bios none -nographic -m 512M -kernel kernel.elf -drive file=fs.img,if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -nic none
+QEMU_OPTION=-machine virt -bios none -nographic -m 1024M -kernel kernel.elf -drive file=fs.img,if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -nic none
 
 run: kernel.elf 
 	qemu-system-riscv64 $(QEMU_OPTION)
@@ -138,7 +138,7 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log minux.o readelf objdump hexdump comelang cpp
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log minux.o readelf objdump hexdump comelang cpp sh
 
 # Always (re)build the filesystem image so updated userland like pwd is included
 

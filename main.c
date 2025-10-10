@@ -125,6 +125,7 @@ void kfree_pagesX(void *pa, int npages);
 
 /// プロセスのユーザー空間を完全に解放
 void free_proc(struct proc *p) {
+puts("free_proc");
     uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
     for (int i = 0; i < STACK_PAGES; i++) {
         char* pa = walkaddr(p->pagetable, stack_base + i*PGSIZE);
@@ -1328,7 +1329,7 @@ extern char stack_top[];
 
 char yield_stack[STACK_MAX] __attribute__((section(".common")));
 
-#define MAX_KERNEL 16
+#define MAX_KERNEL 8
 
 struct sKernelState
 {
@@ -1340,6 +1341,129 @@ struct sKernelState
     uint64_t gYieldUserSP;
     uint64_t gYieldUserActiveProc;
 };
+
+/*
+struct sKernelState gKernelState[MAX_KERNEL] __attribute__((section(".common")));
+int gNumKernelState __attribute__((section(".common")));
+
+int gKernelStateHead __attribute__((section(".common")));
+int gKernelStateTail __attribute__((section(".common")));
+
+void remove_kernel_state(int active_proc) {
+    if (gKernelStateHead == gKernelStateTail) {
+        return;
+    }
+    int index = -1;
+    for(int i=0; i<MAX_KERNEL; i++) {
+        if(gKernelState[i].gYieldUserActiveProc == active_proc) {
+            index = i;
+            break;
+        }
+    }
+    
+    if(index == -1) {
+        return;
+    }
+
+    // 削除位置から末尾まで、要素を一つずつ前にシフトする
+    // ループは削除する要素の次の要素から開始し、最後の要素まで回る
+    for (int i = index; i < gNumKernelState - 1; i++) {
+        int current_index = (gKernelStateHead + i) % MAX_KERNEL;
+        int next_index = (gKernelStateHead + i + 1) % MAX_KERNEL;
+        gKernelState[current_index] = gKernelState[next_index];
+    }
+
+    // tailとcountを更新する
+    gKernelStateTail = (gKernelStateTail - 1 + MAX_KERNEL) % MAX_KERNEL;
+    gNumKernelState--;
+}
+
+void timer_handler();
+
+void kernel_yield() {
+    if(((gKernelStateTail + 1) % MAX_KERNEL) == gKernelStateHead) {
+        panic("kernel state queue max");
+    }
+    gKernelState[gKernelStateTail].gYieldReturnContext = *(struct context_t*)TRAPFRAME;
+    gKernelState[gKernelStateTail].gYieldUserSatp = user_satp;
+    gKernelState[gKernelStateTail].gYieldUserSP = user_sp;
+    gKernelState[gKernelStateTail].gYieldUserActiveProc = gActiveProc;
+    gKernelState[gKernelStateTail].gYieldContext = *(struct context_t*)TRAPFRAME2;
+    
+    memmove(gKernelState[gKernelStateTail].gYieldStack, yield_stack, STACK_MAX);
+    
+    gKernelStateTail = (gKernelStateTail + 1) % MAX_KERNEL;
+    
+    gNumKernelState++;
+    
+    timer_handler();
+}
+
+void yield_return();
+
+void kernel_yield_return() {
+    gNumKernelState--;
+    
+    user_satp = gKernelState[gKernelStateHead].gYieldUserSatp;
+    user_sp = gKernelState[gKernelStateHead].gYieldUserSP;
+    
+    gActiveProc = gKernelState[gKernelStateHead].gYieldUserActiveProc;
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME2;
+    
+    *trapframe = gKernelState[gKernelStateHead].gYieldContext;
+    
+    trapframe = (struct context_t*)TRAPFRAME;
+    *trapframe = gKernelState[gKernelStateHead].gYieldReturnContext;
+    
+    memmove(yield_stack, gKernelState[gKernelStateHead].gYieldStack, STACK_MAX);
+    
+    gKernelStateHead = (gKernelStateHead + 1) % MAX_KERNEL;
+    
+    yield_return();
+}
+
+void timer_handler() {
+    disable_timer_interrupts();
+    struct proc *p = gProc[gActiveProc];
+
+    struct context_t *tf = (struct context_t*)TRAPFRAME;
+    p->context = *tf;
+
+    timer_reset(); 
+
+    int old_active_proc = gActiveProc;
+    struct proc *old = gProc[gActiveProc];
+    gActiveProc++;
+    
+    while(gActiveProc < gNumProc && gProc[gActiveProc] == NULL) {
+        gActiveProc++;
+    }
+    
+    if(gActiveProc >= gNumProc) {
+        gActiveProc = 0;
+    }
+    
+    if(gActiveProc == gKernelState[gKernelStateHead].gYieldUserActiveProc && gNumKernelState > 0) 
+    {
+        kernel_yield_return();
+    }
+    
+    struct proc* new_ = gProc[gActiveProc];
+    
+    if (new_ != old && new_->zombie == 0) {
+        user_sp = new_->context.sp;
+        user_satp = MAKE_SATP(new_->pagetable);
+        old->context = *(struct context_t*)TRAPFRAME;
+        //gCPU.proc = new_;
+        uint64_t a0 = new_->context.a0;
+        asm volatile("csrw sscratch, %0" : "=r" (a0));
+        swtch(&new_->context);
+    }
+    else {
+        gActiveProc = old_active_proc;
+    }
+}
+*/
 
 struct sKernelState gKernelState[MAX_KERNEL] __attribute__((section(".common")));
 int gNumKernelState __attribute__((section(".common")));
@@ -1381,7 +1505,10 @@ void kernel_yield() {
         while(1);
     }
     
-    timer_handler();
+    enable_timer_interrupts();
+    
+//puts("CALL TIMER_HANDLER");
+//    timer_handler();
 }
 
 void yield_return();
@@ -1790,6 +1917,7 @@ void global_init()
     gNumProc = 0;
     gNumKernelState = 0;
     memset(gKernelState, 0, sizeof(struct sKernelState)*MAX_KERNEL);
+    gActiveProc = 0;
 }
 
 int main()
