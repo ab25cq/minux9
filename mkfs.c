@@ -602,6 +602,8 @@ main(int argc, char *argv[])
     write_file_to_file_system("c.h", 29);
     write_file_to_file_system("readelf", 30);
     write_file_to_file_system("objdump", 31);
+    write_file_to_file_system("comelang.c", 32);
+    write_file_to_file_system("comelang.h", 33);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);
