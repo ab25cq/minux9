@@ -137,7 +137,7 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log minux.o readelf objdump hexdump
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log minux.o readelf objdump hexdump comelang cpp
 
 # Always (re)build the filesystem image so updated userland like pwd is included
 
