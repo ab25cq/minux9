@@ -595,8 +595,9 @@ main(int argc, char *argv[])
     write_file_to_file_system("objdump", 22);
     write_file_to_file_system("sleep", 23);
     write_file_to_file_system("uname", 24);
-    write_file_to_file_system("comelang", 25);
-    write_file_to_file_system("comelang.h", 26);
+    write_file_to_file_system("cpp", 25);
+    write_file_to_file_system("comelang", 26);
+    write_file_to_file_system("comelang.h", 27);
 //    write_file_to_file_system("c.h", 29);
 
     // 5) 最後に img[] 全体を実ファイルに書き出す
