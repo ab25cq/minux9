@@ -125,7 +125,6 @@ void kfree_pagesX(void *pa, int npages);
 
 /// プロセスのユーザー空間を完全に解放
 void free_proc(struct proc *p) {
-puts("free_proc");
     uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
     for (int i = 0; i < STACK_PAGES; i++) {
         char* pa = walkaddr(p->pagetable, stack_base + i*PGSIZE);
@@ -1853,6 +1852,11 @@ uintptr_t syscall_handler()
             
         case SYS_brk: {
             result = Sys_brk();
+            }
+            break;
+            
+        case SYS_sleep: {
+            result = Sys_sleep();
             }
             break;
             

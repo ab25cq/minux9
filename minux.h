@@ -70,6 +70,7 @@ typedef int pid_t;
 #define SYS_lstat   89
 #define SYS_chmod   90
 #define SYS_chown   91
+#define SYS_sleep 102
 
 extern int errno;
 
@@ -631,6 +632,7 @@ int ungetc(int c, FILE* fp);
 int fgetc(FILE* fp);
 int fseek(FILE* fp, long offset, int whence);
 long ftell(FILE* fp);
+unsigned sleep(unsigned seconds);
 void rewind(FILE* fp);
 int fclose(FILE* fp);
 FILE* fopen(const char* path, const char* mode);

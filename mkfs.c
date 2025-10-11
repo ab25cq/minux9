@@ -593,6 +593,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("ld", 20);
     write_file_to_file_system("readelf", 21);
     write_file_to_file_system("objdump", 22);
+    write_file_to_file_system("sleep", 23);
 //    write_file_to_file_system("c.h", 29);
 //    write_file_to_file_system("comelang", 32);
 //    write_file_to_file_system("comelang.h", 33);

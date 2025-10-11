@@ -160,6 +160,26 @@ int Sys_exit()
     return 0;
 }
 
+int Sys_sleep()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+
+    int seconds = (int)trapframe->a0;
+    if (seconds <= 0) {
+        return 0;
+    }
+
+    const uint64_t TICKS_PER_SEC = 1000000ULL; // CSR time increments ~1MHz
+    uint64_t start = r_time();
+    uint64_t deadline = start + (uint64_t)seconds * TICKS_PER_SEC;
+
+    while (r_time() < deadline) {
+        yield();
+    }
+
+    return 0;
+}
+
 int Sys_wait()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;

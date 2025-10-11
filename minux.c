@@ -2409,3 +2409,14 @@ char* getenv(char* env)
 {
     return NULL;
 }
+
+unsigned sleep(unsigned seconds)
+{
+    register long a0 asm("a0") = (long)seconds;
+    register long a7 asm("a7") = SYS_sleep;
+    asm volatile("ecall"
+                 : "+r"(a0)
+                 : "r"(a7)
+                 : "memory");
+    return (unsigned)a0;
+}

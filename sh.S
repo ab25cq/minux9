@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9-dev" "sh.c"
+	.file 0 "/Users/ab25cq/minux9" "sh.c"
 	.align	1
 	.type	s_strchr, @function
 s_strchr:
@@ -2407,7 +2407,7 @@ main:
 	.byte	0
 	.uleb128 0xf
 	.4byte	.LASF19
-	.2byte	0x26c
+	.2byte	0x26d
 	.byte	0x5
 	.4byte	0x3c
 	.4byte	0x153
@@ -2417,7 +2417,7 @@ main:
 	.byte	0
 	.uleb128 0xf
 	.4byte	.LASF20
-	.2byte	0x282
+	.2byte	0x284
 	.byte	0x7
 	.4byte	0x98
 	.4byte	0x173
@@ -2430,7 +2430,7 @@ main:
 	.byte	0
 	.uleb128 0xf
 	.4byte	.LASF21
-	.2byte	0x298
+	.2byte	0x29a
 	.byte	0x5
 	.4byte	0x3c
 	.4byte	0x18e
@@ -2441,14 +2441,14 @@ main:
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF22
-	.2byte	0x18a
+	.2byte	0x18b
 	.4byte	0x19f
 	.uleb128 0x8
 	.4byte	0x3c
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF23
-	.2byte	0x283
+	.2byte	0x285
 	.4byte	0x1b0
 	.uleb128 0x8
 	.4byte	0xa9
@@ -4417,6 +4417,6 @@ main:
 .LASF0:
 	.string	"sh.c"
 .LASF1:
-	.string	"/Users/ab25cq/minux9-dev"
+	.string	"/Users/ab25cq/minux9"
 	.ident	"GCC: (g04696df09) 14.2.0"
 	.section	.note.GNU-stack,"",@progbits

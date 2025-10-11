@@ -288,6 +288,7 @@ int Sys_read();
 int Sys_dup2(void);
 int Sys_pipe(void);
 int Sys_brk();
+int Sys_sleep();
 
 int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz);
 void uvm_dealloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz);
