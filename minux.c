@@ -2420,3 +2420,29 @@ unsigned sleep(unsigned seconds)
                  : "memory");
     return (unsigned)a0;
 }
+
+int system(const char* command)
+{
+    if (command == NULL) {
+        return 1; // shell is assumed to exist
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        return -1;
+    }
+
+    if (pid == 0) {
+        char* argv[] = { "sh", "-c", (char*)command, NULL };
+        char* envp[] = { NULL };
+        execve("/sh", argv, envp);
+        _exit(127);
+    }
+
+    int status = 0;
+    int w = wait(&status);
+    if (w == pid)
+        return status;
+
+    return 0;
+}

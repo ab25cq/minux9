@@ -73,6 +73,7 @@ struct proc {
     
     struct context_t context;      // swtch() here to run process
     struct proc *parent;         // Parent process
+    int parent_pid;         // Parent process
 //    char* stack;
     char* stack_top;
     uint64_t vaddr;

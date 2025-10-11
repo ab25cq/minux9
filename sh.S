@@ -1209,7 +1209,7 @@ main:
 	sext.w	a4,a4
 	sext.w	a5,a5
 	blt	a4,a5,.L64
-.L118:
+.L117:
 .LBB30:
 .LBB31:
 	.loc 1 187 9
@@ -1306,13 +1306,13 @@ main:
 	.loc 1 204 24
 	mv	a4,a5
 	li	a5,13
-	beq	a4,a5,.L120
+	beq	a4,a5,.L118
 	.loc 1 207 29
 	lbu	a5,-200(s0)
 	.loc 1 207 24
 	mv	a4,a5
 	li	a5,10
-	beq	a4,a5,.L121
+	beq	a4,a5,.L119
 	.loc 1 211 34
 	lbu	a4,-200(s0)
 	.loc 1 211 28
@@ -1327,11 +1327,11 @@ main:
 .L68:
 	.loc 1 193 17
 	j	.L72
-.L120:
+.L118:
 	.loc 1 205 21
 	nop
 	j	.L70
-.L121:
+.L119:
 	.loc 1 208 21
 	nop
 .L70:
@@ -1396,7 +1396,7 @@ main:
 	.loc 1 222 15
 	lbu	a5,-192(s0)
 	.loc 1 222 11
-	beq	a5,zero,.L122
+	beq	a5,zero,.L120
 	.loc 1 226 22
 	sw	zero,-28(s0)
 	.loc 1 227 17
@@ -1952,7 +1952,7 @@ main:
 	beq	a4,a5,.L105
 	.loc 1 332 19
 	ld	a5,-24(s0)
-	ble	a5,zero,.L123
+	ble	a5,zero,.L121
 	.loc 1 333 61
 	li	a5,-16384
 	addi	a5,a5,-16
@@ -1977,7 +1977,7 @@ main:
 	lw	a5,-32(s0)
 	sext.w	a4,a5
 	li	a5,31
-	ble	a4,a5,.L123
+	ble	a4,a5,.L121
 	.loc 1 337 25
 	lla	a0,.LC7
 	call	puts
@@ -2064,7 +2064,7 @@ main:
 	call	puts
 	.loc 1 362 21
 	j	.L80
-.L123:
+.L121:
 	.loc 1 332 19
 	nop
 .L83:
@@ -2139,12 +2139,12 @@ main:
 	.loc 1 374 16
 	lw	a5,-124(s0)
 	sext.w	a5,a5
-	bge	a5,zero,.L124
+	bge	a5,zero,.L122
 	.loc 1 375 17
 	lla	a0,.LC13
 	call	puts
 	.loc 1 377 13
-	j	.L124
+	j	.L122
 .L110:
 .LBE38:
 .LBB40:
@@ -2222,35 +2222,23 @@ main:
 	.loc 1 393 11
 	lw	a5,-48(s0)
 	sext.w	a5,a5
-	beq	a5,zero,.L118
-	.loc 1 394 20
-	li	a5,0
-	j	.L119
-.L122:
+	beq	a5,zero,.L117
+	.loc 1 394 13
+	li	a0,0
+	call	exit
+	j	.L117
+.L120:
 	.loc 1 223 13
 	nop
-	j	.L118
-.L124:
+	j	.L117
+.L122:
 .LBB44:
 	.loc 1 377 13
 	nop
 .LBE44:
 .LBE30:
 	.loc 1 185 14
-	j	.L118
-.L119:
-	.loc 1 399 1
-	mv	a0,a5
-	li	t0,16384
-	add	sp,sp,t0
-	.cfi_def_cfa 2, 864
-	ld	ra,856(sp)
-	.cfi_restore 1
-	ld	s0,848(sp)
-	.cfi_restore 8
-	addi	sp,sp,864
-	.cfi_def_cfa_offset 0
-	jr	ra
+	j	.L117
 	.cfi_endproc
 .LFE7:
 	.size	main, .-main

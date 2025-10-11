@@ -1111,6 +1111,8 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         result->umask = parent->umask;
         result->uid = parent->uid;
         result->gid = parent->gid;
+        result->parent = parent;
+        result->parent_pid = gActiveProc;
         
         uint64_t parent_current    = parent->context.sp;
         uint64_t parent_stack_top   = (uint64_t)parent->stack_top;
@@ -1164,6 +1166,9 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         asm volatile("sfence.vma zero, zero"); 
     
         if(exec_flag) {
+            result->parent = parent->parent;
+            result->parent_pid = parent->parent_pid;
+            
             // inherit file table and cwd across exec
             memcpy(result->file_table, parent->file_table, sizeof(struct file*)*MAX_OPEN_FILES);
             result->umask = parent->umask;
@@ -1171,9 +1176,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             result->gid = parent->gid;
             int i=0; while (parent->cwd[i] && i < (int)sizeof(result->cwd)-1) { result->cwd[i] = parent->cwd[i]; i++; }
             result->cwd[i] = '\0';
-#ifdef DEBUG_CWD
-            printf("[exec-prep] parent cwd='%s' -> new cwd='%s'\n", parent->cwd, result->cwd);
-#endif
+            printf("[exec-prep] gActiveProc %d parent pid %d cwd='%s' -> new cwd='%s'\n", gActiveProc, result->parent_pid, parent->cwd, result->cwd);
         }
         else {
             fs_init(result->file_table);

@@ -743,3 +743,4 @@ int sscanf(const char *str, const char *fmt, ...);
 char *dirname(const char *path);
 int fileno(FILE* fp);
     
+int system(const char* command);

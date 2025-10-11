@@ -391,9 +391,9 @@ int main(int argc, char** argv) {
         }
         
         if(run_once) {
-            return 0;
+            exit(0);
         }
     }
     
-    return 0;
+    exit(0);
 }
