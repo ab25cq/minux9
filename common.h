@@ -104,6 +104,7 @@ struct proc {
     // credentials
     uint16_t uid;
     uint16_t gid;
+    uint16_t pgrp;
     uint16_t supp_gids[8];
     int nsupp;
     char username[32];

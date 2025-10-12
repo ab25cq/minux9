@@ -195,6 +195,8 @@ int Sys_wait()
     
     int* status_va = (int*)arg0;
     
+    struct proc* active_proc = gProc[gActiveProc];
+    
     int exit_status = 0;
     pid_t child_pid = -1;
     while(1) { // Keep searching until a zombie is found and handled
@@ -205,6 +207,7 @@ int Sys_wait()
             if(it == NULL) {
             }
             else if(it->zombie) {
+//            else if(it->zombie && it->pgrp == active_proc->pgrp) {
                 zombie_proc = it;
                 child_pid = n; // This is problematic if gProc is not an array-like list
                 break;

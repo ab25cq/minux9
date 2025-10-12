@@ -1046,6 +1046,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         result->umask = parent->umask;
         result->uid = parent->uid;
         result->gid = parent->gid;
+        result->pgrp = parent->pgrp;
         result->parent = parent;
         result->parent_pid = gActiveProc;
         
@@ -1110,6 +1111,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             result->umask = parent->umask;
             result->uid = parent->uid;
             result->gid = parent->gid;
+            result->pgrp = parent->pgrp;
             int i=0; while (parent->cwd[i] && i < (int)sizeof(result->cwd)-1) { result->cwd[i] = parent->cwd[i]; i++; }
             result->cwd[i] = '\0';
         }
