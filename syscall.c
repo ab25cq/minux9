@@ -155,8 +155,6 @@ int Sys_exit()
     
     remove_kernel_state(gActiveProc);
     
-printf("exit active proc %d zombie parent %d\n", gActiveProc, p->parent_pid);
-    
     yield();
     
     return 0;
@@ -206,9 +204,7 @@ int Sys_wait()
             
             if(it == NULL) {
             }
-            else if(it->zombie && it->parent_pid == gActiveProc) {
-puts("zombie");
-printf("wait pid %d gActiveProc %d parent_pid %d\n", n, gActiveProc, it->parent_pid);
+            else if(it->zombie) {
                 zombie_proc = it;
                 child_pid = n; // This is problematic if gProc is not an array-like list
                 break;

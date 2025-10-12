@@ -2,29 +2,24 @@
 #include "sh.h"
 #include "minux.h"
 
-uint64_t kernel_sp __attribute__((section(".common")));
-uint64_t user_sp __attribute__((section(".common")));
+typedef unsigned long size_t;
+typedef long ptrdiff_t;
 
-uint64_t kernel_satp __attribute__((section(".common")));    // trap.S から参照する
-uint64_t user_satp __attribute__((section(".common")));
-
-pagetable_t kernel_pagetable;
+#define NULL ((void*)0)
 
 #define PGSIZE 4096 // bytes per page
 
-#define USER_STACK_TOP  0x40000000UL
 #define STACK_PAGES     64
 #define STACK_MAX (4096*STACK_PAGES)
 
+#define USER_STACK_TOP  0x40000000UL
+
 extern char _end[];   // heap start
+extern char _end2[];  // provided by linker 
+extern char _end3[];  // kernel page start
+
 static char* heap_end = 0;
 static char* heap_limit = (char*)0x88000000;
-
-// MMIO アドレス定義
-#define UART0        0x10000000UL
-#define UART_THR     (*(volatile uint8_t*)(UART0 + 0x00))  // Transmit Holding Register
-#define UART_LSR     (*(volatile uint8_t*)(UART0 + 0x05))  // Line Status Register
-#define UART_LSR_THRE 0x20                                // THR Empty ビット
 
 void* sbrk(ptrdiff_t incr) {
     if (heap_end == 0)
@@ -42,22 +37,7 @@ void* sbrk(ptrdiff_t incr) {
 void kfree(void *pa);
 void freerange(void *pa_start, void *pa_end);
 
-// machine-mode cycle counter
-
-typedef unsigned long size_t;
-typedef long ptrdiff_t;
-
-#define NULL ((void*)0)
-
-extern char _end2[];  // provided by linker 
-extern char _end3[];  // kernel page start
-
-
-#define VIRTIO_MMIO_BASE0   0x10001000UL
-#define VIRTIO_MMIO_STRIDE  0x00001000UL
-#define VIRTIO_MAX_SLOTS    8
-#define VIRTIO_NUM VIRTIO_MAX_SLOTS
-
+pagetable_t kernel_pagetable;
 
 static void *kalloc_page(uint64_t bump) {
     void *p = (void*)bump;
@@ -76,7 +56,6 @@ void *kalloc_pages(size_t npages) {
     return base;
 }
 
-
 void perror(char* str) {
     puts(str);
 }
@@ -86,8 +65,6 @@ void panic(char* str)
     puts(str);
     puts("panic!");
 }
-
-uint64_t make_satp(pagetable_t pagetable);
 
 struct cpu {
     struct proc *proc;          // The process running on this cpu, or null.
@@ -112,59 +89,46 @@ struct cpu* mycpu() {
 #define PXSHIFT(level)  (PGSHIFT+(9*(level)))
 #define PGSHIFT 12  // bits of offset within a page
 #define PX(level, va) ((((uint64_t) (va)) >> PXSHIFT(level)) & PXMASK)
+#define PTE_V (1L << 0)
+#define PTE_R (1L << 1)
+#define PTE_W (1L << 2)
+#define PTE_X (1L << 3)
+#define PTE_U (1L << 4)
 
 #define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
 #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
 
 #define KERNBASE 0x80000000UL
-#define PHYSTOP 0x81100000UL
+#define PHYSTOP 0x81500000UL
 
 void* walkaddr(pagetable_t pagetable, uint64_t va);
-void free_pagetable(pagetable_t pagetable, int level);
 void kfree_pagesX(void *pa, int npages);
 
-/// プロセスのユーザー空間を完全に解放
-void free_proc(struct proc *p) {
-    uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
-    for (int i = 0; i < STACK_PAGES; i++) {
-        char* pa = walkaddr(p->pagetable, stack_base + i*PGSIZE);
-
-        kfree(pa);
-    }
-    for (int i=0; i<p->num_process_pages; i++) {
-        struct process_pages* page = p->process_pages[i];
-        
-        for(int j=0; j<page->num_process_kalloc_address; j++) {
-            kfree(page->process_kalloc_address[j]);
+void free_pagetable(pagetable_t pagetable, int level) {
+    for(int i = 0; i < 512; i++) {
+        pte_t pte = pagetable[i];
+        if(!(pte & PTE_V))
+            continue;
+        uint64_t pa = PTE2PA(pte);
+        // リーフかどうか (R/W/X フラグがあるならファイルデータページ)
+        if(pte & (PTE_R | PTE_W | PTE_X)) {
+            if(level > 0) {
+                kfree((void*)pa);
+            }
+        } else if(level > 0) {
+            // 中間ノード
+            pagetable_t child = (pagetable_t)pa;
+            free_pagetable(child, level - 1);
+            kfree(child);
         }
-        
-        kfree(page);
     }
-    kfree(p->process_pages);
-    
-    if (p->program) {
-        free(p->program);
-        p->program = NULL;
-    }
-    p->program_size = 0;
-    
-    free_pagetable(p->pagetable, 2);
-    kfree(p->pagetable);
-    kfree(p);
 }
-
 
 #define HEAP_END (_end + PGSIZE * 256)
 
 struct proc* gProc[PROC_MAX];
 int gNumProc;
 int gActiveProc;
-
-#define PTE_V (1L << 0)
-#define PTE_R (1L << 1)
-#define PTE_W (1L << 2)
-#define PTE_X (1L << 3)
-#define PTE_U (1L << 4)
 
 struct run {
     struct run *next;
@@ -231,8 +195,27 @@ static inline int intr_get() {
 }
 
 int holding(struct spinlock *lk);
-void pop_off(void);
-void push_off(void);
+void push_off(void)
+{
+    int old = intr_get();
+  
+    intr_off();
+    if(mycpu()->noff == 0)
+        mycpu()->intena = old;
+    mycpu()->noff += 1;
+}
+
+void pop_off(void)
+{
+    struct cpu *c = mycpu();
+    if(intr_get())
+        panic("pop_off - interruptible");
+    if(c->noff < 1)
+        panic("pop_off");
+    c->noff -= 1;
+    if(c->noff == 0 && c->intena)
+        intr_on();
+}
 
 // Mutual exclusion spin locks.
 void initlock(struct spinlock *lk, char *name)
@@ -307,27 +290,6 @@ int holding(struct spinlock *lk) {
 // it takes two pop_off()s to undo two push_off()s.  Also, if interrupts
 // are initially off, then push_off, pop_off leaves them off.
 
-void push_off(void)
-{
-    int old = intr_get();
-  
-    intr_off();
-    if(mycpu()->noff == 0)
-        mycpu()->intena = old;
-    mycpu()->noff += 1;
-}
-
-void pop_off(void)
-{
-    struct cpu *c = mycpu();
-    if(intr_get())
-        panic("pop_off - interruptible");
-    if(c->noff < 1)
-        panic("pop_off");
-    c->noff -= 1;
-    if(c->noff == 0 && c->intena)
-        intr_on();
-}
 
 struct {
     struct spinlock lock;
@@ -498,11 +460,6 @@ void kfree_pagesX(void *pa, int npages) {
 }
 
 pte_t * walk(pagetable_t pagetable, uint64_t va, int alloc) {
-/*
-    if(va >= MAXVA)
-        puts("walk");
-*/
-
     for(int level = 2; level > 0; level--) {
         pte_t *pte = (pte_t*)&pagetable[PX(level, va)];
         if(*pte & PTE_V) {
@@ -614,24 +571,6 @@ void enable_mmu(pagetable_t kernel_pagetable) {
     asm volatile("sfence.vma zero, zero");
 }
 
-#define VIRTIO0 0x10001000L       
-#define REG_STATUS 0x070 
-
-/*
-extern char TRAPFRAME[];
-extern char TRAPFRAME2[];
-extern char TRAMPOLINE[];
-extern char COMMON[];
-*/
-
-uint64_t kernel_sp __attribute__((section(".common")));
-uint64_t user_sp __attribute__((section(".common")));
-
-uint64_t kernel_satp __attribute__((section(".common")));    // trap.S から参照する
-uint64_t user_satp __attribute__((section(".common")));
-
-// uart.c (Supervisor モード用)
-// === UART RX 割り込みでキーを受け取る簡単な例 ===
 
 // UART デバイスのアドレス
 #define UART0         0x10000000UL
@@ -643,6 +582,16 @@ uint64_t user_satp __attribute__((section(".common")));
 #define UART_THR      ((volatile uint8_t *)(UART0 + 0x00))  // 書き込み用
 #define UART_LSR      ((volatile uint8_t *)(UART0 + 0x05))  // Line Status Register
 #define UART_LSR_THRE 0x20  // Transmit Holding Register Empty
+
+/// VIRTIOデバイス
+#define VIRTIO_MMIO_BASE0   0x10001000UL
+#define VIRTIO_MMIO_STRIDE  0x00001000UL
+#define VIRTIO_MAX_SLOTS    8
+#define VIRTIO_NUM VIRTIO_MAX_SLOTS
+
+#define VIRTIO0 0x10001000L       
+#define REG_STATUS 0x070 
+
 
 // Supervisor‐mode CSR ビット定義
 #define SIE_SEIE   (1UL << 9)  // Supervisor External Interrupt Enable
@@ -681,6 +630,7 @@ void putc(char c) {
     };
     *UART_THR = c;
 }
+
 void putchar(char c) {
     putc(c);
 }
@@ -836,19 +786,6 @@ void setting_user_pagetable(struct proc* proc, pagetable_t pagetable)
     asm volatile("sfence.vma zero, zero"); 
 }
 
-// Define DEBUG_CWD to enable cwd-related logs
-// #define DEBUG_CWD 1
-
-/*
-static int covered_by_load(struct proghdr* ph, int phnum, uint64_t lo, uint64_t hi) {
-    for (int i = 0; i < phnum; i++) if (ph[i].type == ELF_PROG_LOAD) {
-        uint64_t a = ph[i].vaddr, b = ph[i].vaddr + ph[i].memsz;
-        if (lo >= a && hi <= b) return 1;
-    }
-    return 0;
-}
-*/
-
 #include <stddef.h>
 _Static_assert(sizeof(struct elfsym) == 24, "Elf64_Sym size must be 24");
 _Static_assert(offsetof(struct elfsym, value) == 8, "st_value must be at +8");
@@ -929,8 +866,6 @@ static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* ou
 
     return -1; // not found
 }
-
-
 
 void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index) {
     struct proc* result = kalloc();
@@ -1145,7 +1080,6 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
 #endif
     }
     else {
-        struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
         uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
         for (int i = 0; i < STACK_PAGES; i++) {
             char *pa = kalloc();
@@ -1166,6 +1100,8 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         asm volatile("sfence.vma zero, zero"); 
     
         if(exec_flag) {
+            struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
+            
             result->parent = parent->parent;
             result->parent_pid = parent->parent_pid;
             
@@ -1176,7 +1112,6 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             result->gid = parent->gid;
             int i=0; while (parent->cwd[i] && i < (int)sizeof(result->cwd)-1) { result->cwd[i] = parent->cwd[i]; i++; }
             result->cwd[i] = '\0';
-            printf("[exec-prep] gActiveProc %d parent pid %d cwd='%s' -> new cwd='%s'\n", gActiveProc, result->parent_pid, parent->cwd, result->cwd);
         }
         else {
             fs_init(result->file_table);
@@ -1219,32 +1154,39 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     }
 }
 
-void free_pagetable(pagetable_t pagetable, int level) {
-    for(int i = 0; i < 512; i++) {
-        pte_t pte = pagetable[i];
-        if(!(pte & PTE_V))
-            continue;
-        uint64_t pa = PTE2PA(pte);
-        // リーフかどうか (R/W/X フラグがあるならファイルデータページ)
-        if(pte & (PTE_R | PTE_W | PTE_X)) {
-            if(level > 0) {
-                kfree((void*)pa);
-            }
-        } else if(level > 0) {
-            // 中間ノード
-            pagetable_t child = (pagetable_t)pa;
-            free_pagetable(child, level - 1);
-            kfree(child);
-        }
+void free_proc(struct proc *p) {
+    uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
+    for (int i = 0; i < STACK_PAGES; i++) {
+        char* pa = walkaddr(p->pagetable, stack_base + i*PGSIZE);
+
+        kfree(pa);
     }
+    for (int i=0; i<p->num_process_pages; i++) {
+        struct process_pages* page = p->process_pages[i];
+        
+        for(int j=0; j<page->num_process_kalloc_address; j++) {
+            kfree(page->process_kalloc_address[j]);
+        }
+        
+        kfree(page);
+    }
+    kfree(p->process_pages);
+    
+    if (p->program) {
+        free(p->program);
+        p->program = NULL;
+    }
+    p->program_size = 0;
+    
+    free_pagetable(p->pagetable, 2);
+    kfree(p->pagetable);
+    kfree(p);
 }
 
 struct file** get_current_file_table()
 {
     return gProc[gActiveProc]->file_table;
 }
-
-void reset_watchdog();
 
 void plic_init();
 void trap_init();
@@ -1254,8 +1196,14 @@ void uart_rx_init();
 
 void plic_enable(int irq);
 
-static inline void w_mstatus(uint64_t x) {
-  asm volatile("csrw mstatus, %0" : : "r" (x));
+#define TIMER_INTERVAL 10000UL
+#define SSTATUS_SIE (1UL << 1)  // sstatus.SIE ビット
+#define SIE_STIE    (1UL << 5)  // sie.STIE ビット
+
+extern void trapvec();  
+
+static inline void w_sie(uint64_t x) {
+    asm volatile("csrw sie, %0" : : "r"(x));
 }
 
 static inline uint64_t r_sie() {
@@ -1264,41 +1212,6 @@ static inline uint64_t r_sie() {
     return x;
 }
 
-static inline void w_sie(uint64_t x) {
-    asm volatile("csrw sie, %0" : : "r"(x));
-}
-
-static inline void w_stvec(uint64_t x) {
-    asm volatile("csrw stvec, %0" : : "r"(x));
-}
-
-#define TIMER_INTERVAL 10000UL
-#define SSTATUS_SIE (1UL << 1)  // sstatus.SIE ビット
-#define SIE_STIE    (1UL << 5)  // sie.STIE ビット
-
-extern void trapvec();  
-
-void my_intr_off()
-{
-    w_sstatus(r_sstatus() & ~SSTATUS_SIE);
-    w_sie(r_sie() & ~SIE_STIE);
-}
-void my_intr_on()
-{
-    w_sstatus(r_sstatus() | SSTATUS_SIE);
-    w_sie(r_sie() | SIE_STIE);
-}
-
-static inline uint64_t read_mtime() {
-    return *(volatile uint64_t*)CLINT_MTIME;
-}
-
-// CLINT に MTIMECMP を書く
-static inline void write_mtimecmp(uint64_t v) {
-    *(volatile uint64_t*)CLINT_MTIMECMP = v;
-}
-
-// Supervisor-mode タイマー割り込みを有効化
 void enable_timer_interrupts(void) {
     unsigned long x;
 
@@ -1313,25 +1226,23 @@ void enable_timer_interrupts(void) {
     w_sstatus(x);
 }
 
-// Supervisor-mode タイマー割り込みを無効化
-void disable_timer_interrupts(void) {
+void disable_timer_interrupts() {
     w_sstatus(r_sstatus() & ~SSTATUS_SIE);
     w_sie(r_sie() & ~SIE_STIE);
 }
-
-extern void swtch(struct context_t *new_);
 
 void timer_reset() {
     uint64_t next = r_time() + TIMER_INTERVAL;
     w_stimecmp(next);
 }
 
-extern char stack_top[];
+#define MAX_KERNEL 16
 
-
+uint64_t kernel_sp __attribute__((section(".common")));
+uint64_t user_sp __attribute__((section(".common")));
+uint64_t kernel_satp __attribute__((section(".common")));    // trap.S から参照する
+uint64_t user_satp __attribute__((section(".common")));
 char yield_stack[STACK_MAX] __attribute__((section(".common")));
-
-#define MAX_KERNEL 8
 
 struct sKernelState
 {
@@ -1343,129 +1254,6 @@ struct sKernelState
     uint64_t gYieldUserSP;
     uint64_t gYieldUserActiveProc;
 };
-
-/*
-struct sKernelState gKernelState[MAX_KERNEL] __attribute__((section(".common")));
-int gNumKernelState __attribute__((section(".common")));
-
-int gKernelStateHead __attribute__((section(".common")));
-int gKernelStateTail __attribute__((section(".common")));
-
-void remove_kernel_state(int active_proc) {
-    if (gKernelStateHead == gKernelStateTail) {
-        return;
-    }
-    int index = -1;
-    for(int i=0; i<MAX_KERNEL; i++) {
-        if(gKernelState[i].gYieldUserActiveProc == active_proc) {
-            index = i;
-            break;
-        }
-    }
-    
-    if(index == -1) {
-        return;
-    }
-
-    // 削除位置から末尾まで、要素を一つずつ前にシフトする
-    // ループは削除する要素の次の要素から開始し、最後の要素まで回る
-    for (int i = index; i < gNumKernelState - 1; i++) {
-        int current_index = (gKernelStateHead + i) % MAX_KERNEL;
-        int next_index = (gKernelStateHead + i + 1) % MAX_KERNEL;
-        gKernelState[current_index] = gKernelState[next_index];
-    }
-
-    // tailとcountを更新する
-    gKernelStateTail = (gKernelStateTail - 1 + MAX_KERNEL) % MAX_KERNEL;
-    gNumKernelState--;
-}
-
-void timer_handler();
-
-void kernel_yield() {
-    if(((gKernelStateTail + 1) % MAX_KERNEL) == gKernelStateHead) {
-        panic("kernel state queue max");
-    }
-    gKernelState[gKernelStateTail].gYieldReturnContext = *(struct context_t*)TRAPFRAME;
-    gKernelState[gKernelStateTail].gYieldUserSatp = user_satp;
-    gKernelState[gKernelStateTail].gYieldUserSP = user_sp;
-    gKernelState[gKernelStateTail].gYieldUserActiveProc = gActiveProc;
-    gKernelState[gKernelStateTail].gYieldContext = *(struct context_t*)TRAPFRAME2;
-    
-    memmove(gKernelState[gKernelStateTail].gYieldStack, yield_stack, STACK_MAX);
-    
-    gKernelStateTail = (gKernelStateTail + 1) % MAX_KERNEL;
-    
-    gNumKernelState++;
-    
-    timer_handler();
-}
-
-void yield_return();
-
-void kernel_yield_return() {
-    gNumKernelState--;
-    
-    user_satp = gKernelState[gKernelStateHead].gYieldUserSatp;
-    user_sp = gKernelState[gKernelStateHead].gYieldUserSP;
-    
-    gActiveProc = gKernelState[gKernelStateHead].gYieldUserActiveProc;
-    struct context_t* trapframe = (struct context_t*)TRAPFRAME2;
-    
-    *trapframe = gKernelState[gKernelStateHead].gYieldContext;
-    
-    trapframe = (struct context_t*)TRAPFRAME;
-    *trapframe = gKernelState[gKernelStateHead].gYieldReturnContext;
-    
-    memmove(yield_stack, gKernelState[gKernelStateHead].gYieldStack, STACK_MAX);
-    
-    gKernelStateHead = (gKernelStateHead + 1) % MAX_KERNEL;
-    
-    yield_return();
-}
-
-void timer_handler() {
-    disable_timer_interrupts();
-    struct proc *p = gProc[gActiveProc];
-
-    struct context_t *tf = (struct context_t*)TRAPFRAME;
-    p->context = *tf;
-
-    timer_reset(); 
-
-    int old_active_proc = gActiveProc;
-    struct proc *old = gProc[gActiveProc];
-    gActiveProc++;
-    
-    while(gActiveProc < gNumProc && gProc[gActiveProc] == NULL) {
-        gActiveProc++;
-    }
-    
-    if(gActiveProc >= gNumProc) {
-        gActiveProc = 0;
-    }
-    
-    if(gActiveProc == gKernelState[gKernelStateHead].gYieldUserActiveProc && gNumKernelState > 0) 
-    {
-        kernel_yield_return();
-    }
-    
-    struct proc* new_ = gProc[gActiveProc];
-    
-    if (new_ != old && new_->zombie == 0) {
-        user_sp = new_->context.sp;
-        user_satp = MAKE_SATP(new_->pagetable);
-        old->context = *(struct context_t*)TRAPFRAME;
-        //gCPU.proc = new_;
-        uint64_t a0 = new_->context.a0;
-        asm volatile("csrw sscratch, %0" : "=r" (a0));
-        swtch(&new_->context);
-    }
-    else {
-        gActiveProc = old_active_proc;
-    }
-}
-*/
 
 struct sKernelState gKernelState[MAX_KERNEL] __attribute__((section(".common")));
 int gNumKernelState __attribute__((section(".common")));
@@ -1490,8 +1278,6 @@ void remove_kernel_state(int active_proc) {
     gNumKernelState--;
 }
 
-void timer_handler();
-
 void kernel_yield() {
     gKernelState[gNumKernelState].gYieldReturnContext = *(struct context_t*)TRAPFRAME;
     gKernelState[gNumKernelState].gYieldUserSatp = user_satp;
@@ -1508,9 +1294,6 @@ void kernel_yield() {
     }
     
     enable_timer_interrupts();
-    
-//puts("CALL TIMER_HANDLER");
-//    timer_handler();
 }
 
 void yield_return();
@@ -1544,6 +1327,8 @@ void kernel_yield_return() {
         yield_return();
     }
 }
+
+extern void swtch(struct context_t *new_);
 
 void timer_handler() {
     disable_timer_interrupts();
@@ -1612,11 +1397,6 @@ void uvmunmap(pagetable_t pagetable, uint64_t va, uint64_t npages, int do_free) 
     }
 }
 
-void uvm_dealloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
-    if(new_sz >= old_sz) return;
-    uvmunmap(pagetable, PGROUNDUP(new_sz), (PGROUNDUP(old_sz) - PGROUNDUP(new_sz)) / PGSIZE, 1);
-}
-
 int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
     if(new_sz <= old_sz) return 0;
 
@@ -1650,10 +1430,13 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
     return 0;
 }
 
+void uvm_dealloc(pagetable_t pagetable, uint64_t old_sz, uint64_t new_sz) {
+    if(new_sz >= old_sz) return;
+    uvmunmap(pagetable, PGROUNDUP(new_sz), (PGROUNDUP(old_sz) - PGROUNDUP(new_sz)) / PGSIZE, 1);
+}
 
 uintptr_t syscall_handler()
 {
-//puts("syscall_handler\r\n");
     disable_timer_interrupts();
     
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
@@ -1873,14 +1656,7 @@ uintptr_t syscall_handler()
     return result;
 }
 
-
-
-#define SSTATUS_SUM (1UL << 18)
-
-
 void enter_user(uintptr_t, uintptr_t, uintptr_t, uint64_t, uint64_t);
-
-#define SSTATUS_SPP (1L << 8)  // Previous mode, 1=Supervisor, 0=User
 
 static inline uint64_t r_sip()
 {
@@ -1902,6 +1678,10 @@ static inline void w_satp(uint64_t x)
 static inline void w_sepc(uint64_t x)
 {
   asm volatile("csrw sepc, %0" : : "r" (x));
+}
+
+static inline void w_stvec(uint64_t x) {
+    asm volatile("csrw stvec, %0" : : "r"(x));
 }
 
 void timerinit()
@@ -1926,6 +1706,8 @@ void global_init()
     memset(gKernelState, 0, sizeof(struct sKernelState)*MAX_KERNEL);
     gActiveProc = 0;
 }
+
+#define SSTATUS_SUM (1UL << 18)
 
 int main()
 {

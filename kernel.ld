@@ -48,7 +48,7 @@ SECTIONS
   . = . + 4096 * STACK_PAGES * 10; /* STACK_MAX; */
   . = ALIGN(4096);
   PROVIDE(_end2 = .);
-  . = . + 4096 * 512; 
+  . = . + 4096 * STACK_PAGES * 10; 
   PROVIDE(_end3 = .);
   
   .debug_info        0 : { *(.debug_info) } 
