@@ -1046,7 +1046,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         result->umask = parent->umask;
         result->uid = parent->uid;
         result->gid = parent->gid;
-        result->pgrp = parent->pgrp;
+        //result->pgrp = parent->pgrp;
         result->parent = parent;
         result->parent_pid = gActiveProc;
         
@@ -1645,6 +1645,15 @@ uintptr_t syscall_handler()
             
         case SYS_sleep: {
             result = Sys_sleep();
+            }
+            break;
+            
+        case SYS_tcsetpgrp: {
+            result = Sys_tcsetpgrp();
+            }
+            
+        case SYS_getpid: {
+            result = Sys_getpid();
             }
             break;
             

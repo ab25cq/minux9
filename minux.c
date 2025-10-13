@@ -2426,6 +2426,10 @@ int system(const char* command)
     if (command == NULL) {
         return 1; // shell is assumed to exist
     }
+    
+    int shell_pgrp = getpid();
+    
+    tcsetpgrp(0, shell_pgrp);
 
     pid_t pid = fork();
     if (pid < 0) {
@@ -2433,6 +2437,8 @@ int system(const char* command)
     }
 
     if (pid == 0) {
+        tcsetpgrp(0, shell_pgrp);
+        
         char* argv[] = { "sh", "-c", (char*)command, NULL };
         char* envp[] = { NULL };
         execve("/sh", argv, envp);

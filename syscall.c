@@ -180,6 +180,33 @@ int Sys_sleep()
     return 0;
 }
 
+int Sys_tcsetpgrp()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+
+    int fildes = (int)trapframe->a0;
+    if (fildes <= 0) {
+        return 0;
+    }
+    int pgid_id = (int)trapframe->a1;
+    if (pgid_id <= 0) {
+        return 0;
+    }
+    
+    struct proc* p = gProc[gActiveProc];
+    
+    p->pgrp = pgid_id;
+
+    return 0;
+}
+
+int Sys_getpid()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+
+    return gActiveProc;
+}
+
 int Sys_wait()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
@@ -206,8 +233,7 @@ int Sys_wait()
             
             if(it == NULL) {
             }
-            else if(it->zombie) {
-//            else if(it->zombie && it->pgrp == active_proc->pgrp) {
+            else if(it->zombie && it->pgrp == active_proc->pgrp) {
                 zombie_proc = it;
                 child_pid = n; // This is problematic if gProc is not an array-like list
                 break;

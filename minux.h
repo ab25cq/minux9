@@ -41,6 +41,28 @@ extern FILE* stderr;
 
 typedef int pid_t;
 
+#ifndef SYS_execve
+#define SYS_execve 100
+#endif
+#define SYS_settimeofday 92
+#define SYS_utimes 93
+#define SYS_umask 94
+#define SYS_gettimeofday 95
+#define SYS_getuid 96
+#define SYS_getgid 97
+#define SYS_setuid 98
+#define SYS_setgid 99
+#define SYS_lseek 192
+#ifndef SEEK_SET
+#define SEEK_SET 0
+#endif
+#ifndef SEEK_CUR
+#define SEEK_CUR 1
+#endif
+#ifndef SEEK_END
+#define SEEK_END 2
+#endif
+#define SYS_fstat   210
 #define SYS_write 64
 #define SYS_read 65
 #define SYS_open 66
@@ -71,6 +93,10 @@ typedef int pid_t;
 #define SYS_chmod   90
 #define SYS_chown   91
 #define SYS_sleep 102
+#define SYS_tcsetpgrp 103
+#define SYS_getpid 105
+#define SYS_realpath 101
+#define SYS_isatty 104
 
 extern int errno;
 
@@ -85,6 +111,22 @@ extern int errno;
     asm volatile("ecall"                                            \
                  : "+r"(_a0)                                        \
                  : "r"(_a1), "r"(_a2), "r"(_a7)                      \
+                 : "memory");                                        \
+    /* statement-expression の結果として返す */                      \
+    _ret = _a0;                                                     \
+    _ret;                                                           \
+})
+
+#define tcsetpgrp(fildes, pgid_id) ({                                       \
+    long _ret;                                                       \
+    /* 引数を対応レジスタにセット */                                \
+    register long _a0 asm("a0") = (long)(fildes);                    \
+    register long _a1 asm("a1") = (long)(pgid_id);                   \
+    register long _a7 asm("a7") = SYS_tcsetpgrp;                     \
+    /* ecall して戻り値は a0 に */                                  \
+    asm volatile("ecall"                                            \
+                 : "+r"(_a0)                                        \
+                 : "r"(_a1), "r"(_a7)                               \
                  : "memory");                                        \
     /* statement-expression の結果として返す */                      \
     _ret = _a0;                                                     \
@@ -367,9 +409,6 @@ extern int errno;
 })
 
 // execve: exec with environment (envp = array of "KEY=VAL" strings)
-#ifndef SYS_execve
-#define SYS_execve 100
-#endif
 #define execve(path, argv, envp) ({                               \
     register long _a0 asm("a0") = (long)(path);                  \
     register long _a1 asm("a1") = (long)(argv);                  \
@@ -460,14 +499,6 @@ void exit(int status);
     (int)_a0;                                                   \
 })
     
-#define SYS_settimeofday 92
-#define SYS_utimes 93
-#define SYS_umask 94
-#define SYS_gettimeofday 95
-#define SYS_getuid 96
-#define SYS_getgid 97
-#define SYS_setuid 98
-#define SYS_setgid 99
 // settimeofday: set base epoch seconds used by FS times
 #define settimeofday(sec) ({                                            \
     register long _a0 asm("a0") = (long)(sec);                          \
@@ -554,8 +585,6 @@ void exit(int status);
                  : "memory");                                          \
     (int)_a0;                                                           \
 })
-#define SYS_realpath 101
-#define SYS_isatty 104
 // realpath: resolve to canonical absolute path; returns 0 on success
 #define realpath_user(path, outbuf, outsz) ({                             \
     register long _a0 asm("a0") = (long)(path);                          \
@@ -581,16 +610,6 @@ void exit(int status);
 })
 
 
-#define SYS_lseek 192
-#ifndef SEEK_SET
-#define SEEK_SET 0
-#endif
-#ifndef SEEK_CUR
-#define SEEK_CUR 1
-#endif
-#ifndef SEEK_END
-#define SEEK_END 2
-#endif
 #define lseek(fd, offset, whence) ({                                 \
     register long _a0 asm("a0") = (long)(fd);                        \
     register long _a1 asm("a1") = (long)(offset);                    \
@@ -603,7 +622,6 @@ void exit(int status);
     (long)_a0;                                                       \
 })
 // minux.h 追記
-#define SYS_fstat   210
 
 // fstat: fd を stat する
 #define fstat(fd, stptr) ({                                              \
@@ -615,6 +633,19 @@ void exit(int status);
                  : "r"(_a1), "r"(_a7)                                    \
                  : "memory");                                            \
     (int)_a0;                                                            \
+})
+
+#define getpid() ({                                      \
+    long _ret;                                                     \
+    /* 引数を対応するレジスタにセット */                          \
+    register long _a7 asm("a7") = SYS_getpid;                        \
+    /* ecall 実行。戻り値は a0 に返ってくる */                     \
+    asm volatile("ecall"                                           \
+                 : "=r"(_ret)                         \
+                 : "r"(_a7)                     \
+                 : "memory");                                       \
+    /* a0 をローカル変数に退避して statement‐expression の値に */   \
+    _ret;                                                          \
 })
 
 

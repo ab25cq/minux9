@@ -55,6 +55,8 @@ struct sCommand
     int redirect_append;
 };
 
+int shell_pgrp;
+
 int run_command(int n, struct sCommand* commands, int num_commands)
 {
     int pipes[2] = { 0, 0 };
@@ -62,6 +64,7 @@ int run_command(int n, struct sCommand* commands, int num_commands)
     struct sCommand* command = commands + n;
     
     if(n == num_commands-1) {
+        tcsetpgrp(0, shell_pgrp);
         char* argv[MAX_ARGV];
         int j;
         for(j=0; j<command->num_arg; j++) {
@@ -119,6 +122,7 @@ int run_command(int n, struct sCommand* commands, int num_commands)
             run_command(n+1, commands, num_commands);
         }
         else {
+            tcsetpgrp(0, shell_pgrp);
             close(pipes[0]);
             dup2(pipes[1], 1);
             close(pipes[1]);
@@ -376,10 +380,14 @@ int main(int argc, char** argv) {
             }
             continue;
         }
+        
+        shell_pgrp = getpid();
+        tcsetpgrp(0, shell_pgrp);
 
         pid = fork();
         
         if(pid == 0) {
+            tcsetpgrp(0, shell_pgrp);
             run_command(0, commands, num_commands);
         }
         else {
