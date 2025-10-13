@@ -1,5 +1,6 @@
 //#include "minux9.h"
 
+/*
 int main(){ 
     asm ("li a7, 64\nmv a0, %0\nmv a1, %1\nmv a2, %2\necall\n"
          
@@ -9,4 +10,4 @@ int main(){
          
     return 0;
 }
-
+*/

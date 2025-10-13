@@ -313,6 +313,7 @@ void freerange(void *pa_start, void *pa_end) {
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
 void kfree(void *pa) {
+printf("kfree %p\n", pa);
     struct run *r;
 
     if(((uint64_t)pa % PGSIZE) != 0 || (char*)pa < _end3 || (uint64_t)pa >= PHYSTOP) {
@@ -352,6 +353,8 @@ void * kalloc(void) {
     if(r) {
         memset((char*)r, 0, PGSIZE); // fill with junk
     }
+    
+printf("in kalloc return %p\n", r);
     
     return (void*)r;
 }
@@ -465,6 +468,7 @@ pte_t * walk(pagetable_t pagetable, uint64_t va, int alloc) {
         if(*pte & PTE_V) {
             pagetable = (pagetable_t)PTE2PA(*pte);
         } else {
+puts("walk");
             if(!alloc || (pagetable = (pagetable_t)kalloc()) == 0) {
                 return (void*)0;
             }
@@ -868,6 +872,7 @@ static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* ou
 }
 
 void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index) {
+puts("alloc_prog");
     struct proc* result = kalloc();
     
     result->process_pages = kalloc();
@@ -907,6 +912,8 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     }
         
     struct proghdr *ph = (struct proghdr *)(elf_buf + eh->phoff);
+    
+printf("loading elf image...\n");
     
     uint64_t va = 0;
     uint64_t max_va_end = 0;
@@ -991,6 +998,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     
     result->vaddr = ph->vaddr;
     result->memsz = ph->memsz;
+printf("finish loading elf image...\n");
 
     // Find global pointer
     uint64_t gp = 0;
@@ -1033,9 +1041,10 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         // For non-PIC code this might be okay. For PIC/GP-relative, it will fail.
         //puts("Warning: __global_pointer$ not found(2)\n");
     }
-
+printf("determing gp...\n");
 
     if(fork_flag) {
+puts("foring");
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
 #ifdef DEBUG_CWD
         printf("[fork] parent=%d cwd='%s'\n", gActiveProc, parent->cwd);
@@ -1053,11 +1062,13 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         uint64_t parent_current    = parent->context.sp;
         uint64_t parent_stack_top   = (uint64_t)parent->stack_top;
         
+puts("foring... copy starting...");
         uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
         for (int i = 0; i < STACK_PAGES; i++) {
             char *pa = kalloc();
+            
+printf("kalloc pa %p\n", pa);
 
-//printf("stack kalloc %p\n", pa);
             char *src = walkaddr(parent->pagetable, parent_stack_top+i*PGSIZE);
             if(src) {
                 memmove(pa, (void*)src, PGSIZE);
@@ -1069,6 +1080,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
              (uint64_t)pa,
              PTE_U|PTE_R|PTE_W|PTE_V);
         }
+puts("finish copying...");
         asm volatile("sfence.vma zero, zero"); 
 
         result->stack_top  = (char*)stack_base;
@@ -1081,11 +1093,12 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
 #endif
     }
     else {
+puts("be ready for stack....\n");
         uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
         for (int i = 0; i < STACK_PAGES; i++) {
             char *pa = kalloc();
 
-//printf("stack kalloc %p\n", pa);
+printf("stack kalloc %p\n", pa);
             mappages(result->pagetable,
              stack_base + i*PGSIZE,
              PGSIZE,
@@ -1093,6 +1106,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
              PTE_U|PTE_R|PTE_W|PTE_V);
         }
         asm volatile("sfence.vma zero, zero"); 
+puts("be ready for stack....finish\n");
 
         result->stack_top  = (char*)stack_base;
         result->context.sp = stack_base + STACK_PAGES*PGSIZE;
@@ -1101,6 +1115,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         asm volatile("sfence.vma zero, zero"); 
     
         if(exec_flag) {
+puts("exec....\n");
             struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
             
             result->parent = parent->parent;
@@ -1114,6 +1129,8 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             result->pgrp = parent->pgrp;
             int i=0; while (parent->cwd[i] && i < (int)sizeof(result->cwd)-1) { result->cwd[i] = parent->cwd[i]; i++; }
             result->cwd[i] = '\0';
+            
+puts("inherit file table and cwd finish...\n");
         }
         else {
             fs_init(result->file_table);
@@ -1121,18 +1138,27 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     }
     
     /// USER PROGRAM
+puts("USER PROGRAM ...\n");
     result->context.mepc = eh->entry;
     
     if(exec_flag) {
+puts("EXEC....\n");
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
+puts("1");
         free_proc(parent);
+puts("2");
         gProc[gActiveProc] = result;
+puts("3");
         user_satp = MAKE_SATP(result->pagetable);
+puts("4");
         user_sp   = result->context.sp;
+puts("5");
 
         *child_proc_index = gActiveProc;
+puts("EXEC END....\n");
     }
     else {
+puts("NO EXEC....\n");
         if(gNumProc >= PROC_MAX) {
             int found = 0;
             for(int i=0; i<PROC_MAX; i++) {
@@ -1154,15 +1180,19 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             *child_proc_index = gNumProc -1;
         }
     }
+printf("alloc_prog pid %d\n", *child_proc_index);
 }
 
 void free_proc(struct proc *p) {
+puts("a");
     uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
     for (int i = 0; i < STACK_PAGES; i++) {
         char* pa = walkaddr(p->pagetable, stack_base + i*PGSIZE);
+printf("kfree pa %p\n", pa);
 
         kfree(pa);
     }
+puts("b");
     for (int i=0; i<p->num_process_pages; i++) {
         struct process_pages* page = p->process_pages[i];
         
@@ -1172,17 +1202,23 @@ void free_proc(struct proc *p) {
         
         kfree(page);
     }
+puts("c");
     kfree(p->process_pages);
+puts("d");
     
     if (p->program) {
         free(p->program);
         p->program = NULL;
     }
+puts("e");
     p->program_size = 0;
     
     free_pagetable(p->pagetable, 2);
+puts("f");
     kfree(p->pagetable);
+puts("g");
     kfree(p);
+puts("h");
 }
 
 struct file** get_current_file_table()
@@ -1393,6 +1429,7 @@ void uvmunmap(pagetable_t pagetable, uint64_t va, uint64_t npages, int do_free) 
         
         if(do_free){
             uint64_t pa = PTE2PA(*pte);
+puts("X\n");
             kfree((void*)pa);
         }
         *pte = 0;
@@ -1657,9 +1694,11 @@ uintptr_t syscall_handler()
             }
             break;
             
-        default:
-            printf("invalid syscall. syscall number %d", arg_syscall_no);
+        default: {
+            uint64_t mepc = trapframe->mepc;
+            printf("invalid syscall. syscall number %d mepc %p", arg_syscall_no, mepc);
             while(1);
+        }
     }
     
     trapframe->a0 = result;
