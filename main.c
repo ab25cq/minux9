@@ -325,12 +325,16 @@ void kfree(void *pa) {
 
     r = (struct run*)kmem.freelist;
     
+/*
     while(r) {
+//printf("r %p\n", r);
         if(r == pa) {
             return;
         }
+//printf("r->next %p\n", r->next);
         r = r->next;
     }
+*/
     
     r = (struct run*)pa;
 
@@ -353,6 +357,7 @@ void * kalloc(void) {
         memset((char*)r, 0, PGSIZE); // fill with junk
     }
     
+//printf("kalloc %p\n", r);
     return (void*)r;
 }
 

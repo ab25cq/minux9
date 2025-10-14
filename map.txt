@@ -22,7 +22,7 @@ LOAD syscall.o
                 0x0000000000040000                STACK_MAX = (0x1000 * STACK_PAGES)
                 0x0000000080000000                . = 0x80000000
 
-.text           0x0000000080000000     0xec0a
+.text           0x0000000080000000     0xebea
  *(.text*)
  .text          0x0000000080000000       0x3e entry.o
                 0x0000000080000000                entry
@@ -93,7 +93,7 @@ LOAD syscall.o
  .text          0x0000000080006c40       0x66 trap_c.o
                 0x0000000080006c40                trap_init
                 0x0000000080006c66                external_interrupt_handler
- .text          0x0000000080006ca6     0x3808 main.o
+ .text          0x0000000080006ca6     0x37e8 main.o
                 0x0000000080006ce2                sbrk
                 0x0000000080006da4                kalloc_pages
                 0x0000000080006e04                perror
@@ -109,110 +109,110 @@ LOAD syscall.o
                 0x000000008000719e                kinit
                 0x00000000800071d8                freerange
                 0x000000008000722c                kfree
-                0x00000000800072f2                kalloc
-                0x0000000080007356                kalloc_pagesX
-                0x00000000800074fe                kfree_pagesX
-                0x000000008000765a                walk
-                0x0000000080007728                mappages
-                0x00000000800077ca                dump_physical_memory
-                0x0000000080007894                vmprint_rec
-                0x0000000080007a26                vmprint
-                0x0000000080007a54                enable_mmu
-                0x0000000080007a88                uart_rx_handler
-                0x0000000080007ab2                uart_init
-                0x0000000080007af8                putc
-                0x0000000080007b3a                putchar
-                0x0000000080007b5c                mmu_init
-                0x0000000080007d08                walkaddr
-                0x0000000080007d78                copyout
-                0x0000000080007e46                copyin
-                0x0000000080007f0e                copyinstr
-                0x0000000080008034                setting_user_pagetable
-                0x00000000800085fe                alloc_prog
-                0x0000000080009310                free_proc
-                0x000000008000944e                get_current_file_table
-                0x00000000800094b8                enable_timer_interrupts
-                0x0000000080009502                disable_timer_interrupts
-                0x0000000080009532                timer_reset
-                0x000000008000955e                remove_kernel_state
-                0x000000008000967e                kernel_yield
-                0x0000000080009816                kernel_yield_return
-                0x00000000800099e8                timer_handler
-                0x0000000080009c26                uvmunmap
-                0x0000000080009cde                uvm_alloc
-                0x0000000080009e2e                uvm_dealloc
-                0x0000000080009e98                syscall_handler
-                0x000000008000a1e2                timerinit
-                0x000000008000a23a                get_current_proc
-                0x000000008000a264                global_init
-                0x000000008000a2c2                main
- .text          0x000000008000a4ae     0x195c libc.o
-                0x000000008000a57e                malloc
-                0x000000008000a656                free
-                0x000000008000a69c                calloc
-                0x000000008000a6f8                strdup
-                0x000000008000a752                strcmp
-                0x000000008000a7bc                strstr
-                0x000000008000a85a                memset
-                0x000000008000a8be                memcmp
-                0x000000008000a946                memmove
-                0x000000008000aa26                memcpy
-                0x000000008000aa5a                strncmp
-                0x000000008000aae8                strncpy
-                0x000000008000ab6e                strlen
-                0x000000008000aba8                puts
-                0x000000008000abe2                strncat
-                0x000000008000ac64                strchr
-                0x000000008000acc0                strtok
-                0x000000008000ae24                exit
-                0x000000008000b044                itoa
-                0x000000008000b186                vasprintf
-                0x000000008000bc46                printf
-                0x000000008000bd10                vsnprintf
-                0x000000008000bdaa                snprintf
- .text          0x000000008000be0a     0x2e00 syscall.o
-                0x000000008000be28                Sys_write
-                0x000000008000c058                Sys_exit
-                0x000000008000c120                Sys_sleep
-                0x000000008000c196                Sys_tcsetpgrp
-                0x000000008000c214                Sys_getpid
-                0x000000008000c23c                Sys_wait
-                0x000000008000c3ec                Sys_isatty
-                0x000000008000c4a4                Sys_open
-                0x000000008000c57a                Sys_opendir
-                0x000000008000c65a                Sys_getcwd
-                0x000000008000c760                Sys_chdir
-                0x000000008000cc16                Sys_mkdir
-                0x000000008000cc9c                Sys_rmdir
-                0x000000008000cd12                Sys_unlink
-                0x000000008000cd88                Sys_rename
-                0x000000008000ce40                Sys_link
-                0x000000008000cef8                Sys_symlink
-                0x000000008000cfb0                Sys_stat
-                0x000000008000d066                Sys_readlink
-                0x000000008000d15c                Sys_lstat
-                0x000000008000d212                Sys_chmod
-                0x000000008000d298                Sys_chown
-                0x000000008000d32e                Sys_settimeofday
-                0x000000008000d366                Sys_utimes
-                0x000000008000d3fc                Sys_umask
-                0x000000008000d478                Sys_gettimeofday
-                0x000000008000d4be                Sys_getuid
-                0x000000008000d4ee                Sys_getgid
-                0x000000008000d51e                Sys_setuid
-                0x000000008000d592                Sys_setgid
-                0x000000008000d606                Sys_realpath
-                0x000000008000d702                Sys_readdir
-                0x000000008000d85e                Sys_closedir
-                0x000000008000d8d4                Sys_fork
-                0x000000008000d9fc                Sys_execv
-                0x000000008000dfa6                Sys_execve
-                0x000000008000e70e                Sys_brk
-                0x000000008000e7d4                Sys_dup2
-                0x000000008000e864                Sys_pipe
-                0x000000008000e93a                Sys_read
-                0x000000008000eb20                Sys_fstat
-                0x000000008000ebb0                Sys_lseek
+                0x00000000800072d2                kalloc
+                0x0000000080007336                kalloc_pagesX
+                0x00000000800074de                kfree_pagesX
+                0x000000008000763a                walk
+                0x0000000080007708                mappages
+                0x00000000800077aa                dump_physical_memory
+                0x0000000080007874                vmprint_rec
+                0x0000000080007a06                vmprint
+                0x0000000080007a34                enable_mmu
+                0x0000000080007a68                uart_rx_handler
+                0x0000000080007a92                uart_init
+                0x0000000080007ad8                putc
+                0x0000000080007b1a                putchar
+                0x0000000080007b3c                mmu_init
+                0x0000000080007ce8                walkaddr
+                0x0000000080007d58                copyout
+                0x0000000080007e26                copyin
+                0x0000000080007eee                copyinstr
+                0x0000000080008014                setting_user_pagetable
+                0x00000000800085de                alloc_prog
+                0x00000000800092f0                free_proc
+                0x000000008000942e                get_current_file_table
+                0x0000000080009498                enable_timer_interrupts
+                0x00000000800094e2                disable_timer_interrupts
+                0x0000000080009512                timer_reset
+                0x000000008000953e                remove_kernel_state
+                0x000000008000965e                kernel_yield
+                0x00000000800097f6                kernel_yield_return
+                0x00000000800099c8                timer_handler
+                0x0000000080009c06                uvmunmap
+                0x0000000080009cbe                uvm_alloc
+                0x0000000080009e0e                uvm_dealloc
+                0x0000000080009e78                syscall_handler
+                0x000000008000a1c2                timerinit
+                0x000000008000a21a                get_current_proc
+                0x000000008000a244                global_init
+                0x000000008000a2a2                main
+ .text          0x000000008000a48e     0x195c libc.o
+                0x000000008000a55e                malloc
+                0x000000008000a636                free
+                0x000000008000a67c                calloc
+                0x000000008000a6d8                strdup
+                0x000000008000a732                strcmp
+                0x000000008000a79c                strstr
+                0x000000008000a83a                memset
+                0x000000008000a89e                memcmp
+                0x000000008000a926                memmove
+                0x000000008000aa06                memcpy
+                0x000000008000aa3a                strncmp
+                0x000000008000aac8                strncpy
+                0x000000008000ab4e                strlen
+                0x000000008000ab88                puts
+                0x000000008000abc2                strncat
+                0x000000008000ac44                strchr
+                0x000000008000aca0                strtok
+                0x000000008000ae04                exit
+                0x000000008000b024                itoa
+                0x000000008000b166                vasprintf
+                0x000000008000bc26                printf
+                0x000000008000bcf0                vsnprintf
+                0x000000008000bd8a                snprintf
+ .text          0x000000008000bdea     0x2e00 syscall.o
+                0x000000008000be08                Sys_write
+                0x000000008000c038                Sys_exit
+                0x000000008000c100                Sys_sleep
+                0x000000008000c176                Sys_tcsetpgrp
+                0x000000008000c1f4                Sys_getpid
+                0x000000008000c21c                Sys_wait
+                0x000000008000c3cc                Sys_isatty
+                0x000000008000c484                Sys_open
+                0x000000008000c55a                Sys_opendir
+                0x000000008000c63a                Sys_getcwd
+                0x000000008000c740                Sys_chdir
+                0x000000008000cbf6                Sys_mkdir
+                0x000000008000cc7c                Sys_rmdir
+                0x000000008000ccf2                Sys_unlink
+                0x000000008000cd68                Sys_rename
+                0x000000008000ce20                Sys_link
+                0x000000008000ced8                Sys_symlink
+                0x000000008000cf90                Sys_stat
+                0x000000008000d046                Sys_readlink
+                0x000000008000d13c                Sys_lstat
+                0x000000008000d1f2                Sys_chmod
+                0x000000008000d278                Sys_chown
+                0x000000008000d30e                Sys_settimeofday
+                0x000000008000d346                Sys_utimes
+                0x000000008000d3dc                Sys_umask
+                0x000000008000d458                Sys_gettimeofday
+                0x000000008000d49e                Sys_getuid
+                0x000000008000d4ce                Sys_getgid
+                0x000000008000d4fe                Sys_setuid
+                0x000000008000d572                Sys_setgid
+                0x000000008000d5e6                Sys_realpath
+                0x000000008000d6e2                Sys_readdir
+                0x000000008000d83e                Sys_closedir
+                0x000000008000d8b4                Sys_fork
+                0x000000008000d9dc                Sys_execv
+                0x000000008000df86                Sys_execve
+                0x000000008000e6ee                Sys_brk
+                0x000000008000e7b4                Sys_dup2
+                0x000000008000e844                Sys_pipe
+                0x000000008000e91a                Sys_read
+                0x000000008000eb00                Sys_fstat
+                0x000000008000eb90                Sys_lseek
                 0x000000008000f000                . = ALIGN (0x1000)
 
 .rodata         0x000000008000f000     0x29c0
@@ -402,7 +402,7 @@ LOAD syscall.o
  .debug_abbrev  0x0000000000000e32      0x351 libc.o
  .debug_abbrev  0x0000000000001183      0x305 syscall.o
 
-.debug_line     0x0000000000000000     0xe57f
+.debug_line     0x0000000000000000     0xe559
  *(.debug_line)
  .debug_line    0x0000000000000000       0x67 entry.o
  .debug_line    0x0000000000000067      0x2e2 start.o
@@ -410,9 +410,9 @@ LOAD syscall.o
  .debug_line    0x0000000000000a77     0x5ec3 fs.o
  .debug_line    0x000000000000693a      0x251 plic.o
  .debug_line    0x0000000000006b8b       0xa5 trap_c.o
- .debug_line    0x0000000000006c30     0x36d2 main.o
- .debug_line    0x000000000000a302     0x18c4 libc.o
- .debug_line    0x000000000000bbc6     0x29b9 syscall.o
+ .debug_line    0x0000000000006c30     0x36ac main.o
+ .debug_line    0x000000000000a2dc     0x18c4 libc.o
+ .debug_line    0x000000000000bba0     0x29b9 syscall.o
 
 .debug_str      0x0000000000000000     0x1a04
  *(.debug_str)

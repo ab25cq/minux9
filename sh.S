@@ -731,7 +731,7 @@ run_command:
 .LBE15:
 .LBE14:
 	.loc 1 111 9
-	li	a0,127
+	li	a0,126
 	call	exit
 .LBE4:
 	j	.L46
@@ -1084,7 +1084,7 @@ run_command:
 .LBE31:
 .LBE30:
 	.loc 1 154 13
-	li	a0,127
+	li	a0,126
 	call	exit
 .L46:
 .LBE22:

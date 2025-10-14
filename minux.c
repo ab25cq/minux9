@@ -2442,7 +2442,7 @@ int system(const char* command)
         char* argv[] = { "sh", "-c", (char*)command, NULL };
         char* envp[] = { NULL };
         execve("/sh", argv, envp);
-        _exit(127);
+        _exit(100);
     }
 
     int status = 0;

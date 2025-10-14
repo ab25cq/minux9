@@ -1,5 +1,16 @@
 //#include "minux9.h"
 
+int A;
+
+void fun()
+{
+}
+
+int main(int argc, char** argv)
+{
+    return 0;
+}
+
 /*
 int main(){ 
     asm ("li a7, 64\nmv a0, %0\nmv a1, %1\nmv a2, %2\necall\n"

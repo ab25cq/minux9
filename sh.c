@@ -108,7 +108,7 @@ int run_command(int n, struct sCommand* commands, int num_commands)
             argv[0] = abuf; // safe: we exit on failure anyway
             execve(argv[0], argv, envp);
         }
-        exit(127);
+        exit(126);
     }
     else {
         pipe(pipes);
@@ -151,7 +151,7 @@ int run_command(int n, struct sCommand* commands, int num_commands)
                 argv[0] = abuf;
                 execve(argv[0], argv, envp);
             }
-            exit(127);
+            exit(126);
         }
     }
     
