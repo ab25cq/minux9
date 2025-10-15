@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 # Host compiler for the emulator
 CC      ?= cc
-CFLAGS  ?= -std=c11 -O2 #-DJIT_ENABLED=1 -DJIT_REG_ALLOC_ENABLED=1
+CFLAGS  ?= -std=c11 -O2
 
 # RISC-V cross toolchain for building the sample ELF
 # Override as needed, e.g. `make RV_CC=clang run`
@@ -29,10 +29,9 @@ STEPS ?= 0
 
 all: rv64emu x1_set.elf mmu_smoke.elf
 
-# Build the emulator (native) with JIT support
-JIT_SOURCES = jit_cache.c jit_compiler.c
-rv64emu: rv64emu.c $(JIT_SOURCES) jit.h
-	$(CC) $(CFLAGS) rv64emu.c $(JIT_SOURCES) -o $@
+# Build the emulator (native)
+rv64emu: rv64emu.c
+	$(CC) $(CFLAGS) rv64emu.c -o $@
 
 # Build minimal ELF that writes x1 and exits via ecall
 x1_set.elf: x1_set.S
