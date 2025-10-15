@@ -1,5 +1,7 @@
 //#include "minux9.h"
 
+#include "a.h"
+
 int A;
 
 void fun()

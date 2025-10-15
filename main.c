@@ -1,6 +1,5 @@
 #include "common.h"
 #include "sh.h"
-#include "minux.h"
 
 typedef unsigned long size_t;
 typedef long ptrdiff_t;
@@ -913,8 +912,6 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         
     struct proghdr *ph = (struct proghdr *)(elf_buf + eh->phoff);
     
-printf("loading elf image...\n");
-    
     uint64_t va = 0;
     uint64_t max_va_end = 0;
     for (int i = 0; i < eh->phnum; i++, ph++) {
@@ -998,7 +995,6 @@ printf("loading elf image...\n");
     
     result->vaddr = ph->vaddr;
     result->memsz = ph->memsz;
-printf("finish loading elf image...\n");
 
     // Find global pointer
     uint64_t gp = 0;
@@ -1041,10 +1037,8 @@ printf("finish loading elf image...\n");
         // For non-PIC code this might be okay. For PIC/GP-relative, it will fail.
         //puts("Warning: __global_pointer$ not found(2)\n");
     }
-printf("determing gp...\n");
 
     if(fork_flag) {
-puts("foring");
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
 #ifdef DEBUG_CWD
         printf("[fork] parent=%d cwd='%s'\n", gActiveProc, parent->cwd);
@@ -1062,7 +1056,6 @@ puts("foring");
         uint64_t parent_current    = parent->context.sp;
         uint64_t parent_stack_top   = (uint64_t)parent->stack_top;
         
-puts("foring... copy starting...");
         uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
         for (int i = 0; i < STACK_PAGES; i++) {
             char *pa = kalloc();
@@ -1078,7 +1071,6 @@ puts("foring... copy starting...");
              (uint64_t)pa,
              PTE_U|PTE_R|PTE_W|PTE_V);
         }
-puts("finish copying...");
         asm volatile("sfence.vma zero, zero"); 
 
         result->stack_top  = (char*)stack_base;
@@ -1091,7 +1083,6 @@ puts("finish copying...");
 #endif
     }
     else {
-puts("be ready for stack....\n");
         uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
         for (int i = 0; i < STACK_PAGES; i++) {
             char *pa = kalloc();
@@ -1103,7 +1094,6 @@ puts("be ready for stack....\n");
              PTE_U|PTE_R|PTE_W|PTE_V);
         }
         asm volatile("sfence.vma zero, zero"); 
-puts("be ready for stack....finish\n");
 
         result->stack_top  = (char*)stack_base;
         result->context.sp = stack_base + STACK_PAGES*PGSIZE;
@@ -1112,7 +1102,6 @@ puts("be ready for stack....finish\n");
         asm volatile("sfence.vma zero, zero"); 
     
         if(exec_flag) {
-puts("exec....\n");
             struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
             
             result->parent = parent->parent;
@@ -1126,8 +1115,6 @@ puts("exec....\n");
             result->pgrp = parent->pgrp;
             int i=0; while (parent->cwd[i] && i < (int)sizeof(result->cwd)-1) { result->cwd[i] = parent->cwd[i]; i++; }
             result->cwd[i] = '\0';
-            
-puts("inherit file table and cwd finish...\n");
         }
         else {
             fs_init(result->file_table);
@@ -1135,11 +1122,9 @@ puts("inherit file table and cwd finish...\n");
     }
     
     /// USER PROGRAM
-puts("USER PROGRAM ...\n");
     result->context.mepc = eh->entry;
     
     if(exec_flag) {
-puts("EXEC....\n");
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
         free_proc(parent);
         gProc[gActiveProc] = result;
@@ -1147,10 +1132,8 @@ puts("EXEC....\n");
         user_sp   = result->context.sp;
 
         *child_proc_index = gActiveProc;
-puts("EXEC END....\n");
     }
     else {
-puts("NO EXEC....\n");
         if(gNumProc >= PROC_MAX) {
             int found = 0;
             for(int i=0; i<PROC_MAX; i++) {
@@ -1172,7 +1155,6 @@ puts("NO EXEC....\n");
             *child_proc_index = gNumProc -1;
         }
     }
-printf("alloc_prog pid %d\n", *child_proc_index);
 }
 
 void free_proc(struct proc *p) {

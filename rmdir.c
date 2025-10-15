@@ -1,5 +1,4 @@
 #include "minux.h"
-#include "fs.h"
 
 static int ustrlen(const char* s) { int n=0; if(!s) return 0; while(s[n]) n++; return n; }
 static void prints(const char* s) { write(1, s, ustrlen(s)); }

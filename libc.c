@@ -1,22 +1,5 @@
 #include "common.h"
 
-typedef struct __minux_FILE {
-  int fd;
-  int flags;   // 1=readable, 2=writable, 4=append
-  long pos;
-  int eof;
-  int err;
-  int have_push;
-  unsigned char push_ch;
-  // memory stream support (fd < 0 if memory stream)
-  int is_mem;
-  char **ms_bufp;
-  size_t *ms_sizep;
-  char *ms_buf;    // internal buffer
-  size_t ms_cap;   // capacity of ms_buf
-  size_t ms_len;   // valid length
-} FILE;
-
 FILE __stdin  = { .fd = 0, .flags = 1, .pos = 0 };
 FILE __stdout = { .fd = 1, .flags = 2, .pos = 0 };
 FILE __stderr = { .fd = 2, .flags = 2, .pos = 0 };

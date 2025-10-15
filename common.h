@@ -4,8 +4,8 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "minux.h"
 #include "elf.h"
-#include "fs.h"
 
 #define nullptr ((void*)0)
 #define NULL ((void*)0)

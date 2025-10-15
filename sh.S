@@ -2401,7 +2401,7 @@ main:
 	.uleb128 0x12
 	.4byte	.LASF14
 	.byte	0x3
-	.byte	0x2a
+	.byte	0xa9
 	.byte	0xd
 	.4byte	0x3c
 	.uleb128 0xd
@@ -2482,7 +2482,7 @@ main:
 	.8byte	shell_pgrp
 	.uleb128 0xf
 	.4byte	.LASF19
-	.2byte	0x28c
+	.2byte	0x30b
 	.byte	0x5
 	.4byte	0x3c
 	.4byte	0x169
@@ -2492,7 +2492,7 @@ main:
 	.byte	0
 	.uleb128 0xf
 	.4byte	.LASF20
-	.2byte	0x2a3
+	.2byte	0x322
 	.byte	0x7
 	.4byte	0x98
 	.4byte	0x189
@@ -2505,7 +2505,7 @@ main:
 	.byte	0
 	.uleb128 0xf
 	.4byte	.LASF21
-	.2byte	0x2b9
+	.2byte	0x338
 	.byte	0x5
 	.4byte	0x3c
 	.4byte	0x1a4
@@ -2516,14 +2516,14 @@ main:
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF22
-	.2byte	0x1b2
+	.2byte	0x231
 	.4byte	0x1b5
 	.uleb128 0x9
 	.4byte	0x3c
 	.byte	0
 	.uleb128 0x13
 	.4byte	.LASF23
-	.2byte	0x2a4
+	.2byte	0x323
 	.4byte	0x1c6
 	.uleb128 0x9
 	.4byte	0xa9

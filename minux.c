@@ -2405,11 +2405,6 @@ void* _impure_ptr(void)
     return NULL;
 }
 
-char* getenv(char* env)
-{
-    return NULL;
-}
-
 unsigned sleep(unsigned seconds)
 {
     register long a0 asm("a0") = (long)seconds;
@@ -2451,4 +2446,9 @@ int system(const char* command)
         return status;
 
     return 0;
+}
+
+char* getenv(const char* str)
+{
+    return NULL;
 }
