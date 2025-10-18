@@ -1822,11 +1822,7 @@ static char* readline_simple(const char* prompt) {
     }
 
     if (ch == '\r') {
-      int next = fgetc(stdin);
-      if (next != '\n' && next != EOF) {
-        ungetc(next, stdin);
-      }
-      break;
+      ch = '\n';
     }
 
     if (ch == '\n') {
@@ -1924,10 +1920,6 @@ static char* readline_interactive(const char* prompt) {
     }
 
     if (ch == '\r') {
-      int next = fgetc(stdin);
-      if (next != '\n' && next != EOF) {
-        ungetc(next, stdin);
-      }
       ch = '\n';
     }
 
