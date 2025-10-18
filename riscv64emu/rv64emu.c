@@ -22,131 +22,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define TLB_SIZE 256
-#define TLB_PERM_R 0x1
-#define TLB_PERM_W 0x2
-#define TLB_PERM_X 0x4
-#define TLB_PERM_U 0x8
-
-typedef struct {
-    uint64_t tag;
-    uint64_t pa_base;
-    uint16_t asid;
-    uint8_t perms;
-    uint8_t valid;
-} tlb_entry_t;
-
-#define EM_RISCV 243
-
-typedef struct {
-    uint64_t pc;
-    uint64_t x[32]; // x0..x31, x0 is hardwired to 0
-    // 日本語: 汎用レジスタ x0〜x31（x0 は常に 0）。
-    bool halt;
-    uint64_t exit_code;
-    // CSRs for full system operation
-    uint64_t csr_satp;     // Address translation
-    uint64_t csr_mstatus;  // Machine status
-    uint64_t csr_mtvec;    // Machine trap-handler base address
-    uint64_t csr_mepc;     // Machine exception program counter
-    uint64_t csr_mcause;   // Machine trap cause
-    uint64_t csr_mtval;    // Machine bad address or instruction
-    uint64_t csr_mie;      // Machine interrupt enable
-    uint64_t csr_mip;      // Machine interrupt pending
-    uint64_t csr_mideleg;  // Machine interrupt delegation
-    uint64_t csr_medeleg;  // Machine exception delegation
-    uint64_t csr_sstatus;  // Supervisor status
-    uint64_t csr_stvec;    // Supervisor trap-handler base address
-    uint64_t csr_sepc;     // Supervisor exception program counter
-    uint64_t csr_scause;   // Supervisor trap cause
-    uint64_t csr_stval;    // Supervisor bad address or instruction
-    uint64_t csr_sie;      // Supervisor interrupt enable
-    uint64_t csr_sip;      // Supervisor interrupt pending
-    uint64_t csr_sscratch; // Supervisor scratch register (0x140)
-    uint64_t csr_custom51; // Custom CSR 0x51
-    uint64_t csr_time;     // Time counter (0xC01) - read-only shadow of mtime
-    uint64_t csr_menvcfg;  // Machine environment configuration (0x30a)
-    uint64_t csr_mcounteren; // Machine counter enable (0x306)
-    uint64_t csr_stimecmp; // Supervisor timer compare (0x14d)
-    // Privilege level: 0=U, 1=S, 3=M
-    int priv;
-    // Trap handling state
-    bool pending_interrupt;
-    uint64_t interrupt_cause;
-    // LR/SC (Load-Reserved/Store-Conditional) support
-    bool lr_valid;
-    uint64_t lr_addr;
-    // Simple direct-mapped TLB for Sv39 address translation
-    tlb_entry_t tlb[TLB_SIZE];
-} cpu_t;
-
-typedef struct {
-    uint8_t *data;
-    uint64_t size;
-    uint64_t base; // base physical address
-    // 日本語: ホスト側に確保したフラットメモリ領域（先頭物理アドレス base）。
-} mem_t;
-
-// Device I/O structure
-typedef struct {
-    uint64_t uart_base;  // UART base address
-    uint8_t uart_thr;    // Transmit holding register
-    uint8_t uart_rbr;    // Receive buffer register
-    uint8_t uart_lsr;    // Line status register
-    bool uart_thr_empty; // THR empty flag
-    bool uart_rx_ready;  // RX data ready flag
-    uint64_t uart_write_count; // Count of UART writes
-
-    // VirtIO block device
-    uint64_t virtio_base;
-    uint8_t *disk_image;
-    uint64_t disk_size;
-    FILE *disk_file;
-
-    // VirtIO MMIO registers
-    uint32_t virtio_device_features;
-    uint32_t virtio_driver_features;
-    uint32_t virtio_queue_sel;
-    uint32_t virtio_queue_num;
-    uint32_t virtio_queue_ready;
-    uint64_t virtio_queue_desc;
-    uint64_t virtio_queue_avail;
-    uint64_t virtio_queue_used;
-    uint32_t virtio_status;
-    uint32_t virtio_interrupt_status;
-    uint32_t virtio_interrupt_ack;
-
-    // CLINT (Core-Local Interrupt Controller)
-    uint64_t clint_base;
-    uint64_t mtime;      // Machine time
-    uint64_t mtimecmp;   // Machine time comparison
-
-    // PLIC (Platform-Level Interrupt Controller)
-    uint64_t plic_base;
-    uint32_t plic_priority[32];  // Interrupt priorities
-    uint32_t plic_pending;       // Pending interrupts
-    uint32_t plic_menable;       // Machine mode enable
-    uint32_t plic_mpriority;     // Machine mode priority threshold
-
-    // Interrupt statistics
-    uint64_t timer_interrupt_count;
-    uint64_t external_interrupt_count;
-} devices_t;
-
-// Mark that cpu_t, mem_t, devices_t are defined
-#define CPU_T_DEFINED
-
-typedef enum {
-    ACCESS_FETCH,
-    ACCESS_LOAD,
-    ACCESS_STORE,
-} access_t;
-
-typedef struct {
-    uint32_t raw;
-    uint32_t opcode, rd, rs1, rs2, funct3, funct7;
-    int64_t imm_i, imm_s, imm_b, imm_u, imm_j;
-} dec_t;
+#include "rv64emu.h"
+#include "jit.h"
 
 // MMU / address translation helpers (SV39)
 
@@ -157,11 +34,6 @@ static int g_sv39_debug_count = 0;
 static inline uint64_t satp_mode(uint64_t satp) { return (satp >> 60) & 0xF; }
 static inline uint64_t satp_asid(uint64_t satp) { return (satp >> 44) & 0xFFFF; }
 static inline uint64_t satp_ppn(uint64_t satp)  { return satp & ((1ULL<<44)-1); }
-
-typedef struct {
-    bool trace;
-    uint64_t max_steps; // 0 = unlimited
-} run_opts_t;
 
 // Global pointer to current CPU for debug output
 static cpu_t *g_debug_cpu = NULL;
@@ -1328,7 +1200,9 @@ static bool check_pending_interrupts(cpu_t *cpu, devices_t *dev) {
         }
         if (s_pending & MIP_STIP) {
             dev->timer_interrupt_count++;
+            fprintf(stderr, "[DEBUG] Taking S-mode timer interrupt: PC=0x%016" PRIx64 " priv=%d\n", cpu->pc, cpu->priv);
             take_trap(cpu, INTERRUPT_S_TIMER, 0);
+            fprintf(stderr, "[DEBUG] After trap: PC=0x%016" PRIx64 " (should be stvec)\n", cpu->pc);
             return true;
         }
         if (s_pending & MIP_SSIP) {
@@ -1407,6 +1281,7 @@ uint8_t vmem_read8(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vaddr,
     uint64_t pa;
     if (!virt_to_phys(cpu, mem, vaddr, acc, &pa)) {
         fprintf(stderr, "MMU: page fault on read8 @0x%016" PRIx64 "\n", vaddr);
+        cpu->trap_in_progress = true;  // Signal JIT that trap occurred during memory access
         take_trap(cpu, CAUSE_LOAD_PAGE_FAULT, vaddr);
         return 0;
     }
@@ -1417,6 +1292,7 @@ uint16_t vmem_read16(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vadd
         uint64_t pa;
         if (!virt_to_phys(cpu, mem, vaddr, acc, &pa)) {
             fprintf(stderr, "MMU: page fault on read16 @0x%016" PRIx64 "\n", vaddr);
+            cpu->trap_in_progress = true;
             take_trap(cpu, CAUSE_LOAD_PAGE_FAULT, vaddr);
             return 0;
         }
@@ -1437,6 +1313,7 @@ uint32_t vmem_read32(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vadd
         uint64_t pa;
         if (!virt_to_phys(cpu, mem, vaddr, acc, &pa)) {
             fprintf(stderr, "MMU: page fault on read32 @0x%016" PRIx64 "\n", vaddr);
+            cpu->trap_in_progress = true;
             take_trap(cpu, CAUSE_LOAD_PAGE_FAULT, vaddr);
             return 0;
         }
@@ -1461,6 +1338,7 @@ uint64_t vmem_read64(cpu_t *cpu, const mem_t *mem, devices_t *dev, uint64_t vadd
         uint64_t pa;
         if (!virt_to_phys(cpu, mem, vaddr, acc, &pa)) {
             fprintf(stderr, "MMU: page fault on read64 @0x%016" PRIx64 "\n", vaddr);
+            cpu->trap_in_progress = true;
             take_trap(cpu, CAUSE_LOAD_PAGE_FAULT, vaddr);
             return 0;
         }
@@ -1475,26 +1353,31 @@ void vmem_write8(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint8_t
     // Check if this is a device address first - device I/O bypasses MMU
     if (is_device_addr(dev, vaddr)) {
         mem_write8_dev(mem, dev, vaddr, val);
+        jit_backend_invalidate(vaddr, 1);
         return;
     }
 
     uint64_t pa;
     if (!virt_to_phys(cpu, mem, vaddr, acc, &pa)) {
         fprintf(stderr, "MMU: page fault on write8 @0x%016" PRIx64 "\n", vaddr);
+        cpu->trap_in_progress = true;
         take_trap(cpu, CAUSE_STORE_AMO_PAGE_FAULT, vaddr);
         return;
     }
     mem_write8_dev(mem, dev, pa, val);
+    jit_backend_invalidate(vaddr, 1);
 }
 void vmem_write16(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint16_t val, access_t acc) {
     if (!is_device_addr(dev, vaddr) && !vaddr_crosses_page(vaddr, 2)) {
         uint64_t pa;
         if (!virt_to_phys(cpu, mem, vaddr, acc, &pa)) {
             fprintf(stderr, "MMU: page fault on write16 @0x%016" PRIx64 "\n", vaddr);
+            cpu->trap_in_progress = true;
             take_trap(cpu, CAUSE_STORE_AMO_PAGE_FAULT, vaddr);
             return;
         }
         mem_write16(mem, pa, val);
+        jit_backend_invalidate(vaddr, 2);
         return;
     }
 
@@ -1505,6 +1388,7 @@ void vmem_write32(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint32
     // Check if this is a device address first - device I/O bypasses MMU
     if (is_device_addr(dev, vaddr)) {
         device_write32_dev(mem, dev, vaddr, val);
+        jit_backend_invalidate(vaddr, 4);
         return;
     }
 
@@ -1516,6 +1400,7 @@ void vmem_write32(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint32
             return;
         }
         mem_write32(mem, pa, val);
+        jit_backend_invalidate(vaddr, 4);
         return;
     }
 
@@ -1527,6 +1412,7 @@ void vmem_write64(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint64
     // Check if this is a device address first - device I/O bypasses MMU
     if (is_device_addr(dev, vaddr)) {
         for (int i = 0; i < 8; i++) mem_write8_dev(mem, dev, vaddr+i, (uint8_t)((val >> (8*i)) & 0xff));
+        jit_backend_invalidate(vaddr, 8);
         return;
     }
 
@@ -1538,6 +1424,7 @@ void vmem_write64(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t vaddr, uint64
             return;
         }
         mem_write64(mem, pa, val);
+        jit_backend_invalidate(vaddr, 8);
         return;
     }
 
@@ -1552,6 +1439,40 @@ static inline void set_x(cpu_t *cpu, int rd, uint64_t val) {
     }
 }
 // 日本語: x0 は常に 0 なので書き込み禁止。他はレジスタ書き込み。
+
+uint64_t jit_cpu_get_reg(const cpu_t *cpu, uint32_t idx) {
+    if (idx >= 32) {
+        return 0;
+    }
+    return cpu->x[idx];
+}
+
+void jit_cpu_set_reg(cpu_t *cpu, uint32_t idx, uint64_t value) {
+    if (idx == 0 || idx >= 32) {
+        return;
+    }
+    cpu->x[idx] = value;
+}
+
+uint64_t jit_cpu_get_pc(const cpu_t *cpu) {
+    return cpu->pc;
+}
+
+void jit_cpu_set_pc(cpu_t *cpu, uint64_t pc) {
+    cpu->pc = pc;
+}
+
+void jit_cpu_force_x0_zero(cpu_t *cpu) {
+    cpu->x[0] = 0;
+}
+
+bool jit_cpu_check_trap(cpu_t *cpu) {
+    if (cpu->trap_in_progress) {
+        cpu->trap_in_progress = false;
+        return true;
+    }
+    return false;
+}
 
 static void dump_regs(const cpu_t *cpu) {
     static const char *abi[32] = {
@@ -1678,7 +1599,7 @@ static inline uint64_t zext32(uint64_t x) { return (uint32_t)x; }
 static inline uint64_t sext32(uint64_t x) { return (uint64_t)(int64_t)(int32_t)(uint32_t)x; }
 
 // Basic C-extension decoder
-static uint32_t decompress_c_inst(uint16_t c_inst) {
+uint32_t decompress_c_inst(uint16_t c_inst) {
     uint32_t opcode = c_inst & 0x3;
     uint32_t funct3 = (c_inst >> 13) & 0x7;
     uint32_t rd_rs1 = (c_inst >> 7) & 0x1f;
@@ -1937,6 +1858,73 @@ static uint32_t decompress_c_inst(uint16_t c_inst) {
     }
 }
 
+bool fetch_and_decode(cpu_t *cpu, mem_t *mem, devices_t *dev, uint64_t pc, dec_t *out_dec,
+                      uint64_t *next_pc, uint32_t *raw_inst, bool *was_compressed) {
+    uint32_t inst = 0;
+    uint64_t local_next_pc = pc + 4;
+    bool compressed = false;
+
+    uint16_t inst16 = vmem_read16(cpu, mem, dev, pc, ACCESS_FETCH);
+    if ((inst16 & 3u) != 3u) {
+        uint16_t c_inst = inst16;
+        uint32_t expanded = decompress_c_inst(c_inst);
+        if (expanded == 0) {
+            if (c_inst == 0x0000) {
+                inst = 0x00000013u;
+            } else {
+                fprintf(stderr, "Unknown compressed instruction 0x%04x at PC=0x%016" PRIx64 "\n", c_inst, pc);
+                cpu->halt = true;
+                return false;
+            }
+        } else {
+            inst = expanded;
+        }
+        local_next_pc = pc + 2;
+        compressed = true;
+    } else {
+        inst = vmem_read32(cpu, mem, dev, pc, ACCESS_FETCH);
+    }
+
+    if (cpu->priv == 1 && cpu->csr_satp == 0) {
+        if (pc < 0x80000000 || pc > 0x82000000) {
+            fprintf(stderr, "ERROR: Invalid PC 0x%016" PRIx64 " in S-mode with MMU disabled!\n", pc);
+            fprintf(stderr, "This indicates a jump to uninitialized/invalid memory.\n");
+            cpu->halt = true;
+            return false;
+        }
+        if ((pc > 0x80032ba0 && pc < 0x8098b000) || pc > 0x81200000) {
+            static int warn_count = 0;
+            if (warn_count++ < 10) {
+                fprintf(stderr, "WARNING: PC 0x%016" PRIx64 " in unexpected memory range\n", pc);
+            }
+        }
+    }
+
+    if (pc == 0x800097d6) {
+        fprintf(stderr, ">>> At timerinit call site\n");
+    } else if (pc == 0x800097da) {
+        fprintf(stderr, ">>> At trap_init call site (returned from timerinit)\n");
+    } else if (pc == 0x80009802) {
+        fprintf(stderr, ">>> At kinit call site (returned from trap_init)\n");
+    } else if (pc == 0x80009826) {
+        fprintf(stderr, ">>> At mmu_init call site (returned from kinit!)\n");
+    }
+
+    if (false && (pc == 0x800000e0 || pc == 0x800002c8 || pc == 0x800002d2 ||
+                  pc == 0x800002e2 || pc == 0x800002f4 || pc == 0x800002f6 ||
+                  pc == 0x80000312)) {
+        fprintf(stderr, "Fetched instruction: 0x%08x\n", inst);
+        fprintf(stderr, "next_pc after fetch: 0x%016" PRIx64 "\n", local_next_pc);
+    }
+
+    if (raw_inst) *raw_inst = inst;
+    if (next_pc) *next_pc = local_next_pc;
+    if (was_compressed) *was_compressed = compressed;
+    if (out_dec) *out_dec = decode(inst);
+
+    return true;
+}
+
 static void step(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
     uint64_t pc = cpu->pc;
     // Record PC history
@@ -1984,67 +1972,12 @@ static void step(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) 
         }
     }
 
-    uint32_t inst;
+    uint32_t inst = 0;
     uint64_t next_pc = pc + 4;
-
-    // Check for compressed instruction
-    if ((vmem_read16(cpu, mem, dev, pc, ACCESS_FETCH) & 3) != 3) {
-        uint16_t c_inst = vmem_read16(cpu, mem, dev, pc, ACCESS_FETCH);
-        inst = decompress_c_inst(c_inst);
-        if (inst == 0) {
-            // Handle special cases
-            if (c_inst == 0x0000) {
-                // 0x0000 is typically an illegal instruction or uninitialized memory
-                // Treat as NOP for now to allow kernel to continue
-                inst = 0x00000013; // NOP (addi x0, x0, 0)
-            } else {
-                fprintf(stderr, "Unknown compressed instruction 0x%04x at PC=0x%016" PRIx64 "\n", c_inst, pc);
-                exit(1);
-            }
-        }
-        next_pc = pc + 2;  // Compressed instructions are 2 bytes
-    } else {
-        inst = vmem_read32(cpu, mem, dev, pc, ACCESS_FETCH);
+    dec_t d = {0};
+    if (!fetch_and_decode(cpu, mem, dev, pc, &d, &next_pc, &inst, NULL)) {
+        return;
     }
-
-    // Check for invalid PC (outside kernel text/data/bss sections)
-    // Kernel sections: text(0x80000000-0x8000e780), data(0x80011878-0x8002a3a8), bss(0x8002a400-0x80032ba0)
-    // Also allow _end3 region (0x8098b000-0x8110000) which is used by kinit/freerange
-    if (cpu->priv == 1 && cpu->csr_satp == 0) { // S-mode with MMU disabled
-        if (pc < 0x80000000 || pc > 0x82000000) {
-            fprintf(stderr, "ERROR: Invalid PC 0x%016" PRIx64 " in S-mode with MMU disabled!\n", pc);
-            fprintf(stderr, "This indicates a jump to uninitialized/invalid memory.\n");
-            cpu->halt = true;
-            return;
-        }
-        // Warn if PC is in unexpected range
-        if ((pc > 0x80032ba0 && pc < 0x8098b000) || pc > 0x81200000) {
-            static int warn_count = 0;
-            if (warn_count++ < 10) {
-                fprintf(stderr, "WARNING: PC 0x%016" PRIx64 " in unexpected memory range\n", pc);
-            }
-        }
-    }
-
-    // Track key PCs in main function
-    if (pc == 0x800097d6) {
-        fprintf(stderr, ">>> At timerinit call site\n");
-    } else if (pc == 0x800097da) {
-        fprintf(stderr, ">>> At trap_init call site (returned from timerinit)\n");
-    } else if (pc == 0x80009802) {
-        fprintf(stderr, ">>> At kinit call site (returned from trap_init)\n");
-    } else if (pc == 0x80009826) {
-        fprintf(stderr, ">>> At mmu_init call site (returned from kinit!)\n");
-    }
-
-    // Debug: Show fetched instruction for problematic PCs
-    if (false && (pc == 0x800000e0 || pc == 0x800002c8 || pc == 0x800002d2 || pc == 0x800002e2 || pc == 0x800002f4 || pc == 0x800002f6 || pc == 0x80000312)) {
-        fprintf(stderr, "Fetched instruction: 0x%08x\n", inst);
-        fprintf(stderr, "next_pc after fetch: 0x%016" PRIx64 "\n", next_pc);
-    }
-
-    // 日本語: 16bit 圧縮命令(C拡張)は非対応。下位2bit!=3 は圧縮形式。
-    dec_t d = decode(inst);
 
     // Debug: Show decoded instruction for problematic PCs
     if (false && (pc == 0x800000e0 || pc == 0x800002c8 || pc == 0x800002d2)) {
@@ -2600,6 +2533,7 @@ typedef struct {
     uint64_t satp_val;
     bool rootpt_set;
     uint64_t rootpt_pa;
+    bool use_llvm_jit;
 } cli_t;
 // 日本語: コマンドライン引数の保持用。画像の種類（ELF/RAW）、メモリ設定、トレース等。
 
@@ -2618,7 +2552,8 @@ static void usage(const char *prog) {
         "  --rootpt <hex>    Set SV39 root page table physical address (implies sv39)\n"
         "  --trace           Enable instruction + regs trace\n"
         "  --steps <N>       Max steps before stop (0=inf)\n"
-        "  --smoke           Run built-in smoke (no file needed)\n",
+        "  --smoke           Run built-in smoke (no file needed)\n"
+        "  --llvm-jit        Enable experimental LLVM JIT backend\n",
         prog);
 }
 
@@ -2655,6 +2590,7 @@ static void cli_defaults(cli_t *c) {
     c->satp_val = 0;
     c->rootpt_set = false;
     c->rootpt_pa = 0;
+    c->use_llvm_jit = false;
 }
 
 static bool cli_parse(cli_t *c, int argc, char **argv) {
@@ -2707,6 +2643,8 @@ static bool cli_parse(cli_t *c, int argc, char **argv) {
             if (!parse_u64(argv[i], &c->run.max_steps)) { fprintf(stderr, "invalid --steps\n"); return false; }
         } else if (strcmp(a, "--smoke") == 0) {
             c->smoke = true;
+        } else if (strcmp(a, "--llvm-jit") == 0) {
+            c->use_llvm_jit = true;
         } else {
             fprintf(stderr, "Unknown arg: %s\n", a);
             usage(prog);
@@ -2751,7 +2689,7 @@ static void check_uart_rx(devices_t *dev) {
     }
 }
 
-static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
+static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt, bool use_jit) {
     g_debug_cpu = cpu; // Set global debug pointer
     uint64_t steps = 0;
 
@@ -2787,10 +2725,26 @@ static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
         }
 
         // Check for pending interrupts before executing instruction
-        check_pending_interrupts(cpu, dev);
+        bool interrupt_taken = check_pending_interrupts(cpu, dev);
+        if (interrupt_taken) {
+            fprintf(stderr, "[DEBUG] Interrupt taken, PC now=0x%016" PRIx64 "\n", cpu->pc);
+        }
 
-        step(cpu, mem, dev, opt);
-        steps++;
+        uint64_t executed = 0;
+        bool jit_allowed = use_jit && !(opt && opt->trace);
+        if (jit_allowed) {
+            uint64_t pc_before_jit = cpu->pc;
+            executed = jit_backend_step(cpu, mem, dev, opt);
+            if (executed > 0) {
+                fprintf(stderr, "[DEBUG] JIT executed %lu instructions from PC=0x%016" PRIx64 " to PC=0x%016" PRIx64 "\n",
+                        executed, pc_before_jit, cpu->pc);
+            }
+        }
+        if (!jit_allowed || executed == 0) {
+            step(cpu, mem, dev, opt);
+            executed = 1;
+        }
+        steps += executed;
         if (opt->max_steps && steps >= opt->max_steps) {
             fprintf(stderr, "Hit max steps (%" PRIu64 "), stopping.\n", opt->max_steps);
             fprintf(stderr, "UART writes: %" PRIu64 "\n", dev->uart_write_count);
@@ -2879,10 +2833,25 @@ int main(int argc, char **argv) {
     if (cli.entry_set) entry = cli.entry;
     cpu.pc = entry;
 
-    run(&cpu, &mem, &dev, &cli.run);
+    bool jit_enabled = false;
+    if (cli.use_llvm_jit) {
+        if (!jit_backend_available()) {
+            fprintf(stderr, "LLVM JIT backend not available in this build; running interpreter.\n");
+        } else if (!jit_backend_init()) {
+            fprintf(stderr, "Failed to initialize LLVM JIT backend; running interpreter.\n");
+        } else {
+            jit_enabled = true;
+        }
+    }
+
+    run(&cpu, &mem, &dev, &cli.run, jit_enabled);
 
     // Restore terminal settings before exit
     restore_stdin();
+
+    if (jit_enabled) {
+        jit_backend_shutdown();
+    }
 
     if (cpu.halt) {
         printf("ECALL exit: %" PRIu64 "\n", cpu.exit_code);

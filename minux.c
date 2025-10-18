@@ -1773,6 +1773,430 @@ char* fgets(char* s, int size, FILE* fp) {
   return s;
 }
 
+#define RL_HISTORY_MAX 32
+static char* rl_history[RL_HISTORY_MAX];
+static size_t rl_history_len = 0;
+
+static void rl_history_add(const char* line) {
+  if (!line || !*line) {
+    return;
+  }
+  if (rl_history_len > 0 && strcmp(rl_history[rl_history_len - 1], line) == 0) {
+    return;
+  }
+  char* copy = strdup(line);
+  if (!copy) {
+    return;
+  }
+  if (rl_history_len == RL_HISTORY_MAX) {
+    free(rl_history[0]);
+    for (size_t i = 1; i < RL_HISTORY_MAX; ++i) {
+      rl_history[i - 1] = rl_history[i];
+    }
+    rl_history_len = RL_HISTORY_MAX - 1;
+  }
+  rl_history[rl_history_len++] = copy;
+}
+
+static char* readline_simple(const char* prompt) {
+  if (prompt) {
+    fputs(prompt, stdout);
+    fflush(stdout);
+  }
+
+  size_t cap = 64;
+  char* buf = (char*)malloc(cap);
+  if (!buf) {
+    return NULL;
+  }
+
+  size_t len = 0;
+  while (1) {
+    int ch = fgetc(stdin);
+    if (ch == EOF) {
+      if (len == 0) {
+        free(buf);
+        return NULL;
+      }
+      break;
+    }
+
+    if (ch == '\r') {
+      int next = fgetc(stdin);
+      if (next != '\n' && next != EOF) {
+        ungetc(next, stdin);
+      }
+      break;
+    }
+
+    if (ch == '\n') {
+      break;
+    }
+
+    if (len + 1 >= cap) {
+      size_t newcap = cap * 2;
+      char* bigger = (char*)realloc(buf, newcap);
+      if (!bigger) {
+        free(buf);
+        return NULL;
+      }
+      buf = bigger;
+      cap = newcap;
+    }
+
+    buf[len++] = (char)ch;
+  }
+
+  buf[len] = '\0';
+  return buf;
+}
+
+static void rl_redraw_line(const char* prompt, size_t prompt_len,
+                           const char* buf, size_t len, size_t cur) {
+  fputs("\r", stdout);
+  if (prompt_len) {
+    fwrite(prompt, 1, prompt_len, stdout);
+  }
+  if (len) {
+    fwrite(buf, 1, len, stdout);
+  }
+  fputs("\033[K", stdout);
+  size_t total = prompt_len + len;
+  size_t desired = prompt_len + cur;
+  if (total > desired) {
+    unsigned long moves = (unsigned long)(total - desired);
+    fprintf(stdout, "\033[%luD", moves);
+  }
+  fflush(stdout);
+}
+
+static int rl_ensure_capacity(char** bufp, size_t* capp, size_t needed) {
+  if (needed <= *capp) {
+    return 0;
+  }
+  size_t newcap = *capp;
+  while (newcap < needed) {
+    newcap *= 2;
+    if (newcap < *capp) {
+      newcap = needed;
+      break;
+    }
+  }
+  char* bigger = (char*)realloc(*bufp, newcap);
+  if (!bigger) {
+    return -1;
+  }
+  *bufp = bigger;
+  *capp = newcap;
+  return 0;
+}
+
+static char* readline_interactive(const char* prompt) {
+  size_t prompt_len = prompt ? strlen(prompt) : 0;
+  if (prompt_len) {
+    fwrite(prompt, 1, prompt_len, stdout);
+    fflush(stdout);
+  }
+
+  size_t cap = 64;
+  char* buf = (char*)malloc(cap);
+  if (!buf) {
+    return NULL;
+  }
+  buf[0] = '\0';
+  size_t len = 0;
+  size_t cur = 0;
+
+  size_t history_index = rl_history_len;
+  char* saved_line = NULL;
+
+  for (;;) {
+    int ch = fgetc(stdin);
+    if (ch == EOF) {
+      if (len == 0) {
+        fputc('\n', stdout);
+        fflush(stdout);
+        free(buf);
+        if (saved_line) free(saved_line);
+        return NULL;
+      }
+      ch = '\n';
+    }
+
+    if (ch == '\r') {
+      int next = fgetc(stdin);
+      if (next != '\n' && next != EOF) {
+        ungetc(next, stdin);
+      }
+      ch = '\n';
+    }
+
+    if (ch == '\n') {
+      fputc('\n', stdout);
+      fflush(stdout);
+      buf[len] = '\0';
+      char* result = (char*)malloc(len + 1);
+      if (!result) {
+        free(buf);
+        if (saved_line) free(saved_line);
+        return NULL;
+      }
+      memcpy(result, buf, len + 1);
+      if (len > 0) {
+        rl_history_add(result);
+      }
+      free(buf);
+      if (saved_line) free(saved_line);
+      return result;
+    }
+
+    if (ch == 3) { // Ctrl-C
+      fputc('\n', stdout);
+      fflush(stdout);
+      free(buf);
+      if (saved_line) free(saved_line);
+      return NULL;
+    }
+
+    if (ch == 4) { // Ctrl-D
+      if (len == 0) {
+        fputc('\n', stdout);
+        fflush(stdout);
+        free(buf);
+        if (saved_line) free(saved_line);
+        return NULL;
+      }
+      if (cur < len) {
+        memmove(buf + cur, buf + cur + 1, len - cur);
+        len--;
+        buf[len] = '\0';
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+
+    if (ch == 1) { // Ctrl-A
+      if (cur != 0) {
+        cur = 0;
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+
+    if (ch == 5) { // Ctrl-E
+      if (cur != len) {
+        cur = len;
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+
+    if (ch == 2) { // Ctrl-B
+      if (cur > 0) {
+        cur--;
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+
+    if (ch == 6) { // Ctrl-F
+      if (cur < len) {
+        cur++;
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+
+    if (ch == 11) { // Ctrl-K
+      if (cur < len) {
+        len = cur;
+        buf[len] = '\0';
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+
+    if (ch == 21) { // Ctrl-U
+      if (len > 0) {
+        len = 0;
+        cur = 0;
+        buf[0] = '\0';
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+
+    if (ch == 12) { // Ctrl-L clear screen and redraw
+      fputs("\033[2J\033[H", stdout);
+      rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      continue;
+    }
+
+    if (ch == 14) { // Ctrl-N (down history)
+      ch = 0x100; // reuse down arrow handler below
+    }
+
+    if (ch == 16) { // Ctrl-P (up history)
+      ch = 0x101; // reuse up arrow handler below
+    }
+
+    if (ch == 27) { // ESC sequence for arrows/home/end/delete
+      int c1 = fgetc(stdin);
+      if (c1 == '[') {
+        int c2 = fgetc(stdin);
+        if (c2 == 'A') { // Up
+          ch = 0x101;
+        } else if (c2 == 'B') { // Down
+          ch = 0x100;
+        } else if (c2 == 'C') { // Right
+          ch = 0x102;
+        } else if (c2 == 'D') { // Left
+          ch = 0x103;
+        } else if (c2 == 'H') { // Home
+          ch = 0x104;
+        } else if (c2 == 'F') { // End
+          ch = 0x105;
+        } else if (c2 == '3') { // Delete key ESC [ 3 ~
+          int c3 = fgetc(stdin);
+          if (c3 == '~') {
+            ch = 0x106;
+          }
+        } else {
+          // consume trailing digits until non-digit maybe '~'
+          while (c2 >= '0' && c2 <= '9') {
+            int c3 = fgetc(stdin);
+            if (c3 == '~' || c3 == EOF) break;
+            c2 = c3;
+          }
+          ch = 0;
+        }
+      } else if (c1 == 'O') {
+        int c2 = fgetc(stdin);
+        if (c2 == 'H') {
+          ch = 0x104;
+        } else if (c2 == 'F') {
+          ch = 0x105;
+        }
+      }
+      if (ch == 27) {
+        ch = 0;
+      }
+    }
+
+    if (ch == 0x102) { // Right arrow
+      if (cur < len) {
+        cur++;
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+    if (ch == 0x103) { // Left arrow
+      if (cur > 0) {
+        cur--;
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+    if (ch == 0x104) { // Home
+      if (cur != 0) {
+        cur = 0;
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+    if (ch == 0x105) { // End
+      if (cur != len) {
+        cur = len;
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+    if (ch == 0x106) { // Delete key
+      if (cur < len) {
+        memmove(buf + cur, buf + cur + 1, len - cur);
+        len--;
+        buf[len] = '\0';
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+
+    if (ch == 0x101 || ch == 0x100) { // history navigation
+      int move_up = (ch == 0x101);
+      if (move_up) {
+        if (history_index > 0) {
+          if (history_index == rl_history_len && !saved_line) {
+            saved_line = (char*)malloc(len + 1);
+            if (saved_line) memcpy(saved_line, buf, len + 1);
+          }
+          history_index--;
+          const char* src = rl_history[history_index];
+          size_t needed = strlen(src) + 1;
+          if (rl_ensure_capacity(&buf, &cap, needed) == 0) {
+            memcpy(buf, src, needed);
+            len = needed - 1;
+            cur = len;
+            rl_redraw_line(prompt, prompt_len, buf, len, cur);
+          }
+        }
+      } else {
+        if (history_index < rl_history_len) {
+          history_index++;
+          const char* src;
+          if (history_index == rl_history_len) {
+            src = saved_line ? saved_line : "";
+          } else {
+            src = rl_history[history_index];
+          }
+          size_t needed = strlen(src) + 1;
+          if (rl_ensure_capacity(&buf, &cap, needed) == 0) {
+            memcpy(buf, src, needed);
+            len = needed - 1;
+            cur = len;
+            rl_redraw_line(prompt, prompt_len, buf, len, cur);
+          }
+        }
+      }
+      continue;
+    }
+
+    if (ch == 8 || ch == 127) { // Backspace
+      if (cur > 0) {
+        memmove(buf + cur - 1, buf + cur, len - cur + 1);
+        cur--;
+        len--;
+        rl_redraw_line(prompt, prompt_len, buf, len, cur);
+      }
+      continue;
+    }
+
+    if (ch < 32 || ch == 0x7f) {
+      continue; // ignore other control chars
+    }
+
+    if (rl_ensure_capacity(&buf, &cap, len + 2) != 0) {
+      free(buf);
+      if (saved_line) free(saved_line);
+      return NULL;
+    }
+
+    memmove(buf + cur + 1, buf + cur, len - cur + 1);
+    buf[cur] = (char)ch;
+    len++;
+    cur++;
+    rl_redraw_line(prompt, prompt_len, buf, len, cur);
+  }
+}
+
+char* readline(const char* prompt) {
+  int input_tty = isatty(0);
+  int output_tty = isatty(1);
+  if (!input_tty || !output_tty) {
+    return readline_simple(prompt);
+  }
+  return readline_interactive(prompt);
+}
+
 int ungetc(int c, FILE* fp) {
   if (!fp || fp->have_push || c == EOF) return EOF;
   fp->push_ch = (unsigned char)c; fp->have_push = 1; return c;
@@ -2378,6 +2802,243 @@ char* dirname(const char* path) {
 
     if (m == 0) { buf[0] = '/'; buf[1] = '\0'; }
     return buf;
+}
+
+//──────────────────────────────────────────
+// Minimal curses-like implementation for MINUX9
+//──────────────────────────────────────────
+
+#define MINUX_CURSES_DEFAULT_ROWS 24
+#define MINUX_CURSES_DEFAULT_COLS 80
+
+static WINDOW __stdscr;
+WINDOW* stdscr = NULL;
+
+static int __curses_initialized = 0;
+static int __curses_stdout_is_tty = -1;
+
+static int curses_stdout_is_tty(void) {
+    if (__curses_stdout_is_tty < 0) {
+        __curses_stdout_is_tty = isatty(1) ? 1 : 0;
+    }
+    return __curses_stdout_is_tty;
+}
+
+static void curses_emit(const char* seq) {
+    if (!seq) return;
+    if (!curses_stdout_is_tty()) return;
+    fputs(seq, stdout);
+}
+
+static void curses_init_window(WINDOW* win, int rows, int cols, int beg_y, int beg_x) {
+    if (!win) return;
+    if (rows <= 0) rows = 1;
+    if (cols <= 0) cols = 1;
+    if (beg_y < 0) beg_y = 0;
+    if (beg_x < 0) beg_x = 0;
+    win->rows = rows;
+    win->cols = cols;
+    win->beg_y = beg_y;
+    win->beg_x = beg_x;
+    win->cur_y = 0;
+    win->cur_x = 0;
+}
+
+static void curses_reset_window(WINDOW* win) {
+    curses_init_window(win, MINUX_CURSES_DEFAULT_ROWS, MINUX_CURSES_DEFAULT_COLS, 0, 0);
+    win->parent = NULL;
+    win->is_subwin = 0;
+    win->is_static = 1;
+}
+
+WINDOW* initscr(void) {
+    if (__curses_initialized) {
+        return stdscr;
+    }
+
+    curses_reset_window(&__stdscr);
+    stdscr = &__stdscr;
+    __curses_initialized = 1;
+    __stdscr.is_static = 1;
+
+    (void)curses_stdout_is_tty();
+    curses_emit("\033[2J");   // clear screen
+    curses_emit("\033[H");    // move cursor to home position
+    fflush(stdout);
+
+    return stdscr;
+}
+
+int endwin(void) {
+    if (!__curses_initialized) {
+        return 0;
+    }
+    curses_emit("\033[0m");   // reset attributes
+    curses_emit("\033[?25h"); // ensure cursor is shown
+    fflush(stdout);
+
+    stdscr = NULL;
+    __curses_initialized = 0;
+    __curses_stdout_is_tty = -1;
+    return 0;
+}
+
+int wrefresh(WINDOW* win) {
+    if (!win) {
+        return -1;
+    }
+    return fflush(stdout) == 0 ? 0 : -1;
+}
+
+int refresh(void) {
+    if (!stdscr) {
+        return -1;
+    }
+    return wrefresh(stdscr);
+}
+
+WINDOW* newwin(int nlines, int ncols, int begin_y, int begin_x) {
+    if (!__curses_initialized) {
+        if (!initscr()) {
+            return NULL;
+        }
+    }
+
+    WINDOW* win = (WINDOW*)malloc(sizeof(WINDOW));
+    if (!win) {
+        return NULL;
+    }
+
+    int rows = (nlines > 0) ? nlines : MINUX_CURSES_DEFAULT_ROWS;
+    int cols = (ncols > 0) ? ncols : MINUX_CURSES_DEFAULT_COLS;
+    curses_init_window(win, rows, cols, begin_y, begin_x);
+    win->parent = NULL;
+    win->is_subwin = 0;
+    win->is_static = 0;
+    return win;
+}
+
+WINDOW* subwin(WINDOW* win, int nlines, int ncols, int begin_y, int begin_x) {
+    if (!win) {
+        return NULL;
+    }
+
+    if (!__curses_initialized) {
+        if (!initscr()) {
+            return NULL;
+        }
+    }
+
+    int parent_top = win->beg_y;
+    int parent_left = win->beg_x;
+    int parent_bottom = parent_top + win->rows;
+    int parent_right = parent_left + win->cols;
+
+    if (begin_y < parent_top || begin_x < parent_left) {
+        return NULL;
+    }
+
+    if (begin_y >= parent_bottom || begin_x >= parent_right) {
+        return NULL;
+    }
+
+    int rows = nlines;
+    int cols = ncols;
+    if (rows <= 0) rows = parent_bottom - begin_y;
+    if (cols <= 0) cols = parent_right - begin_x;
+
+    if (rows <= 0 || cols <= 0) {
+        return NULL;
+    }
+
+    if (begin_y + rows > parent_bottom || begin_x + cols > parent_right) {
+        return NULL;
+    }
+
+    WINDOW* sub = (WINDOW*)malloc(sizeof(WINDOW));
+    if (!sub) {
+        return NULL;
+    }
+
+    curses_init_window(sub, rows, cols, begin_y, begin_x);
+    sub->parent = win;
+    sub->is_subwin = 1;
+    sub->is_static = 0;
+    return sub;
+}
+
+int delwin(WINDOW* win) {
+    if (!win) {
+        return -1;
+    }
+    if (win == stdscr || win->is_static) {
+        return -1;
+    }
+    free(win);
+    return 0;
+}
+
+int wmove(WINDOW* win, int y, int x) {
+    if (!win) {
+        return -1;
+    }
+    if (y < 0 || x < 0) {
+        return -1;
+    }
+    if (y >= win->rows || x >= win->cols) {
+        return -1;
+    }
+
+    win->cur_y = y;
+    win->cur_x = x;
+
+    if (curses_stdout_is_tty()) {
+        fprintf(stdout, "\033[%d;%dH", win->beg_y + y + 1, win->beg_x + x + 1);
+    }
+    return 0;
+}
+
+static int __mvwprintfv(WINDOW* win, int y, int x, const char* fmt, va_list ap) {
+    if (!win || !fmt) {
+        return -1;
+    }
+
+    if (wmove(win, y, x) != 0) {
+        return -1;
+    }
+
+    va_list aq;
+    va_copy(aq, ap);
+    int wrote = vfprintf(stdout, fmt, aq);
+    va_end(aq);
+
+    if (wrote >= 0) {
+        // Track cursor position best-effort for simple cases.
+        int next_x = x + wrote;
+        win->cur_y = y;
+        win->cur_x = (next_x < win->cols) ? next_x : win->cols - 1;
+    }
+
+    return wrote;
+}
+
+int mvwprintf(WINDOW* win, int y, int x, const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int wrote = __mvwprintfv(win, y, x, fmt, ap);
+    va_end(ap);
+    return wrote;
+}
+
+int mvprintw(int y, int x, const char* fmt, ...) {
+    if (!stdscr) {
+        return -1;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    int wrote = __mvwprintfv(stdscr, y, x, fmt, ap);
+    va_end(ap);
+    return wrote;
 }
 
 int fileno(FILE* fp) {
