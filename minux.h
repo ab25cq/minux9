@@ -842,8 +842,38 @@ char* strerror(int errnum);
 int ispunct(int c);
 char *strtok(char *s, const char *delim);
 int isxdigit(int c);
+char* readline(const char* prompt);
 
 extern size_t linenumber;
+
+
+//──────────────────────────────────────────
+// Minimal curses-like interface for user programs
+//──────────────────────────────────────────
+typedef struct minux_window {
+    int rows;
+    int cols;
+    int beg_y;
+    int beg_x;
+    int cur_y;
+    int cur_x;
+    struct minux_window* parent;
+    int is_subwin;
+    int is_static;
+} WINDOW;
+
+extern WINDOW* stdscr;
+
+WINDOW* initscr(void);
+int endwin(void);
+int refresh(void);
+int wrefresh(WINDOW* win);
+int wmove(WINDOW* win, int y, int x);
+int mvwprintf(WINDOW* win, int y, int x, const char* fmt, ...);
+int mvprintw(int y, int x, const char* fmt, ...);
+WINDOW* newwin(int nlines, int ncols, int begin_y, int begin_x);
+WINDOW* subwin(WINDOW* win, int nlines, int ncols, int begin_y, int begin_x);
+int delwin(WINDOW* win);
 
 
 struct __minux_FILE;
@@ -898,11 +928,18 @@ void arg_print_errors(struct __minux_FILE *fp, struct arg_end *end,
 void arg_freetable(void **argtable, size_t n); 
 
 int sscanf(const char *str, const char *fmt, ...);
+char *realpath(const char *path, char *resolved_path);
 char *dirname(const char *path);
 int fileno(FILE* fp);
     
 int system(const char* command);
 
 char* getenv(const char* str);
+void* memchr(const void* s, int c, size_t n);
+int vprintf(const char* fmt, va_list ap);
+char* strcpy(char* dest, const char* src);
+char* strcat(char* dest, const char* src);
+void perror(char* msg);
+int sprintf(char* out, const char* fmt, ...);
 
 #endif
