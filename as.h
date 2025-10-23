@@ -1,5 +1,6 @@
 #pragma once
 #include "minux.h"
+//#include <elf.h>
 
 #define OP_LOAD 0x03
 #define OP_STORE 0x23
@@ -183,7 +184,17 @@ void set_exit_loglevel(enum loglvl_t);
 void logger(enum loglvl_t, enum error_t, const char *, ...);
 int get_clean_exit(enum loglvl_t);
 
-enum sections {SECTION_NULL=0, SECTION_SHSTRTAB, SECTION_TEXT, SECTION_DATA, SECTION_SYMTAB, SECTION_STRTAB, SECTION_COUNT };
+enum sections {
+	SECTION_NULL = 0,
+	SECTION_SHSTRTAB,
+	SECTION_TEXT,
+	SECTION_DATA,
+	SECTION_RELA_TEXT,
+	SECTION_RELA_DATA,
+	SECTION_SYMTAB,
+	SECTION_STRTAB,
+	SECTION_COUNT
+};
 
 struct symbol {
 	size_t name_sz;
@@ -197,6 +208,7 @@ enum symbol_types {
 		SYMBOL_VALUE,
 		SYMBOL_OTHER,
 	} type;
+	size_t sym_index;
 };
 
 #define SYMBOLMAP_ENTRIES 256
@@ -289,6 +301,7 @@ extern const struct versioninfo_t versioninfo;
 struct cmdargs_t {
 	struct arg_lit *help, *version;
 	struct arg_lit *verbose;
+	struct arg_lit *relocatable;
 	struct arg_file *inputfile, *outputfile;
 	struct arg_end *end;
 };
@@ -450,6 +463,12 @@ struct elf64sym {
 	uint64_t size;
 };
 
+struct elf64rela {
+	uint64_t offset;
+	uint64_t info;
+	int64_t addend;
+};
+
+#define ELF64_R_INFO(sym, type) ((((uint64_t)(sym)) << 32) | (uint32_t)(type))
+
 /* TODO: add preprocessor stuff */
-
-

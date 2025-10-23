@@ -78,17 +78,21 @@ static const char shstrtab_bytes[] =
   "\0"          // index 0 は空文字
   ".text\0"
   ".data\0"
+  ".rela.text\0"
+  ".rela.data\0"
   ".symtab\0"
   ".strtab\0"
   ".shstrtab\0";
 
 enum {
   SHSTR_OFF_EMPTY    = 0,
-  SHSTR_OFF_TEXT     = 1,               // "\0" の直後（".text"）
-  SHSTR_OFF_DATA     = 1 + 6,           // ".text\0" で 6 バイト進む
-  SHSTR_OFF_SYMTAB   = 1 + 6 + 6,       // ".data\0" でさらに 6
-  SHSTR_OFF_STRTAB   = 1 + 6 + 6 + 8,   // ".symtab\0" で 8
-  SHSTR_OFF_SHSTRTAB = 1 + 6 + 6 + 8 + 8 // ".strtab\0" で 8
+  SHSTR_OFF_TEXT     = 1,
+  SHSTR_OFF_DATA     = 7,
+  SHSTR_OFF_RELA_TEXT = 13,
+  SHSTR_OFF_RELA_DATA = 24,
+  SHSTR_OFF_SYMTAB   = 35,
+  SHSTR_OFF_STRTAB   = 43,
+  SHSTR_OFF_SHSTRTAB = 51
 };
 
 
@@ -104,6 +108,15 @@ static inline size_t align_up(size_t x, size_t a){
     return (x + (a - 1)) / a * a;
 }
         
+#define R_RISCV_NONE 0u
+#define R_RISCV_64 2u
+#define R_RISCV_JAL 17u
+#define R_RISCV_PCREL_HI20 23u
+#define R_RISCV_PCREL_LO12_I 24u
+#define R_RISCV_PCREL_LO12_S 25u
+#define R_RISCV_HI20 26u
+#define R_RISCV_LO12_I 27u
+#define R_RISCV_LO12_S 28u
 
 // セクション名 → shstrtab 内オフセット
 
@@ -178,7 +191,9 @@ const char helpstr[] =
 
 struct cmdargs_t cmdargs;
 
-void *argtable[6];
+static int relocatable_mode = 0;
+
+void *argtable[7];
 static void free_argtable(void);
 
 void parse_cmdargs(int argc, char *argv[])
@@ -191,11 +206,14 @@ void parse_cmdargs(int argc, char *argv[])
         arg_litn("V", "version", 0, 1, "display version info and exit");
     argtable[2] = cmdargs.verbose =
         arg_litn("v", "verbose", 0, 1, "verbose output");
-    argtable[3] = cmdargs.inputfile =
+    argtable[3] = cmdargs.relocatable =
+        arg_litn("c", "relocatable", 0, 1,
+                 "emit relocatable object instead of executable");
+    argtable[4] = cmdargs.inputfile =
         arg_filen(NULL, NULL, "<input>", 1, 3, "input file");
-    argtable[4] = cmdargs.outputfile =
+    argtable[5] = cmdargs.outputfile =
         arg_filen("o", "output", "<filename>", 1, 3, "output file");
-    argtable[5] = cmdargs.end = arg_end(20);
+    argtable[6] = cmdargs.end = arg_end(20);
 
 //    atexit(&free_argtable);
 
@@ -227,6 +245,8 @@ void parse_cmdargs(int argc, char *argv[])
     if (cmdargs.verbose->count) {
         set_min_loglevel(DEBUG);
     }
+
+    relocatable_mode = cmdargs.relocatable->count ? 1 : 0;
 }
 
 
@@ -369,6 +389,10 @@ static uint64_t compute_gp_value_abs(void) {
   return BASE_ADDR + 0x1200;  // 例: 0x2200
 }
 
+static void collect_relocations(void);
+static void fill_relocation_contents(void);
+static void free_relocations(void);
+
 void parse_file(FILE *ifp, FILE *ofp)
 {
     char *line = NULL;
@@ -394,6 +418,8 @@ void parse_file(FILE *ifp, FILE *ofp)
     gp->section = SHN_ABS;                       // ★絶対シンボル（ローダ側の加算不）
     gp->value = compute_gp_value_abs();        // ★完成した仮想アドレスを入れる
 
+    collect_relocations();
+
     calc_strtab();
     calc_symtab();
     alloc_output();
@@ -407,6 +433,7 @@ void parse_file(FILE *ifp, FILE *ofp)
 
     fill_strtab();
     fill_symtab();
+    fill_relocation_contents();
 
     flush_output(ofp);
 fflush(ofp);
@@ -415,6 +442,7 @@ fflush(ofp);
     free_instructions();
     free_data();
     free_symbols();
+    free_relocations();
 }
 
 static inline int parse_line_trimmed(char *, struct sectionpos);
@@ -1445,7 +1473,7 @@ int write_instruction(struct instruction i)
     set_section(i.position.section);
 
     if (i.args.sym)
-        if (i.args.sym->section == SECTION_NULL)
+        if (i.args.sym->section == SECTION_NULL && !relocatable_mode)
             logger(ERROR, error_unknown, "Symbol %s not found",
                    i.args.sym->name);
 
@@ -1486,6 +1514,28 @@ enum sections outputsection = SECTION_TEXT;
 static struct section outputsections[SECTION_COUNT] = { { .size = 0,
                               .contents = NULL } };
 
+struct relocation_entry {
+    size_t offset;
+    struct symbol *sym;
+    uint32_t type;
+    int64_t addend;
+};
+
+struct relocation_list {
+    struct relocation_entry *data;
+    size_t count;
+    size_t capacity;
+};
+
+static struct relocation_list relocation_sections[SECTION_COUNT];
+
+static void add_relocation_entry(enum sections section, size_t offset,
+                                 struct symbol *sym, uint32_t type,
+                                 int64_t addend);
+static void ensure_relocation_capacity(struct relocation_list *list);
+static enum sections relocation_section_for(enum sections target);
+static void reset_relocations(void);
+
 int write_data(struct rawdata data) {
   linenumber = data.line;
   set_section(data.position.section);
@@ -1494,11 +1544,22 @@ int write_data(struct rawdata data) {
   char buf8[8];
 
   if (data.is_abs64 && data.sym && data.size == 8) {
-    // ★ここが肝：対象“シンボルのセクション”の最終ファイルオフセットを使う
-    uint64_t sect_off = outputsections[data.sym->section].offset;
-    uint64_t v = (uint64_t)(BASE_ADDR + sect_off + (uint64_t)data.sym->value + (uint64_t)data.addend);
-    memcpy(buf8, &v, 8);
-    src = buf8;
+    if (relocatable_mode) {
+      uint64_t v = (uint64_t)data.addend;
+      memcpy(buf8, &v, sizeof(v));
+      src = buf8;
+    } else {
+      if ((size_t)data.sym->section >= SECTION_COUNT) {
+        logger(ERROR, error_internal,
+               "Invalid section index %d for absolute relocation",
+               data.sym->section);
+        return 1;
+      }
+      uint64_t sect_off = outputsections[data.sym->section].offset;
+      uint64_t v = (uint64_t)(BASE_ADDR + sect_off + (uint64_t)data.sym->value + (uint64_t)data.addend);
+      memcpy(buf8, &v, sizeof(v));
+      src = buf8;
+    }
   }
 
   size_t n = write_sectiondata(src, data.size, data.position);
@@ -1508,6 +1569,199 @@ int write_data(struct rawdata data) {
     return 1;
   }
   return 0;
+}
+
+static void ensure_relocation_capacity(struct relocation_list *list)
+{
+    if (list->count < list->capacity)
+        return;
+    size_t new_cap = list->capacity ? list->capacity * 2 : 8;
+    list->data = xrealloc(list->data, new_cap * sizeof(*list->data));
+    list->capacity = new_cap;
+}
+
+static void add_relocation_entry(enum sections section, size_t offset,
+                                 struct symbol *sym, uint32_t type,
+                                 int64_t addend)
+{
+    if (!sym || (size_t)section >= SECTION_COUNT)
+        return;
+    struct relocation_list *list = &relocation_sections[section];
+    ensure_relocation_capacity(list);
+    list->data[list->count++] =
+        (struct relocation_entry){ .offset = offset, .sym = sym,
+                                   .type = type, .addend = addend };
+}
+
+static enum sections relocation_section_for(enum sections target)
+{
+    switch (target) {
+    case SECTION_TEXT:
+        return SECTION_RELA_TEXT;
+    case SECTION_DATA:
+        return SECTION_RELA_DATA;
+    default:
+        return SECTION_NULL;
+    }
+}
+
+static void reset_relocations(void)
+{
+    relocation_sections[SECTION_RELA_TEXT].count = 0;
+    relocation_sections[SECTION_RELA_DATA].count = 0;
+    outputsections[SECTION_RELA_TEXT].size = 0;
+    outputsections[SECTION_RELA_DATA].size = 0;
+}
+
+static void collect_relocations(void)
+{
+    if (!relocatable_mode) {
+        outputsections[SECTION_RELA_TEXT].size = 0;
+        outputsections[SECTION_RELA_DATA].size = 0;
+        return;
+    }
+
+    reset_relocations();
+
+    for (size_t i = 0; i < instructions_size; i++) {
+        struct instruction *ins = &instructions[i];
+        if (!ins->args.sym)
+            continue;
+
+        struct symbol *sym = ins->args.sym;
+        bool sym_known = (size_t)sym->section < SECTION_COUNT;
+
+        if (ins->formation.form_handler == form_load_pseudo &&
+            ins->formation.idata.opcode == LOAD_ADDR) {
+            bool need_reloc = sym->section == SECTION_NULL ||
+                              (sym_known &&
+                               sym->section != ins->position.section);
+            if ((size_t)sym->section >= SECTION_COUNT &&
+                sym->section != SECTION_NULL)
+                need_reloc = false;
+            if (need_reloc) {
+                enum sections rsec =
+                    relocation_section_for(ins->position.section);
+                if (rsec != SECTION_NULL) {
+                    add_relocation_entry(rsec, ins->position.offset,
+                                         sym, R_RISCV_PCREL_HI20, 0);
+                    add_relocation_entry(rsec, ins->position.offset + 4,
+                                         sym, R_RISCV_PCREL_LO12_I, 0);
+                }
+            }
+        }
+
+        if (ins->formation.form_handler == form_jtype &&
+            sym->section == SECTION_NULL) {
+            enum sections rsec = relocation_section_for(ins->position.section);
+            if (rsec != SECTION_NULL)
+                add_relocation_entry(rsec, ins->position.offset,
+                                     sym, R_RISCV_JAL, 0);
+        }
+    }
+
+    for (size_t i = 0; i < dataitems_size; i++) {
+        struct rawdata *item = &dataitems[i];
+        if (!item->sym || !item->is_abs64 || item->size != 8)
+            continue;
+        if ((size_t)item->sym->section >= SECTION_COUNT &&
+            item->sym->section != SECTION_NULL)
+            continue;
+        enum sections rsec = relocation_section_for(item->position.section);
+        if (rsec == SECTION_NULL)
+            continue;
+        add_relocation_entry(rsec, item->position.offset,
+                             item->sym, R_RISCV_64, item->addend);
+    }
+
+    outputsections[SECTION_RELA_TEXT].size =
+        relocation_sections[SECTION_RELA_TEXT].count *
+        sizeof(struct elf64rela);
+    outputsections[SECTION_RELA_DATA].size =
+        relocation_sections[SECTION_RELA_DATA].count *
+        sizeof(struct elf64rela);
+}
+
+static void free_relocations(void)
+{
+    for (int i = 0; i < SECTION_COUNT; i++) {
+        free(relocation_sections[i].data);
+        relocation_sections[i].data = NULL;
+        relocation_sections[i].count = 0;
+        relocation_sections[i].capacity = 0;
+    }
+}
+
+enum sectiontypes_e {
+    SHT_NULL = 0x0,
+    SHT_PROGBITS = 0x1,
+    SHT_SYMTAB = 0x2,
+    SHT_STRTAB = 0x3,
+    SHT_RELA = 0x4,
+};
+
+
+static struct {
+    uint64_t flags;
+    uint32_t link;
+    uint32_t info;
+    uint64_t align;
+    uint64_t entrysize;
+    uint32_t type;
+} sectiondata[SECTION_COUNT] = {
+    [SECTION_NULL]      = { 0x00, 0x0,           0x0, 0x1, 0x0,  SHT_NULL },
+    [SECTION_SHSTRTAB]  = { 0x00, 0x0,           0x0, 0x1, 0x0,  SHT_STRTAB },
+    [SECTION_TEXT]      = { 0x06, 0x0,           0x0, 0x4, 0x0,  SHT_PROGBITS },
+    [SECTION_DATA]      = { 0x03, 0x0,           0x0, 0x1, 0x0,  SHT_PROGBITS },
+    [SECTION_RELA_TEXT] = { 0x00, SECTION_SYMTAB, SECTION_TEXT, 0x8, sizeof(struct elf64rela), SHT_RELA },
+    [SECTION_RELA_DATA] = { 0x00, SECTION_SYMTAB, SECTION_DATA, 0x8, sizeof(struct elf64rela), SHT_RELA },
+    [SECTION_SYMTAB]    = { 0x00, SECTION_STRTAB,0x0, 0x8, sizeof(struct elf64sym), SHT_SYMTAB },
+    [SECTION_STRTAB]    = { 0x00, 0x0,           0x0, 0x1, 0x0,  SHT_STRTAB },
+};
+
+static const char *sectionnames[SECTION_COUNT] = {
+    [SECTION_NULL]     = "",
+    [SECTION_SHSTRTAB] = ".shstrtab",
+    [SECTION_TEXT]     = ".text",
+    [SECTION_DATA]     = ".data",
+    [SECTION_RELA_TEXT]= ".rela.text",
+    [SECTION_RELA_DATA]= ".rela.data",
+    [SECTION_SYMTAB]   = ".symtab",
+    [SECTION_STRTAB]   = ".strtab",
+};
+
+static void fill_relocation_contents(void)
+{
+    if (!relocatable_mode)
+        return;
+
+    struct {
+        enum sections reloc;
+        enum sections target;
+    } pairs[] = {
+        { SECTION_RELA_TEXT, SECTION_TEXT },
+        { SECTION_RELA_DATA, SECTION_DATA },
+    };
+
+    for (size_t idx = 0; idx < ARRAY_LENGTH(pairs); idx++) {
+        enum sections rsec = pairs[idx].reloc;
+        enum sections target = pairs[idx].target;
+        struct relocation_list *list = &relocation_sections[rsec];
+        for (size_t i = 0; i < list->count; i++) {
+            struct relocation_entry *entry = &list->data[i];
+            struct elf64rela rela = {
+                .offset = entry->offset,
+                .info = ELF64_R_INFO(entry->sym->sym_index, entry->type),
+                .addend = entry->addend,
+            };
+            write_sectiondata(&rela, sizeof(rela),
+                              (struct sectionpos){
+                                  .section = rsec,
+                                  .offset = i * sizeof(rela),
+                              });
+        }
+        sectiondata[rsec].info = target;
+    }
 }
 
 /*
@@ -2046,7 +2300,20 @@ struct bytecode form_load_pseudo(const char *name, struct idata instruction,
         break;
     case LOAD_ADDR:
         opcode = OP_AUIPC;
-        value = (uint64_t)calc_symbol_offset64(args.sym, position);
+        if (!args.sym) {
+            value = 0;
+            break;
+        }
+        bool sym_in_known_section = (size_t)args.sym->section < SECTION_COUNT;
+        bool need_reloc = relocatable_mode &&
+                          (args.sym->section == SECTION_NULL ||
+                           (sym_in_known_section &&
+                            args.sym->section != outputsection));
+        if (need_reloc) {
+            value = 0;
+        } else {
+            value = (uint64_t)calc_symbol_offset64(args.sym, position);
+        }
         break;
     default:
         UNREACHABLE();
@@ -2291,17 +2558,19 @@ int32_t calc_symbol_offset(const struct symbol *sym, size_t position)
 }
 
 int64_t calc_symbol_offset64(const struct symbol *sym, size_t position_fileoff) {
-    // シンボルの“出力ファイル内オフセット”を求める
+    if ((size_t)sym->section >= SECTION_COUNT) {
+        uint64_t ref_vma = BASE_ADDR + (uint64_t)position_fileoff;
+        return (int64_t)sym->value - (int64_t)ref_vma;
+    }
+
     uint64_t sym_fileoff = calc_fileoffset((struct sectionpos){
         .section = sym->section,
         .offset  = sym->value,
     });
 
-    // VMA = BASE_ADDR + fileoff
     uint64_t target_vma = BASE_ADDR + sym_fileoff;
     uint64_t ref_vma    = BASE_ADDR + (uint64_t)position_fileoff;
 
-    // 64bit差分（PC-relative の delta）
     return (int64_t)target_vma - (int64_t)ref_vma;
 }
 
@@ -2455,8 +2724,16 @@ struct bytecode form_jtype(const char *name, struct idata instruction,
     (void)position;
     logger(DEBUG, no_error, "Generating J type instruction %s", name);
 
-    int32_t offset = calc_symbol_offset(args.sym, position);
-    logger(DEBUG, no_error, "Offset of J type instruction is 0x%x", offset);
+    int32_t offset = 0;
+    bool need_reloc = relocatable_mode && args.sym &&
+                      args.sym->section == SECTION_NULL;
+    if (!need_reloc) {
+        offset = calc_symbol_offset(args.sym, position);
+        logger(DEBUG, no_error, "Offset of J type instruction is 0x%x", offset);
+    } else {
+        logger(DEBUG, no_error,
+               "Emitting relocation placeholder for J type instruction");
+    }
 
     const uint32_t opcode = instruction.opcode;
     const uint32_t rd = args.rd & 0x1F;
@@ -2524,39 +2801,6 @@ struct elf64sectionheader new_elf64sectionheader(void)
     };
 }
 
-
-enum sectiontypes_e {
-    SHT_NULL = 0x0,
-    SHT_PROGBITS = 0x1,
-    SHT_SYMTAB = 0x2,
-    SHT_STRTAB = 0x3,
-};
-
-
-static struct {
-    uint64_t flags;
-    uint32_t link;
-    uint32_t info;
-    uint64_t align;
-    uint64_t entrysize;
-    uint32_t type;
-} sectiondata[SECTION_COUNT] = {
-    [SECTION_NULL]      = { 0x00, 0x0,           0x0, 0x1, 0x0,  SHT_NULL },
-    [SECTION_SHSTRTAB]  = { 0x00, 0x0,           0x0, 0x1, 0x0,  SHT_STRTAB },
-    [SECTION_TEXT]      = { 0x06, 0x0,           0x0, 0x4, 0x0,  SHT_PROGBITS },
-    [SECTION_DATA]      = { 0x03, 0x0,           0x0, 0x1, 0x0,  SHT_PROGBITS },
-    [SECTION_SYMTAB]    = { 0x00, SECTION_STRTAB,0x0, 0x8, 0x18, SHT_SYMTAB },
-    [SECTION_STRTAB]    = { 0x00, 0x0,           0x0, 0x1, 0x0,  SHT_STRTAB },
-};
-
-static const char *sectionnames[SECTION_COUNT] = {
-    [SECTION_NULL]     = "",
-    [SECTION_SHSTRTAB] = ".shstrtab",
-    [SECTION_TEXT]     = ".text",
-    [SECTION_DATA]     = ".data",
-    [SECTION_SYMTAB]   = ".symtab",
-    [SECTION_STRTAB]   = ".strtab",
-};
 
 void change_output(enum sections section)
 {
@@ -2662,7 +2906,7 @@ int fill_symtab(void)
     size_t count = 1;
     for (size_t hash = 0; hash < SYMBOLMAP_ENTRIES; hash++) {
         for (size_t index = 0; index < symbols[hash].count; index++) {
-            const struct symbol *sym = &symbols[hash].data[index];
+            struct symbol *sym = &symbols[hash].data[index];
             struct elf64sym entry = (struct elf64sym){
                 .name = strtab_addr,
                 .info = sym->binding,
@@ -2677,6 +2921,7 @@ int fill_symtab(void)
                              .offset = count *
                                    sizeof(entry) });
             strtab_addr += (uint32_t)sym->name_sz;
+            sym->sym_index = count;
             count++;
         }
     }
@@ -2735,17 +2980,24 @@ int flush_output(FILE *elf)
 
     // ===== ELF ヘッダ雛形 =====
     struct elf64header elfheader = new_elf64header();
-    elfheader.type        = 0x02; /* ET_EXEC */
+    elfheader.type        = relocatable_mode ? 0x01 : 0x02;
     elfheader.shentrysize = sizeof(struct elf64sectionheader);
     elfheader.shcount     = SECTION_COUNT;
     
     // as.c の初期化（flush_output でオフセット計算する“前”にやる）
-    outputsections[SECTION_SHSTRTAB].contents = (void*)shstrtab_bytes;
-    outputsections[SECTION_SHSTRTAB].size     = sizeof(shstrtab_bytes) - 1; // 末尾NULは書かない
+    if (!outputsections[SECTION_SHSTRTAB].contents) {
+        outputsections[SECTION_SHSTRTAB].size = sizeof(shstrtab_bytes) - 1; // 末尾NULは書かない
+        outputsections[SECTION_SHSTRTAB].contents =
+            xmalloc(outputsections[SECTION_SHSTRTAB].size);
+        memcpy(outputsections[SECTION_SHSTRTAB].contents, shstrtab_bytes,
+               outputsections[SECTION_SHSTRTAB].size);
+    }
 
     outputsections[SECTION_NULL].nameoffset      = SHSTR_OFF_EMPTY;
     outputsections[SECTION_TEXT].nameoffset      = SHSTR_OFF_TEXT;
     outputsections[SECTION_DATA].nameoffset      = SHSTR_OFF_DATA;
+    outputsections[SECTION_RELA_TEXT].nameoffset = SHSTR_OFF_RELA_TEXT;
+    outputsections[SECTION_RELA_DATA].nameoffset = SHSTR_OFF_RELA_DATA;
     outputsections[SECTION_SYMTAB].nameoffset    = SHSTR_OFF_SYMTAB;
     outputsections[SECTION_STRTAB].nameoffset    = SHSTR_OFF_STRTAB;
     outputsections[SECTION_SHSTRTAB].nameoffset  = SHSTR_OFF_SHSTRTAB;
@@ -2779,7 +3031,7 @@ int flush_output(FILE *elf)
         sectionheaders[i].offset = cursor;
 
         // 実行ファイル：SHF_ALLOC セクションには sh_addr を振る
-        if (sectionheaders[i].flags & 0x2 /* SHF_ALLOC */) {
+        if (!relocatable_mode && (sectionheaders[i].flags & 0x2 /* SHF_ALLOC */)) {
             sectionheaders[i].addr = BASE_ADDR + outputsections[i].offset;
         }
 
@@ -2804,8 +3056,10 @@ int flush_output(FILE *elf)
     sectionheaders[SECTION_STRTAB].flags  = 0;
     sectionheaders[SECTION_STRTAB].addralign  = 1;
     sectionheaders[SECTION_STRTAB].entrysize = 0;
-    outputsections[SECTION_STRTAB].contents = (void*)strtab_bytes;
-    outputsections[SECTION_STRTAB].size     = sizeof(strtab_bytes) - 1;
+    if (!outputsections[SECTION_STRTAB].contents) {
+        outputsections[SECTION_STRTAB].contents = (void*)strtab_bytes;
+        outputsections[SECTION_STRTAB].size     = sizeof(strtab_bytes) - 1;
+    }
 
 
     // .symtab は .strtab を参照（シンボル名用）
@@ -2845,65 +3099,74 @@ int flush_output(FILE *elf)
     //outputsections[SECTION_SYMTAB].size = symtab_sz;  // サイズを更新！
 
     // ===== エントリポイントは .text 先頭（_start がそこにある前提） =====
-    struct symbol *s = get_symbol("_start");   // 見つからなければ NULL
-    struct symbol *s2 = get_symbol("main");   // 見つからなければ NULL
-    if (s && s->section == SECTION_TEXT) {
-        elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset + (uint64_t)s->value;
-    } 
-    else if (s2 && s2->section == SECTION_TEXT) {
-        elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset + (uint64_t)s2->value;
+    if (!relocatable_mode) {
+        struct symbol *s = get_symbol("_start");   // 見つからなければ NULL
+        struct symbol *s2 = get_symbol("main");   // 見つからなければ NULL
+        if (s && s->section == SECTION_TEXT) {
+            elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset + (uint64_t)s->value;
+        } else if (s2 && s2->section == SECTION_TEXT) {
+            elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset + (uint64_t)s2->value;
+        } else {
+            elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset; // フォールバック
+        }
     } else {
-        elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset; // フォールバック
+        elfheader.entry = 0;
     }
-    
-    //elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset;
 
-    // ===== プログラムヘッダ（PHDR）作成 =====
-    //   ※ p_filesz はページ丸め **しない**（実ファイル上の終端まで）
-    elfheader.phentrysize = sizeof(struct elf64phdr);
+    //elfheader.entry = BASE_ADDR + outputsections[SECTION_TEXT].offset;
 
     struct elf64phdr ph[2];
     int phn = 0;
 
-    // text: LOAD (R|X)
-    {
-        uint64_t o   = outputsections[SECTION_TEXT].offset;
-        uint64_t sz  = outputsections[SECTION_TEXT].size;
-        uint64_t seg = (o / PAGE_SIZE) * PAGE_SIZE;   // セグメント開始（ページ下げ）
-        uint64_t end = o + sz;                        // ファイル上の実終端（丸めない）
+    if (!relocatable_mode) {
+        // ===== プログラムヘッダ（PHDR）作成 =====
+        //   ※ p_filesz はページ丸め **しない**（実ファイル上の終端まで）
+        elfheader.phentrysize = sizeof(struct elf64phdr);
 
-        ph[phn].type   = PT_LOAD;
-        ph[phn].flags  = PF_R | PF_X;
-        ph[phn].offset = seg;
-        ph[phn].vaddr  = BASE_ADDR + seg;
-        ph[phn].paddr  = 0;
-        ph[phn].filesz = (end > seg) ? (end - seg) : 0;
-        ph[phn].memsz  = ph[phn].filesz;             // .bss 未導入なら filesz と同じ
-        ph[phn].align  = PAGE_SIZE;
-        phn++;
+        // text: LOAD (R|X)
+        {
+            uint64_t o   = outputsections[SECTION_TEXT].offset;
+            uint64_t sz  = outputsections[SECTION_TEXT].size;
+            uint64_t seg = (o / PAGE_SIZE) * PAGE_SIZE;   // セグメント開始（ページ下げ）
+            uint64_t end = o + sz;                        // ファイル上の実終端（丸めない）
+
+            ph[phn].type   = PT_LOAD;
+            ph[phn].flags  = PF_R | PF_X;
+            ph[phn].offset = seg;
+            ph[phn].vaddr  = BASE_ADDR + seg;
+            ph[phn].paddr  = 0;
+            ph[phn].filesz = (end > seg) ? (end - seg) : 0;
+            ph[phn].memsz  = ph[phn].filesz;             // .bss 未導入なら filesz と同じ
+            ph[phn].align  = PAGE_SIZE;
+            phn++;
+        }
+
+        // data: LOAD (R|W) — .data が空でなければ付ける
+        if (outputsections[SECTION_DATA].size > 0) {
+            uint64_t o   = outputsections[SECTION_DATA].offset;
+            uint64_t sz  = outputsections[SECTION_DATA].size;
+            uint64_t seg = (o / PAGE_SIZE) * PAGE_SIZE;
+            uint64_t end = o + sz;
+
+            ph[phn].type   = PT_LOAD;
+            ph[phn].flags  = PF_R | PF_W;
+            ph[phn].offset = seg;
+            ph[phn].vaddr  = BASE_ADDR + seg;
+            ph[phn].paddr  = 0;
+            ph[phn].filesz = (end > seg) ? (end - seg) : 0;
+            ph[phn].memsz  = ph[phn].filesz;
+            ph[phn].align  = PAGE_SIZE;
+            phn++;
+        }
+
+        elfheader.phcount  = (uint16_t)phn;
+        elfheader.phoffset = align_offset(cursor, 8);
+        cursor = elfheader.phoffset + (size_t)elfheader.phcount * sizeof(struct elf64phdr);
+    } else {
+        elfheader.phentrysize = 0;
+        elfheader.phcount = 0;
+        elfheader.phoffset = 0;
     }
-
-    // data: LOAD (R|W) — .data が空でなければ付ける
-    if (outputsections[SECTION_DATA].size > 0) {
-        uint64_t o   = outputsections[SECTION_DATA].offset;
-        uint64_t sz  = outputsections[SECTION_DATA].size;
-        uint64_t seg = (o / PAGE_SIZE) * PAGE_SIZE;
-        uint64_t end = o + sz;
-
-        ph[phn].type   = PT_LOAD;
-        ph[phn].flags  = PF_R | PF_W;
-        ph[phn].offset = seg;
-        ph[phn].vaddr  = BASE_ADDR + seg;
-        ph[phn].paddr  = 0;
-        ph[phn].filesz = (end > seg) ? (end - seg) : 0;
-        ph[phn].memsz  = ph[phn].filesz;
-        ph[phn].align  = PAGE_SIZE;
-        phn++;
-    }
-
-    elfheader.phcount  = (uint16_t)phn;
-    elfheader.phoffset = align_offset(cursor, 8);
-    cursor = elfheader.phoffset + (size_t)elfheader.phcount * sizeof(struct elf64phdr);
 
     // ===== セクションヘッダテーブルは PHDR のさらに後ろ =====
     elfheader.shoffset = align_offset(cursor, 8);
@@ -3197,6 +3460,9 @@ struct symbol *create_symbol(const char *name, enum symbol_types type)
     symbols[hash].data[index].name_sz = n_sz;
     symbols[hash].data[index].type = type;
     symbols[hash].data[index].binding = 0;
+    symbols[hash].data[index].section = SECTION_NULL;
+    symbols[hash].data[index].value = 0;
+    symbols[hash].data[index].sym_index = 0;
 
     logger(DEBUG, no_error, "Created symbol named \"%s\"", n);
 
