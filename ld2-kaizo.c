@@ -1,9 +1,37 @@
-#ifndef BRILINKER_ARCHIVE_H
-#define BRILINKER_ARCHIVE_H
+#include "minux.h"
+#include <stdarg.h>
+#include <stdint.h>
+#include <elf.h>
+
+#define DEBUG_LINKER 1
+
+#if DEBUG_LINKER
+#define DBG(fmt, ...) do { fprintf(stderr, "[ld2] " fmt, ##__VA_ARGS__); fflush(stderr); } while (0)
+#else
+#define DBG(fmt, ...) do { } while (0)
+#endif
+
+static int DebugCountArgs(char** args) {
+    if (args == NULL) {
+        return 0;
+    }
+
+    int count = 0;
+    while (args[count] != NULL) {
+        count++;
+    }
+    return count;
+}
 
 #define EXIT_FAILURE 1
 
-#include <elf.h>
+typedef struct File {
+    char* Name;
+    char* Contents;
+    uint64_t contents_len;   //由于有'\0'，添加这个
+    struct File* Parent;     //表示它来自于哪个.a文件 , 如果直接.o就是空
+} File;
+
 // Elf32_Ehdr Executable header type. One per ELF file.
 typedef struct Ehdr_ {
     uint8_t Ident[16];      //表示ELF文件的标识信息
@@ -74,33 +102,14 @@ typedef struct {
     uint64_t Align;
 } Phdr;
 
-#include "minux.h"
-
-typedef struct File {
-    char* Name;
-    char* Contents;
-    uint64_t contents_len;   //由于有'\0'，添加这个
-    struct File* Parent;     //表示它来自于哪个.a文件 , 如果直接.o就是空
-} File;
-
-typedef struct SectionFragment_ SectionFragment;
-typedef struct MergedSection_ MergedSection;
-
-struct Chunk_;
-
 typedef uint8_t ChunkType;
 
-/** The key value pair for associative data structures. */
-typedef struct _Pair {
-    void* key;
-    void* value;
-} Pair;
-
-
+/*
 typedef struct _SlotNode {
     void* key_;
     struct _SlotNode* next_;
 } SlotNode;
+*/
 
 /** Calculate the hash of the given key. */
 typedef unsigned (*HashMapHash) (void*);
@@ -113,10 +122,17 @@ typedef void (*HashMapCleanKey) (void*);
 
 /** Value cleanup function called whenever a live entry is removed. */
 typedef void (*HashMapCleanValue) (void*);
-typedef struct _SlotNode2 {
+
+/** The key value pair for associative data structures. */
+typedef struct _Pair {
+    void* key;
+    void* value;
+} Pair;
+
+typedef struct _SlotNode {
     Pair pair_;
-    struct _SlotNode2* next_;
-} SlotNode2;
+    struct _SlotNode* next_;
+} SlotNode;
 
 struct _HashMapData {
     int size_;
@@ -125,7 +141,7 @@ struct _HashMapData {
     unsigned curr_limit_;
     unsigned iter_slot_;
     SlotNode** arr_slot_;
-    SlotNode2* iter_node_;
+    SlotNode* iter_node_;
     HashMapHash func_hash_;
     HashMapCompare func_cmp_;
     HashMapCleanKey func_clean_key_;
@@ -134,6 +150,7 @@ struct _HashMapData {
 
 /** HashMapData is the data type for the container private information. */
 typedef struct _HashMapData HashMapData;
+
 
 /** The implementation for hash map. */
 typedef struct _HashMap {
@@ -185,147 +202,21 @@ typedef struct _HashMap {
     void (*set_clean_value) (struct _HashMap*, HashMapCleanValue);
 } HashMap;
 
-struct Symbol_;
+typedef struct ObjectFile_ ObjectFile;
+typedef struct InputSection_ InputSection;
+typedef struct InputFile_ InputFile;
 
-typedef struct Chunk_{
-    char* name;
-    Shdr shdr;
-    ChunkType chunkType;
-    int32_t rank;
-
-    struct {
-        struct InputSection_** members;
-        int memberNum;
-        uint32_t idx;
-    }outpuSec;
-
-    struct {
-        HashMap *map;    //string - sectionFragment
-    }mergedSec;
-
-    struct {
-        Phdr *phdrs;
-        int phdrNum;
-    }phdrS;
-
-    struct {
-        struct Symbol_ ** GotTpSyms;
-        int TpSymNum;
-    }gotSec;
-}Chunk;
-
-//合并后的section
-struct MergedSection_{
-    Chunk *chunk;
-};
-
-struct SectionFragment_ {
-    MergedSection* OutputSection;   //进行一个双向关联吧
-    uint32_t Offset;      //在section中的offset
-    uint32_t P2Align;
-    bool IsAlive;
-    int strslen;            //保存这个sectionFragment的长度
-} ;
+struct OutputSection_;
 
 //解决一下嵌套包含
 struct ObjectFile_;
+struct MergedSection_ ;
 struct OutputEhdr_;
 struct OutputShdr_;
 struct OutputSection_;
 struct OutputPhdr_;
 struct GotSection_;
-
-
-typedef struct ObjectFile_ ObjectFile;
-
-typedef struct InputSection_ InputSection;
-typedef struct InputFile_ InputFile;
-
-typedef struct Symbol_{
-    ObjectFile *file;
-    char* name;
-    uint64_t value;
-    int32_t symIdx;
-
-    //union
-    InputSection * inputSection;
-    SectionFragment *sectionFragment;
-
-    int32_t gotTpIdx;
-    uint32_t flags;
-}Symbol;
-
-
-
-
-File** ReadArchiveMembers(File* file,int * fileCount);
-
-#endif //BRILINKER_ARCHIVE_H
-#ifndef BRILINKER_INPUT_H
-#define BRILINKER_INPUT_H
-
-
-#define ChunkTypeUnknown ((ChunkType)0)
-#define ChunkTypeEhdr ((ChunkType)1)
-#define ChunkTypeShdr ((ChunkType)2)
-#define ChunkTypePhdr ((ChunkType)3)
-#define ChunkTypeOutputSection ((ChunkType)4)
-#define ChunkTypeMergedSection ((ChunkType)5)
-#define ChunkTypeGotSection ((ChunkType)6)
-
-
-//将merge-able section分成小的数据块
-
-
-
-typedef struct OutputEhdr_{
-    Chunk *chunk;
-}OutputEhdr;
-
-typedef struct OutputShdr_{
-    Chunk *chunk;
-}OutputShdr;
-
-typedef struct OutputSection_{
-    Chunk * chunk;
-}OutputSection;
-
-typedef struct OutputPhdr_{
-    Chunk *chunk;
-}OutputPhdr;
-
-typedef struct GotSection_{
-    Chunk *chunk;
-}GotSection;
-
-// .got 表中的每个条目对应一个全局变量或函数的地址 , 针对tp_addr的偏移量
-typedef struct GotEntry_{
-    int64_t idx;
-    uint64_t val;
-}GotEntry;
-
-
-typedef struct MergeableSection{
-    MergedSection * parent;
-    uint8_t p2align;
-    char** strs;            //fragments的原始数据, 是数据，不一定是字符串 , 还有const原始数据
-    int strNum;
-    int* strslen;
-    uint32_t* fragOffsets;
-    int fragOffsetNum;
-    SectionFragment ** fragments;
-    int fragmentNum;
-}MergeableSection;
-
-struct ObjectFile_{
-    InputFile *inputFile;    //这样表示继承
-    Shdr *SymtabSec;
-    InputSection ** Sections;
-    int64_t isecNum;
-    uint32_t* SymtabShndxSec;    //
-    MergeableSection **mergeableSections;
-    size_t mergeableSectionsNum;
-};
+struct Chunk_;
 
 typedef uint8_t MachineType;
 
@@ -335,6 +226,9 @@ typedef struct {
     char** LibraryPaths;
     int LibraryPathsCount;
 } ContextArgs;
+
+typedef struct SectionFragment_ SectionFragment;
+typedef struct MergedSection_ MergedSection;
 
 typedef struct {
     ContextArgs Args;
@@ -360,7 +254,76 @@ typedef struct {
     int outputSecNum;
 
     uint64_t TpAddr;
+    uint64_t GpAddr;
 } Context;
+
+
+typedef struct Symbol_{
+    ObjectFile *file;
+    char* name;
+    uint64_t value;
+    int32_t symIdx;
+
+    //union
+    InputSection * inputSection;
+    SectionFragment *sectionFragment;
+
+    int32_t gotTpIdx;
+    uint32_t flags;
+}Symbol;
+
+typedef struct Chunk_{
+    char* name;
+    Shdr shdr;
+    ChunkType chunkType;
+    int32_t rank;
+
+    struct {
+        struct InputSection_** members;
+        int memberNum;
+        uint32_t idx;
+    }outpuSec;
+
+    struct {
+        HashMap *map;    //string - sectionFragment
+    }mergedSec;
+
+    struct {
+        Phdr *phdrs;
+        int phdrNum;
+    }phdrS;
+
+    struct {
+        Symbol ** GotTpSyms;
+        int TpSymNum;
+    }gotSec;
+}Chunk;
+
+typedef struct OutputEhdr_{
+    Chunk *chunk;
+}OutputEhdr;
+
+typedef struct OutputShdr_{
+    Chunk *chunk;
+}OutputShdr;
+
+typedef struct OutputSection_{
+    Chunk * chunk;
+}OutputSection;
+
+typedef struct OutputPhdr_{
+    Chunk *chunk;
+}OutputPhdr;
+
+
+#ifndef BRILINKER_ARCHIVE_H
+#define BRILINKER_ARCHIVE_H
+
+File** ReadArchiveMembers(File* file,int * fileCount);
+
+#endif //BRILINKER_ARCHIVE_H
+#ifndef BRILINKER_INPUT_H
+#define BRILINKER_INPUT_H
 
 
 ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib);
@@ -374,6 +337,25 @@ void ReadInputFiles(Context* ctx,char** remaining);
 
 #define max_(a, b) ((a) > (b) ? (a) : (b))
 
+#define ChunkTypeUnknown ((ChunkType)0)
+#define ChunkTypeEhdr ((ChunkType)1)
+#define ChunkTypeShdr ((ChunkType)2)
+#define ChunkTypePhdr ((ChunkType)3)
+#define ChunkTypeOutputSection ((ChunkType)4)
+#define ChunkTypeMergedSection ((ChunkType)5)
+#define ChunkTypeGotSection ((ChunkType)6)
+
+
+
+typedef struct GotSection_{
+    Chunk *chunk;
+}GotSection;
+
+// .got 表中的每个条目对应一个全局变量或函数的地址 , 针对tp_addr的偏移量
+typedef struct GotEntry_{
+    int64_t idx;
+    uint64_t val;
+}GotEntry;
 
 Chunk *NewChunk();
 Shdr *GetShdr(Chunk* c);
@@ -405,12 +387,17 @@ GotSection *NewGotSection();
 void AddGotTpSymbol(Chunk* chunk, Symbol* sym);
 void GotSec_CopyBuf(Chunk* c,Context* ctx);
 GotEntry *GetEntries(Chunk *chunk,Context* ctx,int* num);
+void FinalizeGlobalPointer(Context* ctx);
 
 #endif //BRILINKER_CHUNK_H
 #ifndef BRILINKER_MERGEDSECTION_H
 #define BRILINKER_MERGEDSECTION_H
 
 
+//合并后的section
+struct MergedSection_{
+    Chunk *chunk;
+};
 
 typedef struct Fragment_ {
     char* key;
@@ -436,7 +423,6 @@ File* FindLibrary(Context* ctx, const char* name);
 
 
 
-
 Context* NewContext();
 void appendLibraryPath(Context* ctx, char* arg);
 
@@ -446,8 +432,27 @@ void appendLibraryPath(Context* ctx, char* arg);
 
 
 
+//将merge-able section分成小的数据块
+struct SectionFragment_ {
+    MergedSection* OutputSection;   //进行一个双向关联吧
+    uint32_t Offset;      //在section中的offset
+    uint32_t P2Align;
+    bool IsAlive;
+    int strslen;            //保存这个sectionFragment的长度
+} ;
 
 //input section拆成一个(? y)包含多个sectionFragment的merge-able section , 再放入merged section
+typedef struct MergeableSection{
+    MergedSection * parent;
+    uint8_t p2align;
+    char** strs;            //fragments的原始数据, 是数据，不一定是字符串 , 还有const原始数据
+    int strNum;
+    int* strslen;
+    uint32_t* fragOffsets;
+    int fragOffsetNum;
+    SectionFragment ** fragments;
+    int fragmentNum;
+}MergeableSection;
 
 //SectionFragment
 SectionFragment* NewSectionFragment(MergedSection* m);
@@ -485,6 +490,54 @@ char* GetOutputName(char* name, uint64_t flags);
 
 
 #endif //BRILINKER_OUTPUT_H
+// Format of an ELF executable file
+
+#define ELF_MAGIC 0x464C457FU  // "\x7FELF" in little endian
+
+#define uint64 uint64_t
+#define uint32 uint32_t
+#define ushort unsigned short
+#define uint unsigned int
+#define uchar unsigned char
+
+// File header
+struct elfhdr {
+  uint magic;  // must equal ELF_MAGIC
+  uchar elf[12];
+  ushort type;
+  ushort machine;
+  uint version;
+  uint64 entry;
+  uint64 phoff;
+  uint64 shoff;
+  uint flags;
+  ushort ehsize;
+  ushort phentsize;
+  ushort phnum;
+  ushort shentsize;
+  ushort shnum;
+  ushort shstrndx;
+};
+
+// Program section header
+struct proghdr {
+  uint32 type;
+  uint32 flags;
+  uint64 off;
+  uint64 vaddr;
+  uint64 paddr;
+  uint64 filesz;
+  uint64 memsz;
+  uint64 align;
+};
+
+// Values for Proghdr type
+#define ELF_PROG_LOAD           1
+
+// Flag bits for Proghdr flags
+#define ELF_PROG_FLAG_EXEC      1
+#define ELF_PROG_FLAG_WRITE     2
+#define ELF_PROG_FLAG_READ      4
 
 #ifndef BRILINKER_PASSES_H
 #define BRILINKER_PASSES_H
@@ -511,10 +564,17 @@ void ScanRelocations(Context* ctx);
 
 
 
-struct OutputSection_;
 
 
-
+struct ObjectFile_{
+    InputFile *inputFile;    //这样表示继承
+    Shdr *SymtabSec;
+    InputSection ** Sections;
+    int64_t isecNum;
+    uint32_t* SymtabShndxSec;    //
+    MergeableSection **mergeableSections;
+    size_t mergeableSectionsNum;
+};
 
 struct InputSection_{
     struct ObjectFile_ *objectFile;     //来自于某个文件
@@ -543,7 +603,6 @@ struct InputFile_{
 
     char* ShStrtab;
     int64_t FirstGlobal;
-    int64_t numLocalSymbols;
 
     Sym *ElfSyms;
     int64_t symNum;
@@ -556,6 +615,7 @@ struct InputFile_{
     Symbol** Symbols;       //可能und等全部symbol，会指向别处
     int64_t numSymbols;
 
+    int numLocalSymbols;
 };
 
 ObjectFile *NewObjectFile(File* file,bool isAlive);
@@ -622,6 +682,20 @@ typedef uint8_t FileType;
 
 FileType GetFileType(const char* contents);
 
+static const char* FileTypeToString(FileType type) {
+    switch (type) {
+        case FileTypeEmpty:
+            return "empty";
+        case FileTypeObject:
+            return "object";
+        case FileTypeArchive:
+            return "archive";
+        case FileTypeUnknown:
+        default:
+            return "unknown";
+    }
+}
+
 #endif //BRILINKER_FILETYPE_H
 #ifndef BRILD_UTIL_H
 #define BRILD_UTIL_H
@@ -634,8 +708,8 @@ char** appendToRemaining(char** remaining, const char* arg,bool l);
 char* removePrefix(const char* s, const char* prefix);
 bool hasPrefix(const char* s, const char* prefix);
 int endsWith(const char *str, const char *suffix);
-uint32_t hash(const char* str);
-void* convertHashToKey(uint32_t hashValue);
+static unsigned hash_string_key(void* key);
+static int compare_string_key(void* lhs, void* rhs);
 uint64_t AlignTo(uint64_t val, uint64_t align);
 void Write(void* data, size_t dataSize, void* element);
 
@@ -644,6 +718,12 @@ uint32_t Bits_32(uint32_t val, uint32_t hi, uint32_t lo);
 uint64_t SignExtend(uint64_t val,int size);
 
 #endif //BRILD_UTIL_H
+// Format of an ELF executable file
+
+#define ELF_MAGIC 0x464C457FU  // "\x7FELF" in little endian
+
+
+
 /**
  *   The MIT License (MIT)
  *   Copyright (C) 2016 ZongXian Shen <andy.zsshen@gmail.com>
@@ -679,6 +759,8 @@ uint64_t SignExtend(uint64_t val,int size);
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
 
 
 
@@ -867,10 +949,6 @@ void HashMapClean(HashMap *self);
 extern "C" {
 #endif
 
-
-/** HashSetData is the data type for the container private information. */
-typedef struct _HashSetData HashSetData;
-
 /** Calculate the hash of the given key. */
 typedef unsigned (*HashSetHash) (void*);
 
@@ -879,6 +957,29 @@ typedef int (*HashSetCompare) (void*, void*);
 
 /** void* cleanup function called whenever a live entry is removed. */
 typedef void (*HashSetCleanKey) (void*);
+
+typedef struct _HashSetSlotNode {
+    void* key_;
+    struct _HashSetSlotNode* next_;
+} HashSetSlotNode;
+
+struct _HashSetData {
+    int idx_prime_;
+    unsigned size_;
+    unsigned num_slot_;
+    unsigned curr_limit_;
+    unsigned iter_slot_;
+    HashSetSlotNode** arr_slot_;
+    HashSetSlotNode* iter_node_;
+    HashSetHash func_hash_;
+    HashSetCompare func_cmp_;
+    HashSetCleanKey func_clean_key_;
+};
+
+
+/** HashSetData is the data type for the container private information. */
+typedef struct _HashSetData HashSetData;
+
 
 
 /** The implementation for hash set. */
@@ -1327,6 +1428,15 @@ char* ReadName(const ArHdr* a, char* strTab);
 # define COMPILER_VERSION_MINOR DEC(__IBMC__/10 % 10)
 # define COMPILER_VERSION_PATCH DEC(__IBMC__    % 10)
 
+#elif defined(__open_xl__) && defined(__clang__)
+# define COMPILER_ID "IBMClang"
+# define COMPILER_VERSION_MAJOR DEC(__open_xl_version__)
+# define COMPILER_VERSION_MINOR DEC(__open_xl_release__)
+# define COMPILER_VERSION_PATCH DEC(__open_xl_modification__)
+# define COMPILER_VERSION_TWEAK DEC(__open_xl_ptf_fix_level__)
+# define COMPILER_VERSION_INTERNAL_STR  __clang_version__
+
+
 #elif defined(__ibmxl__) && defined(__clang__)
 # define COMPILER_ID "XLClang"
 # define COMPILER_VERSION_MAJOR DEC(__ibmxl_version__)
@@ -1364,6 +1474,14 @@ char* ReadName(const ArHdr* a, char* strTab);
 # if defined(__PGIC_PATCHLEVEL__)
 #  define COMPILER_VERSION_PATCH DEC(__PGIC_PATCHLEVEL__)
 # endif
+
+#elif defined(__clang__) && defined(__cray__)
+# define COMPILER_ID "CrayClang"
+# define COMPILER_VERSION_MAJOR DEC(__cray_major__)
+# define COMPILER_VERSION_MINOR DEC(__cray_minor__)
+# define COMPILER_VERSION_PATCH DEC(__cray_patchlevel__)
+# define COMPILER_VERSION_INTERNAL_STR __clang_version__
+
 
 #elif defined(_CRAYC)
 # define COMPILER_ID "Cray"
@@ -1410,6 +1528,25 @@ char* ReadName(const ArHdr* a, char* strTab);
 # define COMPILER_VERSION_PATCH DEC(__GHS_VERSION_NUMBER      % 10)
 # endif
 
+#elif defined(__TASKING__)
+# define COMPILER_ID "Tasking"
+  # define COMPILER_VERSION_MAJOR DEC(__VERSION__/1000)
+  # define COMPILER_VERSION_MINOR DEC(__VERSION__ % 100)
+# define COMPILER_VERSION_INTERNAL DEC(__VERSION__)
+
+#elif defined(__ORANGEC__)
+# define COMPILER_ID "OrangeC"
+# define COMPILER_VERSION_MAJOR DEC(__ORANGEC_MAJOR__)
+# define COMPILER_VERSION_MINOR DEC(__ORANGEC_MINOR__)
+# define COMPILER_VERSION_PATCH DEC(__ORANGEC_PATCHLEVEL__)
+
+#elif defined(__RENESAS__)
+# define COMPILER_ID "Renesas"
+/* __RENESAS_VERSION__ = 0xVVRRPP00 */
+# define COMPILER_VERSION_MAJOR HEX(__RENESAS_VERSION__ >> 24 & 0xFF)
+# define COMPILER_VERSION_MINOR HEX(__RENESAS_VERSION__ >> 16 & 0xFF)
+# define COMPILER_VERSION_PATCH HEX(__RENESAS_VERSION__ >> 8  & 0xFF)
+
 #elif defined(__TINYC__)
 # define COMPILER_ID "TinyCC"
 
@@ -1453,8 +1590,15 @@ char* ReadName(const ArHdr* a, char* strTab);
 # define COMPILER_ID "ARMClang"
   # define COMPILER_VERSION_MAJOR DEC(__ARMCOMPILER_VERSION/1000000)
   # define COMPILER_VERSION_MINOR DEC(__ARMCOMPILER_VERSION/10000 % 100)
-  # define COMPILER_VERSION_PATCH DEC(__ARMCOMPILER_VERSION     % 10000)
+  # define COMPILER_VERSION_PATCH DEC(__ARMCOMPILER_VERSION/100   % 100)
 # define COMPILER_VERSION_INTERNAL DEC(__ARMCOMPILER_VERSION)
+
+#elif defined(__clang__) && defined(__ti__)
+# define COMPILER_ID "TIClang"
+  # define COMPILER_VERSION_MAJOR DEC(__ti_major__)
+  # define COMPILER_VERSION_MINOR DEC(__ti_minor__)
+  # define COMPILER_VERSION_PATCH DEC(__ti_patchlevel__)
+# define COMPILER_VERSION_INTERNAL DEC(__ti_version__)
 
 #elif defined(__clang__)
 # define COMPILER_ID "Clang"
@@ -1468,6 +1612,22 @@ char* ReadName(const ArHdr* a, char* strTab);
    /* _MSC_VER = VVRR */
 #  define SIMULATE_VERSION_MAJOR DEC(_MSC_VER / 100)
 #  define SIMULATE_VERSION_MINOR DEC(_MSC_VER % 100)
+# endif
+
+#elif defined(__LCC__) && (defined(__GNUC__) || defined(__GNUG__) || defined(__MCST__))
+# define COMPILER_ID "LCC"
+# define COMPILER_VERSION_MAJOR DEC(__LCC__ / 100)
+# define COMPILER_VERSION_MINOR DEC(__LCC__ % 100)
+# if defined(__LCC_MINOR__)
+#  define COMPILER_VERSION_PATCH DEC(__LCC_MINOR__)
+# endif
+# if defined(__GNUC__) && defined(__GNUC_MINOR__)
+#  define SIMULATE_ID "GNU"
+#  define SIMULATE_VERSION_MAJOR DEC(__GNUC__)
+#  define SIMULATE_VERSION_MINOR DEC(__GNUC_MINOR__)
+#  if defined(__GNUC_PATCHLEVEL__)
+#   define SIMULATE_VERSION_PATCH DEC(__GNUC_PATCHLEVEL__)
+#  endif
 # endif
 
 #elif defined(__GNUC__)
@@ -1498,13 +1658,14 @@ char* ReadName(const ArHdr* a, char* strTab);
 #  define COMPILER_VERSION_TWEAK DEC(_MSC_BUILD)
 # endif
 
-#elif defined(__VISUALDSPVERSION__) || defined(__ADSPBLACKFIN__) || defined(__ADSPTS__) || defined(__ADSP21000__)
+#elif defined(_ADI_COMPILER)
 # define COMPILER_ID "ADSP"
-#if defined(__VISUALDSPVERSION__)
-  /* __VISUALDSPVERSION__ = 0xVVRRPP00 */
-# define COMPILER_VERSION_MAJOR HEX(__VISUALDSPVERSION__>>24)
-# define COMPILER_VERSION_MINOR HEX(__VISUALDSPVERSION__>>16 & 0xFF)
-# define COMPILER_VERSION_PATCH HEX(__VISUALDSPVERSION__>>8  & 0xFF)
+#if defined(__VERSIONNUM__)
+  /* __VERSIONNUM__ = 0xVVRRPPTT */
+#  define COMPILER_VERSION_MAJOR DEC(__VERSIONNUM__ >> 24 & 0xFF)
+#  define COMPILER_VERSION_MINOR DEC(__VERSIONNUM__ >> 16 & 0xFF)
+#  define COMPILER_VERSION_PATCH DEC(__VERSIONNUM__ >> 8 & 0xFF)
+#  define COMPILER_VERSION_TWEAK DEC(__VERSIONNUM__ & 0xFF)
 #endif
 
 #elif defined(__IAR_SYSTEMS_ICC__) || defined(__IAR_SYSTEMS_ICC)
@@ -1520,6 +1681,14 @@ char* ReadName(const ArHdr* a, char* strTab);
 #  define COMPILER_VERSION_PATCH DEC(__SUBVERSION__)
 #  define COMPILER_VERSION_INTERNAL DEC(__IAR_SYSTEMS_ICC__)
 # endif
+
+#elif defined(__DCC__) && defined(_DIAB_TOOL)
+# define COMPILER_ID "Diab"
+  # define COMPILER_VERSION_MAJOR DEC(__VERSION_MAJOR_NUMBER__)
+  # define COMPILER_VERSION_MINOR DEC(__VERSION_MINOR_NUMBER__)
+  # define COMPILER_VERSION_PATCH DEC(__VERSION_ARCH_FEATURE_NUMBER__)
+  # define COMPILER_VERSION_TWEAK DEC(__VERSION_BUG_FIX_NUMBER__)
+
 
 #elif defined(__SDCC_VERSION_MAJOR) || defined(SDCC)
 # define COMPILER_ID "SDCC"
@@ -1669,6 +1838,9 @@ char const *info_cray = "INFO" ":" "compiler_wrapper[CrayPrgEnv]";
 #  define PLATFORM_ID "Integrity"
 # endif
 
+# elif defined(_ADI_COMPILER)
+#  define PLATFORM_ID "ADSP"
+
 #else /* unknown platform */
 # define PLATFORM_ID
 
@@ -1780,6 +1952,14 @@ char const *info_cray = "INFO" ":" "compiler_wrapper[CrayPrgEnv]";
 #  define ARCHITECTURE_ID ""
 # endif
 
+#elif defined(__clang__) && defined(__ti__)
+# if defined(__ARM_ARCH)
+#  define ARCHITECTURE_ID "ARM"
+
+# else /* unknown architecture */
+#  define ARCHITECTURE_ID ""
+# endif
+
 #elif defined(__TI_COMPILER_VERSION__)
 # if defined(__TI_ARM__)
 #  define ARCHITECTURE_ID "ARM"
@@ -1794,6 +1974,50 @@ char const *info_cray = "INFO" ":" "compiler_wrapper[CrayPrgEnv]";
 #  define ARCHITECTURE_ID "TMS320C6x"
 
 # else /* unknown architecture */
+#  define ARCHITECTURE_ID ""
+# endif
+
+# elif defined(__ADSPSHARC__)
+#  define ARCHITECTURE_ID "SHARC"
+
+# elif defined(__ADSPBLACKFIN__)
+#  define ARCHITECTURE_ID "Blackfin"
+
+#elif defined(__TASKING__)
+
+# if defined(__CTC__) || defined(__CPTC__)
+#  define ARCHITECTURE_ID "TriCore"
+
+# elif defined(__CMCS__)
+#  define ARCHITECTURE_ID "MCS"
+
+# elif defined(__CARM__) || defined(__CPARM__)
+#  define ARCHITECTURE_ID "ARM"
+
+# elif defined(__CARC__)
+#  define ARCHITECTURE_ID "ARC"
+
+# elif defined(__C51__)
+#  define ARCHITECTURE_ID "8051"
+
+# elif defined(__CPCP__)
+#  define ARCHITECTURE_ID "PCP"
+
+# else
+#  define ARCHITECTURE_ID ""
+# endif
+
+#elif defined(__RENESAS__)
+# if defined(__CCRX__)
+#  define ARCHITECTURE_ID "RX"
+
+# elif defined(__CCRL__)
+#  define ARCHITECTURE_ID "RL78"
+
+# elif defined(__CCRH__)
+#  define ARCHITECTURE_ID "RH850"
+
+# else
 #  define ARCHITECTURE_ID ""
 # endif
 
@@ -1883,19 +2107,28 @@ char const* info_arch = "INFO" ":" "arch[" ARCHITECTURE_ID "]";
 
 
 
-#if !defined(__STDC__) && !defined(__clang__)
+#define C_STD_99 199901L
+#define C_STD_11 201112L
+#define C_STD_17 201710L
+#define C_STD_23 202311L
+
+#ifdef __STDC_VERSION__
+#  define C_STD __STDC_VERSION__
+#endif
+
+#if !defined(__STDC__) && !defined(__clang__) && !defined(__RENESAS__)
 # if defined(_MSC_VER) || defined(__ibmxl__) || defined(__IBMC__)
 #  define C_VERSION "90"
 # else
 #  define C_VERSION
 # endif
-#elif __STDC_VERSION__ > 201710L
+#elif C_STD > C_STD_17
 # define C_VERSION "23"
-#elif __STDC_VERSION__ >= 201710L
+#elif C_STD > C_STD_11
 # define C_VERSION "17"
-#elif __STDC_VERSION__ >= 201000L
+#elif C_STD > C_STD_99
 # define C_VERSION "11"
-#elif __STDC_VERSION__ >= 199901L
+#elif C_STD >= C_STD_99
 # define C_VERSION "99"
 #else
 # define C_VERSION "90"
@@ -1904,10 +2137,9 @@ const char* info_language_standard_default =
   "INFO" ":" "standard_default[" C_VERSION "]";
 
 const char* info_language_extensions_default = "INFO" ":" "extensions_default["
-/* !defined(_MSC_VER) to exclude Clang's MSVC compatibility mode. */
-#if (defined(__clang__) || defined(__GNUC__) ||                               \
-     defined(__TI_COMPILER_VERSION__)) &&                                     \
-  !defined(__STRICT_ANSI__) && !defined(_MSC_VER)
+#if (defined(__clang__) || defined(__GNUC__) || defined(__xlC__) ||           \
+     defined(__TI_COMPILER_VERSION__) || defined(__RENESAS__)) &&             \
+  !defined(__STRICT_ANSI__)
   "ON"
 #else
   "OFF"
@@ -1915,6 +2147,7 @@ const char* info_language_extensions_default = "INFO" ":" "extensions_default["
 "]";
 
 /*--------------------------------------------------------------------------*/
+
 
 /*
 #ifdef ID_VOID_MAIN
@@ -1933,7 +2166,7 @@ int main(int argc, char* argv[])
 #ifdef COMPILER_VERSION_MAJOR
   require += info_version[argc];
 #endif
-#ifdef COMPILER_VERSION_INTERNAL
+#if defined(COMPILER_VERSION_INTERNAL) || defined(COMPILER_VERSION_INTERNAL_STR)
   require += info_version_internal[argc];
 #endif
 #ifdef SIMULATE_ID
@@ -1969,20 +2202,30 @@ ObjectFile** RemoveIf(ObjectFile** elems, int* count) {
 }
 
 void ResolveSymbols_pass(Context* ctx){
+    DBG("ResolveSymbols_pass: start (objs=%d)\\n", ctx->ObjsCount);
     for(int i=0;i<ctx->ObjsCount;i++){
         ObjectFile *objectFile = ctx->Objs[i];
+        DBG("ResolveSymbols_pass: resolving %s (alive=%d)\\n",
+            objectFile->inputFile->file->Name,
+            objectFile->inputFile->isAlive);
         ResolveSymbols(objectFile);
     }
 
+    DBG("ResolveSymbols_pass: MarkLiveObjects start\\n");
     MarkLiveObjects(ctx);
+    DBG("ResolveSymbols_pass: MarkLiveObjects done\\n");
 
     for(int i=0;i<ctx->ObjsCount;i++){
         ObjectFile *objectFile = ctx->Objs[i];
-        if(!objectFile->inputFile->isAlive)
+        if(!objectFile->inputFile->isAlive) {
+            DBG("ResolveSymbols_pass: clearing symbols for %s\\n",
+                objectFile->inputFile->file->Name);
             ClearSymbols(objectFile);
+        }
     }
 
     ctx->Objs = RemoveIf(ctx->Objs,&ctx->ObjsCount);
+    DBG("ResolveSymbols_pass: done (objs=%d)\\n", ctx->ObjsCount);
 }
 
 void MarkLiveObjects(Context* ctx) {
@@ -1997,12 +2240,36 @@ void MarkLiveObjects(Context* ctx) {
     }
 
     int num = 0;
+    int stuck_num = -1;
+    int stuck_count = 0;
+    DBG("MarkLiveObjects: rootSize=%d\\n", rootSize);
     while (num < rootSize) {
         ObjectFile *file = roots[num];
-        if (!file->inputFile->isAlive)
+        DBG("MarkLiveObjects: visit root[%d/%d] %s alive=%d\\n",
+            num, rootSize, file->inputFile->file->Name,
+            file->inputFile->isAlive);
+        if (!file->inputFile->isAlive) {
+            if (stuck_num == num) {
+                stuck_count++;
+            } else {
+                stuck_num = num;
+                stuck_count = 1;
+            }
+            if (stuck_count == 1 || stuck_count % 1000 == 0) {
+                DBG("MarkLiveObjects: root[%d] %s unexpectedly not alive (count=%d)\\n",
+                    num, file->inputFile->file->Name, stuck_count);
+            }
+            if (stuck_count > 100000) {
+                fatal("MarkLiveObjects stuck at root %d (%s)", num, file->inputFile->file->Name);
+            }
             continue;
+        }
+
+        stuck_num = -1;
+        stuck_count = 0;
 
         markLiveObjs(file, &roots, &rootSize);
+        DBG("MarkLiveObjects: after mark, rootSize=%d\\n", rootSize);
         num++;
     }
 }
@@ -2252,9 +2519,15 @@ void ComputeMergedSectionSizes(Context* ctx){
 }
 
 void ScanRelocations(Context* ctx){
+    DBG("ScanRelocations: start objs=%d\n", ctx->ObjsCount);
     for(int i=0; i< ctx->ObjsCount;i++){
+        DBG("ScanRelocations: object[%d]=%s isecNum=%ld\n",
+            i,
+            ctx->Objs[i]->inputFile->file->Name,
+            ctx->Objs[i]->isecNum);
         ScanRelocations_(ctx->Objs[i]);
     }
+    DBG("ScanRelocations: finished section scan\n");
 
     Symbol **syms = NULL;
     int numSyms = 0;
@@ -2273,6 +2546,7 @@ void ScanRelocations(Context* ctx){
             }
         }
     }
+    DBG("ScanRelocations: flagged syms=%d\n", numSyms);
 
     for(int i=0; i<numSyms;i++){
         Symbol *sym = syms[i];
@@ -2282,6 +2556,7 @@ void ScanRelocations(Context* ctx){
 
         sym->flags = 0;
     }
+    DBG("ScanRelocations: done\n");
 }
 
 InputFile* NewInputFile(File* file){
@@ -2377,6 +2652,7 @@ Ehdr GetEhdr(InputFile* f){
     Read(&ehdr,f->file->Contents,sizeof (Ehdr));
     return ehdr;
 }
+
 
 SectionFragment* NewSectionFragment(MergedSection* m) {
     SectionFragment* fragment = (SectionFragment*)malloc(sizeof(SectionFragment));
@@ -2760,6 +3036,7 @@ ObjectFile *NewObjectFile(File* file,bool isAlive){
 
 //解析目标文件
 void Parse(Context *ctx,ObjectFile* o){
+    DBG("Parse: start %s\\n", o->inputFile->file->Name);
     o->SymtabSec = FindSection(o->inputFile,2);  //SHT_SYMTAB
     if(o->SymtabSec != NULL){
         o->inputFile->FirstGlobal = o->SymtabSec->Info;
@@ -2767,9 +3044,13 @@ void Parse(Context *ctx,ObjectFile* o){
         o->inputFile->SymbolStrtab = GetBytesFromIdx(o->inputFile,o->SymtabSec->Link);
     }
     InitializeSections(o,ctx);
+    DBG("Parse: sections initialized (%ld)\\n", o->isecNum);
     InitializeSymbols(ctx,o);
+    DBG("Parse: symbols initialized (symNum=%ld firstGlobal=%ld)\\n", o->inputFile->symNum, o->inputFile->FirstGlobal);
     InitializeMergeableSections(o,ctx);
+    DBG("Parse: mergeable sections initialized\n");
     SkipEhframeSections(o);
+    DBG("Parse: completed %s\\n", o->inputFile->file->Name);
 }
 
 // 添加 ObjectFile 到 Objs 数组
@@ -2863,13 +3144,30 @@ int64_t GetShndx(ObjectFile* o, Sym* esym, int idx) {
 }
 
 void InitializeSymbols(Context *ctx,ObjectFile* o){
+    DBG("InitializeSymbols: start file=%s FirstGlobal=%ld symNum=%ld\\n",
+        o->inputFile->file->Name,
+        o->inputFile->FirstGlobal,
+        o->inputFile->symNum);
     if(o->SymtabSec == NULL)
         return;
 
     o->inputFile->LocalSymbols = (Symbol*) malloc(sizeof (Symbol)*o->inputFile->FirstGlobal);
+    DBG("InitializeSymbols: allocated LocalSymbols=%p\\n", (void*)o->inputFile->LocalSymbols);
     for(int i=0; i< o->inputFile->FirstGlobal;i++){
-        o->inputFile->LocalSymbols[i]= *NewSymbol("");
+        Symbol *tmp = NewSymbol("");
+        if (tmp == NULL) {
+            fatal("InitializeSymbols: NewSymbol failed at %d", i);
+        }
+        o->inputFile->LocalSymbols[i]= *tmp;
+        free(tmp);
+        if ((i & 0x3ff) == 0) {
+            DBG("InitializeSymbols: local init i=%d\\n", i);
+        }
+        if ((i & 0x3f) == 0) {
+            DBG("InitializeSymbols: local init progress i=%d\\n", i);
+        }
     }
+    DBG("InitializeSymbols: local init done\\n");
     o->inputFile->LocalSymbols[0].file = o;
     for(int i=1; i< o->inputFile->FirstGlobal;i++){
         Sym* esym = &o->inputFile->ElfSyms[i];
@@ -2878,30 +3176,49 @@ void InitializeSymbols(Context *ctx,ObjectFile* o){
         sym->file = o;
         sym->value = esym->Val;
         sym->symIdx = i;
+        if ((i & 0x3ff) == 0) {
+            DBG("InitializeSymbols: local sym i=%d name=%s\\n", i, sym->name ? sym->name : "<null>");
+        }
 
         //绝对符号没有对应的inputSection
         if(!IsAbs(esym))
             SetInputSection(sym,o->Sections[GetShndx(o,esym,i)]);
     }
+    DBG("InitializeSymbols: local sym done\\n");
 
     o->inputFile->Symbols = (Symbol **)calloc(o->inputFile->symNum, sizeof(Symbol *));
-    for (int i = 0; i < o->inputFile->symNum; ++i) {
-        o->inputFile->Symbols[i] = (Symbol*) malloc(sizeof (Symbol));
-        o->inputFile->numSymbols++;
+    if (o->inputFile->Symbols == NULL) {
+        fatal("InitializeSymbols: calloc Symbols failed");
     }
+    DBG("InitializeSymbols: allocated Symbols=%p\\n", (void*)o->inputFile->Symbols);
+    o->inputFile->numSymbols = 0;
     ////填充上所有localSym
     for(int i=0;i<o->inputFile->FirstGlobal;i++){
         o->inputFile->Symbols[i] = &o->inputFile->LocalSymbols[i];
+        o->inputFile->numSymbols++;
+        if ((i & 0x3ff) == 0) {
+            DBG("InitializeSymbols: hook local symbol i=%d ptr=%p\\n", i, (void*)o->inputFile->Symbols[i]);
+        }
     }
+    DBG("InitializeSymbols: copy local symbols done\\n");
     //填充其他非local的symbols , 在初始化阶段填入的值还是默认初值
     for(int i=o->inputFile->FirstGlobal;i<o->inputFile->symNum;i++){
         Sym* esym = &o->inputFile->ElfSyms[i];
         char* name = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
         o->inputFile->Symbols[i] = GetSymbolByName(ctx,name);
+        if (o->inputFile->Symbols[i] == NULL) {
+            fatal("InitializeSymbols: GetSymbolByName returned NULL for %s", name ? name : "<null>");
+        }
+        o->inputFile->numSymbols++;
+        if (((i - o->inputFile->FirstGlobal) & 0x3ff) == 0) {
+            DBG("InitializeSymbols: global sym i=%d name=%s\\n", i, name ? name : "<null>");
+        }
     }
+    DBG("InitializeSymbols: done\\n");
 }
 
 void InitializeMergeableSections(ObjectFile * o,Context* ctx){
+    DBG("InitializeMergeableSections: start isecNum=%ld\n", o->isecNum);
     o->mergeableSectionsNum = o->isecNum;
     o->mergeableSections = (MergeableSection**)malloc(o->mergeableSectionsNum * sizeof(MergeableSection*));
     if(o->mergeableSections == NULL)
@@ -2909,18 +3226,42 @@ void InitializeMergeableSections(ObjectFile * o,Context* ctx){
 
     for (int i = 0; i < o->isecNum; i++) {
         InputSection * isec = o->Sections[i];
+        if (isec == NULL) {
+            DBG("InitializeMergeableSections: sec[%d] NULL\n", i);
+        } else {
+            Shdr *shdr = shdr_(isec);
+            DBG("InitializeMergeableSections: sec[%d] isAlive=%d flags=0x%lx type=%u entsize=%lu size=%lu\n",
+                i,
+                isec->isAlive,
+                (unsigned long)shdr->Flags,
+                (unsigned)shdr->Type,
+                (unsigned long)shdr->EntSize,
+                (unsigned long)shdr->Size);
+        }
         if (isec != NULL && isec->isAlive &&
-            (shdr_(isec)->Flags & SHF_MERGE) != 0) {
+            (shdr_(isec)->Flags & SHF_MERGE) != 0 &&
+            (shdr_(isec)->Flags & SHF_ALLOC) != 0) {
             o->mergeableSections[i] = splitSection(ctx, isec);
             isec->isAlive = false;      //被拆了，不再需要了
+            if ((i & 0x3ff) == 0) {
+                DBG("InitializeMergeableSections: split section idx=%d name=%s\n",
+                    i, Name(isec));
+            }
         } else {
             o->mergeableSections[i] = NULL;
         }
+        if ((i & 0xfff) == 0) {
+            DBG("InitializeMergeableSections: progress idx=%d/%ld\n", i, o->isecNum);
+        }
     }
+    DBG("InitializeMergeableSections: done\n");
 }
 
 // 找到字符串结束即all zeors的位置
 int findNull(const char* data, uint64_t data_len, int entSize) {
+    if (entSize <= 0) {
+        entSize = 1;
+    }
     if (entSize == 1) {
         const char* result = memchr(data, 0, data_len);
         if (result != NULL) {
@@ -2948,8 +3289,15 @@ int findNull(const char* data, uint64_t data_len, int entSize) {
 MergeableSection *splitSection(Context* ctx,InputSection* isec){
     MergeableSection *m = NewMergeableSection();
     Shdr *shdr = shdr_(isec);
-    m->parent = GetMergedSectionInstance(ctx,Name(isec),shdr->Type,shdr->Flags);
+    char* secName = Name(isec);
+    m->parent = GetMergedSectionInstance(ctx,secName,shdr->Type,shdr->Flags);
     m->p2align = isec->P2Align;
+    DBG("splitSection: name=%s type=%u flags=0x%lx size=%lu entsize=%lu\n",
+        secName,
+        (unsigned)shdr->Type,
+        (unsigned long)shdr->Flags,
+        (unsigned long)shdr->Size,
+        (unsigned long)shdr->EntSize);
 
     char *data = isec->contents;
     uint64_t offset = 0;
@@ -2961,12 +3309,16 @@ MergeableSection *splitSection(Context* ctx,InputSection* isec){
             //如果entsize是1 : "hello,world"
             //如果entsize是4 : "H\0\0\0e\0\0\0...." 将每个数据对齐到4
             //处理对齐 , 找到结束位置
-            int end = findNull(data,data_len,shdr->EntSize);
+            int entSize = shdr->EntSize;
+            if (entSize <= 0) {
+                entSize = 1;
+            }
+            int end = findNull(data,data_len,entSize);
             if(end == -1){
                 fatal("string is not null terminated");
             }
 
-            uint64_t sz = (uint64_t)end + shdr->EntSize;
+            uint64_t sz = (uint64_t)end + entSize;
             //char* substr = strndup(data, sz);
             char* substr = malloc(sz +1);
             memcpy(substr,data,sz);
@@ -2990,19 +3342,27 @@ MergeableSection *splitSection(Context* ctx,InputSection* isec){
             data_len -= sz;
 
             m->strNum++;m->fragOffsetNum++;
+            if ((m->strNum & 0x7f) == 0) {
+                DBG("splitSection: string progress fragments=%d remaining=%lu\n",
+                    m->strNum, (unsigned long)data_len);
+            }
         }
+        DBG("splitSection: string section done fragments=%d\n", m->strNum);
     }else {
         //const数据
         //一项一项数据进行处理，每个数据固定EntSize大
-        if (shdr->Size % shdr->EntSize != 0) {
+        int entSize = shdr->EntSize;
+        if (entSize <= 0) {
+            entSize = shdr->Size > 0 ? shdr->Size : 1;
+        }
+        if (shdr->Size % entSize != 0) {
             fatal("section size is not multiple of entsize");
         }
 
         while (data_len > 0) {
-            char* substr = malloc((shdr->EntSize + 1) * sizeof(char));
-            //strncpy(substr, data, shdr->EntSize);
-            memcpy(substr, data, shdr->EntSize);
-            substr[shdr->EntSize] = '\0';
+            char* substr = malloc((entSize + 1) * sizeof(char));
+            memcpy(substr, data, entSize);
+            substr[entSize] = '\0';
 
             m->strslen = realloc(m->strslen,sizeof (int) * (m->strNum + 1));
             m->strs = realloc(m->strs, (m->strNum + 1) * sizeof(char*));
@@ -3014,13 +3374,14 @@ MergeableSection *splitSection(Context* ctx,InputSection* isec){
 
             m->strs[m->strNum] = substr;
             m->fragOffsets[m->fragOffsetNum] = offset;
-            m->strslen[m->strNum] = shdr->EntSize;
+            m->strslen[m->strNum] = entSize;
 
-            offset += shdr->EntSize;
-            data += shdr->EntSize;
-            data_len -= shdr->EntSize;
+            offset += entSize;
+            data += entSize;
+            data_len -= entSize;
             m->strNum++;m->fragOffsetNum++;
         }
+        DBG("splitSection: const section done fragments=%d\n", m->strNum);
     }
     return m;
 }
@@ -3030,6 +3391,7 @@ InputSection *GetSection(ObjectFile* o,Sym* esym,int idx){
 }
 
 void ResolveSymbols(ObjectFile* o){
+    DBG("ResolveSymbols: %s start\\n", o->inputFile->file->Name);
     //localSymbol是不需要resolve的,从第一个全局符号开始解析就行
     for(int i=o->inputFile->FirstGlobal;i<o->inputFile->symNum;i++){
         Sym* esym = &o->inputFile->ElfSyms[i];
@@ -3054,10 +3416,12 @@ void ResolveSymbols(ObjectFile* o){
             sym->symIdx = i;
         }
     }
+    DBG("ResolveSymbols: %s done\\n", o->inputFile->file->Name);
 }
 
 void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize){
     assert(o->inputFile->isAlive);
+    DBG("markLiveObjs: scanning %s\\n", o->inputFile->file->Name);
     for(int i=o->inputFile->FirstGlobal;i<o->inputFile->symNum;i++){
         Symbol *sym = o->inputFile->Symbols[i];
         Sym *esym = &o->inputFile->ElfSyms[i];
@@ -3070,6 +3434,10 @@ void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize){
             sym->file->inputFile->isAlive = true;
             *roots = realloc(*roots, (*rootSize + 1) * sizeof(ObjectFile*));
             (*roots)[*rootSize] = sym->file;
+            DBG("markLiveObjs: %s needs %s via symbol %s\\n",
+                o->inputFile->file->Name,
+                sym->file->inputFile->file->Name,
+                sym->name ? sym->name : "<noname>");
             *rootSize += 1;
         }
     }
@@ -3136,12 +3504,30 @@ void SkipEhframeSections(ObjectFile* o){
 }
 
 void ScanRelocations_(ObjectFile* o){
+    DBG("ScanRelocations_: file=%s\n", o->inputFile->file->Name);
     for(int i=0;i < o->isecNum;i++) {
         InputSection *isec = o->Sections[i];
-        if(isec != NULL && isec->isAlive && (shdr_(isec)->Flags & SHF_ALLOC) != 0){
-            ScanRelocations__(isec);
+        if (isec == NULL) {
+            DBG("ScanRelocations_: section[%d] NULL\n", i);
+            continue;
         }
+        if (!isec->isAlive) {
+            DBG("ScanRelocations_: section[%d] name=%s skipped (dead)\n",
+                i, Name(isec));
+            continue;
+        }
+        if ((shdr_(isec)->Flags & SHF_ALLOC) == 0) {
+            DBG("ScanRelocations_: section[%d] name=%s skipped (flags=0x%lx)\n",
+                i, Name(isec), (unsigned long)shdr_(isec)->Flags);
+            continue;
+        }
+        DBG("ScanRelocations_: section[%d] name=%s flags=0x%lx\n",
+            i,
+            Name(isec),
+            (unsigned long)shdr_(isec)->Flags);
+        ScanRelocations__(isec);
     }
+    DBG("ScanRelocations_: done %s\n", o->inputFile->file->Name);
 }
 /*
 参考资料：https://en.wikipedia.org/wiki/Ar_(Unix)
@@ -3164,6 +3550,8 @@ File** ReadArchiveMembers(File* file,int * fileCount) {
         return NULL;
     }
 
+    DBG("ReadArchiveMembers: file=%s size=%lu\\n", file->Name, (unsigned long)file->contents_len);
+
     //读取位置跳过文件头
     int pos = 8;
     uint8_t* strTab = NULL;
@@ -3180,7 +3568,9 @@ File** ReadArchiveMembers(File* file,int * fileCount) {
         Read(hdr,file->Contents+pos,sizeof(ArHdr));
 
         int dataStart = pos + sizeof(ArHdr);
-        pos = dataStart + GetSize(hdr);
+        int memberSize = GetSize(hdr);
+        DBG("ReadArchiveMembers: hdr raw='%.16s' size=%d pos=%d\\n", hdr->Name, memberSize, pos);
+        pos = dataStart + memberSize;
         int dataEnd = pos;
 
         uint8_t* contents = (uint8_t*)malloc(dataEnd - dataStart);
@@ -3205,47 +3595,72 @@ File** ReadArchiveMembers(File* file,int * fileCount) {
         newFile->Parent = file;
         //printf("%s\n",name);
 
+        DBG("ReadArchiveMembers: member '%s' size=%d\\n", newFile->Name, memberSize);
+
         files = appendFile(files, newFile, fileCount);
     }
     return files;
 }
 
-extern HashMap *name_map;
+HashMap *name_map;
 
 void ReadInputFiles(Context* ctx,char** remaining){
     name_map = HashMapInit();
+    if (name_map == NULL) {
+        fatal("failed to initialize name map");
+    }
+    HashMapSetHash(name_map, hash_string_key);
+    HashMapSetCompare(name_map, compare_string_key);
+    HashMapSetCleanKey(name_map, free);
+    DBG("ReadInputFiles: start (%d entries)\\n", DebugCountArgs(remaining));
     for(int i =0;remaining[i];i++){
         char* arg = remaining[i];
+        DBG("ReadInputFiles: arg[%d]=%s\\n", i, arg);
         if(hasPrefix(arg,"-l")){
           //  printf("a   .%s \n ",arg);
             char* filename = removePrefix(arg,"-l");
+            DBG("ReadInputFiles: resolving library '%s'\\n", filename);
             File *f = FindLibrary(ctx,filename);
+            DBG("ReadInputFiles: library '%s' => %s\\n", filename, f ? f->Name : "<not found>");
             readFile(ctx, f);
            // printf("%d\n",ctx->ObjsCount);
         } else{
            // printf("%s  \n",arg);
-            readFile(ctx, NewFile(arg));
+            File* file = NewFile(arg);
+            if (file == NULL) {
+                fatal("failed to open %s", arg);
+            }
+            DBG("ReadInputFiles: loading file '%s'\\n", file->Name);
+            readFile(ctx, file);
            // printf("%d\n",ctx->ObjsCount);
         }
     }
+    DBG("ReadInputFiles: done (objs=%d)\\n", ctx->ObjsCount);
 }
 
 void readFile(Context *ctx,File* file){
+    if (file == NULL) {
+        fatal("readFile: null file pointer");
+    }
     FileType ft = GetFileType(file->Contents);
+    DBG("readFile: %s type=%s\\n", file->Name, FileTypeToString(ft));
     int fileCount = 0;
     File **aFiles = NULL;
     switch (ft) {
         case FileTypeObject:
            // printf("file name o :%s\n",file->Name);
             AddObjectFile(&ctx->Objs,&ctx->ObjsCount, CreateObjectFile(ctx,file,false));
+            DBG("readFile: added object %s (total=%d)\\n", file->Name, ctx->ObjsCount);
             break;
         case FileTypeArchive:
            // printf("file name a :%s\n",file->Name);
             aFiles = ReadArchiveMembers(file,&fileCount);
+            DBG("readFile: archive %s yielded %d members\\n", file->Name, fileCount);
             for(int i = 0;i<fileCount;i++){
                 File *child = aFiles[i];
                 assert(GetFileType(child->Contents) == FileTypeObject);
                 AddObjectFile(&ctx->Objs,&ctx->ObjsCount, CreateObjectFile(ctx,child,true));
+                DBG("readFile: added archive member %s (total=%d)\\n", child->Name, ctx->ObjsCount);
             }
             break;
         default:
@@ -3256,7 +3671,9 @@ void readFile(Context *ctx,File* file){
 ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib){
     //TODO CheckFileCompatibility
     ObjectFile * objectFile = NewObjectFile(file,!inLib);
+    DBG("CreateObjectFile: %s inLib=%d alive=%d\\n", file->Name, inLib, objectFile->inputFile->isAlive);
     Parse(ctx,objectFile);
+    DBG("CreateObjectFile: %s parsed (isecNum=%ld)\\n", file->Name, objectFile->isecNum);
     return objectFile;
 }
 
@@ -3495,6 +3912,16 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base){
                 if(SignExtend(val,11) == val)
                     setRs1(loc,0);
                 break;
+            case 37/*R_RISCV_GPREL_I*/:
+            case 38/*R_RISCV_GPREL_S*/:
+                if (ctx->GpAddr == 0)
+                    fatal("GP-relative relocation but gp is unset");
+                val = S + A - ctx->GpAddr;
+                if(rel.Type == 37)
+                    writeItype(loc,(uint32_t)val);
+                else
+                    writeStype(loc,(uint32_t)val);
+                break;
             case 30/*R_RISCV_TPREL_LO12_I*/:
             case 31/*R_RISCV_TPREL_LO12_S*/:
                 val = S+A-ctx->TpAddr;
@@ -3549,18 +3976,28 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base){
 }
 
 Rela *GetRels(InputSection* i){
+puts("1");
     if(i->RelsecIdx == UINT32_MAX || i->rels != NULL){
         return i->rels;
     }
+puts("2");
 
     char* bs = GetBytesFromShdr(i->objectFile->inputFile,&i->objectFile->inputFile->ElfSections[i->RelsecIdx]);
     uint64_t numbs = (i->objectFile->inputFile->ElfSections[i->RelsecIdx].Size) / sizeof (Rela);
+    uint64_t total = numbs;
+    DBG("GetRels: section=%s relocs=%lu\n", Name(i), (unsigned long)numbs);
     i->rels = (Rela*) malloc(sizeof (Rela) * numbs);
     while (numbs > 0){
         Read(&i->rels[i->relNum],bs,sizeof(Rela));
         bs += sizeof(Rela);
         numbs--;
         i->relNum++;
+        if ((i->relNum & 0x3ff) == 0) {
+            DBG("GetRels: section=%s loaded=%d/%lu\n",
+                Name(i),
+                i->relNum,
+                (unsigned long)total);
+        }
     }
     return i->rels;
 }
@@ -3570,8 +4007,16 @@ uint64_t InputSec_GetAddr(InputSection* i){
 }
 
 void ScanRelocations__(InputSection* isec){
+puts("KKK");
     GetRels(isec);
+    DBG("ScanRelocations__: section=%s relNum=%d\n",
+        Name(isec),
+        isec->relNum);
     for(int i=0; i<isec->relNum;i++){
+        if ((i & 0x7ff) == 0) {
+            DBG("ScanRelocations__: section=%s progress=%d/%d\n",
+                Name(isec), i, isec->relNum);
+        }
         Rela rel = isec->rels[i];
         Symbol *sym = isec->objectFile->inputFile->Symbols[rel.Sym];
         if(sym->file == NULL)
@@ -3661,6 +4106,10 @@ void setRs1(void* loc,uint32_t rs1){
 Symbol *NewSymbol(char* name){
 
     Symbol *symbol = (Symbol*) malloc(sizeof (Symbol));
+    if (symbol == NULL) {
+        DBG("NewSymbol: malloc failed for %s\\n", name ? name : "<null>");
+        return NULL;
+    }
     symbol->name = name;
     symbol->symIdx = -1;
     symbol->file = NULL;
@@ -3685,11 +4134,19 @@ void SetSectionFragment(Symbol* s,SectionFragment* frag){
 Symbol *GetSymbolByName(Context* ctx,char* name){
     //如果symbolMap中已存，直接拿
     if(HashMapContain(ctx->SymbolMap,name)){
+        DBG("GetSymbolByName: hit %s\\n", name ? name : "<null>");
         return HashMapGet(ctx->SymbolMap,name);
     }
 
     //否则创建一个新symbol，目前还是初始化状态
-    HashMapPut(ctx->SymbolMap,name, NewSymbol(name));
+    Symbol *sym = NewSymbol(name);
+    if (sym == NULL) {
+        fatal("GetSymbolByName: NewSymbol failed for %s", name ? name : "<null>");
+    }
+    if (!HashMapPut(ctx->SymbolMap,name, sym)) {
+        fatal("GetSymbolByName: HashMapPut failed for %s", name ? name : "<null>");
+    }
+    DBG("GetSymbolByName: miss %s new=%p\\n", name ? name : "<null>", (void*)sym);
     return HashMapGet(ctx->SymbolMap,name);
 }
 
@@ -3769,16 +4226,66 @@ void GotSec_CopyBuf(Chunk* c,Context* ctx){
     }
 }
 
+static uint64_t findWritableAllocBase(Context* ctx) {
+    uint64_t base = UINT64_MAX;
+    for (int i = 0; i < ctx->chunkNum; i++) {
+        Chunk *chunk = ctx->chunk[i];
+        Shdr *shdr = GetShdr(chunk);
+        if ((shdr->Flags & SHF_ALLOC) == 0)
+            continue;
+        if ((shdr->Flags & SHF_WRITE) == 0)
+            continue;
+        if (shdr->Size == 0)
+            continue;
+        if (shdr->Addr < base)
+            base = shdr->Addr;
+    }
+    if (base == UINT64_MAX)
+        return 0;
+    return base;
+}
+
+void FinalizeGlobalPointer(Context* ctx){
+    uint64_t base = findWritableAllocBase(ctx);
+    if (base == 0 && ctx->got && (ctx->got->chunk->shdr.Flags & SHF_ALLOC))
+        base = ctx->got->chunk->shdr.Addr;
+    if (base == 0)
+        return;
+
+    ctx->GpAddr = base + 0x800;
+
+    if (!HashMapContain(ctx->SymbolMap, "__global_pointer$"))
+        return;
+    Symbol *gp = HashMapGet(ctx->SymbolMap, "__global_pointer$");
+    if (!gp)
+        return;
+
+    gp->value = ctx->GpAddr;
+    gp->inputSection = NULL;
+    gp->sectionFragment = NULL;
+}
+
 Context* NewContext(){
+    DBG("NewContext: start\\n");
     Context* ctx = (Context*)malloc(sizeof(Context));
     if (ctx == NULL) {
+        DBG("NewContext: malloc failed\\n");
         return NULL;
     }
+    DBG("NewContext: ctx=%p size=%llu\\n", (void*)ctx, (unsigned long long)sizeof(Context));
 
     ctx->Args.Output = "a.out";
     ctx->Args.Emulation = 0;
     ctx->Args.LibraryPathsCount=0;
+    DBG("NewContext: initializing SymbolMap\\n");
     ctx->SymbolMap = HashMapInit();
+    if (ctx->SymbolMap == NULL) {
+        DBG("NewContext: HashMapInit failed\\n");
+        fatal("failed to initialize symbol map");
+    }
+    HashMapSetHash(ctx->SymbolMap, hash_string_key);
+    HashMapSetCompare(ctx->SymbolMap, compare_string_key);
+    DBG("NewContext: SymbolMap=%p\\n", (void*)ctx->SymbolMap);
     ctx->Args.LibraryPaths = NULL;
     ctx->ObjsCount = 0;
     ctx->Objs = NULL;
@@ -3794,7 +4301,9 @@ Context* NewContext(){
     ctx->outputSections = NULL;
     ctx->outputSecNum = 0;
     ctx->TpAddr = 0;
+    ctx->GpAddr = 0;
     ctx->got = NULL;
+    DBG("NewContext: done\\n");
     return ctx;
 }
 
@@ -4259,43 +4768,31 @@ int endsWith(const char *str, const char *suffix) {
     }
 }
 
-//uint32_t hash(const char* str, uint32_t offset) {
-//    const uint32_t FNV_PRIME = 16777619;
-//    const uint32_t FNV_OFFSET_BASIS = 2166136261;
-//
-//    uint32_t hashValue = FNV_OFFSET_BASIS;
-//
-//    // 计算字符串的哈希值
-//    for (const char* c = str; *c != '\0'; ++c) {
-//        hashValue ^= (uint32_t)*c;
-//        hashValue *= FNV_PRIME;
-//    }
-//
-//    // 综合加上 offset 的值
-//    hashValue ^= offset;
-//    hashValue *= FNV_PRIME;
-//
-//    return hashValue;
-//}
-
-uint32_t hash(const char* str) {
-    const uint32_t FNV_PRIME = 16777619;
-    const uint32_t FNV_OFFSET_BASIS = 2166136261;
-
-    uint32_t hashValue = FNV_OFFSET_BASIS;
-
-    // 计算字符串的哈希值
-    for (const char* c = str; *c != '\0'; ++c) {
-        hashValue ^= (uint32_t)*c;
-        hashValue *= FNV_PRIME;
+static unsigned hash_string_key(void* key) {
+    if (key == NULL) {
+        return 0;
     }
 
+    const unsigned char* s = (const unsigned char*)key;
+    unsigned hashValue = 2166136261u;
+    while (*s) {
+        hashValue ^= *s++;
+        hashValue *= 16777619u;
+    }
     return hashValue;
 }
 
-void* convertHashToKey(uint32_t hashValue) {
-    // 将哈希值转换为指针类型
-    return (void*)(uintptr_t)hashValue;
+static int compare_string_key(void* lhs, void* rhs) {
+    if (lhs == rhs) {
+        return 0;
+    }
+    if (lhs == NULL) {
+        return -1;
+    }
+    if (rhs == NULL) {
+        return 1;
+    }
+    return strcmp((const char*)lhs, (const char*)rhs);
 }
 
 uint64_t AlignTo(uint64_t val, uint64_t align) {
@@ -4321,8 +4818,6 @@ uint32_t Bits_32(uint32_t val, uint32_t hi, uint32_t lo) {
 uint64_t SignExtend(uint64_t val,int size){
     return (uint64_t)((int64_t)(val << (63 - size)) >> (63-size));
 }
-
-HashMap *name_map;
 
 char** dashes(const char* name) {
     // 分配足够的内存来存储带有单破折号和双破折号的参数
@@ -4455,6 +4950,7 @@ char** parseArgs(int argc, char* argv[],Context* ctx){
 }
 
 int main(int argc, char* argv[]) {
+    DBG("main: argc=%d\n", argc);
     if(argc < 2)
         fatal("less args\n");
 //    for(int i = 0;i<argc;i++){
@@ -4462,7 +4958,9 @@ int main(int argc, char* argv[]) {
 //    }
 
     Context *ctx = NewContext();
+    DBG("main: context initialized\n");
     char **remaining = parseArgs(argc,argv,ctx);
+    DBG("main: parseArgs done, remaining=%d\n", DebugCountArgs(remaining));
 
     if (ctx->Args.Emulation == MachineTypeNone) {
         for (int i = 0; remaining[i]!=NULL; i++) {
@@ -4473,6 +4971,7 @@ int main(int argc, char* argv[]) {
 
             File* file= NewFile(filename);
             ctx->Args.Emulation = GetMachineTypeFromContents(file->Contents);
+            DBG("main: probed %s -> emulation=%d\n", filename, ctx->Args.Emulation);
             if (ctx->Args.Emulation != MachineTypeNone) {
                 break;
             }
@@ -4484,11 +4983,15 @@ int main(int argc, char* argv[]) {
         fatal("unknown emulation type");
     }
 
+    DBG("main: emulation resolved (%d)\n", ctx->Args.Emulation);
+
 //    for (size_t i = 0; remaining[i] != NULL; ++i) {
 //        printf("%s\n", remaining[i]);
 //    }
 
+    DBG("main: ReadInputFiles start\n");
     ReadInputFiles(ctx,remaining);
+    DBG("main: ReadInputFiles done, objs=%d\n", ctx->ObjsCount);
     printf("%d\n",ctx->ObjsCount);
 //    printf("symbols :%d\n", HashMapSize(ctx->SymbolMap));
 //    HashMapFirst(ctx->SymbolMap);
@@ -4498,46 +5001,64 @@ int main(int argc, char* argv[]) {
 //    for(int i=0;i<ctx->ObjsCount;i++){
 //        printf("%d : %s\n",i,ctx->Objs[i]->inputFile->file->Name);
 //    }
+    DBG("main: ResolveSymbols_pass start\n");
     ResolveSymbols_pass(ctx);
+    DBG("main: ResolveSymbols_pass done, objs=%d\n", ctx->ObjsCount);
     printf("final %d\n",ctx->ObjsCount);
 //    for(int i=0;i<ctx->ObjsCount;i++){
 //        printf("%s\n",ctx->Objs[i]->inputFile->file->Name);
 //    }
+    DBG("main: RegisterSectionPieces start\n");
     RegisterSectionPieces(ctx);
+    DBG("main: ComputeMergedSectionSizes start\n");
     ComputeMergedSectionSizes(ctx);
+    DBG("main: CreateSyntheticSections start\n");
     CreateSyntheticSections(ctx);
+    DBG("main: BinSections start\n");
     BinSections(ctx);
+    DBG("main: CollectOutputSections start\n");
     CollectOutputSections(ctx);
+    DBG("main: ScanRelocations start\n");
     ScanRelocations(ctx);
+    DBG("main: ComputeSectionSizes start\n");
     ComputeSectionSizes(ctx);
 //    for(int i=0; i<ctx->chunkNum;i++) {
 //        Chunk *c = ctx->chunk[i];
 //        printf("i %d name %s , type %d\n",i,c->name,c->chunkType);
 //    }
 
+    DBG("main: SortOutputSections start\n");
     SortOutputSections(ctx);
 
     for(int i=0; i<ctx->chunkNum;i++){
         Chunk *c = ctx->chunk[i];
        // printf("i %d name %s , type %d\n",i,c->name,c->chunkType);
+        DBG("main: Update chunk %d (%s type=%d)\n", i, c->name ? c->name : "<anon>", c->chunkType);
         Update(c,ctx);
     }
 
+    DBG("main: SetOutputSectionOffsets start\n");
     uint64_t fileoff = SetOutputSectionOffsets(ctx);
+    DBG("main: SetOutputSectionOffsets done, fileoff=%lu\n", fileoff);
     printf("fileoff %lu\n",fileoff);
+
+    FinalizeGlobalPointer(ctx);
 
     ctx->buf = malloc(fileoff);
     //printf("%s\n",ctx->Args.Output);
+    DBG("main: opening output '%s'\n", ctx->Args.Output);
     int file = open(ctx->Args.Output, O_RDWR | O_CREAT, 0777);
     assert(file != -1);
 
     for(int i=0; i< ctx->chunkNum;i++){
         Chunk *c = ctx->chunk[i];
+        DBG("main: CopyBuf chunk %d (%s type=%d)\n", i, c->name ? c->name : "<anon>", c->chunkType);
         CopyBuf(c,ctx);
     }
     write(file, ctx->buf, fileoff);
     close(file);
 
+    DBG("main: done\n");
     return 0;
 }
 
@@ -4629,6 +5150,7 @@ unsigned HashDjb2(char* key)
  */
 
 
+
 /*===========================================================================*
  *                        The container private data                         *
  *===========================================================================*/
@@ -4638,22 +5160,24 @@ static const unsigned magic_primes[] = {
     201326611, 402653189, 805306457, 1610612741,
 };
 static const int num_prime = sizeof(magic_primes) / sizeof(unsigned);
-static const double load_factor = 0.75;
+#define HASH_LOAD_FACTOR_NUM 3
+#define HASH_LOAD_FACTOR_DEN 4
+
+static unsigned compute_capacity_from_entries(unsigned entries) {
+    if (entries == 0) {
+        return 0;
+    }
+    unsigned long long num = (unsigned long long)entries * HASH_LOAD_FACTOR_DEN + (HASH_LOAD_FACTOR_NUM - 1);
+    return (unsigned)(num / HASH_LOAD_FACTOR_NUM);
+}
+
+static unsigned compute_limit_from_slots(unsigned slots) {
+    unsigned long long num = (unsigned long long)slots * HASH_LOAD_FACTOR_NUM;
+    return (unsigned)(num / HASH_LOAD_FACTOR_DEN);
+}
 
 
 
-struct _HashSetData {
-    int idx_prime_;
-    unsigned size_;
-    unsigned num_slot_;
-    unsigned curr_limit_;
-    unsigned iter_slot_;
-    SlotNode** arr_slot_;
-    SlotNode* iter_node_;
-    HashSetHash func_hash_;
-    HashSetCompare func_cmp_;
-    HashSetCleanKey func_clean_key_;
-};
 
 
 /*===========================================================================*
@@ -4715,14 +5239,14 @@ void HashSetDeinit(HashSet* obj)
         return;
 
     HashSetData* data = obj->data;
-    SlotNode** arr_slot = data->arr_slot_;
+    HashSetSlotNode** arr_slot = data->arr_slot_;
     HashSetCleanKey func_clean_key = data->func_clean_key_;
 
     unsigned num_slot = data->num_slot_;
     unsigned i;
     for (i = 0 ; i < num_slot ; ++i) {
-        SlotNode* pred;
-        SlotNode* curr = arr_slot[i];
+        HashSetSlotNode* pred;
+        HashSetSlotNode* curr = arr_slot[i];
         while (curr) {
             pred = curr;
             curr = curr->next_;
@@ -4752,8 +5276,8 @@ bool HashSetAdd(HashSet* self, void* key)
     /* Check if the key conflicts with a certain one stored in the set. If yes,
        replace that one. */
     HashSetCompare func_cmp = data->func_cmp_;
-    SlotNode** arr_slot = data->arr_slot_;
-    SlotNode* curr = arr_slot[hash];
+    HashSetSlotNode** arr_slot = data->arr_slot_;
+    HashSetSlotNode* curr = arr_slot[hash];
     while (curr) {
         if (func_cmp(key, curr->key_) == 0) {
             if (data->func_clean_key_)
@@ -4765,7 +5289,7 @@ bool HashSetAdd(HashSet* self, void* key)
     }
 
     /* Insert the new key into the slot list. */
-    SlotNode* node = (SlotNode*)malloc(sizeof(SlotNode));
+    HashSetSlotNode* node = (HashSetSlotNode*)malloc(sizeof(HashSetSlotNode));
     if (unlikely(!node))
         return false;
 
@@ -4792,7 +5316,7 @@ bool HashSetFind(HashSet* self, void* key)
 
     /* Search the slot list to check if the specified key exists. */
     HashSetCompare func_cmp = data->func_cmp_;
-    SlotNode* curr = data->arr_slot_[hash];
+    HashSetSlotNode* curr = data->arr_slot_[hash];
     while (curr) {
         if (func_cmp(key, curr->key_) == 0)
             return true;
@@ -4812,9 +5336,9 @@ bool HashSetRemove(HashSet* self, void* key)
 
     /* Search the slot list for the remove target. */
     HashSetCompare func_cmp = data->func_cmp_;
-    SlotNode* pred = NULL;
-    SlotNode** arr_slot = data->arr_slot_;
-    SlotNode* curr = arr_slot[hash];
+    HashSetSlotNode* pred = NULL;
+    HashSetSlotNode** arr_slot = data->arr_slot_;
+    HashSetSlotNode* curr = arr_slot[hash];
     while (curr) {
         if (func_cmp(key, curr->key_) == 0) {
             if (data->func_clean_key_)
@@ -4853,7 +5377,7 @@ void* HashSetNext(HashSet* self)
 {
     HashSetData* data = self->data;
 
-    SlotNode** arr_slot = data->arr_slot_;
+    HashSetSlotNode** arr_slot = data->arr_slot_;
     while (data->iter_slot_ < data->num_slot_) {
         if (data->iter_node_) {
             void* key = data->iter_node_->key_;
@@ -4888,7 +5412,7 @@ HashSet* HashSetUnion(HashSet* lhs, HashSet* rhs)
     /* Predict the required slot size for the result set. */
     unsigned size_lhs = lhs->data->size_;
     unsigned size_rhs = rhs->data->size_;
-    unsigned size_slot = (unsigned)((double)(size_lhs + size_rhs) / load_factor);
+    unsigned size_slot = compute_capacity_from_entries(size_lhs + size_rhs);
     int idx_prime = 0;
     while (idx_prime < num_prime) {
         if (size_slot < magic_primes[idx_prime])
@@ -4909,12 +5433,12 @@ HashSet* HashSetUnion(HashSet* lhs, HashSet* rhs)
     data_result->func_cmp_ = data_lhs->func_cmp_;
 
     /* Collect the first source set. */
-    SlotNode** arr_slot = data_lhs->arr_slot_;
+    HashSetSlotNode** arr_slot = data_lhs->arr_slot_;
     unsigned num_slot = data_lhs->num_slot_;
     unsigned i;
     for (i = 0 ; i < num_slot ; ++i) {
-        SlotNode* pred;
-        SlotNode* curr = arr_slot[i];
+        HashSetSlotNode* pred;
+        HashSetSlotNode* curr = arr_slot[i];
         while (curr) {
             pred = curr;
             curr = curr->next_;
@@ -4931,8 +5455,8 @@ HashSet* HashSetUnion(HashSet* lhs, HashSet* rhs)
     arr_slot = data_rhs->arr_slot_;
     num_slot = data_rhs->num_slot_;
     for (i = 0 ; i < num_slot ; ++i) {
-        SlotNode* pred;
-        SlotNode* curr = arr_slot[i];
+        HashSetSlotNode* pred;
+        HashSetSlotNode* curr = arr_slot[i];
         while (curr) {
             pred = curr;
             curr = curr->next_;
@@ -4963,7 +5487,7 @@ HashSet* HashSetIntersect(HashSet* lhs, HashSet* rhs)
         set_src = rhs;
         set_tge = lhs;
     }
-    unsigned size_slot = (unsigned)((double)size_elem / load_factor);
+    unsigned size_slot = compute_capacity_from_entries(size_elem);
     int idx_prime = 0;
     while (idx_prime < num_prime) {
         if (size_slot < magic_primes[idx_prime])
@@ -4984,12 +5508,12 @@ HashSet* HashSetIntersect(HashSet* lhs, HashSet* rhs)
     data_result->func_cmp_ = data_src->func_cmp_;
 
     /* Collect the keys belonged to both source sets. */
-    SlotNode** arr_slot = data_src->arr_slot_;
+    HashSetSlotNode** arr_slot = data_src->arr_slot_;
     unsigned num_slot = data_src->num_slot_;
     unsigned i;
     for (i = 0 ; i < num_slot ; ++i) {
-        SlotNode* pred;
-        SlotNode* curr = arr_slot[i];
+        HashSetSlotNode* pred;
+        HashSetSlotNode* curr = arr_slot[i];
         while (curr) {
             pred = curr;
             curr = curr->next_;
@@ -5014,7 +5538,7 @@ HashSet* HashSetDifference(HashSet* lhs, HashSet* rhs)
     unsigned size_lhs = lhs->data->size_;
     unsigned size_rhs = rhs->data->size_;
     unsigned size_elem = (size_lhs > size_rhs)? size_lhs : size_rhs;
-    unsigned size_slot = (unsigned)((double)size_elem / load_factor);
+    unsigned size_slot = compute_capacity_from_entries(size_elem);
     int idx_prime = 0;
     while (idx_prime < num_prime) {
         if (size_slot < magic_primes[idx_prime])
@@ -5035,12 +5559,12 @@ HashSet* HashSetDifference(HashSet* lhs, HashSet* rhs)
     data_result->func_cmp_ = data_lhs->func_cmp_;
 
     /* Collect the keys only belonged to the first source set. */
-    SlotNode** arr_slot = data_lhs->arr_slot_;
+    HashSetSlotNode** arr_slot = data_lhs->arr_slot_;
     unsigned num_slot = data_lhs->num_slot_;
     unsigned i;
     for (i = 0 ; i < num_slot ; ++i) {
-        SlotNode* pred;
-        SlotNode* curr = arr_slot[i];
+        HashSetSlotNode* pred;
+        HashSetSlotNode* curr = arr_slot[i];
         while (curr) {
             pred = curr;
             curr = curr->next_;
@@ -5075,7 +5599,7 @@ HashSet* _HashSetInit(int idx_prime)
         return NULL;
     }
 
-    SlotNode** arr_slot = (SlotNode**)malloc(sizeof(SlotNode*) * magic_primes[0]);
+    HashSetSlotNode** arr_slot = (HashSetSlotNode**)malloc(sizeof(HashSetSlotNode*) * magic_primes[0]);
     if (unlikely(!arr_slot)) {
         free(data);
         free(obj);
@@ -5088,7 +5612,7 @@ HashSet* _HashSetInit(int idx_prime)
     data->size_ = 0;
     data->idx_prime_ = 0;
     data->num_slot_ = magic_primes[0];
-    data->curr_limit_ = (unsigned)((double)magic_primes[0] * load_factor);
+    data->curr_limit_ = compute_limit_from_slots(magic_primes[0]);
     data->arr_slot_ = arr_slot;
     data->func_hash_ = _HashSetHash;
     data->func_cmp_ = _HashSetCompare;
@@ -5138,7 +5662,7 @@ void _HashSetReHash(HashSetData* data)
 
     /* Try to allocate the new slot array. The rehashing should be canceled due
        to insufficient memory space.  */
-    SlotNode** arr_slot_new = (SlotNode**)malloc(sizeof(SlotNode*) * num_slot_new);
+    HashSetSlotNode** arr_slot_new = (HashSetSlotNode**)malloc(sizeof(HashSetSlotNode*) * num_slot_new);
     if (unlikely(!arr_slot_new)) {
         if (data->idx_prime_ < num_prime)
             --(data->idx_prime_);
@@ -5150,11 +5674,11 @@ void _HashSetReHash(HashSetData* data)
         arr_slot_new[i] = NULL;
 
     HashSetHash func_hash = data->func_hash_;
-    SlotNode** arr_slot = data->arr_slot_;
+    HashSetSlotNode** arr_slot = data->arr_slot_;
     unsigned num_slot = data->num_slot_;
     for (i = 0 ; i < num_slot ; ++i) {
-        SlotNode* pred;
-        SlotNode* curr = arr_slot[i];
+        HashSetSlotNode* pred;
+        HashSetSlotNode* curr = arr_slot[i];
         while (curr) {
             pred = curr;
             curr = curr->next_;
@@ -5175,7 +5699,7 @@ void _HashSetReHash(HashSetData* data)
     free(arr_slot);
     data->arr_slot_ = arr_slot_new;
     data->num_slot_ = num_slot_new;
-    data->curr_limit_ = (unsigned)((double)num_slot_new * load_factor);
+    data->curr_limit_ = compute_limit_from_slots(num_slot_new);
     return;
 }
 /**
@@ -5201,21 +5725,9 @@ void _HashSetReHash(HashSetData* data)
  *   IN THE SOFTWARE.
  */
 
-
-
 /*===========================================================================*
  *                        The container private data                         *
  *===========================================================================*/
-/*
-static const unsigned magic_primes[] = {
-    769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241, 786433,
-    1572869, 3145739, 6291469, 12582917, 25165843, 50331653, 100663319,
-    201326611, 402653189, 805306457, 1610612741,
-};
-static const int num_prime = sizeof(magic_primes) / sizeof(unsigned);
-static const double load_factor = 0.75;
-*/
-
 
 
 
@@ -5255,22 +5767,27 @@ int _HashMapCompare(void* lhs, void* rhs);
 void _HashMapReHash(HashMapData* data);
 
 
+
 /*===========================================================================*
  *               Implementation for the exported operations                  *
  *===========================================================================*/
 HashMap* HashMapInit()
 {
+    DBG("HashMapInit: start\\n");
     HashMap* obj = (HashMap*)malloc(sizeof(HashMap));
+    DBG("HashMapInit: malloc obj=%p size=%llu\\n", (void*)obj, (unsigned long long)sizeof(HashMap));
     if (unlikely(!obj))
         return NULL;
 
     HashMapData* data = (HashMapData*)malloc(sizeof(HashMapData));
+    DBG("HashMapInit: malloc data=%p size=%llu\\n", (void*)data, (unsigned long long)sizeof(HashMapData));
     if (unlikely(!data)) {
         free(obj);
         return NULL;
     }
 
-    SlotNode2** arr_slot = (SlotNode2**)malloc(sizeof(SlotNode2*) * magic_primes[0]);
+    SlotNode** arr_slot = (SlotNode**)malloc(sizeof(SlotNode*) * magic_primes[0]);
+    DBG("HashMapInit: malloc arr_slot=%p count=%u elem=%llu\\n", (void*)arr_slot, magic_primes[0], (unsigned long long)sizeof(SlotNode*));
     if (unlikely(!arr_slot)) {
         free(data);
         free(obj);
@@ -5279,16 +5796,28 @@ HashMap* HashMapInit()
     unsigned i;
     for (i = 0 ; i < magic_primes[0] ; ++i)
         arr_slot[i] = NULL;
+    DBG("HashMapInit: cleared %u slots\\n", magic_primes[0]);
 
     data->size_ = 0;
+    DBG("HashMapInit: data->size_=0\\n");
     data->idx_prime_ = 0;
+    DBG("HashMapInit: data->idx_prime_=0\\n");
     data->num_slot_ = magic_primes[0];
-    data->curr_limit_ = (unsigned)((double)magic_primes[0] * load_factor);
+    DBG("HashMapInit: data->num_slot_=%u\\n", data->num_slot_);
+    data->curr_limit_ = compute_limit_from_slots(magic_primes[0]);
+    DBG("HashMapInit: data->curr_limit_=%u\\n", data->curr_limit_);
     data->arr_slot_ = arr_slot;
+    DBG("HashMapInit: data->arr_slot_=%p\\n", (void*)data->arr_slot_);
     data->func_hash_ = _HashMapHash;
+    DBG("HashMapInit: func_hash set\\n");
     data->func_cmp_ = _HashMapCompare;
+    DBG("HashMapInit: func_cmp set\\n");
     data->func_clean_key_ = NULL;
+    DBG("HashMapInit: func_clean_key NULL\\n");
     data->func_clean_val_ = NULL;
+    DBG("HashMapInit: func_clean_val NULL\\n");
+
+    DBG("HashMapInit: configured num_slot=%u curr_limit=%u\\n", data->num_slot_, data->curr_limit_);
 
     obj->data = data;
     obj->put = HashMapPut;
@@ -5303,6 +5832,7 @@ HashMap* HashMapInit()
     obj->set_clean_key = HashMapSetCleanKey;
     obj->set_clean_value = HashMapSetCleanValue;
 
+    DBG("HashMapInit: ready obj=%p data=%p slots=%u\\n", (void*)obj, (void*)data, data->num_slot_);
     return obj;
 }
 
@@ -5312,15 +5842,15 @@ void HashMapDeinit(HashMap* obj)
         return;
 
     HashMapData* data = obj->data;
-    SlotNode2** arr_slot = data->arr_slot_;
+    SlotNode** arr_slot = data->arr_slot_;
     HashMapCleanKey func_clean_key = data->func_clean_key_;
     HashMapCleanValue func_clean_val = data->func_clean_val_;
 
     unsigned num_slot = data->num_slot_;
     unsigned i;
     for (i = 0 ; i < num_slot ; ++i) {
-        SlotNode2* pred;
-        SlotNode2* curr = arr_slot[i];
+        SlotNode* pred;
+        SlotNode* curr = arr_slot[i];
         while (curr) {
             pred = curr;
             curr = curr->next_;
@@ -5352,8 +5882,8 @@ bool HashMapPut(HashMap* self, void* key, void* value)
     /* Check if the pair conflicts with a certain one stored in the map. If yes,
        replace that one. */
     HashMapCompare func_cmp = data->func_cmp_;
-    SlotNode2** arr_slot = data->arr_slot_;
-    SlotNode2* curr = arr_slot[hash];
+    SlotNode** arr_slot = data->arr_slot_;
+    SlotNode* curr = arr_slot[hash];
     while (curr) {
         if (func_cmp(key, curr->pair_.key) == 0) {
             if (data->func_clean_key_)
@@ -5368,7 +5898,7 @@ bool HashMapPut(HashMap* self, void* key, void* value)
     }
 
     /* Insert the new pair into the slot list. */
-    SlotNode2* node = (SlotNode2*)malloc(sizeof(SlotNode2));
+    SlotNode* node = (SlotNode*)malloc(sizeof(SlotNode));
     if (unlikely(!node))
         return false;
 
@@ -5397,7 +5927,7 @@ void* HashMapGet(HashMap* self, void* key)
     /* Search the slot list to check if there is a pair having the same key
        with the designated one. */
     HashMapCompare func_cmp = data->func_cmp_;
-    SlotNode2* curr = data->arr_slot_[hash];
+    SlotNode* curr = data->arr_slot_[hash];
     while (curr) {
         if (func_cmp(key, curr->pair_.key) == 0)
             return curr->pair_.value;
@@ -5418,7 +5948,7 @@ bool HashMapContain(HashMap* self, void* key)
     /* Search the slot list to check if there is a pair having the same key
        with the designated one. */
     HashMapCompare func_cmp = data->func_cmp_;
-    SlotNode2* curr = data->arr_slot_[hash];
+    SlotNode* curr = data->arr_slot_[hash];
     while (curr) {
         if (func_cmp(key, curr->pair_.key) == 0)
             return true;
@@ -5438,9 +5968,9 @@ bool HashMapRemove(HashMap* self, void* key)
 
     /* Search the slot list for the deletion target. */
     HashMapCompare func_cmp = data->func_cmp_;
-    SlotNode2* pred = NULL;
-    SlotNode2** arr_slot = data->arr_slot_;
-    SlotNode2* curr = arr_slot[hash];
+    SlotNode* pred = NULL;
+    SlotNode** arr_slot = data->arr_slot_;
+    SlotNode* curr = arr_slot[hash];
     while (curr) {
         if (func_cmp(key, curr->pair_.key) == 0) {
             if (data->func_clean_key_)
@@ -5481,7 +6011,7 @@ Pair* HashMapNext(HashMap* self)
 {
     HashMapData* data = self->data;
 
-    SlotNode2** arr_slot = data->arr_slot_;
+    SlotNode** arr_slot = data->arr_slot_;
     while (data->iter_slot_ < data->num_slot_) {
         if (data->iter_node_) {
             Pair* ptr_pair = &(data->iter_node_->pair_);
@@ -5561,7 +6091,7 @@ void _HashMapReHash(HashMapData* data)
 
     /* Try to allocate the new slot array. The rehashing should be canceled due
        to insufficient memory space.  */
-    SlotNode2** arr_slot_new = (SlotNode2**)malloc(sizeof(SlotNode2*) * num_slot_new);
+    SlotNode** arr_slot_new = (SlotNode**)malloc(sizeof(SlotNode*) * num_slot_new);
     if (unlikely(!arr_slot_new)) {
         if (data->idx_prime_ < num_prime)
             --(data->idx_prime_);
@@ -5573,11 +6103,11 @@ void _HashMapReHash(HashMapData* data)
         arr_slot_new[i] = NULL;
 
     HashMapHash func_hash = data->func_hash_;
-    SlotNode2** arr_slot = data->arr_slot_;
+    SlotNode** arr_slot = data->arr_slot_;
     unsigned num_slot = data->num_slot_;
     for (i = 0 ; i < num_slot ; ++i) {
-        SlotNode2* pred;
-        SlotNode2* curr = arr_slot[i];
+        SlotNode* pred;
+        SlotNode* curr = arr_slot[i];
         while (curr) {
             pred = curr;
             curr = curr->next_;
@@ -5598,7 +6128,7 @@ void _HashMapReHash(HashMapData* data)
     free(arr_slot);
     data->arr_slot_ = arr_slot_new;
     data->num_slot_ = num_slot_new;
-    data->curr_limit_ = (unsigned)((double)num_slot_new * load_factor);
+    data->curr_limit_ = compute_limit_from_slots(num_slot_new);
     return;
 }
 
@@ -5628,12 +6158,15 @@ char* ElfGetName(char* strTab, uint32_t offset) {
     memcpy(name, strTab + offset, length);
     name[length] = '\0';
 
-    uint32_t hashName = hash(name);
-    char* key = convertHashToKey(hashName);
-    if(HashMapContain(name_map,key))
-        return HashMapGet(name_map,key);
+    if (HashMapContain(name_map, name)) {
+        char* interned = HashMapGet(name_map, name);
+        free(name);
+        return interned;
+    }
 
-    HashMapPut(name_map,key,name);
+    if (!HashMapPut(name_map, name, name)) {
+        fatal("ElfGetName: HashMapPut failed");
+    }
     return name;
 }
 
@@ -5699,4 +6232,3 @@ char* ReadName(const ArHdr* a, char* strTab) {
     filename[end] = '\0';
     return filename;
 }
-

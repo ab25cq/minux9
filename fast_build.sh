@@ -1,9 +1,4 @@
 
-#if which brew
-#then
-#    brew tap riscv-software-src/riscv
-#    brew install riscv-tools
-#fi
 #if which apk
 #then
 #    apk update

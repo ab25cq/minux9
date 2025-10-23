@@ -1,8 +1,6 @@
 #ifndef BRILINKER_ARCHIVE_H
 #define BRILINKER_ARCHIVE_H
 
-#define EXIT_FAILURE 1
-
 #include <elf.h>
 // Elf32_Ehdr Executable header type. One per ELF file.
 typedef struct Ehdr_ {
@@ -83,40 +81,38 @@ typedef struct File {
     struct File* Parent;     //表示它来自于哪个.a文件 , 如果直接.o就是空
 } File;
 
-typedef struct SectionFragment_ SectionFragment;
-typedef struct MergedSection_ MergedSection;
-
+//解决一下嵌套包含
+struct ObjectFile_;
+struct MergedSection_ ;
+struct OutputEhdr_;
+struct OutputShdr_;
+struct OutputSection_;
+struct OutputPhdr_;
+struct GotSection_;
 struct Chunk_;
 
+
+File** ReadArchiveMembers(File* file,int * fileCount);
+
+#endif //BRILINKER_ARCHIVE_H
+#ifndef BRILINKER_INPUT_H
+#define BRILINKER_INPUT_H
+
+typedef struct ObjectFile_ ObjectFile;
+typedef struct InputSection_ InputSection;
+typedef struct InputFile_ InputFile;
+
 typedef uint8_t ChunkType;
+#define ChunkTypeUnknown ((ChunkType)0)
+#define ChunkTypeEhdr ((ChunkType)1)
+#define ChunkTypeShdr ((ChunkType)2)
+#define ChunkTypePhdr ((ChunkType)3)
+#define ChunkTypeOutputSection ((ChunkType)4)
+#define ChunkTypeMergedSection ((ChunkType)5)
+#define ChunkTypeGotSection ((ChunkType)6)
 
-/** The key value pair for associative data structures. */
-typedef struct _Pair {
-    void* key;
-    void* value;
-} Pair;
-
-
-typedef struct _SlotNode {
-    void* key_;
-    struct _SlotNode* next_;
-} SlotNode;
-
-/** Calculate the hash of the given key. */
-typedef unsigned (*HashMapHash) (void*);
-
-/** Compare the equality of two keys. */
-typedef int (*HashMapCompare) (void*, void*);
-
-/** Key cleanup function called whenever a live entry is removed. */
-typedef void (*HashMapCleanKey) (void*);
-
-/** Value cleanup function called whenever a live entry is removed. */
-typedef void (*HashMapCleanValue) (void*);
-typedef struct _SlotNode2 {
-    Pair pair_;
-    struct _SlotNode2* next_;
-} SlotNode2;
+/** HashMapData is the data type for the container private information. */
+typedef struct _HashMapData HashMapData;
 
 struct _HashMapData {
     int size_;
@@ -125,15 +121,12 @@ struct _HashMapData {
     unsigned curr_limit_;
     unsigned iter_slot_;
     SlotNode** arr_slot_;
-    SlotNode2* iter_node_;
+    SlotNode* iter_node_;
     HashMapHash func_hash_;
     HashMapCompare func_cmp_;
     HashMapCleanKey func_clean_key_;
     HashMapCleanValue func_clean_val_;
 };
-
-/** HashMapData is the data type for the container private information. */
-typedef struct _HashMapData HashMapData;
 
 /** The implementation for hash map. */
 typedef struct _HashMap {
@@ -185,7 +178,19 @@ typedef struct _HashMap {
     void (*set_clean_value) (struct _HashMap*, HashMapCleanValue);
 } HashMap;
 
-struct Symbol_;
+typedef struct Symbol_{
+    ObjectFile *file;
+    char* name;
+    uint64_t value;
+    int32_t symIdx;
+
+    //union
+    InputSection * inputSection;
+    SectionFragment *sectionFragment;
+
+    int32_t gotTpIdx;
+    uint32_t flags;
+}Symbol;
 
 typedef struct Chunk_{
     char* name;
@@ -209,74 +214,10 @@ typedef struct Chunk_{
     }phdrS;
 
     struct {
-        struct Symbol_ ** GotTpSyms;
+        Symbol ** GotTpSyms;
         int TpSymNum;
     }gotSec;
 }Chunk;
-
-//合并后的section
-struct MergedSection_{
-    Chunk *chunk;
-};
-
-struct SectionFragment_ {
-    MergedSection* OutputSection;   //进行一个双向关联吧
-    uint32_t Offset;      //在section中的offset
-    uint32_t P2Align;
-    bool IsAlive;
-    int strslen;            //保存这个sectionFragment的长度
-} ;
-
-//解决一下嵌套包含
-struct ObjectFile_;
-struct OutputEhdr_;
-struct OutputShdr_;
-struct OutputSection_;
-struct OutputPhdr_;
-struct GotSection_;
-
-
-typedef struct ObjectFile_ ObjectFile;
-
-typedef struct InputSection_ InputSection;
-typedef struct InputFile_ InputFile;
-
-typedef struct Symbol_{
-    ObjectFile *file;
-    char* name;
-    uint64_t value;
-    int32_t symIdx;
-
-    //union
-    InputSection * inputSection;
-    SectionFragment *sectionFragment;
-
-    int32_t gotTpIdx;
-    uint32_t flags;
-}Symbol;
-
-
-
-
-File** ReadArchiveMembers(File* file,int * fileCount);
-
-#endif //BRILINKER_ARCHIVE_H
-#ifndef BRILINKER_INPUT_H
-#define BRILINKER_INPUT_H
-
-
-#define ChunkTypeUnknown ((ChunkType)0)
-#define ChunkTypeEhdr ((ChunkType)1)
-#define ChunkTypeShdr ((ChunkType)2)
-#define ChunkTypePhdr ((ChunkType)3)
-#define ChunkTypeOutputSection ((ChunkType)4)
-#define ChunkTypeMergedSection ((ChunkType)5)
-#define ChunkTypeGotSection ((ChunkType)6)
-
-
-//将merge-able section分成小的数据块
-
-
 
 typedef struct OutputEhdr_{
     Chunk *chunk;
@@ -304,6 +245,10 @@ typedef struct GotEntry_{
     uint64_t val;
 }GotEntry;
 
+//合并后的section
+struct MergedSection_{
+    Chunk *chunk;
+};
 
 typedef struct MergeableSection{
     MergedSection * parent;
@@ -326,41 +271,6 @@ struct ObjectFile_{
     MergeableSection **mergeableSections;
     size_t mergeableSectionsNum;
 };
-
-typedef uint8_t MachineType;
-
-typedef struct {
-    char* Output;
-    MachineType Emulation;
-    char** LibraryPaths;
-    int LibraryPathsCount;
-} ContextArgs;
-
-typedef struct {
-    ContextArgs Args;
-
-    struct ObjectFile_** Objs;
-    int ObjsCount;
-
-    HashMap *SymbolMap;  //char*,Symbol*
-
-    struct MergedSection_ **mergedSections;
-    int mergedSectionNum;
-
-    struct Chunk_ **chunk;
-    int chunkNum;
-    char* buf;
-
-    //链接器自己生成了，保存于此
-    struct OutputEhdr_* ehdr;
-    struct OutputShdr_* shdr;
-    struct OutputPhdr_* phdr;
-    struct GotSection_* got;
-    struct OutputSection_** outputSections;
-    int outputSecNum;
-
-    uint64_t TpAddr;
-} Context;
 
 
 ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib);
@@ -436,6 +346,53 @@ File* FindLibrary(Context* ctx, const char* name);
 
 
 
+typedef struct {
+    char* Output;
+    MachineType Emulation;
+    char** LibraryPaths;
+    int LibraryPathsCount;
+} ContextArgs;
+
+
+/** Calculate the hash of the given key. */
+typedef unsigned (*HashMapHash) (void*);
+
+/** Compare the equality of two keys. */
+typedef int (*HashMapCompare) (void*, void*);
+
+/** Key cleanup function called whenever a live entry is removed. */
+typedef void (*HashMapCleanKey) (void*);
+
+/** Value cleanup function called whenever a live entry is removed. */
+typedef void (*HashMapCleanValue) (void*);
+
+
+
+typedef struct {
+    ContextArgs Args;
+
+    struct ObjectFile_** Objs;
+    int ObjsCount;
+
+    HashMap *SymbolMap;  //char*,Symbol*
+
+    struct MergedSection_ **mergedSections;
+    int mergedSectionNum;
+
+    struct Chunk_ **chunk;
+    int chunkNum;
+    char* buf;
+
+    //链接器自己生成了，保存于此
+    struct OutputEhdr_* ehdr;
+    struct OutputShdr_* shdr;
+    struct OutputPhdr_* phdr;
+    struct GotSection_* got;
+    struct OutputSection_** outputSections;
+    int outputSecNum;
+
+    uint64_t TpAddr;
+} Context;
 
 Context* NewContext();
 void appendLibraryPath(Context* ctx, char* arg);
@@ -445,7 +402,17 @@ void appendLibraryPath(Context* ctx, char* arg);
 #define BRILINKER_MERGE_H
 
 
+typedef struct SectionFragment_ SectionFragment;
+typedef struct MergedSection_ MergedSection;
 
+//将merge-able section分成小的数据块
+struct SectionFragment_ {
+    MergedSection* OutputSection;   //进行一个双向关联吧
+    uint32_t Offset;      //在section中的offset
+    uint32_t P2Align;
+    bool IsAlive;
+    int strslen;            //保存这个sectionFragment的长度
+} ;
 
 //input section拆成一个(? y)包含多个sectionFragment的merge-able section , 再放入merged section
 
@@ -468,6 +435,7 @@ SectionFragment* GetFragment(const MergeableSection* m, uint32_t offset, uint32_
 #define BRILINKER_MACHINETYPE_H
 
 
+typedef uint8_t MachineType;
 
 #define MachineTypeNone    ((MachineType)0)
 #define MachineTypeRISCV64 ((MachineType)1)
@@ -543,7 +511,6 @@ struct InputFile_{
 
     char* ShStrtab;
     int64_t FirstGlobal;
-    int64_t numLocalSymbols;
 
     Sym *ElfSyms;
     int64_t symNum;
@@ -829,6 +796,11 @@ void HashMapClean(HashMap *self);
 #define _UTIL_H_
 
 
+/** The key value pair for associative data structures. */
+typedef struct _Pair {
+    void* key;
+    void* value;
+} Pair;
 
 
 #endif
@@ -1916,7 +1888,6 @@ const char* info_language_extensions_default = "INFO" ":" "extensions_default["
 
 /*--------------------------------------------------------------------------*/
 
-/*
 #ifdef ID_VOID_MAIN
 void main() {}
 #else
@@ -1951,8 +1922,6 @@ int main(int argc, char* argv[])
   return require;
 }
 #endif
-*/
-
 ObjectFile** RemoveIf(ObjectFile** elems, int* count) {
     int num = *count;
     size_t i = 0;
@@ -4641,6 +4610,10 @@ static const int num_prime = sizeof(magic_primes) / sizeof(unsigned);
 static const double load_factor = 0.75;
 
 
+typedef struct _SlotNode {
+    void* key_;
+    struct _SlotNode* next_;
+} SlotNode;
 
 struct _HashSetData {
     int idx_prime_;
@@ -5206,7 +5179,6 @@ void _HashSetReHash(HashSetData* data)
 /*===========================================================================*
  *                        The container private data                         *
  *===========================================================================*/
-/*
 static const unsigned magic_primes[] = {
     769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241, 786433,
     1572869, 3145739, 6291469, 12582917, 25165843, 50331653, 100663319,
@@ -5214,9 +5186,12 @@ static const unsigned magic_primes[] = {
 };
 static const int num_prime = sizeof(magic_primes) / sizeof(unsigned);
 static const double load_factor = 0.75;
-*/
 
 
+typedef struct _SlotNode {
+    Pair pair_;
+    struct _SlotNode* next_;
+} SlotNode;
 
 
 
@@ -5270,7 +5245,7 @@ HashMap* HashMapInit()
         return NULL;
     }
 
-    SlotNode2** arr_slot = (SlotNode2**)malloc(sizeof(SlotNode2*) * magic_primes[0]);
+    SlotNode** arr_slot = (SlotNode**)malloc(sizeof(SlotNode*) * magic_primes[0]);
     if (unlikely(!arr_slot)) {
         free(data);
         free(obj);
@@ -5312,15 +5287,15 @@ void HashMapDeinit(HashMap* obj)
         return;
 
     HashMapData* data = obj->data;
-    SlotNode2** arr_slot = data->arr_slot_;
+    SlotNode** arr_slot = data->arr_slot_;
     HashMapCleanKey func_clean_key = data->func_clean_key_;
     HashMapCleanValue func_clean_val = data->func_clean_val_;
 
     unsigned num_slot = data->num_slot_;
     unsigned i;
     for (i = 0 ; i < num_slot ; ++i) {
-        SlotNode2* pred;
-        SlotNode2* curr = arr_slot[i];
+        SlotNode* pred;
+        SlotNode* curr = arr_slot[i];
         while (curr) {
             pred = curr;
             curr = curr->next_;
@@ -5352,8 +5327,8 @@ bool HashMapPut(HashMap* self, void* key, void* value)
     /* Check if the pair conflicts with a certain one stored in the map. If yes,
        replace that one. */
     HashMapCompare func_cmp = data->func_cmp_;
-    SlotNode2** arr_slot = data->arr_slot_;
-    SlotNode2* curr = arr_slot[hash];
+    SlotNode** arr_slot = data->arr_slot_;
+    SlotNode* curr = arr_slot[hash];
     while (curr) {
         if (func_cmp(key, curr->pair_.key) == 0) {
             if (data->func_clean_key_)
@@ -5368,7 +5343,7 @@ bool HashMapPut(HashMap* self, void* key, void* value)
     }
 
     /* Insert the new pair into the slot list. */
-    SlotNode2* node = (SlotNode2*)malloc(sizeof(SlotNode2));
+    SlotNode* node = (SlotNode*)malloc(sizeof(SlotNode));
     if (unlikely(!node))
         return false;
 
@@ -5397,7 +5372,7 @@ void* HashMapGet(HashMap* self, void* key)
     /* Search the slot list to check if there is a pair having the same key
        with the designated one. */
     HashMapCompare func_cmp = data->func_cmp_;
-    SlotNode2* curr = data->arr_slot_[hash];
+    SlotNode* curr = data->arr_slot_[hash];
     while (curr) {
         if (func_cmp(key, curr->pair_.key) == 0)
             return curr->pair_.value;
@@ -5418,7 +5393,7 @@ bool HashMapContain(HashMap* self, void* key)
     /* Search the slot list to check if there is a pair having the same key
        with the designated one. */
     HashMapCompare func_cmp = data->func_cmp_;
-    SlotNode2* curr = data->arr_slot_[hash];
+    SlotNode* curr = data->arr_slot_[hash];
     while (curr) {
         if (func_cmp(key, curr->pair_.key) == 0)
             return true;
@@ -5438,9 +5413,9 @@ bool HashMapRemove(HashMap* self, void* key)
 
     /* Search the slot list for the deletion target. */
     HashMapCompare func_cmp = data->func_cmp_;
-    SlotNode2* pred = NULL;
-    SlotNode2** arr_slot = data->arr_slot_;
-    SlotNode2* curr = arr_slot[hash];
+    SlotNode* pred = NULL;
+    SlotNode** arr_slot = data->arr_slot_;
+    SlotNode* curr = arr_slot[hash];
     while (curr) {
         if (func_cmp(key, curr->pair_.key) == 0) {
             if (data->func_clean_key_)
@@ -5481,7 +5456,7 @@ Pair* HashMapNext(HashMap* self)
 {
     HashMapData* data = self->data;
 
-    SlotNode2** arr_slot = data->arr_slot_;
+    SlotNode** arr_slot = data->arr_slot_;
     while (data->iter_slot_ < data->num_slot_) {
         if (data->iter_node_) {
             Pair* ptr_pair = &(data->iter_node_->pair_);
@@ -5561,7 +5536,7 @@ void _HashMapReHash(HashMapData* data)
 
     /* Try to allocate the new slot array. The rehashing should be canceled due
        to insufficient memory space.  */
-    SlotNode2** arr_slot_new = (SlotNode2**)malloc(sizeof(SlotNode2*) * num_slot_new);
+    SlotNode** arr_slot_new = (SlotNode**)malloc(sizeof(SlotNode*) * num_slot_new);
     if (unlikely(!arr_slot_new)) {
         if (data->idx_prime_ < num_prime)
             --(data->idx_prime_);
@@ -5573,11 +5548,11 @@ void _HashMapReHash(HashMapData* data)
         arr_slot_new[i] = NULL;
 
     HashMapHash func_hash = data->func_hash_;
-    SlotNode2** arr_slot = data->arr_slot_;
+    SlotNode** arr_slot = data->arr_slot_;
     unsigned num_slot = data->num_slot_;
     for (i = 0 ; i < num_slot ; ++i) {
-        SlotNode2* pred;
-        SlotNode2* curr = arr_slot[i];
+        SlotNode* pred;
+        SlotNode* curr = arr_slot[i];
         while (curr) {
             pred = curr;
             curr = curr->next_;
@@ -5698,5 +5673,4 @@ char* ReadName(const ArHdr* a, char* strTab) {
     memcpy(filename, a->Name, end);
     filename[end] = '\0';
     return filename;
-}
 
