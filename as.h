@@ -70,12 +70,20 @@ struct formation {
 
 extern const struct formation zicsr[];
 
+struct reloc_info {
+	struct symbol *sym;
+	uint32_t type;
+	int64_t addend;
+};
+
 struct args {
 	uint8_t rd;
 	uint8_t rs1;
 	uint8_t rs2;
 	int32_t imm;
 	struct symbol *sym;
+	struct reloc_info reloc_primary;
+	struct reloc_info reloc_secondary;
 };
 
 extern const struct args empty_args;

@@ -69,6 +69,8 @@ static void *static_realloc(void* ptr, size_t size) {
 
 void closefiles(void);
 
+static int relocatable_mode = 0;
+
 static const char strtab_bytes[] =
   "\0" "__global_pointer$" "\0";   // オフセット0は空、次が __global_pointer$
   
@@ -111,6 +113,7 @@ static inline size_t align_up(size_t x, size_t a){
 #define R_RISCV_NONE 0u
 #define R_RISCV_64 2u
 #define R_RISCV_JAL 17u
+#define R_RISCV_GOT_HI20 20u
 #define R_RISCV_PCREL_HI20 23u
 #define R_RISCV_PCREL_LO12_I 24u
 #define R_RISCV_PCREL_LO12_S 25u
@@ -130,54 +133,58 @@ static size_t expect_freg(const char* s) {
     return (size_t)r;
 }
 
+static char *trim_arg(char *s);
+static int expect_two_args(char *first, char *second);
+static void expect_offreg(char *arg, int32_t *offset, uint8_t *reg, struct reloc_info *reloc, uint32_t reloc_hint);
+
 struct args parse_fltype(char* argstr) {
-    // 形式:   fld  fRD, imm(RS1)
-    // 例:     fld  fs5, -48(fp)
-    char *first = strtok(argstr, ",");
-    char *second = strtok(NULL, ",");
-    if (!first || !second) {
-        logger(ERROR, error_invalid_syntax, "Invalid operands");
+    logger(DEBUG, no_error, "Parsing arguments for floating load %s", argstr);
+
+    char *first = trim_arg(argstr);
+    char *second = trim_arg(NULL);
+    if (expect_two_args(first, second))
         return empty_args;
-    }
-    first  = trim_whitespace(first);
-    second = trim_whitespace(second);
 
-    size_t rd = expect_freg(first);
+    struct args args = {
+        .rd = (uint8_t)expect_freg(first),
+        .sym = NULL,
+    };
 
-    // off(reg) を読む
-    size_t imm = 0;
-    char basebuf[64];
-    if (sscanf(second, "%zi(%63[^)])", (ssize_t*)&imm, basebuf) != 2) {
-        logger(ERROR, error_invalid_syntax, "Expected off(reg), got '%s'", second);
-        return empty_args;
-    }
-    size_t rs1 = get_register_id(trim_whitespace(basebuf));
+    expect_offreg(second, &args.imm, &args.rs1, &args.reloc_primary,
+                  R_RISCV_PCREL_LO12_I);
 
-    return (struct args){ .rd = (uint8_t)rd, .rs1 = (uint8_t)rs1, .imm = (int32_t)imm };
+    free(first);
+    free(second);
+
+    logger(DEBUG, no_error, "Registers parsed f%d, %d(x%d)", args.rd,
+           args.imm, args.rs1);
+
+    return args;
 }
 
 struct args parse_fstype(char* argstr) {
-    // 形式:   fsd  fRS2, imm(RS1)
-    char *first = strtok(argstr, ",");
-    char *second = strtok(NULL, ",");
-    if (!first || !second) {
-        logger(ERROR, error_invalid_syntax, "Invalid operands");
+    logger(DEBUG, no_error, "Parsing arguments for floating store %s", argstr);
+
+    char *first = trim_arg(argstr);
+    char *second = trim_arg(NULL);
+    if (expect_two_args(first, second))
         return empty_args;
-    }
-    first  = trim_whitespace(first);
-    second = trim_whitespace(second);
 
-    size_t rs2 = expect_freg(first);
+    struct args args = {
+        .rs2 = (uint8_t)expect_freg(first),
+        .sym = NULL,
+    };
 
-    size_t imm = 0;
-    char basebuf[64];
-    if (sscanf(second, "%zi(%63[^)])", (ssize_t*)&imm, basebuf) != 2) {
-        logger(ERROR, error_invalid_syntax, "Expected off(reg), got '%s'", second);
-        return empty_args;
-    }
-    size_t rs1 = get_register_id(trim_whitespace(basebuf));
+    expect_offreg(second, &args.imm, &args.rs1, &args.reloc_primary,
+                  R_RISCV_PCREL_LO12_S);
 
-    return (struct args){ .rs1 = (uint8_t)rs1, .rs2 = (uint8_t)rs2, .imm = (int32_t)imm };
+    free(first);
+    free(second);
+
+    logger(DEBUG, no_error, "Registers parsed f%d -> %d(x%d)", args.rs2,
+           args.imm, args.rs1);
+
+    return args;
 }
 
 
@@ -190,8 +197,6 @@ const char helpstr[] =
     "Currently still being built\n";
 
 struct cmdargs_t cmdargs;
-
-static int relocatable_mode = 0;
 
 void *argtable[7];
 static void free_argtable(void);
@@ -525,6 +530,8 @@ const struct args empty_args = {
     .rs2 = 0,
     .imm = 0,
     .sym = NULL,
+    .reloc_primary = { 0 },
+    .reloc_secondary = { 0 },
 };
 
 static char *trim_arg(char *s)
@@ -544,37 +551,132 @@ static uint8_t expect_reg(char *arg)
     return (uint8_t)reg;
 }
 
-static void expect_offreg(char *arg, int32_t *offset, uint8_t *reg)
+static struct symbol *resolve_symbol_slice(const char *start, size_t len)
 {
-    *offset = (int32_t)strtol(arg, &arg, 0);
+    char *name = xmalloc(len + 1);
+    memcpy(name, start, len);
+    name[len] = '\0';
+    struct symbol *sym = get_or_create_symbol(name, SYMBOL_LABEL);
+    free(name);
+    return sym;
+}
 
-    while (isspace(*arg))
-        arg++;
+static int parse_relocation_expression(const char *expr, struct reloc_info *reloc,
+                                       uint32_t reloc_hint, int32_t *value_out)
+{
+    if (!expr || expr[0] != '%')
+        return 0;
 
-    if (*arg != '(')
+    if (!reloc) {
         logger(ERROR, error_instruction_other,
-               "Expected '(' but got '%c'", *arg);
-    arg++;
-    char *closing = arg;
-    while (*closing != ')') {
-        if (!*closing) {
-            logger(ERROR, error_instruction_other,
-                   "Expected closing parenthesis");
-            return;
-        }
-        closing++;
+               "Relocation expression %s not allowed here", expr);
+        return 0;
     }
+
+    const char *open = strchr(expr, '(');
+    const char *close = open ? strrchr(expr, ')') : NULL;
+    if (!open || !close || close <= open) {
+        logger(ERROR, error_instruction_other,
+               "Malformed relocation expression %s", expr);
+        return 0;
+    }
+
+    size_t name_len = (size_t)(close - open - 1);
+    struct symbol *sym = resolve_symbol_slice(open + 1, name_len);
+
+    reloc->sym = sym;
+    reloc->addend = 0;
+
+    if (!sym)
+        return 0;
+
+    if (strncmp(expr, "%got_pcrel_hi(", strlen("%got_pcrel_hi(")) == 0) {
+        reloc->type = R_RISCV_GOT_HI20;
+    } else if (strncmp(expr, "%pcrel_hi(", strlen("%pcrel_hi(")) == 0) {
+        reloc->type = R_RISCV_PCREL_HI20;
+    } else if (strncmp(expr, "%pcrel_lo(", strlen("%pcrel_lo(")) == 0) {
+        reloc->type = reloc_hint ? reloc_hint : R_RISCV_PCREL_LO12_I;
+    } else {
+        logger(ERROR, error_instruction_other,
+               "Unsupported relocation modifier in %s", expr);
+        reloc->sym = NULL;
+        reloc->type = 0;
+        return 0;
+    }
+
+    if (!relocatable_mode)
+        logger(ERROR, error_instruction_other,
+               "Relocation expression %s requires '-c' output", expr);
+
+    if (value_out)
+        *value_out = 0;
+    return 1;
+}
+
+static void expect_offreg(char *arg, int32_t *offset, uint8_t *reg, struct reloc_info *reloc, uint32_t reloc_hint)
+{
+    if (!arg) {
+        logger(ERROR, error_instruction_other, "Missing off(reg) operand");
+        return;
+    }
+
+    char *paren = strrchr(arg, '(');
+    if (!paren) {
+        logger(ERROR, error_instruction_other,
+               "Expected off(reg) but got %s", arg);
+        return;
+    }
+
+    char *reg_part = paren + 1;
+    char *closing = strchr(reg_part, ')');
+    if (!closing) {
+        logger(ERROR, error_instruction_other,
+               "Expected closing parenthesis for register");
+        return;
+    }
+
+    *paren = '\0';
     *closing = '\0';
 
-    size_t r = get_register_id(arg);
+    char *imm_trim = trim_whitespace(arg);
+    char *reg_trim = trim_whitespace(reg_part);
 
+    struct reloc_info dummy = { 0 };
+    struct reloc_info *target_reloc = reloc ? reloc : &dummy;
+    int32_t value = 0;
+    int has_reloc = parse_relocation_expression(imm_trim, target_reloc,
+                                                reloc_hint, &value);
+
+    if (has_reloc && !reloc) {
+        logger(ERROR, error_instruction_other,
+               "Relocation expression %s not permitted here", imm_trim);
+    }
+
+    if (!has_reloc) {
+        char *endptr = NULL;
+        long long parsed = strtoll(imm_trim, &endptr, 0);
+        if (endptr && *endptr) {
+            logger(ERROR, error_instruction_other,
+                   "Expected immediate but got %s", imm_trim);
+        }
+        value = (int32_t)parsed;
+    }
+
+    *offset = value;
+
+    size_t r = get_register_id(reg_trim);
     if (r == (size_t)-1)
         logger(ERROR, error_instruction_other,
-               "Expected register but got %s", arg);
+               "Expected register but got %s", reg_trim);
 
     *reg = (uint8_t)r;
 
+    free(imm_trim);
+    free(reg_trim);
+
     closing++;
+    while (isspace((unsigned char)*closing))
+        closing++;
     if (*closing)
         logger(ERROR, error_instruction_other,
                "Received unexpected expression \"%s\"", closing);
@@ -798,7 +900,8 @@ struct args parse_ltype(char *argstr)
         .sym = NULL,
     };
 
-    expect_offreg(second, &args.imm, &args.rs1);
+    expect_offreg(second, &args.imm, &args.rs1, &args.reloc_primary,
+                  R_RISCV_PCREL_LO12_I);
 
     free(first);
     free(second);
@@ -855,7 +958,8 @@ struct args parse_stype(char *argstr)
     };
 
     // ← 2つ目は off(reg) 形式（imm と base レジスタ rs1）
-    expect_offreg(second, &args.imm, &args.rs1);
+    expect_offreg(second, &args.imm, &args.rs1, &args.reloc_primary,
+                  R_RISCV_PCREL_LO12_S);
 
     free(first);
     free(second);
@@ -877,10 +981,18 @@ struct args parse_utype(char *argstr)
     if (expect_two_args(first, second))
         return empty_args;
 
-    const struct args args = {
-        .rd = expect_reg(first),
-        .imm = expect_imm(second),
+    uint8_t rd = expect_reg(first);
+
+    struct reloc_info reloc = { 0 };
+    int32_t imm_value = 0;
+    if (!parse_relocation_expression(second, &reloc, 0, &imm_value))
+        imm_value = (int32_t)expect_imm(second);
+
+    struct args args = {
+        .rd = rd,
+        .imm = imm_value,
         .sym = NULL,
+        .reloc_primary = reloc,
     };
 
     free(first);
@@ -1253,7 +1365,7 @@ struct args parse_al(char *argstr)
         .sym = NULL,
     };
 
-    expect_offreg(second, &args.imm, &args.rs1);
+    expect_offreg(second, &args.imm, &args.rs1, NULL, 0);
 
     if (args.imm)
         logger(ERROR, error_invalid_instruction,
@@ -1285,7 +1397,7 @@ struct args parse_as(char *argstr)
         .rs2 = expect_reg(second),
     };
 
-    expect_offreg(third, &args.imm, &args.rs1);
+    expect_offreg(third, &args.imm, &args.rs1, NULL, 0);
 
     if (args.imm)
         logger(ERROR, error_invalid_instruction,
@@ -1625,6 +1737,23 @@ static void collect_relocations(void)
 
     for (size_t i = 0; i < instructions_size; i++) {
         struct instruction *ins = &instructions[i];
+
+        struct reloc_info *relocs[] = {
+            &ins->args.reloc_primary,
+            &ins->args.reloc_secondary,
+        };
+
+        for (size_t r = 0; r < ARRAY_LENGTH(relocs); r++) {
+            struct reloc_info *ri = relocs[r];
+            if (!ri->sym || ri->type == 0)
+                continue;
+            enum sections rsec = relocation_section_for(ins->position.section);
+            if (rsec == SECTION_NULL)
+                continue;
+            add_relocation_entry(rsec, ins->position.offset, ri->sym,
+                                 ri->type, ri->addend);
+        }
+
         if (!ins->args.sym)
             continue;
 

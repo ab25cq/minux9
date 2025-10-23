@@ -223,7 +223,7 @@ LOAD syscall.o
  *fill*         0x00000000800116c1        0x7 
  .rodata        0x00000000800116c8      0x198 syscall.o
 
-.data           0x0000000080011860    0x1ea50
+.data           0x0000000080011860    0x1e978
  *(.data .data.*)
  .data          0x0000000080011860        0x0 entry.o
  .data          0x0000000080011860        0x0 start.o
@@ -232,56 +232,56 @@ LOAD syscall.o
  .data          0x0000000080011860        0x0 fs.o
  .data          0x0000000080011860        0x0 plic.o
  .data          0x0000000080011860        0x0 trap_c.o
- .data          0x0000000080011860    0x1e948 main.o
+ .data          0x0000000080011860    0x1e870 main.o
                 0x0000000080011860                sh_elf
-                0x0000000080030138                sh_elf_len
-                0x0000000080030148                gUsers
- .data          0x00000000800301a8      0x108 libc.o
-                0x00000000800301a8                __stdin
-                0x00000000800301f8                __stdout
-                0x0000000080030248                __stderr
-                0x0000000080030298                stdin
-                0x00000000800302a0                stdout
-                0x00000000800302a8                stderr
- .data          0x00000000800302b0        0x0 syscall.o
-                0x00000000800302b0                . = ALIGN (0x10)
-                0x00000000800302b0                PROVIDE (_bss_start = .)
+                0x0000000080030060                sh_elf_len
+                0x0000000080030070                gUsers
+ .data          0x00000000800300d0      0x108 libc.o
+                0x00000000800300d0                __stdin
+                0x0000000080030120                __stdout
+                0x0000000080030170                __stderr
+                0x00000000800301c0                stdin
+                0x00000000800301c8                stdout
+                0x00000000800301d0                stderr
+ .data          0x00000000800301d8        0x0 syscall.o
+                0x00000000800301e0                . = ALIGN (0x10)
+                0x00000000800301e0                PROVIDE (_bss_start = .)
 
-.bss            0x0000000080030400    0x145b0
+.bss            0x0000000080030200    0x145b0
  *(.bss)
- .bss           0x0000000080030400        0x0 entry.o
- .bss           0x0000000080030400        0x0 start.o
- .bss           0x0000000080030400        0x0 userret.o
- .bss           0x0000000080030400        0x0 trap.o
- .bss           0x0000000080030400    0x14040 fs.o
-                0x0000000080030400                gPipes
-                0x0000000080036a00                gFiles
-                0x000000008003fc00                gFreePipes
-                0x000000008003fc08                gFreeFiles
- .bss           0x0000000080044440        0x0 plic.o
- .bss           0x0000000080044440        0x0 trap_c.o
- .bss           0x0000000080044440      0x550 main.o
-                0x0000000080044440                kernel_pagetable
-                0x0000000080044448                gCPU
-                0x0000000080044558                gProc
-                0x0000000080044958                gNumProc
-                0x000000008004495c                gActiveProc
-                0x0000000080044960                kmem
-                0x0000000080044980                last_key
-                0x0000000080044984                g_time_offset
- .bss           0x0000000080044990       0x10 libc.o
-                0x0000000080044990                free_list
- .bss           0x00000000800449a0       0x10 syscall.o
+ .bss           0x0000000080030200        0x0 entry.o
+ .bss           0x0000000080030200        0x0 start.o
+ .bss           0x0000000080030200        0x0 userret.o
+ .bss           0x0000000080030200        0x0 trap.o
+ .bss           0x0000000080030200    0x14040 fs.o
+                0x0000000080030200                gPipes
+                0x0000000080036800                gFiles
+                0x000000008003fa00                gFreePipes
+                0x000000008003fa08                gFreeFiles
+ .bss           0x0000000080044240        0x0 plic.o
+ .bss           0x0000000080044240        0x0 trap_c.o
+ .bss           0x0000000080044240      0x550 main.o
+                0x0000000080044240                kernel_pagetable
+                0x0000000080044248                gCPU
+                0x0000000080044358                gProc
+                0x0000000080044758                gNumProc
+                0x000000008004475c                gActiveProc
+                0x0000000080044760                kmem
+                0x0000000080044780                last_key
+                0x0000000080044784                g_time_offset
+ .bss           0x0000000080044790       0x10 libc.o
+                0x0000000080044790                free_list
+ .bss           0x00000000800447a0       0x10 syscall.o
  *(.bss.*)
  *(.sbss)
  *(.sbss.*)
 
 .sdata
  *(.sdata*)
-                0x00000000800449b0                PROVIDE (_bss_end = .)
+                0x00000000800447b0                PROVIDE (_bss_end = .)
                 [!provide]                        PROVIDE (_code_end = .)
-                0x00000000800849b0                . = (. + STACK_MAX)
-                0x00000000800849b0                PROVIDE (stack_top = .)
+                0x00000000800847b0                . = (. + STACK_MAX)
+                0x00000000800847b0                PROVIDE (stack_top = .)
                 0x0000000080085000                . = ALIGN (0x1000)
                 0x0000000080085000                TRAPFRAME = .
                 0x0000000080086000                . = (. + 0x1000)

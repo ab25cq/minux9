@@ -187,39 +187,13 @@ int main(int argc, char** argv) {
     }
     
     for (;;) {
-        // プロンプト
-        write(1, "$ ", 2);
-        
+        char* cmdline = NULL;
         if(run_once == 0) {
-            // キーボードから１行読み込み（改行込み）
-            n = 0;
-            while(1) {
-                read(0, buf2, 1);
-                write(1, buf2, 1);
-                
-                // バックスペース or DEL?
-                if ((buf2[0] == '\b' || buf2[0] == 127) && n > 0) {
-                    // バッファ末尾をひとつ取り除く
-                    n--;
-                    buf[n] = '\0';
-                    // 画面上の文字を消す: "\b \b"
-                    write(1, "\b \b", 3);
-                }
-                else if(buf2[0] == '\r') {
-                    break;
-                }
-                else if(buf2[0] == '\n') {
-                    break;
-                }
-                else {
-                    buf[n] = buf2[0];
-                    n++;
-                }
-            }
-            buf[n] = '\0';
+            cmdline = readline("$ ");
+            
+            strncpy(buf, cmdline, BUF_SIZE);
         }
         
-        write(1, "\r\n", 2);
         // save whole command line into global for MINUX_CMDLINE
         int gi = 0; while (buf[gi] && gi < BUF_SIZE-1) { g_cmdline[gi] = buf[gi]; gi++; } g_cmdline[gi] = '\0';
         
@@ -396,6 +370,10 @@ int main(int argc, char** argv) {
                 wait(&status);
                 printf("=> %d\r\n", status);
             }
+        }
+        
+        if(cmdline) {
+            free(cmdline);
         }
         
         if(run_once) {
