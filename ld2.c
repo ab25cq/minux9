@@ -1,15 +1,49 @@
+/**
+ *   The MIT License (MIT)
+ *   Copyright (C) 2016 ZongXian Shen <andy.zsshen@gmail.com>
+ *
+ *   Permission is hereby granted, free of charge, to any person obtaining a
+ *   copy of this software and associated documentation files (the "Software"),
+ *   to deal in the Software without restriction, including without limitation
+ *   the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ *   and/or sell copies of the Software, and to permit persons to whom the
+ *   Software is furnished to do so, subject to the following conditions:
+ *
+ *   The above copyright notice and this permission notice shall be included in
+ *   all copies or substantial portions of the Software.
+ *
+ *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ *   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ *   IN THE SOFTWARE.
+ */
+
 #include "minux.h"
 #include <stdarg.h>
 #include <stdint.h>
 #include <elf.h>
 
+#define EXIT_FAILURE 1
+
 #define DEBUG_LINKER 1
+
+#define max_(a, b) ((a) > (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
 
 #if DEBUG_LINKER
 #define DBG(fmt, ...) do { fprintf(stderr, "[ld2] " fmt, ##__VA_ARGS__); fflush(stderr); } while (0)
 #else
 #define DBG(fmt, ...) do { } while (0)
 #endif
+
+#define uint64 uint64_t
+#define uint32 uint32_t
+#define ushort unsigned short
+#define uint unsigned int
+#define uchar unsigned char
 
 static int DebugCountArgs(char** args) {
     if (args == NULL) {
@@ -23,7 +57,133 @@ static int DebugCountArgs(char** args) {
     return count;
 }
 
-#define EXIT_FAILURE 1
+typedef unsigned (*HashMapHash) (void*);
+typedef int (*HashMapCompare) (void*, void*);
+typedef void (*HashMapCleanKey) (void*);
+typedef void (*HashMapCleanValue) (void*);
+
+typedef struct _Pair {
+    void* key;
+    void* value;
+} Pair;
+
+typedef struct _SlotNode {
+    Pair pair_;
+    struct _SlotNode* next_;
+} SlotNode;
+
+struct _HashMapData {
+    int size_;
+    int idx_prime_;
+    unsigned num_slot_;
+    unsigned curr_limit_;
+    unsigned iter_slot_;
+    SlotNode** arr_slot_;
+    SlotNode* iter_node_;
+    HashMapHash func_hash_;
+    HashMapCompare func_cmp_;
+    HashMapCleanKey func_clean_key_;
+    HashMapCleanValue func_clean_val_;
+};
+
+typedef struct _HashMapData HashMapData;
+
+typedef struct _HashMap {
+    HashMapData *data;
+    bool (*put) (struct _HashMap*, void*, void*);
+    void* (*get) (struct _HashMap*, void*);
+    bool (*contain) (struct _HashMap*, void*);
+    bool (*remove) (struct _HashMap*, void*);
+    unsigned (*size) (struct _HashMap*);
+    void (*first) (struct _HashMap*);
+    Pair* (*next) (struct _HashMap*);
+    void (*set_hash) (struct _HashMap*, HashMapHash);
+    void (*set_compare) (struct _HashMap*, HashMapCompare);
+    void (*set_clean_key) (struct _HashMap*, HashMapCleanKey);
+    void (*set_clean_value) (struct _HashMap*, HashMapCleanValue);
+} HashMap;
+
+HashMap* HashMapInit();
+void HashMapDeinit(HashMap* obj);
+bool HashMapPut(HashMap* self, void* key, void* value);
+void* HashMapGet(HashMap* self, void* key);
+bool HashMapContain(HashMap* self, void* key);
+bool HashMapRemove(HashMap* self, void* key);
+unsigned HashMapSize(HashMap* self);
+void HashMapFirst(HashMap* self);
+Pair* HashMapNext(HashMap* self);
+void HashMapSetHash(HashMap* self, HashMapHash func);
+void HashMapSetCompare(HashMap* self, HashMapCompare func);
+void HashMapSetCleanKey(HashMap* self, HashMapCleanKey func);
+void HashMapSetCleanValue(HashMap* self, HashMapCleanValue func);
+void HashMapClean(HashMap *self);
+
+typedef unsigned (*HashSetHash) (void*);
+
+typedef int (*HashSetCompare) (void*, void*);
+typedef void (*HashSetCleanKey) (void*);
+
+typedef struct _HashSetSlotNode {
+    void* key_;
+    struct _HashSetSlotNode* next_;
+} HashSetSlotNode;
+
+struct _HashSetData {
+    int idx_prime_;
+    unsigned size_;
+    unsigned num_slot_;
+    unsigned curr_limit_;
+    unsigned iter_slot_;
+    HashSetSlotNode** arr_slot_;
+    HashSetSlotNode* iter_node_;
+    HashSetHash func_hash_;
+    HashSetCompare func_cmp_;
+    HashSetCleanKey func_clean_key_;
+};
+
+typedef struct _HashSetData HashSetData;
+
+typedef struct _HashSet {
+    HashSetData* data;
+
+    bool (*add) (struct _HashSet*, void*);
+    bool (*find) (struct _HashSet*, void*);
+    bool (*remove) (struct _HashSet*, void*);
+    unsigned (*size) (struct _HashSet*);
+    void (*first) (struct _HashSet*);
+    void* (*next) (struct _HashSet*);
+    void (*set_hash) (struct _HashSet*, HashSetHash);
+    void (*set_compare) (struct _HashSet*, HashSetCompare);
+    void (*set_clean_key) (struct _HashSet*, HashSetCleanKey);
+} HashSet;
+
+HashSet* _HashSetInit(int idx_prime);
+unsigned _HashSetHash(void* key);
+int _HashSetCompare(void* lhs, void* rhs);
+void _HashSetReHash(HashSetData* data);
+
+HashSet* HashSetInit();
+void HashSetDeinit(HashSet* obj);
+bool HashSetAdd(HashSet* self, void* key);
+bool HashSetFind(HashSet* self, void* key);
+bool HashSetRemove(HashSet* self, void* key);
+unsigned HashSetSize(HashSet* self);
+void HashSetFirst(HashSet* self);
+void* HashSetNext(HashSet* self);
+void HashSetSetHash(HashSet* self, HashSetHash func);
+void HashSetSetCompare(HashSet* self, HashSetCompare func);
+void HashSetSetCleanKey(HashSet* self, HashSetCleanKey func);
+HashSet* HashSetUnion(HashSet* lhs, HashSet* rhs);
+HashSet* HashSetIntersect(HashSet* lhs, HashSet* rhs);
+HashSet* HashSetDifference(HashSet* lhs, HashSet* rhs);
+
+unsigned HashMurMur32(void* key, size_t size);
+unsigned HashJenkins(void* key, size_t size);
+unsigned HashDjb2(char* key);
+
+unsigned _HashMapHash(void* key);
+int _HashMapCompare(void* lhs, void* rhs);
+void _HashMapReHash(HashMapData* data);
 
 typedef struct File {
     char* Name;
@@ -104,111 +264,6 @@ typedef struct {
 
 typedef uint8_t ChunkType;
 
-/*
-typedef struct _SlotNode {
-    void* key_;
-    struct _SlotNode* next_;
-} SlotNode;
-*/
-
-/** Calculate the hash of the given key. */
-typedef unsigned (*HashMapHash) (void*);
-
-/** Compare the equality of two keys. */
-typedef int (*HashMapCompare) (void*, void*);
-
-/** Key cleanup function called whenever a live entry is removed. */
-typedef void (*HashMapCleanKey) (void*);
-
-/** Value cleanup function called whenever a live entry is removed. */
-typedef void (*HashMapCleanValue) (void*);
-
-/** The key value pair for associative data structures. */
-typedef struct _Pair {
-    void* key;
-    void* value;
-} Pair;
-
-typedef struct _SlotNode {
-    Pair pair_;
-    struct _SlotNode* next_;
-} SlotNode;
-
-struct _HashMapData {
-    int size_;
-    int idx_prime_;
-    unsigned num_slot_;
-    unsigned curr_limit_;
-    unsigned iter_slot_;
-    SlotNode** arr_slot_;
-    SlotNode* iter_node_;
-    HashMapHash func_hash_;
-    HashMapCompare func_cmp_;
-    HashMapCleanKey func_clean_key_;
-    HashMapCleanValue func_clean_val_;
-};
-
-/** HashMapData is the data type for the container private information. */
-typedef struct _HashMapData HashMapData;
-
-
-/** The implementation for hash map. */
-typedef struct _HashMap {
-    /** The container private information */
-    HashMapData *data;
-
-    /** Insert a key value pair into the map.
-        @see HashMapPut */
-    bool (*put) (struct _HashMap*, void*, void*);
-
-    /** Retrieve the value corresponding to the specified key.
-        @see HashMapGet */
-    void* (*get) (struct _HashMap*, void*);
-
-    /** Check if the map contains the specified key.
-        @see HashMapContain */
-    bool (*contain) (struct _HashMap*, void*);
-
-    /** Remove the key value pair corresponding to the specified key.
-        @see HashMapRemove */
-    bool (*remove) (struct _HashMap*, void*);
-
-    /** Return the number of stored key value pairs.
-        @see HashMapSize */
-    unsigned (*size) (struct _HashMap*);
-
-    /** Initialize the map iterator.
-        @see HashMapFirst */
-    void (*first) (struct _HashMap*);
-
-    /** Get the key value pair pointed by the iterator and advance the iterator
-        @see HashMapNext */
-    Pair* (*next) (struct _HashMap*);
-
-    /** Set the custom hash function.
-        @see HashMapSetHash */
-    void (*set_hash) (struct _HashMap*, HashMapHash);
-
-    /** Set the custom key comparison function.
-        @see HashMapSetCompare */
-    void (*set_compare) (struct _HashMap*, HashMapCompare);
-
-    /** Set the custom key cleanup function.
-        @see HashMapSetCleanKey */
-    void (*set_clean_key) (struct _HashMap*, HashMapCleanKey);
-
-    /** Set the custom value cleanup function.
-        @see HashMapSetCleanValue */
-    void (*set_clean_value) (struct _HashMap*, HashMapCleanValue);
-} HashMap;
-
-typedef struct ObjectFile_ ObjectFile;
-typedef struct InputSection_ InputSection;
-typedef struct InputFile_ InputFile;
-
-struct OutputSection_;
-
-//解决一下嵌套包含
 struct ObjectFile_;
 struct MergedSection_ ;
 struct OutputEhdr_;
@@ -217,6 +272,10 @@ struct OutputSection_;
 struct OutputPhdr_;
 struct GotSection_;
 struct Chunk_;
+
+typedef struct ObjectFile_ ObjectFile;
+typedef struct InputSection_ InputSection;
+typedef struct InputFile_ InputFile;
 
 typedef uint8_t MachineType;
 
@@ -256,7 +315,6 @@ typedef struct {
     uint64_t TpAddr;
     uint64_t GpAddr;
 } Context;
-
 
 typedef struct Symbol_{
     ObjectFile *file;
@@ -315,38 +373,6 @@ typedef struct OutputPhdr_{
     Chunk *chunk;
 }OutputPhdr;
 
-
-#ifndef BRILINKER_ARCHIVE_H
-#define BRILINKER_ARCHIVE_H
-
-File** ReadArchiveMembers(File* file,int * fileCount);
-
-#endif //BRILINKER_ARCHIVE_H
-#ifndef BRILINKER_INPUT_H
-#define BRILINKER_INPUT_H
-
-
-ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib);
-void readFile(Context *ctx,File* file);
-void ReadInputFiles(Context* ctx,char** remaining);
-
-#endif //BRILINKER_INPUT_H
-#ifndef BRILINKER_CHUNK_H
-#define BRILINKER_CHUNK_H
-
-
-#define max_(a, b) ((a) > (b) ? (a) : (b))
-
-#define ChunkTypeUnknown ((ChunkType)0)
-#define ChunkTypeEhdr ((ChunkType)1)
-#define ChunkTypeShdr ((ChunkType)2)
-#define ChunkTypePhdr ((ChunkType)3)
-#define ChunkTypeOutputSection ((ChunkType)4)
-#define ChunkTypeMergedSection ((ChunkType)5)
-#define ChunkTypeGotSection ((ChunkType)6)
-
-
-
 typedef struct GotSection_{
     Chunk *chunk;
 }GotSection;
@@ -357,43 +383,6 @@ typedef struct GotEntry_{
     uint64_t val;
 }GotEntry;
 
-Chunk *NewChunk();
-Shdr *GetShdr(Chunk* c);
-void CopyBuf(Chunk* c,Context* ctx);
-char* GetName(Chunk* c);
-void Update(Chunk* c,Context* ctx);
-
-//-------------ehdr
-OutputEhdr *NewOutputEhdr();
-void Ehdr_CopyBuf(Chunk *c,Context* ctx);
-
-//----------------shdr
-OutputShdr *NewOutputShdr();
-void Shdr_UpdateShdr(Chunk* c,Context* ctx);
-void Shdr_CopyBuf(Chunk* c,Context* ctx);
-
-//--------------outputsection
-OutputSection *GetOutputSection(Context* ctx,char* name,uint64_t typ,uint64_t flags);
-OutputSection *NewOutputSection(char* name,uint32_t typ, uint64_t flags, uint32_t idx);
-void OutputSec_CopyBuf(Chunk* c,Context* ctx);
-
-//-------------------phdr
-OutputPhdr *NewOutputPhdr();
-void Phdr_CopyBuf(Chunk* c,Context* ctx);
-void Phdr_UpdateShdr(Chunk* c,Context* ctx);
-
-//-------------------got section
-GotSection *NewGotSection();
-void AddGotTpSymbol(Chunk* chunk, Symbol* sym);
-void GotSec_CopyBuf(Chunk* c,Context* ctx);
-GotEntry *GetEntries(Chunk *chunk,Context* ctx,int* num);
-void FinalizeGlobalPointer(Context* ctx);
-
-#endif //BRILINKER_CHUNK_H
-#ifndef BRILINKER_MERGEDSECTION_H
-#define BRILINKER_MERGEDSECTION_H
-
-
 //合并后的section
 struct MergedSection_{
     Chunk *chunk;
@@ -403,34 +392,6 @@ typedef struct Fragment_ {
     char* key;
     SectionFragment* val;
 }Fragment;
-
-void AssignOffsets(MergedSection* m);
-void MergedSec_CopyBuf(Chunk* c,Context* ctx);
-
-#endif //BRILINKER_MERGEDSECTION_H
-#ifndef BRILINKER_FILE_H
-#define BRILINKER_FILE_H
-
-
-
-File* NewFile(const char* name);
-File* OpenLibrary(const char* filepath);
-File* FindLibrary(Context* ctx, const char* name);
-
-#endif //BRILINKER_FILE_H
-#ifndef BRILINKER_CONTEXT_H
-#define BRILINKER_CONTEXT_H
-
-
-
-Context* NewContext();
-void appendLibraryPath(Context* ctx, char* arg);
-
-#endif //BRILINKER_CONTEXT_H
-#ifndef BRILINKER_MERGE_H
-#define BRILINKER_MERGE_H
-
-
 
 //将merge-able section分成小的数据块
 struct SectionFragment_ {
@@ -453,52 +414,6 @@ typedef struct MergeableSection{
     SectionFragment ** fragments;
     int fragmentNum;
 }MergeableSection;
-
-//SectionFragment
-SectionFragment* NewSectionFragment(MergedSection* m);
-uint64_t SectionFragment_GetAddr(SectionFragment* s);
-
-//mergedSection
-MergedSection *NewMergedSection(char* name , uint64_t flags , uint32_t typ);
-MergedSection *GetMergedSectionInstance(Context* ctx, char* name,uint32_t typ,uint64_t flags);
-SectionFragment *Insert(MergedSection* m,char* key,uint32_t p2align,int strslen);
-
-//mergeableSection
-MergeableSection *NewMergeableSection();
-//根据偏移，找到它属于哪个sectionFragment
-SectionFragment* GetFragment(const MergeableSection* m, uint32_t offset, uint32_t* fragOffset);
-
-#endif //BRILINKER_MERGE_H
-#ifndef BRILINKER_MACHINETYPE_H
-#define BRILINKER_MACHINETYPE_H
-
-
-
-#define MachineTypeNone    ((MachineType)0)
-#define MachineTypeRISCV64 ((MachineType)1)
-
-
-const char* MachineType_String(MachineType m);
-MachineType GetMachineTypeFromContents(const char* contents);
-
-#endif //BRILINKER_MACHINETYPE_H
-#ifndef BRILINKER_OUTPUT_H
-#define BRILINKER_OUTPUT_H
-
-
-char* GetOutputName(char* name, uint64_t flags);
-
-
-#endif //BRILINKER_OUTPUT_H
-// Format of an ELF executable file
-
-#define ELF_MAGIC 0x464C457FU  // "\x7FELF" in little endian
-
-#define uint64 uint64_t
-#define uint32 uint32_t
-#define ushort unsigned short
-#define uint unsigned int
-#define uchar unsigned char
 
 // File header
 struct elfhdr {
@@ -530,41 +445,6 @@ struct proghdr {
   uint64 memsz;
   uint64 align;
 };
-
-// Values for Proghdr type
-#define ELF_PROG_LOAD           1
-
-// Flag bits for Proghdr flags
-#define ELF_PROG_FLAG_EXEC      1
-#define ELF_PROG_FLAG_WRITE     2
-#define ELF_PROG_FLAG_READ      4
-
-#ifndef BRILINKER_PASSES_H
-#define BRILINKER_PASSES_H
-
-
-#define max(a, b) ((a) > (b) ? (a) : (b))
-
-void MarkLiveObjects(Context* ctx);
-void ResolveSymbols_pass(Context* ctx);
-void RegisterSectionPieces(Context* ctx);
-void CreateSyntheticSections(Context* ctx);
-uint64_t SetOutputSectionOffsets(Context* ctx);
-void BinSections(Context* ctx);
-void CollectOutputSections(Context* ctx);
-void ComputeSectionSizes(Context* ctx);
-void SortOutputSections(Context* ctx);
-bool isTbss(Chunk* chunk);
-void ComputeMergedSectionSizes(Context* ctx);
-void ScanRelocations(Context* ctx);
-
-#endif //BRILINKER_PASSES_H
-#ifndef BRILINKER_UNION_H
-#define BRILINKER_UNION_H
-
-
-
-
 
 struct ObjectFile_{
     InputFile *inputFile;    //这样表示继承
@@ -618,6 +498,109 @@ struct InputFile_{
     int numLocalSymbols;
 };
 
+#define ChunkTypeUnknown ((ChunkType)0)
+#define ChunkTypeEhdr ((ChunkType)1)
+#define ChunkTypeShdr ((ChunkType)2)
+#define ChunkTypePhdr ((ChunkType)3)
+#define ChunkTypeOutputSection ((ChunkType)4)
+#define ChunkTypeMergedSection ((ChunkType)5)
+#define ChunkTypeGotSection ((ChunkType)6)
+
+File** ReadArchiveMembers(File* file,int * fileCount);
+ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib);
+void readFile(Context *ctx,File* file);
+void ReadInputFiles(Context* ctx,char** remaining);
+
+Chunk *NewChunk();
+Shdr *GetShdr(Chunk* c);
+void CopyBuf(Chunk* c,Context* ctx);
+char* GetName(Chunk* c);
+void Update(Chunk* c,Context* ctx);
+
+//-------------ehdr
+OutputEhdr *NewOutputEhdr();
+void Ehdr_CopyBuf(Chunk *c,Context* ctx);
+
+//----------------shdr
+OutputShdr *NewOutputShdr();
+void Shdr_UpdateShdr(Chunk* c,Context* ctx);
+void Shdr_CopyBuf(Chunk* c,Context* ctx);
+
+//--------------outputsection
+OutputSection *GetOutputSection(Context* ctx,char* name,uint64_t typ,uint64_t flags);
+OutputSection *NewOutputSection(char* name,uint32_t typ, uint64_t flags, uint32_t idx);
+void OutputSec_CopyBuf(Chunk* c,Context* ctx);
+
+//-------------------phdr
+OutputPhdr *NewOutputPhdr();
+void Phdr_CopyBuf(Chunk* c,Context* ctx);
+void Phdr_UpdateShdr(Chunk* c,Context* ctx);
+
+//-------------------got section
+GotSection *NewGotSection();
+void AddGotTpSymbol(Chunk* chunk, Symbol* sym);
+void GotSec_CopyBuf(Chunk* c,Context* ctx);
+GotEntry *GetEntries(Chunk *chunk,Context* ctx,int* num);
+void FinalizeGlobalPointer(Context* ctx);
+void AssignOffsets(MergedSection* m);
+void MergedSec_CopyBuf(Chunk* c,Context* ctx);
+
+File* NewFile(const char* name);
+File* OpenLibrary(const char* filepath);
+File* FindLibrary(Context* ctx, const char* name);
+
+Context* NewContext();
+void appendLibraryPath(Context* ctx, char* arg);
+
+//SectionFragment
+SectionFragment* NewSectionFragment(MergedSection* m);
+uint64_t SectionFragment_GetAddr(SectionFragment* s);
+
+//mergedSection
+MergedSection *NewMergedSection(char* name , uint64_t flags , uint32_t typ);
+MergedSection *GetMergedSectionInstance(Context* ctx, char* name,uint32_t typ,uint64_t flags);
+SectionFragment *Insert(MergedSection* m,char* key,uint32_t p2align,int strslen);
+
+//mergeableSection
+MergeableSection *NewMergeableSection();
+
+//根据偏移，找到它属于哪个sectionFragment
+SectionFragment* GetFragment(const MergeableSection* m, uint32_t offset, uint32_t* fragOffset);
+
+#define MachineTypeNone    ((MachineType)0)
+#define MachineTypeRISCV64 ((MachineType)1)
+
+const char* MachineType_String(MachineType m);
+MachineType GetMachineTypeFromContents(const char* contents);
+
+char* GetOutputName(char* name, uint64_t flags);
+
+// Format of an ELF executable file
+
+#define ELF_MAGIC 0x464C457FU  // "\x7FELF" in little endian
+
+// Values for Proghdr type
+#define ELF_PROG_LOAD           1
+
+// Flag bits for Proghdr flags
+#define ELF_PROG_FLAG_EXEC      1
+#define ELF_PROG_FLAG_WRITE     2
+#define ELF_PROG_FLAG_READ      4
+
+void MarkLiveObjects(Context* ctx);
+void ResolveSymbols_pass(Context* ctx);
+void RegisterSectionPieces(Context* ctx);
+void CreateSyntheticSections(Context* ctx);
+uint64_t SetOutputSectionOffsets(Context* ctx);
+void BinSections(Context* ctx);
+void CollectOutputSections(Context* ctx);
+void ComputeSectionSizes(Context* ctx);
+void SortOutputSections(Context* ctx);
+bool isTbss(Chunk* chunk);
+void ComputeMergedSectionSizes(Context* ctx);
+void ScanRelocations(Context* ctx);
+
+
 ObjectFile *NewObjectFile(File* file,bool isAlive);
 void Parse(Context *ctx,ObjectFile* o);
 void FillUpSymtabShndxSec(ObjectFile* o,Shdr* s);
@@ -668,39 +651,6 @@ Shdr* FindSection(InputFile* f, uint32_t ty);
 void FillUpElfSyms(InputFile* inputFile,Shdr* s);
 Ehdr GetEhdr(InputFile* f);
 
-#endif //BRILINKER_UNION_H
-#ifndef BRILINKER_FILETYPE_H
-#define BRILINKER_FILETYPE_H
-
-
-typedef uint8_t FileType;
-
-#define FileTypeUnknown ((FileType)0)
-#define FileTypeEmpty   ((FileType)1)
-#define FileTypeObject  ((FileType)2)
-#define FileTypeArchive ((FileType)3)
-
-FileType GetFileType(const char* contents);
-
-static const char* FileTypeToString(FileType type) {
-    switch (type) {
-        case FileTypeEmpty:
-            return "empty";
-        case FileTypeObject:
-            return "object";
-        case FileTypeArchive:
-            return "archive";
-        case FileTypeUnknown:
-        default:
-            return "unknown";
-    }
-}
-
-#endif //BRILINKER_FILETYPE_H
-#ifndef BRILD_UTIL_H
-#define BRILD_UTIL_H
-
-
 void fatal(const char* format, ...);
 char* ReadFile(const char* filename,uint64_t *len);
 void Read(void* out, const void* data, size_t size);
@@ -717,522 +667,16 @@ uint32_t Bit_32(uint32_t val, int pos);
 uint32_t Bits_32(uint32_t val, uint32_t hi, uint32_t lo);
 uint64_t SignExtend(uint64_t val,int size);
 
-#endif //BRILD_UTIL_H
-// Format of an ELF executable file
+typedef uint8_t FileType;
+
+#define FileTypeUnknown ((FileType)0)
+#define FileTypeEmpty   ((FileType)1)
+#define FileTypeObject  ((FileType)2)
+#define FileTypeArchive ((FileType)3)
+
+FileType GetFileType(const char* contents);
 
 #define ELF_MAGIC 0x464C457FU  // "\x7FELF" in little endian
-
-
-
-/**
- *   The MIT License (MIT)
- *   Copyright (C) 2016 ZongXian Shen <andy.zsshen@gmail.com>
- *
- *   Permission is hereby granted, free of charge, to any person obtaining a
- *   copy of this software and associated documentation files (the "Software"),
- *   to deal in the Software without restriction, including without limitation
- *   the rights to use, copy, modify, merge, publish, distribute, sublicense,
- *   and/or sell copies of the Software, and to permit persons to whom the
- *   Software is furnished to do so, subject to the following conditions:
- *
- *   The above copyright notice and this permission notice shall be included in
- *   all copies or substantial portions of the Software.
- *
- *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- *   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- *   IN THE SOFTWARE.
- */
-
-
-/**
- * @file hash_map.h The unordered map to store key value pairs.
- */
-
-#ifndef _HASH_MAP_H_
-#define _HASH_MAP_H_
-
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-
-
-
-/*===========================================================================*
- *             Definition for the exported member operations                 *
- *===========================================================================*/
-/**
- * @brief The constructor for HashMap.
- *
- * @retval obj          The successfully constructed map
- * @retval NULL         Insufficient memory for map construction
- */
-HashMap* HashMapInit();
-
-/**
- * @brief The destructor for HashMap.
- *
- * @param obj           The pointer to the to be destructed map
- */
-void HashMapDeinit(HashMap* obj);
-
-/**
- * @brief Insert a key value pair into the map.
- *
- * This function inserts a key value pair into the map. If the specified key is
- * equal to a certain one stored in the map, the existing pair will be replaced.
- * Also, the cleanup functions are invoked for that replaced pair.
- *
- * @param self          The pointer to HashMap structure
- * @param key           The specified key
- * @param value         The specified value
- *
- * @retval true         The pair is successfully inserted
- * @retval false        The pair cannot be inserted due to insufficient memory
- */
-bool HashMapPut(HashMap* self, void* key, void* value);
-
-/**
- * @brief Retrieve the value corresponding to the specified key.
- *
- * @param self          The pointer to HashMap structure
- * @param key           The specified key
- *
- * @retval value        The corresponding value
- * @retval NULL         The key cannot be found
- */
-void* HashMapGet(HashMap* self, void* key);
-
-/**
- * @brief Check if the map contains the specified key.
- *
- * @param self          The pointer to HashMap structure
- * @param key           The specified key
- *
- * @retval true         The key can be found
- * @retval false        The key cannot be found
- */
-bool HashMapContain(HashMap* self, void* key);
-
-/**
- * @brief Remove the key value pair corresponding to the specified key.
- *
- * This function removes the key value pair corresponding to the specified key.
- * Also, the cleanup functions are invoked for that removed pair.
- *
- * @param self          The pointer to HashMap structure
- * @param key           The specified key
- *
- * @retval true         The pair is successfully removed
- * @retval false        The key cannot be found
- */
-bool HashMapRemove(HashMap* self, void* key);
-
-/**
- * @brief Return the number of stored key value pairs.
- *
- * @param self          The pointer to HashMap structure
- *
- * @retval size         The number of stored pairs
- */
-unsigned HashMapSize(HashMap* self);
-
-/**
- * @brief Initialize the map iterator.
- *
- * @param self          The pointer to HashMap structure
- */
-void HashMapFirst(HashMap* self);
-
-/**
- * @brief Get the key value pair pointed by the iterator and advance the iterator.
- *
- * @param self          The pointer to HashMap structure
- *
- * @retval ptr_pair     The pointer to the current key value pair
- * @retval NULL         The map end is reached
- */
-Pair* HashMapNext(HashMap* self);
-
-/**
- * @brief Set the custom hash function.
- *
- * By default, the hash function is HashMurMur32.
- *
- * @param self          The pointer to HashMap structure
- * @param func          The custom function
- */
-void HashMapSetHash(HashMap* self, HashMapHash func);
-
-/**
- * @brief Set the custom key comparison function.
- *
- * By default, key is treated as integer.
- *
- * @param self          The pointer to HashMap structure
- * @param func          The custom function
- */
-void HashMapSetCompare(HashMap* self, HashMapCompare func);
-
-/**
- * @brief Set the custom key cleanup function.
- *
- * By default, no cleanup operation for key.
- *
- * @param self          The pointer to HashMap structure
- * @param func          The custom function
- */
-void HashMapSetCleanKey(HashMap* self, HashMapCleanKey func);
-
-/**
- * @brief Set the custom value cleanup function.
- *
- * By default, no cleanup operation for value.
- *
- * @param self          The pointer to HashMap structure
- * @param func          The custom function
- */
-void HashMapSetCleanValue(HashMap* self, HashMapCleanValue func);
-
-void HashMapClean(HashMap *self);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
-#ifndef _UTIL_H_
-#define _UTIL_H_
-
-
-
-
-#endif
-/**
- *   The MIT License (MIT)
- *   Copyright (C) 2016 ZongXian Shen <andy.zsshen@gmail.com>
- *
- *   Permission is hereby granted, free of charge, to any person obtaining a
- *   copy of this software and associated documentation files (the "Software"),
- *   to deal in the Software without restriction, including without limitation
- *   the rights to use, copy, modify, merge, publish, distribute, sublicense,
- *   and/or sell copies of the Software, and to permit persons to whom the
- *   Software is furnished to do so, subject to the following conditions:
- *
- *   The above copyright notice and this permission notice shall be included in
- *   all copies or substantial portions of the Software.
- *
- *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- *   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- *   IN THE SOFTWARE.
- */
-
-
-/**
- * @file hash_set.h The unordered set to store unique keys.
- */
-
-#ifndef _HASH_SET_H_
-#define _HASH_SET_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/** Calculate the hash of the given key. */
-typedef unsigned (*HashSetHash) (void*);
-
-/** Compare the equality of two keys. */
-typedef int (*HashSetCompare) (void*, void*);
-
-/** void* cleanup function called whenever a live entry is removed. */
-typedef void (*HashSetCleanKey) (void*);
-
-typedef struct _HashSetSlotNode {
-    void* key_;
-    struct _HashSetSlotNode* next_;
-} HashSetSlotNode;
-
-struct _HashSetData {
-    int idx_prime_;
-    unsigned size_;
-    unsigned num_slot_;
-    unsigned curr_limit_;
-    unsigned iter_slot_;
-    HashSetSlotNode** arr_slot_;
-    HashSetSlotNode* iter_node_;
-    HashSetHash func_hash_;
-    HashSetCompare func_cmp_;
-    HashSetCleanKey func_clean_key_;
-};
-
-
-/** HashSetData is the data type for the container private information. */
-typedef struct _HashSetData HashSetData;
-
-
-
-/** The implementation for hash set. */
-typedef struct _HashSet {
-    /** The container private information */
-    HashSetData* data;
-
-    /** Insert a key into the set.
-        @see HashSetAdd */
-    bool (*add) (struct _HashSet*, void*);
-
-    /** Check if the set contains the specified key.
-        @see HashSetFind */
-    bool (*find) (struct _HashSet*, void*);
-
-    /** Remove the specified key from the set.
-        @see HashSetRemove */
-    bool (*remove) (struct _HashSet*, void*);
-
-    /** Return the number of stored unique keys.
-        @see HashSetSize */
-    unsigned (*size) (struct _HashSet*);
-
-    /** Initialize the set iterator.
-        @see HashSetFirst */
-    void (*first) (struct _HashSet*);
-
-    /** Get the key pointed by the iterator and advance the iterator.
-        @see HashSetNext */
-    void* (*next) (struct _HashSet*);
-
-    /** Set the custom hash function.
-        @see HashSetSetHash */
-    void (*set_hash) (struct _HashSet*, HashSetHash);
-
-    /** Set the custom key comparison function.
-        @see HashSetSetCompare */
-    void (*set_compare) (struct _HashSet*, HashSetCompare);
-
-    /** Set the custom key cleanup function.
-        @see HashSetSetCleanKey */
-    void (*set_clean_key) (struct _HashSet*, HashSetCleanKey);
-} HashSet;
-
-
-/*===========================================================================*
- *             Definition for the exported member operations                 *
- *===========================================================================*/
-/**
- * @brief The constructor for HashSet.
- *
- * @retval obj          The successfully constructed set
- * @retval NULL         Insufficient memory for set construction
- */
-HashSet* HashSetInit();
-
-/**
- * @brief The destructor for HashSet.
- *
- * @param obj           The pointer to the to be destructed set
- */
-void HashSetDeinit(HashSet* obj);
-
-/**
- * @brief Insert a key into the set.
- *
- * @param self          The pointer to HashSet structure
- * @param key           The specified key
- *
- * @retval true         The key is successfully inserted
- * @retval false        The key cannot be inserted due to insufficient memory
- */
-bool HashSetAdd(HashSet* self, void* key);
-
-/**
- * @brief Check if the set contains the specified key.
- *
- * @param self          The pointer to HashSet structure
- * @param key           The specified key
- *
- * @retval true         The key can be found
- * @retval false        The key cannot be found
- */
-bool HashSetFind(HashSet* self, void* key);
-
-/**
- * @brief Remove the specified key from the set.
- *
- * @param self          The pointer to HashSet structure
- * @param key           The specified key
- *
- * @retval true         The key is successfully removed
- * @retval false        The key cannot be found
- */
-bool HashSetRemove(HashSet* self, void* key);
-
-/**
- * @brief Return the number of stored keys.
- *
- * @param self          The pointer to HashSet structure
- *
- * @retval size         The number of stored keys
- */
-unsigned HashSetSize(HashSet* self);
-
-/**
- * @brief Initialize the set iterator.
- *
- * @param self          The pointer to HashSet structure
- */
-void HashSetFirst(HashSet* self);
-
-/**
- * @brief Get the current key pointed by the iterator and advance the iterator.
- *
- * @param self          The pointer to HashSet structure
- *
- * @retval key          The current key
- * @retval NULL         The set end is reached
- */
-void* HashSetNext(HashSet* self);
-
-/**
- * @brief Set the custom hash function.
- *
- * @param self          The pointer to HashSet structure
- * @param func          The custom function
- */
-void HashSetSetHash(HashSet* self, HashSetHash func);
-
-/**
- * @brief Set the custom key comparison function.
- *
- * By default, key is treated as signed integer.
- *
- * @param self          The pointer to HashSet structure
- * @param func          The custom function
- */
-void HashSetSetCompare(HashSet* self, HashSetCompare func);
-
-/**
- * @brief Set the custom key cleanup function.
- *
- * By default, no cleanup operation for key.
- *
- * @param self          The pointer to HashSet structure
- * @param func          The custom function
- */
-void HashSetSetCleanKey(HashSet* self, HashSetCleanKey func);
-
-/**
- * @brief Perform union operation for the specified two sets.
- *
- * @param lhs           The first source set
- * @param rhs           The second source set
- *
- * @retval result       The result set of union operation
- * @retval NULL         Insufficient memory for result set
- *
- * @note The result set will not delegate any key clean functions from two source
- *  sets. You can still put the clean function for it. However, to avoid the
- *  "double-free" problem, it is better to let the source sets handle the key
- *  clean issue and treat the result set as the pure key collection.
- */
-HashSet* HashSetUnion(HashSet* lhs, HashSet* rhs);
-
-/**
- * @brief Perform intersection operation for the specified two sets.
- *
- * @param lhs           The first source set
- * @param rhs           The second source set
- *
- * @retval result       The result set of intersection operation
- * @retval NULL         Insufficient memory for result set
- *
- * @note The result set will not delegate any key clean functions from two source
- *  sets. You can still put the clean function for it. However, to avoid the
- *  "double-free" problem, it is better to let the source sets handle the key
- *  clean issue and treat the result set as the pure key collection.
- */
-HashSet* HashSetIntersect(HashSet* lhs, HashSet* rhs);
-
-/**
- * @brief Perform difference operation for the specified two sets.
- *
- * @param lhs           The first source set
- * @param rhs           The second source set
- *
- * @retval result       The result set of difference operation
- * @retval NULL         Insufficient memory for result set
- *
- * @note The result set will not delegate any key clean functions from two source
- *  sets. You can still put the clean function for it. However, to avoid the
- *  "double-free" problem, it is better to let the source sets handle the key
- *  clean issue and treat the result set as the pure key collection.
- */
-HashSet* HashSetDifference(HashSet* lhs, HashSet* rhs);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
-/**
- * @file hash.h The collection of well-known hash functions.
- */
-
-#ifndef _HASH_H_
-#define _HASH_H_
-
-
-
-/*-------------------------------------------------------*
- *            Non-cryptographic hash function            *
- *-------------------------------------------------------*/
-/**
- * @brief Google MurMur hash proposed by Austin Appleby in 2008.
- *
- * This is the version 3 MurMur implementation to yield 32 bit hash value.
- * https://code.google.com/p/smhasher/wiki/MurmurHash3
- *
- * @param key           The designated key
- * @param size          Size of the data pointed by the key in bytes
- *
- * @retval hash         The corresponding hash vale
- */
-unsigned HashMurMur32(void* key, size_t size);
-
-/**
- * @brief Hash function proposed by Bob Jenkins in 1997.
- *
- * @param key           The designated key
- * @param size          Size of the data pointed by the key in bytes
- *
- * @retval hash         The corresponding hash vale
- */
-unsigned HashJenkins(void* key, size_t size);
-
-/**
- * @breif Frequently applied hash function for strings.
- *
- * http://www.cse.yorku.ca/~oz/hash.html
- *
- * @param key           The designated key
- *
- * @retval hash         The corresponding hash vale
- */
-unsigned HashDjb2(char* key);
-
-#endif
-#ifndef BRILINKER_ELF_STD_H
-#define BRILINKER_ELF_STD_H
-
 
 
 bool CheckMagic(const char* contents);
@@ -1247,946 +691,22 @@ bool IsStrtab(const ArHdr* a);
 bool IsSymtab(const ArHdr* a);
 char* ReadName(const ArHdr* a, char* strTab);
 
-#endif //BRILINKER_ELF_STD_H
-#ifdef __cplusplus
-# error "A C++ compiler has been selected for C."
-#endif
-
-#if defined(__18CXX)
-# define ID_VOID_MAIN
-#endif
-#if defined(__CLASSIC_C__)
-/* cv-qualifiers did not exist in K&R C */
-# define const
-# define volatile
-#endif
-
-#if !defined(__has_include)
-/* If the compiler does not have __has_include, pretend the answer is
-   always no.  */
-#  define __has_include(x) 0
-#endif
-
-
-/* Version number components: V=Version, R=Revision, P=Patch
-   Version date components:   YYYY=Year, MM=Month,   DD=Day  */
-
-#if defined(__INTEL_COMPILER) || defined(__ICC)
-# define COMPILER_ID "Intel"
-# if defined(_MSC_VER)
-#  define SIMULATE_ID "MSVC"
-# endif
-# if defined(__GNUC__)
-#  define SIMULATE_ID "GNU"
-# endif
-  /* __INTEL_COMPILER = VRP prior to 2021, and then VVVV for 2021 and later,
-     except that a few beta releases use the old format with V=2021.  */
-# if __INTEL_COMPILER < 2021 || __INTEL_COMPILER == 202110 || __INTEL_COMPILER == 202111
-#  define COMPILER_VERSION_MAJOR DEC(__INTEL_COMPILER/100)
-#  define COMPILER_VERSION_MINOR DEC(__INTEL_COMPILER/10 % 10)
-#  if defined(__INTEL_COMPILER_UPDATE)
-#   define COMPILER_VERSION_PATCH DEC(__INTEL_COMPILER_UPDATE)
-#  else
-#   define COMPILER_VERSION_PATCH DEC(__INTEL_COMPILER   % 10)
-#  endif
-# else
-#  define COMPILER_VERSION_MAJOR DEC(__INTEL_COMPILER)
-#  define COMPILER_VERSION_MINOR DEC(__INTEL_COMPILER_UPDATE)
-   /* The third version component from --version is an update index,
-      but no macro is provided for it.  */
-#  define COMPILER_VERSION_PATCH DEC(0)
-# endif
-# if defined(__INTEL_COMPILER_BUILD_DATE)
-   /* __INTEL_COMPILER_BUILD_DATE = YYYYMMDD */
-#  define COMPILER_VERSION_TWEAK DEC(__INTEL_COMPILER_BUILD_DATE)
-# endif
-# if defined(_MSC_VER)
-   /* _MSC_VER = VVRR */
-#  define SIMULATE_VERSION_MAJOR DEC(_MSC_VER / 100)
-#  define SIMULATE_VERSION_MINOR DEC(_MSC_VER % 100)
-# endif
-# if defined(__GNUC__)
-#  define SIMULATE_VERSION_MAJOR DEC(__GNUC__)
-# elif defined(__GNUG__)
-#  define SIMULATE_VERSION_MAJOR DEC(__GNUG__)
-# endif
-# if defined(__GNUC_MINOR__)
-#  define SIMULATE_VERSION_MINOR DEC(__GNUC_MINOR__)
-# endif
-# if defined(__GNUC_PATCHLEVEL__)
-#  define SIMULATE_VERSION_PATCH DEC(__GNUC_PATCHLEVEL__)
-# endif
-
-#elif (defined(__clang__) && defined(__INTEL_CLANG_COMPILER)) || defined(__INTEL_LLVM_COMPILER)
-# define COMPILER_ID "IntelLLVM"
-#if defined(_MSC_VER)
-# define SIMULATE_ID "MSVC"
-#endif
-#if defined(__GNUC__)
-# define SIMULATE_ID "GNU"
-#endif
-/* __INTEL_LLVM_COMPILER = VVVVRP prior to 2021.2.0, VVVVRRPP for 2021.2.0 and
- * later.  Look for 6 digit vs. 8 digit version number to decide encoding.
- * VVVV is no smaller than the current year when a version is released.
- */
-#if __INTEL_LLVM_COMPILER < 1000000L
-# define COMPILER_VERSION_MAJOR DEC(__INTEL_LLVM_COMPILER/100)
-# define COMPILER_VERSION_MINOR DEC(__INTEL_LLVM_COMPILER/10 % 10)
-# define COMPILER_VERSION_PATCH DEC(__INTEL_LLVM_COMPILER    % 10)
-#else
-# define COMPILER_VERSION_MAJOR DEC(__INTEL_LLVM_COMPILER/10000)
-# define COMPILER_VERSION_MINOR DEC(__INTEL_LLVM_COMPILER/100 % 100)
-# define COMPILER_VERSION_PATCH DEC(__INTEL_LLVM_COMPILER     % 100)
-#endif
-#if defined(_MSC_VER)
-  /* _MSC_VER = VVRR */
-# define SIMULATE_VERSION_MAJOR DEC(_MSC_VER / 100)
-# define SIMULATE_VERSION_MINOR DEC(_MSC_VER % 100)
-#endif
-#if defined(__GNUC__)
-# define SIMULATE_VERSION_MAJOR DEC(__GNUC__)
-#elif defined(__GNUG__)
-# define SIMULATE_VERSION_MAJOR DEC(__GNUG__)
-#endif
-#if defined(__GNUC_MINOR__)
-# define SIMULATE_VERSION_MINOR DEC(__GNUC_MINOR__)
-#endif
-#if defined(__GNUC_PATCHLEVEL__)
-# define SIMULATE_VERSION_PATCH DEC(__GNUC_PATCHLEVEL__)
-#endif
-
-#elif defined(__PATHCC__)
-# define COMPILER_ID "PathScale"
-# define COMPILER_VERSION_MAJOR DEC(__PATHCC__)
-# define COMPILER_VERSION_MINOR DEC(__PATHCC_MINOR__)
-# if defined(__PATHCC_PATCHLEVEL__)
-#  define COMPILER_VERSION_PATCH DEC(__PATHCC_PATCHLEVEL__)
-# endif
-
-#elif defined(__BORLANDC__) && defined(__CODEGEARC_VERSION__)
-# define COMPILER_ID "Embarcadero"
-# define COMPILER_VERSION_MAJOR HEX(__CODEGEARC_VERSION__>>24 & 0x00FF)
-# define COMPILER_VERSION_MINOR HEX(__CODEGEARC_VERSION__>>16 & 0x00FF)
-# define COMPILER_VERSION_PATCH DEC(__CODEGEARC_VERSION__     & 0xFFFF)
-
-#elif defined(__BORLANDC__)
-# define COMPILER_ID "Borland"
-  /* __BORLANDC__ = 0xVRR */
-# define COMPILER_VERSION_MAJOR HEX(__BORLANDC__>>8)
-# define COMPILER_VERSION_MINOR HEX(__BORLANDC__ & 0xFF)
-
-#elif defined(__WATCOMC__) && __WATCOMC__ < 1200
-# define COMPILER_ID "Watcom"
-   /* __WATCOMC__ = VVRR */
-# define COMPILER_VERSION_MAJOR DEC(__WATCOMC__ / 100)
-# define COMPILER_VERSION_MINOR DEC((__WATCOMC__ / 10) % 10)
-# if (__WATCOMC__ % 10) > 0
-#  define COMPILER_VERSION_PATCH DEC(__WATCOMC__ % 10)
-# endif
-
-#elif defined(__WATCOMC__)
-# define COMPILER_ID "OpenWatcom"
-   /* __WATCOMC__ = VVRP + 1100 */
-# define COMPILER_VERSION_MAJOR DEC((__WATCOMC__ - 1100) / 100)
-# define COMPILER_VERSION_MINOR DEC((__WATCOMC__ / 10) % 10)
-# if (__WATCOMC__ % 10) > 0
-#  define COMPILER_VERSION_PATCH DEC(__WATCOMC__ % 10)
-# endif
-
-#elif defined(__SUNPRO_C)
-# define COMPILER_ID "SunPro"
-# if __SUNPRO_C >= 0x5100
-   /* __SUNPRO_C = 0xVRRP */
-#  define COMPILER_VERSION_MAJOR HEX(__SUNPRO_C>>12)
-#  define COMPILER_VERSION_MINOR HEX(__SUNPRO_C>>4 & 0xFF)
-#  define COMPILER_VERSION_PATCH HEX(__SUNPRO_C    & 0xF)
-# else
-   /* __SUNPRO_CC = 0xVRP */
-#  define COMPILER_VERSION_MAJOR HEX(__SUNPRO_C>>8)
-#  define COMPILER_VERSION_MINOR HEX(__SUNPRO_C>>4 & 0xF)
-#  define COMPILER_VERSION_PATCH HEX(__SUNPRO_C    & 0xF)
-# endif
-
-#elif defined(__HP_cc)
-# define COMPILER_ID "HP"
-  /* __HP_cc = VVRRPP */
-# define COMPILER_VERSION_MAJOR DEC(__HP_cc/10000)
-# define COMPILER_VERSION_MINOR DEC(__HP_cc/100 % 100)
-# define COMPILER_VERSION_PATCH DEC(__HP_cc     % 100)
-
-#elif defined(__DECC)
-# define COMPILER_ID "Compaq"
-  /* __DECC_VER = VVRRTPPPP */
-# define COMPILER_VERSION_MAJOR DEC(__DECC_VER/10000000)
-# define COMPILER_VERSION_MINOR DEC(__DECC_VER/100000  % 100)
-# define COMPILER_VERSION_PATCH DEC(__DECC_VER         % 10000)
-
-#elif defined(__IBMC__) && defined(__COMPILER_VER__)
-# define COMPILER_ID "zOS"
-  /* __IBMC__ = VRP */
-# define COMPILER_VERSION_MAJOR DEC(__IBMC__/100)
-# define COMPILER_VERSION_MINOR DEC(__IBMC__/10 % 10)
-# define COMPILER_VERSION_PATCH DEC(__IBMC__    % 10)
-
-#elif defined(__open_xl__) && defined(__clang__)
-# define COMPILER_ID "IBMClang"
-# define COMPILER_VERSION_MAJOR DEC(__open_xl_version__)
-# define COMPILER_VERSION_MINOR DEC(__open_xl_release__)
-# define COMPILER_VERSION_PATCH DEC(__open_xl_modification__)
-# define COMPILER_VERSION_TWEAK DEC(__open_xl_ptf_fix_level__)
-# define COMPILER_VERSION_INTERNAL_STR  __clang_version__
-
-
-#elif defined(__ibmxl__) && defined(__clang__)
-# define COMPILER_ID "XLClang"
-# define COMPILER_VERSION_MAJOR DEC(__ibmxl_version__)
-# define COMPILER_VERSION_MINOR DEC(__ibmxl_release__)
-# define COMPILER_VERSION_PATCH DEC(__ibmxl_modification__)
-# define COMPILER_VERSION_TWEAK DEC(__ibmxl_ptf_fix_level__)
-
-
-#elif defined(__IBMC__) && !defined(__COMPILER_VER__) && __IBMC__ >= 800
-# define COMPILER_ID "XL"
-  /* __IBMC__ = VRP */
-# define COMPILER_VERSION_MAJOR DEC(__IBMC__/100)
-# define COMPILER_VERSION_MINOR DEC(__IBMC__/10 % 10)
-# define COMPILER_VERSION_PATCH DEC(__IBMC__    % 10)
-
-#elif defined(__IBMC__) && !defined(__COMPILER_VER__) && __IBMC__ < 800
-# define COMPILER_ID "VisualAge"
-  /* __IBMC__ = VRP */
-# define COMPILER_VERSION_MAJOR DEC(__IBMC__/100)
-# define COMPILER_VERSION_MINOR DEC(__IBMC__/10 % 10)
-# define COMPILER_VERSION_PATCH DEC(__IBMC__    % 10)
-
-#elif defined(__NVCOMPILER)
-# define COMPILER_ID "NVHPC"
-# define COMPILER_VERSION_MAJOR DEC(__NVCOMPILER_MAJOR__)
-# define COMPILER_VERSION_MINOR DEC(__NVCOMPILER_MINOR__)
-# if defined(__NVCOMPILER_PATCHLEVEL__)
-#  define COMPILER_VERSION_PATCH DEC(__NVCOMPILER_PATCHLEVEL__)
-# endif
-
-#elif defined(__PGI)
-# define COMPILER_ID "PGI"
-# define COMPILER_VERSION_MAJOR DEC(__PGIC__)
-# define COMPILER_VERSION_MINOR DEC(__PGIC_MINOR__)
-# if defined(__PGIC_PATCHLEVEL__)
-#  define COMPILER_VERSION_PATCH DEC(__PGIC_PATCHLEVEL__)
-# endif
-
-#elif defined(__clang__) && defined(__cray__)
-# define COMPILER_ID "CrayClang"
-# define COMPILER_VERSION_MAJOR DEC(__cray_major__)
-# define COMPILER_VERSION_MINOR DEC(__cray_minor__)
-# define COMPILER_VERSION_PATCH DEC(__cray_patchlevel__)
-# define COMPILER_VERSION_INTERNAL_STR __clang_version__
-
-
-#elif defined(_CRAYC)
-# define COMPILER_ID "Cray"
-# define COMPILER_VERSION_MAJOR DEC(_RELEASE_MAJOR)
-# define COMPILER_VERSION_MINOR DEC(_RELEASE_MINOR)
-
-#elif defined(__TI_COMPILER_VERSION__)
-# define COMPILER_ID "TI"
-  /* __TI_COMPILER_VERSION__ = VVVRRRPPP */
-# define COMPILER_VERSION_MAJOR DEC(__TI_COMPILER_VERSION__/1000000)
-# define COMPILER_VERSION_MINOR DEC(__TI_COMPILER_VERSION__/1000   % 1000)
-# define COMPILER_VERSION_PATCH DEC(__TI_COMPILER_VERSION__        % 1000)
-
-#elif defined(__CLANG_FUJITSU)
-# define COMPILER_ID "FujitsuClang"
-# define COMPILER_VERSION_MAJOR DEC(__FCC_major__)
-# define COMPILER_VERSION_MINOR DEC(__FCC_minor__)
-# define COMPILER_VERSION_PATCH DEC(__FCC_patchlevel__)
-# define COMPILER_VERSION_INTERNAL_STR __clang_version__
-
-
-#elif defined(__FUJITSU)
-# define COMPILER_ID "Fujitsu"
-# if defined(__FCC_version__)
-#   define COMPILER_VERSION __FCC_version__
-# elif defined(__FCC_major__)
-#   define COMPILER_VERSION_MAJOR DEC(__FCC_major__)
-#   define COMPILER_VERSION_MINOR DEC(__FCC_minor__)
-#   define COMPILER_VERSION_PATCH DEC(__FCC_patchlevel__)
-# endif
-# if defined(__fcc_version)
-#   define COMPILER_VERSION_INTERNAL DEC(__fcc_version)
-# elif defined(__FCC_VERSION)
-#   define COMPILER_VERSION_INTERNAL DEC(__FCC_VERSION)
-# endif
-
-
-#elif defined(__ghs__)
-# define COMPILER_ID "GHS"
-/* __GHS_VERSION_NUMBER = VVVVRP */
-# ifdef __GHS_VERSION_NUMBER
-# define COMPILER_VERSION_MAJOR DEC(__GHS_VERSION_NUMBER / 100)
-# define COMPILER_VERSION_MINOR DEC(__GHS_VERSION_NUMBER / 10 % 10)
-# define COMPILER_VERSION_PATCH DEC(__GHS_VERSION_NUMBER      % 10)
-# endif
-
-#elif defined(__TASKING__)
-# define COMPILER_ID "Tasking"
-  # define COMPILER_VERSION_MAJOR DEC(__VERSION__/1000)
-  # define COMPILER_VERSION_MINOR DEC(__VERSION__ % 100)
-# define COMPILER_VERSION_INTERNAL DEC(__VERSION__)
-
-#elif defined(__ORANGEC__)
-# define COMPILER_ID "OrangeC"
-# define COMPILER_VERSION_MAJOR DEC(__ORANGEC_MAJOR__)
-# define COMPILER_VERSION_MINOR DEC(__ORANGEC_MINOR__)
-# define COMPILER_VERSION_PATCH DEC(__ORANGEC_PATCHLEVEL__)
-
-#elif defined(__RENESAS__)
-# define COMPILER_ID "Renesas"
-/* __RENESAS_VERSION__ = 0xVVRRPP00 */
-# define COMPILER_VERSION_MAJOR HEX(__RENESAS_VERSION__ >> 24 & 0xFF)
-# define COMPILER_VERSION_MINOR HEX(__RENESAS_VERSION__ >> 16 & 0xFF)
-# define COMPILER_VERSION_PATCH HEX(__RENESAS_VERSION__ >> 8  & 0xFF)
-
-#elif defined(__TINYC__)
-# define COMPILER_ID "TinyCC"
-
-#elif defined(__BCC__)
-# define COMPILER_ID "Bruce"
-
-#elif defined(__SCO_VERSION__)
-# define COMPILER_ID "SCO"
-
-#elif defined(__ARMCC_VERSION) && !defined(__clang__)
-# define COMPILER_ID "ARMCC"
-#if __ARMCC_VERSION >= 1000000
-  /* __ARMCC_VERSION = VRRPPPP */
-  # define COMPILER_VERSION_MAJOR DEC(__ARMCC_VERSION/1000000)
-  # define COMPILER_VERSION_MINOR DEC(__ARMCC_VERSION/10000 % 100)
-  # define COMPILER_VERSION_PATCH DEC(__ARMCC_VERSION     % 10000)
-#else
-  /* __ARMCC_VERSION = VRPPPP */
-  # define COMPILER_VERSION_MAJOR DEC(__ARMCC_VERSION/100000)
-  # define COMPILER_VERSION_MINOR DEC(__ARMCC_VERSION/10000 % 10)
-  # define COMPILER_VERSION_PATCH DEC(__ARMCC_VERSION    % 10000)
-#endif
-
-
-#elif defined(__clang__) && defined(__apple_build_version__)
-# define COMPILER_ID "AppleClang"
-# if defined(_MSC_VER)
-#  define SIMULATE_ID "MSVC"
-# endif
-# define COMPILER_VERSION_MAJOR DEC(__clang_major__)
-# define COMPILER_VERSION_MINOR DEC(__clang_minor__)
-# define COMPILER_VERSION_PATCH DEC(__clang_patchlevel__)
-# if defined(_MSC_VER)
-   /* _MSC_VER = VVRR */
-#  define SIMULATE_VERSION_MAJOR DEC(_MSC_VER / 100)
-#  define SIMULATE_VERSION_MINOR DEC(_MSC_VER % 100)
-# endif
-# define COMPILER_VERSION_TWEAK DEC(__apple_build_version__)
-
-#elif defined(__clang__) && defined(__ARMCOMPILER_VERSION)
-# define COMPILER_ID "ARMClang"
-  # define COMPILER_VERSION_MAJOR DEC(__ARMCOMPILER_VERSION/1000000)
-  # define COMPILER_VERSION_MINOR DEC(__ARMCOMPILER_VERSION/10000 % 100)
-  # define COMPILER_VERSION_PATCH DEC(__ARMCOMPILER_VERSION/100   % 100)
-# define COMPILER_VERSION_INTERNAL DEC(__ARMCOMPILER_VERSION)
-
-#elif defined(__clang__) && defined(__ti__)
-# define COMPILER_ID "TIClang"
-  # define COMPILER_VERSION_MAJOR DEC(__ti_major__)
-  # define COMPILER_VERSION_MINOR DEC(__ti_minor__)
-  # define COMPILER_VERSION_PATCH DEC(__ti_patchlevel__)
-# define COMPILER_VERSION_INTERNAL DEC(__ti_version__)
-
-#elif defined(__clang__)
-# define COMPILER_ID "Clang"
-# if defined(_MSC_VER)
-#  define SIMULATE_ID "MSVC"
-# endif
-# define COMPILER_VERSION_MAJOR DEC(__clang_major__)
-# define COMPILER_VERSION_MINOR DEC(__clang_minor__)
-# define COMPILER_VERSION_PATCH DEC(__clang_patchlevel__)
-# if defined(_MSC_VER)
-   /* _MSC_VER = VVRR */
-#  define SIMULATE_VERSION_MAJOR DEC(_MSC_VER / 100)
-#  define SIMULATE_VERSION_MINOR DEC(_MSC_VER % 100)
-# endif
-
-#elif defined(__LCC__) && (defined(__GNUC__) || defined(__GNUG__) || defined(__MCST__))
-# define COMPILER_ID "LCC"
-# define COMPILER_VERSION_MAJOR DEC(__LCC__ / 100)
-# define COMPILER_VERSION_MINOR DEC(__LCC__ % 100)
-# if defined(__LCC_MINOR__)
-#  define COMPILER_VERSION_PATCH DEC(__LCC_MINOR__)
-# endif
-# if defined(__GNUC__) && defined(__GNUC_MINOR__)
-#  define SIMULATE_ID "GNU"
-#  define SIMULATE_VERSION_MAJOR DEC(__GNUC__)
-#  define SIMULATE_VERSION_MINOR DEC(__GNUC_MINOR__)
-#  if defined(__GNUC_PATCHLEVEL__)
-#   define SIMULATE_VERSION_PATCH DEC(__GNUC_PATCHLEVEL__)
-#  endif
-# endif
-
-#elif defined(__GNUC__)
-# define COMPILER_ID "GNU"
-# define COMPILER_VERSION_MAJOR DEC(__GNUC__)
-# if defined(__GNUC_MINOR__)
-#  define COMPILER_VERSION_MINOR DEC(__GNUC_MINOR__)
-# endif
-# if defined(__GNUC_PATCHLEVEL__)
-#  define COMPILER_VERSION_PATCH DEC(__GNUC_PATCHLEVEL__)
-# endif
-
-#elif defined(_MSC_VER)
-# define COMPILER_ID "MSVC"
-  /* _MSC_VER = VVRR */
-# define COMPILER_VERSION_MAJOR DEC(_MSC_VER / 100)
-# define COMPILER_VERSION_MINOR DEC(_MSC_VER % 100)
-# if defined(_MSC_FULL_VER)
-#  if _MSC_VER >= 1400
-    /* _MSC_FULL_VER = VVRRPPPPP */
-#   define COMPILER_VERSION_PATCH DEC(_MSC_FULL_VER % 100000)
-#  else
-    /* _MSC_FULL_VER = VVRRPPPP */
-#   define COMPILER_VERSION_PATCH DEC(_MSC_FULL_VER % 10000)
-#  endif
-# endif
-# if defined(_MSC_BUILD)
-#  define COMPILER_VERSION_TWEAK DEC(_MSC_BUILD)
-# endif
-
-#elif defined(_ADI_COMPILER)
-# define COMPILER_ID "ADSP"
-#if defined(__VERSIONNUM__)
-  /* __VERSIONNUM__ = 0xVVRRPPTT */
-#  define COMPILER_VERSION_MAJOR DEC(__VERSIONNUM__ >> 24 & 0xFF)
-#  define COMPILER_VERSION_MINOR DEC(__VERSIONNUM__ >> 16 & 0xFF)
-#  define COMPILER_VERSION_PATCH DEC(__VERSIONNUM__ >> 8 & 0xFF)
-#  define COMPILER_VERSION_TWEAK DEC(__VERSIONNUM__ & 0xFF)
-#endif
-
-#elif defined(__IAR_SYSTEMS_ICC__) || defined(__IAR_SYSTEMS_ICC)
-# define COMPILER_ID "IAR"
-# if defined(__VER__) && defined(__ICCARM__)
-#  define COMPILER_VERSION_MAJOR DEC((__VER__) / 1000000)
-#  define COMPILER_VERSION_MINOR DEC(((__VER__) / 1000) % 1000)
-#  define COMPILER_VERSION_PATCH DEC((__VER__) % 1000)
-#  define COMPILER_VERSION_INTERNAL DEC(__IAR_SYSTEMS_ICC__)
-# elif defined(__VER__) && (defined(__ICCAVR__) || defined(__ICCRX__) || defined(__ICCRH850__) || defined(__ICCRL78__) || defined(__ICC430__) || defined(__ICCRISCV__) || defined(__ICCV850__) || defined(__ICC8051__) || defined(__ICCSTM8__))
-#  define COMPILER_VERSION_MAJOR DEC((__VER__) / 100)
-#  define COMPILER_VERSION_MINOR DEC((__VER__) - (((__VER__) / 100)*100))
-#  define COMPILER_VERSION_PATCH DEC(__SUBVERSION__)
-#  define COMPILER_VERSION_INTERNAL DEC(__IAR_SYSTEMS_ICC__)
-# endif
-
-#elif defined(__DCC__) && defined(_DIAB_TOOL)
-# define COMPILER_ID "Diab"
-  # define COMPILER_VERSION_MAJOR DEC(__VERSION_MAJOR_NUMBER__)
-  # define COMPILER_VERSION_MINOR DEC(__VERSION_MINOR_NUMBER__)
-  # define COMPILER_VERSION_PATCH DEC(__VERSION_ARCH_FEATURE_NUMBER__)
-  # define COMPILER_VERSION_TWEAK DEC(__VERSION_BUG_FIX_NUMBER__)
-
-
-#elif defined(__SDCC_VERSION_MAJOR) || defined(SDCC)
-# define COMPILER_ID "SDCC"
-# if defined(__SDCC_VERSION_MAJOR)
-#  define COMPILER_VERSION_MAJOR DEC(__SDCC_VERSION_MAJOR)
-#  define COMPILER_VERSION_MINOR DEC(__SDCC_VERSION_MINOR)
-#  define COMPILER_VERSION_PATCH DEC(__SDCC_VERSION_PATCH)
-# else
-  /* SDCC = VRP */
-#  define COMPILER_VERSION_MAJOR DEC(SDCC/100)
-#  define COMPILER_VERSION_MINOR DEC(SDCC/10 % 10)
-#  define COMPILER_VERSION_PATCH DEC(SDCC    % 10)
-# endif
-
-
-/* These compilers are either not known or too old to define an
-  identification macro.  Try to identify the platform and guess that
-  it is the native compiler.  */
-#elif defined(__hpux) || defined(__hpua)
-# define COMPILER_ID "HP"
-
-#else /* unknown compiler */
-# define COMPILER_ID ""
-#endif
-
-/* Construct the string literal in pieces to prevent the source from
-   getting matched.  Store it in a pointer rather than an array
-   because some compilers will just produce instructions to fill the
-   array rather than assigning a pointer to a static array.  */
-char const* info_compiler = "INFO" ":" "compiler[" COMPILER_ID "]";
-#ifdef SIMULATE_ID
-char const* info_simulate = "INFO" ":" "simulate[" SIMULATE_ID "]";
-#endif
-
-#ifdef __QNXNTO__
-char const* qnxnto = "INFO" ":" "qnxnto[]";
-#endif
-
-#if defined(__CRAYXT_COMPUTE_LINUX_TARGET)
-char const *info_cray = "INFO" ":" "compiler_wrapper[CrayPrgEnv]";
-#endif
-
-#define STRINGIFY_HELPER(X) #X
-#define STRINGIFY(X) STRINGIFY_HELPER(X)
-
-/* Identify known platforms by name.  */
-#if defined(__linux) || defined(__linux__) || defined(linux)
-# define PLATFORM_ID "Linux"
-
-#elif defined(__MSYS__)
-# define PLATFORM_ID "MSYS"
-
-#elif defined(__CYGWIN__)
-# define PLATFORM_ID "Cygwin"
-
-#elif defined(__MINGW32__)
-# define PLATFORM_ID "MinGW"
-
-#elif defined(__APPLE__)
-# define PLATFORM_ID "Darwin"
-
-#elif defined(_WIN32) || defined(__WIN32__) || defined(WIN32)
-# define PLATFORM_ID "Windows"
-
-#elif defined(__FreeBSD__) || defined(__FreeBSD)
-# define PLATFORM_ID "FreeBSD"
-
-#elif defined(__NetBSD__) || defined(__NetBSD)
-# define PLATFORM_ID "NetBSD"
-
-#elif defined(__OpenBSD__) || defined(__OPENBSD)
-# define PLATFORM_ID "OpenBSD"
-
-#elif defined(__sun) || defined(sun)
-# define PLATFORM_ID "SunOS"
-
-#elif defined(_AIX) || defined(__AIX) || defined(__AIX__) || defined(__aix) || defined(__aix__)
-# define PLATFORM_ID "AIX"
-
-#elif defined(__hpux) || defined(__hpux__)
-# define PLATFORM_ID "HP-UX"
-
-#elif defined(__HAIKU__)
-# define PLATFORM_ID "Haiku"
-
-#elif defined(__BeOS) || defined(__BEOS__) || defined(_BEOS)
-# define PLATFORM_ID "BeOS"
-
-#elif defined(__QNX__) || defined(__QNXNTO__)
-# define PLATFORM_ID "QNX"
-
-#elif defined(__tru64) || defined(_tru64) || defined(__TRU64__)
-# define PLATFORM_ID "Tru64"
-
-#elif defined(__riscos) || defined(__riscos__)
-# define PLATFORM_ID "RISCos"
-
-#elif defined(__sinix) || defined(__sinix__) || defined(__SINIX__)
-# define PLATFORM_ID "SINIX"
-
-#elif defined(__UNIX_SV__)
-# define PLATFORM_ID "UNIX_SV"
-
-#elif defined(__bsdos__)
-# define PLATFORM_ID "BSDOS"
-
-#elif defined(_MPRAS) || defined(MPRAS)
-# define PLATFORM_ID "MP-RAS"
-
-#elif defined(__osf) || defined(__osf__)
-# define PLATFORM_ID "OSF1"
-
-#elif defined(_SCO_SV) || defined(SCO_SV) || defined(sco_sv)
-# define PLATFORM_ID "SCO_SV"
-
-#elif defined(__ultrix) || defined(__ultrix__) || defined(_ULTRIX)
-# define PLATFORM_ID "ULTRIX"
-
-#elif defined(__XENIX__) || defined(_XENIX) || defined(XENIX)
-# define PLATFORM_ID "Xenix"
-
-#elif defined(__WATCOMC__)
-# if defined(__LINUX__)
-#  define PLATFORM_ID "Linux"
-
-# elif defined(__DOS__)
-#  define PLATFORM_ID "DOS"
-
-# elif defined(__OS2__)
-#  define PLATFORM_ID "OS2"
-
-# elif defined(__WINDOWS__)
-#  define PLATFORM_ID "Windows3x"
-
-# elif defined(__VXWORKS__)
-#  define PLATFORM_ID "VxWorks"
-
-# else /* unknown platform */
-#  define PLATFORM_ID
-# endif
-
-#elif defined(__INTEGRITY)
-# if defined(INT_178B)
-#  define PLATFORM_ID "Integrity178"
-
-# else /* regular Integrity */
-#  define PLATFORM_ID "Integrity"
-# endif
-
-# elif defined(_ADI_COMPILER)
-#  define PLATFORM_ID "ADSP"
-
-#else /* unknown platform */
-# define PLATFORM_ID
-
-#endif
-
-/* For windows compilers MSVC and Intel we can determine
-   the architecture of the compiler being used.  This is because
-   the compilers do not have flags that can change the architecture,
-   but rather depend on which compiler is being used
-*/
-#if defined(_WIN32) && defined(_MSC_VER)
-# if defined(_M_IA64)
-#  define ARCHITECTURE_ID "IA64"
-
-# elif defined(_M_ARM64EC)
-#  define ARCHITECTURE_ID "ARM64EC"
-
-# elif defined(_M_X64) || defined(_M_AMD64)
-#  define ARCHITECTURE_ID "x64"
-
-# elif defined(_M_IX86)
-#  define ARCHITECTURE_ID "X86"
-
-# elif defined(_M_ARM64)
-#  define ARCHITECTURE_ID "ARM64"
-
-# elif defined(_M_ARM)
-#  if _M_ARM == 4
-#   define ARCHITECTURE_ID "ARMV4I"
-#  elif _M_ARM == 5
-#   define ARCHITECTURE_ID "ARMV5I"
-#  else
-#   define ARCHITECTURE_ID "ARMV" STRINGIFY(_M_ARM)
-#  endif
-
-# elif defined(_M_MIPS)
-#  define ARCHITECTURE_ID "MIPS"
-
-# elif defined(_M_SH)
-#  define ARCHITECTURE_ID "SHx"
-
-# else /* unknown architecture */
-#  define ARCHITECTURE_ID ""
-# endif
-
-#elif defined(__WATCOMC__)
-# if defined(_M_I86)
-#  define ARCHITECTURE_ID "I86"
-
-# elif defined(_M_IX86)
-#  define ARCHITECTURE_ID "X86"
-
-# else /* unknown architecture */
-#  define ARCHITECTURE_ID ""
-# endif
-
-#elif defined(__IAR_SYSTEMS_ICC__) || defined(__IAR_SYSTEMS_ICC)
-# if defined(__ICCARM__)
-#  define ARCHITECTURE_ID "ARM"
-
-# elif defined(__ICCRX__)
-#  define ARCHITECTURE_ID "RX"
-
-# elif defined(__ICCRH850__)
-#  define ARCHITECTURE_ID "RH850"
-
-# elif defined(__ICCRL78__)
-#  define ARCHITECTURE_ID "RL78"
-
-# elif defined(__ICCRISCV__)
-#  define ARCHITECTURE_ID "RISCV"
-
-# elif defined(__ICCAVR__)
-#  define ARCHITECTURE_ID "AVR"
-
-# elif defined(__ICC430__)
-#  define ARCHITECTURE_ID "MSP430"
-
-# elif defined(__ICCV850__)
-#  define ARCHITECTURE_ID "V850"
-
-# elif defined(__ICC8051__)
-#  define ARCHITECTURE_ID "8051"
-
-# elif defined(__ICCSTM8__)
-#  define ARCHITECTURE_ID "STM8"
-
-# else /* unknown architecture */
-#  define ARCHITECTURE_ID ""
-# endif
-
-#elif defined(__ghs__)
-# if defined(__PPC64__)
-#  define ARCHITECTURE_ID "PPC64"
-
-# elif defined(__ppc__)
-#  define ARCHITECTURE_ID "PPC"
-
-# elif defined(__ARM__)
-#  define ARCHITECTURE_ID "ARM"
-
-# elif defined(__x86_64__)
-#  define ARCHITECTURE_ID "x64"
-
-# elif defined(__i386__)
-#  define ARCHITECTURE_ID "X86"
-
-# else /* unknown architecture */
-#  define ARCHITECTURE_ID ""
-# endif
-
-#elif defined(__clang__) && defined(__ti__)
-# if defined(__ARM_ARCH)
-#  define ARCHITECTURE_ID "ARM"
-
-# else /* unknown architecture */
-#  define ARCHITECTURE_ID ""
-# endif
-
-#elif defined(__TI_COMPILER_VERSION__)
-# if defined(__TI_ARM__)
-#  define ARCHITECTURE_ID "ARM"
-
-# elif defined(__MSP430__)
-#  define ARCHITECTURE_ID "MSP430"
-
-# elif defined(__TMS320C28XX__)
-#  define ARCHITECTURE_ID "TMS320C28x"
-
-# elif defined(__TMS320C6X__) || defined(_TMS320C6X)
-#  define ARCHITECTURE_ID "TMS320C6x"
-
-# else /* unknown architecture */
-#  define ARCHITECTURE_ID ""
-# endif
-
-# elif defined(__ADSPSHARC__)
-#  define ARCHITECTURE_ID "SHARC"
-
-# elif defined(__ADSPBLACKFIN__)
-#  define ARCHITECTURE_ID "Blackfin"
-
-#elif defined(__TASKING__)
-
-# if defined(__CTC__) || defined(__CPTC__)
-#  define ARCHITECTURE_ID "TriCore"
-
-# elif defined(__CMCS__)
-#  define ARCHITECTURE_ID "MCS"
-
-# elif defined(__CARM__) || defined(__CPARM__)
-#  define ARCHITECTURE_ID "ARM"
-
-# elif defined(__CARC__)
-#  define ARCHITECTURE_ID "ARC"
-
-# elif defined(__C51__)
-#  define ARCHITECTURE_ID "8051"
-
-# elif defined(__CPCP__)
-#  define ARCHITECTURE_ID "PCP"
-
-# else
-#  define ARCHITECTURE_ID ""
-# endif
-
-#elif defined(__RENESAS__)
-# if defined(__CCRX__)
-#  define ARCHITECTURE_ID "RX"
-
-# elif defined(__CCRL__)
-#  define ARCHITECTURE_ID "RL78"
-
-# elif defined(__CCRH__)
-#  define ARCHITECTURE_ID "RH850"
-
-# else
-#  define ARCHITECTURE_ID ""
-# endif
-
-#else
-#  define ARCHITECTURE_ID
-#endif
-
-/* Convert integer to decimal digit literals.  */
-#define DEC(n)                   \
-  ('0' + (((n) / 10000000)%10)), \
-  ('0' + (((n) / 1000000)%10)),  \
-  ('0' + (((n) / 100000)%10)),   \
-  ('0' + (((n) / 10000)%10)),    \
-  ('0' + (((n) / 1000)%10)),     \
-  ('0' + (((n) / 100)%10)),      \
-  ('0' + (((n) / 10)%10)),       \
-  ('0' +  ((n) % 10))
-
-/* Convert integer to hex digit literals.  */
-#define HEX(n)             \
-  ('0' + ((n)>>28 & 0xF)), \
-  ('0' + ((n)>>24 & 0xF)), \
-  ('0' + ((n)>>20 & 0xF)), \
-  ('0' + ((n)>>16 & 0xF)), \
-  ('0' + ((n)>>12 & 0xF)), \
-  ('0' + ((n)>>8  & 0xF)), \
-  ('0' + ((n)>>4  & 0xF)), \
-  ('0' + ((n)     & 0xF))
-
-/* Construct a string literal encoding the version number. */
-#ifdef COMPILER_VERSION
-char const* info_version = "INFO" ":" "compiler_version[" COMPILER_VERSION "]";
-
-/* Construct a string literal encoding the version number components. */
-#elif defined(COMPILER_VERSION_MAJOR)
-char const info_version[] = {
-  'I', 'N', 'F', 'O', ':',
-  'c','o','m','p','i','l','e','r','_','v','e','r','s','i','o','n','[',
-  COMPILER_VERSION_MAJOR,
-# ifdef COMPILER_VERSION_MINOR
-  '.', COMPILER_VERSION_MINOR,
-#  ifdef COMPILER_VERSION_PATCH
-   '.', COMPILER_VERSION_PATCH,
-#   ifdef COMPILER_VERSION_TWEAK
-    '.', COMPILER_VERSION_TWEAK,
-#   endif
-#  endif
-# endif
-  ']','\0'};
-#endif
-
-/* Construct a string literal encoding the internal version number. */
-#ifdef COMPILER_VERSION_INTERNAL
-char const info_version_internal[] = {
-  'I', 'N', 'F', 'O', ':',
-  'c','o','m','p','i','l','e','r','_','v','e','r','s','i','o','n','_',
-  'i','n','t','e','r','n','a','l','[',
-  COMPILER_VERSION_INTERNAL,']','\0'};
-#elif defined(COMPILER_VERSION_INTERNAL_STR)
-char const* info_version_internal = "INFO" ":" "compiler_version_internal[" COMPILER_VERSION_INTERNAL_STR "]";
-#endif
-
-/* Construct a string literal encoding the version number components. */
-#ifdef SIMULATE_VERSION_MAJOR
-char const info_simulate_version[] = {
-  'I', 'N', 'F', 'O', ':',
-  's','i','m','u','l','a','t','e','_','v','e','r','s','i','o','n','[',
-  SIMULATE_VERSION_MAJOR,
-# ifdef SIMULATE_VERSION_MINOR
-  '.', SIMULATE_VERSION_MINOR,
-#  ifdef SIMULATE_VERSION_PATCH
-   '.', SIMULATE_VERSION_PATCH,
-#   ifdef SIMULATE_VERSION_TWEAK
-    '.', SIMULATE_VERSION_TWEAK,
-#   endif
-#  endif
-# endif
-  ']','\0'};
-#endif
-
-/* Construct the string literal in pieces to prevent the source from
-   getting matched.  Store it in a pointer rather than an array
-   because some compilers will just produce instructions to fill the
-   array rather than assigning a pointer to a static array.  */
-char const* info_platform = "INFO" ":" "platform[" PLATFORM_ID "]";
-char const* info_arch = "INFO" ":" "arch[" ARCHITECTURE_ID "]";
-
-
-
-#define C_STD_99 199901L
-#define C_STD_11 201112L
-#define C_STD_17 201710L
-#define C_STD_23 202311L
-
-#ifdef __STDC_VERSION__
-#  define C_STD __STDC_VERSION__
-#endif
-
-#if !defined(__STDC__) && !defined(__clang__) && !defined(__RENESAS__)
-# if defined(_MSC_VER) || defined(__ibmxl__) || defined(__IBMC__)
-#  define C_VERSION "90"
-# else
-#  define C_VERSION
-# endif
-#elif C_STD > C_STD_17
-# define C_VERSION "23"
-#elif C_STD > C_STD_11
-# define C_VERSION "17"
-#elif C_STD > C_STD_99
-# define C_VERSION "11"
-#elif C_STD >= C_STD_99
-# define C_VERSION "99"
-#else
-# define C_VERSION "90"
-#endif
-const char* info_language_standard_default =
-  "INFO" ":" "standard_default[" C_VERSION "]";
-
-const char* info_language_extensions_default = "INFO" ":" "extensions_default["
-#if (defined(__clang__) || defined(__GNUC__) || defined(__xlC__) ||           \
-     defined(__TI_COMPILER_VERSION__) || defined(__RENESAS__)) &&             \
-  !defined(__STRICT_ANSI__)
-  "ON"
-#else
-  "OFF"
-#endif
-"]";
-
-/*--------------------------------------------------------------------------*/
-
-
-/*
-#ifdef ID_VOID_MAIN
-void main() {}
-#else
-# if defined(__CLASSIC_C__)
-int main(argc, argv) int argc; char *argv[];
-# else
-int main(int argc, char* argv[])
-# endif
-{
-  int require = 0;
-  require += info_compiler[argc];
-  require += info_platform[argc];
-  require += info_arch[argc];
-#ifdef COMPILER_VERSION_MAJOR
-  require += info_version[argc];
-#endif
-#if defined(COMPILER_VERSION_INTERNAL) || defined(COMPILER_VERSION_INTERNAL_STR)
-  require += info_version_internal[argc];
-#endif
-#ifdef SIMULATE_ID
-  require += info_simulate[argc];
-#endif
-#ifdef SIMULATE_VERSION_MAJOR
-  require += info_simulate_version[argc];
-#endif
-#if defined(__CRAYXT_COMPUTE_LINUX_TARGET)
-  require += info_cray[argc];
-#endif
-  require += info_language_standard_default[argc];
-  require += info_language_extensions_default[argc];
-  (void)argv;
-  return require;
+static const char* FileTypeToString(FileType type) {
+    switch (type) {
+        case FileTypeEmpty:
+            return "empty";
+        case FileTypeObject:
+            return "object";
+        case FileTypeArchive:
+            return "archive";
+        case FileTypeUnknown:
+        default:
+            return "unknown";
+    }
 }
-#endif
-*/
 
-ObjectFile** RemoveIf(ObjectFile** elems, int* count) {
+ObjectFile** RemoveIf(ObjectFile** elems, int* count) 
+{
     int num = *count;
     size_t i = 0;
     for (size_t j = 0; j < num; j++) {
@@ -2201,7 +721,8 @@ ObjectFile** RemoveIf(ObjectFile** elems, int* count) {
     return elems;
 }
 
-void ResolveSymbols_pass(Context* ctx){
+void ResolveSymbols_pass(Context* ctx)
+{
     DBG("ResolveSymbols_pass: start (objs=%d)\\n", ctx->ObjsCount);
     for(int i=0;i<ctx->ObjsCount;i++){
         ObjectFile *objectFile = ctx->Objs[i];
@@ -2228,7 +749,8 @@ void ResolveSymbols_pass(Context* ctx){
     DBG("ResolveSymbols_pass: done (objs=%d)\\n", ctx->ObjsCount);
 }
 
-void MarkLiveObjects(Context* ctx) {
+void MarkLiveObjects(Context* ctx) 
+{
     ObjectFile **roots = NULL;
     int rootSize = 0;
     for (int i = 0; i < ctx->ObjsCount; i++) {
@@ -2273,7 +795,6 @@ void MarkLiveObjects(Context* ctx) {
         num++;
     }
 }
-
 
 void RegisterSectionPieces(Context* ctx){
     for (int i = 0; i < ctx->ObjsCount; i++) {
@@ -2327,7 +848,8 @@ uint64_t SetOutputSectionOffsets(Context* ctx){
 }
 
 // 创建自己合成的section
-void CreateSyntheticSections(Context* ctx){
+void CreateSyntheticSections(Context* ctx)
+{
     struct OutputEhdr_* outputEhdr = NewOutputEhdr();
     ctx->ehdr = outputEhdr;
     ctx->chunk = realloc(ctx->chunk,sizeof (Chunk*) * (ctx->chunkNum+1));
@@ -2354,7 +876,8 @@ void CreateSyntheticSections(Context* ctx){
 }
 
 // 填充output section里面的由input section组成的members数组
-void BinSections(Context* ctx){
+void BinSections(Context* ctx)
+{
     InputSection ***group = (InputSection***) malloc(sizeof (InputSection**) * ctx->outputSecNum);
     // 初始化 group 数组的每个元素为 NULL
     for (size_t i = 0; i < ctx->outputSecNum; i++) {
@@ -2399,7 +922,8 @@ void BinSections(Context* ctx){
     }
 }
 
-void CollectOutputSections(Context* ctx){
+void CollectOutputSections(Context* ctx)
+{
     for(int i =0; i< ctx->outputSecNum;i++){
         OutputSection * osec = ctx->outputSections[i];
         if(osec->chunk->outpuSec.memberNum > 0){
@@ -2422,7 +946,8 @@ void CollectOutputSections(Context* ctx){
 }
 
 //计算每个output section的input section们的offset
-void ComputeSectionSizes(Context* ctx){
+void ComputeSectionSizes(Context* ctx)
+{
     for(int i =0; i< ctx->outputSecNum;i++) {
         OutputSection *osec = ctx->outputSections[i];
         uint64_t offset = 0;
@@ -2442,13 +967,15 @@ void ComputeSectionSizes(Context* ctx){
     }
 }
 
-int b2i(bool b){
+int b2i(bool b)
+{
     if(b)
         return 1;
     return 0;
 }
 
-void getRank(Chunk *chunk,Context* ctx){
+void getRank(Chunk *chunk,Context* ctx)
+{
     uint32_t typ = GetShdr(chunk)->Type;
     uint32_t flags = GetShdr(chunk)->Flags;
     if((flags & SHF_ALLOC) == 0)
@@ -2480,7 +1007,8 @@ void getRank(Chunk *chunk,Context* ctx){
 // alloc sections
 // non-alloc sections : 不会参与最终可执行文件的执行 , 也放在后面 max int32 -1
 // SHDR     //max int32
-void SortOutputSections(Context* ctx){
+void SortOutputSections(Context* ctx)
+{
     for(int i=0;i<ctx->chunkNum;i++){
         getRank(ctx->chunk[i],ctx);
     }
@@ -2505,20 +1033,23 @@ void SortOutputSections(Context* ctx){
 //这里是虚拟地址，所以要分，但是在文件中.bss并不写入
 // .data .bss
 // .tdata .tbss
-bool isTbss(Chunk* chunk){
+bool isTbss(Chunk* chunk)
+{
     Shdr *shdr = GetShdr(chunk);
     return (shdr->Type == SHT_NOBITS) && ((shdr->Flags & SHF_TLS) !=0);
 }
 
 //给每一个merged section中的fragments分别进行排序
-void ComputeMergedSectionSizes(Context* ctx){
+void ComputeMergedSectionSizes(Context* ctx)
+{
     for(int i=0;i<ctx->mergedSectionNum;i++){
         MergedSection *m = ctx->mergedSections[i];
         AssignOffsets(m);
     }
 }
 
-void ScanRelocations(Context* ctx){
+void ScanRelocations(Context* ctx)
+{
     DBG("ScanRelocations: start objs=%d\n", ctx->ObjsCount);
     for(int i=0; i< ctx->ObjsCount;i++){
         DBG("ScanRelocations: object[%d]=%s isecNum=%ld\n",
@@ -2559,7 +1090,8 @@ void ScanRelocations(Context* ctx){
     DBG("ScanRelocations: done\n");
 }
 
-InputFile* NewInputFile(File* file){
+InputFile* NewInputFile(File* file)
+{
     InputFile *inputFile = (InputFile*) malloc(sizeof (InputFile));
     inputFile->file = file;
     if(!CheckMagic(file->Contents))
@@ -2608,7 +1140,8 @@ InputFile* NewInputFile(File* file){
 }
 
 // GetBytesFromShdr 返回一个section的数据内容
-char* GetBytesFromShdr(InputFile* inputFile, Shdr* shdr){
+char* GetBytesFromShdr(InputFile* inputFile, Shdr* shdr)
+{
     uint64_t length = shdr->Size;
     char* contents = malloc(length+1);
     memcpy(contents, inputFile->file->Contents + shdr->Offset, length);
@@ -2618,12 +1151,14 @@ char* GetBytesFromShdr(InputFile* inputFile, Shdr* shdr){
 }
 
 // GetBytesFromIdx 根据一个section的index拿到对应section的数据内容
-char* GetBytesFromIdx(InputFile* inputFile, int64_t idx){
+char* GetBytesFromIdx(InputFile* inputFile, int64_t idx)
+{
     return GetBytesFromShdr(inputFile,&inputFile->ElfSections[idx]);
 }
 
 // FindSection 返回第一个Section type对应的section
-Shdr* FindSection(InputFile* f, uint32_t ty) {
+Shdr* FindSection(InputFile* f, uint32_t ty) 
+{
     for (int i = 0; i < f->sectionNum; i++) {
         Shdr* shdr = &(f->ElfSections[i]);
         if (shdr->Type == ty) {
@@ -2634,7 +1169,8 @@ Shdr* FindSection(InputFile* f, uint32_t ty) {
 }
 
 // FillUpElfSyms 填充符号表表项到inputfile的ElfSyms数组
-void FillUpElfSyms(InputFile* inputFile,Shdr* s){
+void FillUpElfSyms(InputFile* inputFile,Shdr* s)
+{
     char *bs = GetBytesFromShdr(inputFile,s);
     int numbs = s->Size / sizeof (Sym);
     inputFile->ElfSyms = (Sym*) malloc(numbs* sizeof(Sym));
@@ -2647,14 +1183,15 @@ void FillUpElfSyms(InputFile* inputFile,Shdr* s){
     }
 }
 
-Ehdr GetEhdr(InputFile* f){
+Ehdr GetEhdr(InputFile* f)
+{
     Ehdr ehdr;
     Read(&ehdr,f->file->Contents,sizeof (Ehdr));
     return ehdr;
 }
 
-
-SectionFragment* NewSectionFragment(MergedSection* m) {
+SectionFragment* NewSectionFragment(MergedSection* m) 
+{
     SectionFragment* fragment = (SectionFragment*)malloc(sizeof(SectionFragment));
     if (fragment != NULL) {
         fragment->OutputSection = m;
@@ -2666,12 +1203,14 @@ SectionFragment* NewSectionFragment(MergedSection* m) {
     return fragment;
 }
 
-uint64_t SectionFragment_GetAddr(SectionFragment* s) {
+uint64_t SectionFragment_GetAddr(SectionFragment* s) 
+{
     //printf("offset %ld\n",s->OutputSection->chunk->shdr.Addr + s->Offset);
     return s->OutputSection->chunk->shdr.Addr + s->Offset;
 }
 
-MergeableSection *NewMergeableSection(){
+MergeableSection *NewMergeableSection()
+{
     MergeableSection *mergeableSection = (MergeableSection*) malloc(sizeof (MergeableSection));
     mergeableSection->fragOffsets = NULL;
     mergeableSection->fragments = NULL;
@@ -2687,7 +1226,8 @@ MergeableSection *NewMergeableSection(){
 
 // GetFragment 获取到某个offset下的fragment
 // 注意要返回offset距离所在fragment起始处的距离
-SectionFragment* GetFragment(const MergeableSection* m, uint32_t offset, uint32_t* fragOffset) {
+SectionFragment* GetFragment(const MergeableSection* m, uint32_t offset, uint32_t* fragOffset) 
+{
     size_t pos = 0;
     for (size_t i = 0; i < m->fragmentNum; i++) {
         if (offset < m->fragOffsets[i]) {
@@ -2705,7 +1245,8 @@ SectionFragment* GetFragment(const MergeableSection* m, uint32_t offset, uint32_
     return m->fragments[idx];
 }
 
-OutputSection *NewOutputSection(char* name,uint32_t typ, uint64_t flags, uint32_t idx){
+OutputSection *NewOutputSection(char* name,uint32_t typ, uint64_t flags, uint32_t idx)
+{
     OutputSection *outputSection = (OutputSection*) malloc(sizeof (OutputSection));
     outputSection->chunk = NewChunk();
     outputSection->chunk->name = name;
@@ -2717,7 +1258,8 @@ OutputSection *NewOutputSection(char* name,uint32_t typ, uint64_t flags, uint32_
     return outputSection;
 }
 
-void OutputSec_CopyBuf(Chunk* c,Context* ctx){
+void OutputSec_CopyBuf(Chunk* c,Context* ctx)
+{
     if(c->shdr.Type == SHT_NOBITS)
         return;
 
@@ -2729,7 +1271,8 @@ void OutputSec_CopyBuf(Chunk* c,Context* ctx){
     }
 }
 
-OutputSection *findOutputSection(Context* ctx,const char* name,uint64_t typ,uint64_t flags){
+OutputSection *findOutputSection(Context* ctx,const char* name,uint64_t typ,uint64_t flags)
+{
     for(int i = 0; i<ctx->outputSecNum;i++){
         OutputSection *osec = ctx->outputSections[i];
         if(strcmp(osec->chunk->name,name)==0 && osec->chunk->shdr.Type == typ && osec->chunk->shdr.Flags == flags)
@@ -2739,7 +1282,8 @@ OutputSection *findOutputSection(Context* ctx,const char* name,uint64_t typ,uint
 }
 
 // GetOutputSection 单例模式返回一个input section对应的output section
-OutputSection *GetOutputSection(Context* ctx,char* name,uint64_t typ,uint64_t flags){
+OutputSection *GetOutputSection(Context* ctx,char* name,uint64_t typ,uint64_t flags)
+{
     char* outputName = GetOutputName(name,flags);
     flags = flags & ~((uint64_t)SHF_GROUP) & ~((uint64_t)2048 /*SHF_COMPRESSED*/) & ~((uint64_t)SHF_LINK_ORDER);
 
@@ -2754,7 +1298,8 @@ OutputSection *GetOutputSection(Context* ctx,char* name,uint64_t typ,uint64_t fl
     return osec;
 }
 
-OutputEhdr *NewOutputEhdr(){
+OutputEhdr *NewOutputEhdr()
+{
     OutputEhdr *outputEhdr = (OutputEhdr*) malloc(sizeof (OutputEhdr));
     outputEhdr->chunk = NewChunk();
     outputEhdr->chunk->shdr.Flags = SHF_ALLOC;
@@ -2765,7 +1310,8 @@ OutputEhdr *NewOutputEhdr(){
 }
 
 // 找到第一条执行代码地址
-uint64_t getEntryAddr(Context* ctx){
+uint64_t getEntryAddr(Context* ctx)
+{
     for(int i=0; i<ctx->outputSecNum;i++){
         OutputSection *osec = ctx->outputSections[i];
         if(strcmp(osec->chunk->name,".text")==0){
@@ -2775,7 +1321,8 @@ uint64_t getEntryAddr(Context* ctx){
     return 0;
 }
 
-uint32_t getFlags(Context* ctx){
+uint32_t getFlags(Context* ctx)
+{
     assert(ctx->ObjsCount > 0);
     uint32_t flags = GetEhdr(ctx->Objs[0]->inputFile).Flags;
     for(int i=1; i< ctx->ObjsCount;i++){
@@ -2789,7 +1336,8 @@ uint32_t getFlags(Context* ctx){
     return flags;
 }
 
-void Ehdr_CopyBuf(Chunk *c,Context* ctx){
+void Ehdr_CopyBuf(Chunk *c,Context* ctx)
+{
     Ehdr *ehdr = (Ehdr*) malloc(sizeof (Ehdr));
     WriteMagic(ehdr->Ident);
     ehdr->Ident[EI_CLASS] = ELFCLASS64;
@@ -2817,7 +1365,8 @@ void Ehdr_CopyBuf(Chunk *c,Context* ctx){
     memcpy(ctx->buf+c->shdr.Offset,buf,sizeof (Ehdr));
 }
 
-FileType GetFileType(const char* contents){
+FileType GetFileType(const char* contents)
+{
     if (contents == NULL || *contents == '\0') {
         return FileTypeEmpty;
     }
@@ -2840,14 +1389,8 @@ FileType GetFileType(const char* contents){
     return FileTypeUnknown;
 }
 
-//void CheckFileCompatibility(Context* ctx, File* file) {
-//    FileType mt = GetMachineTypeFromContents(file->Contents);
-//    if (mt != ctx->Args.Emulation) {
-//        fatal("incompatible file type");
-//    }
-//}
-
-OutputPhdr *NewOutputPhdr(){
+OutputPhdr *NewOutputPhdr()
+{
     OutputPhdr *outputPhdr = (OutputPhdr*) malloc(sizeof (OutputPhdr));
     outputPhdr->chunk = NewChunk();
     outputPhdr->chunk->shdr.Flags = SHF_ALLOC;
@@ -2856,25 +1399,30 @@ OutputPhdr *NewOutputPhdr(){
     return outputPhdr;
 }
 
-bool isTls(Chunk* c){
+bool isTls(Chunk* c)
+{
     return (GetShdr(c)->Flags & SHF_TLS) != 0;
 }
 
-bool isBss(Chunk* c){
+bool isBss(Chunk* c)
+{
     return GetShdr(c)->Type == SHT_NOBITS && !isTls(c);
 }
 
-bool isNote(Chunk* c){
+bool isNote(Chunk* c)
+{
     Shdr *shdr = GetShdr(c);
     return (shdr->Type == SHT_NOTE) && ((shdr->Flags & SHF_ALLOC) != 0);
 }
 
-bool isTbss_(Chunk* chunk){
+bool isTbss_(Chunk* chunk)
+{
     Shdr *shdr = GetShdr(chunk);
     return (shdr->Type == SHT_NOBITS) && ((shdr->Flags & SHF_TLS) !=0);
 }
 
-uint32_t toPhdrFlags(Chunk* c){
+uint32_t toPhdrFlags(Chunk* c)
+{
     uint32_t ret = PF_R;
     int write = (GetShdr(c)->Flags & SHF_WRITE) != 0;
     if(write)
@@ -2884,7 +1432,8 @@ uint32_t toPhdrFlags(Chunk* c){
     return ret;
 }
 
-Phdr* define(uint64_t typ,uint64_t flags,int64_t minAlign, Chunk* c){
+Phdr* define(uint64_t typ,uint64_t flags,int64_t minAlign, Chunk* c)
+{
     Phdr *phdr = (Phdr*) malloc(sizeof (Phdr));
     phdr->Type = typ;
     phdr->Flags = flags;
@@ -2900,7 +1449,8 @@ Phdr* define(uint64_t typ,uint64_t flags,int64_t minAlign, Chunk* c){
     return phdr;
 }
 
-void push(Chunk* c,Phdr* vec,int lenVec){
+void push(Chunk* c,Phdr* vec,int lenVec)
+{
     Phdr *phdr = &vec[lenVec - 1];
     phdr->Align = max_(phdr->Align,GetShdr(c)->AddrAlign);
     if(c->shdr.Type != SHT_NOBITS){
@@ -2910,7 +1460,8 @@ void push(Chunk* c,Phdr* vec,int lenVec){
     phdr->MemSize = GetShdr(c)->Addr + GetShdr(c)->Size - phdr->VAddr;
 }
 
-Chunk** Chunk_RemoveIf(Chunk** elems, int* count) {
+Chunk** Chunk_RemoveIf(Chunk** elems, int* count) 
+{
     int num = *count;
     size_t i = 0;
     for (size_t j = 0; j < num; j++) {
@@ -2925,7 +1476,8 @@ Chunk** Chunk_RemoveIf(Chunk** elems, int* count) {
     return elems;
 }
 
-Phdr *createPhdr(Context* ctx, int *num){
+Phdr *createPhdr(Context* ctx, int *num)
+{
     Phdr *vec = NULL;
 
     Phdr *phdr = define(PT_PHDR,PF_R,8,ctx->phdr->chunk);
@@ -3007,7 +1559,8 @@ Phdr *createPhdr(Context* ctx, int *num){
     return vec;
 }
 
-void Phdr_UpdateShdr(Chunk* c,Context* ctx){
+void Phdr_UpdateShdr(Chunk* c,Context* ctx)
+{
     c->phdrS.phdrNum = 0;
     c->phdrS.phdrs = NULL;
     c->phdrS.phdrs = createPhdr(ctx,&c->phdrS.phdrNum);
@@ -3017,11 +1570,13 @@ void Phdr_UpdateShdr(Chunk* c,Context* ctx){
 
 // 根据chunk获得phdr的flag
 // chunk的flag和phdr的flag格式不是一致的，需要进行一个赋值
-void Phdr_CopyBuf(Chunk* c,Context* ctx){
+void Phdr_CopyBuf(Chunk* c,Context* ctx)
+{
     Write(ctx->buf+c->shdr.Offset,sizeof (Phdr)*c->phdrS.phdrNum,c->phdrS.phdrs);
 }
 
-ObjectFile *NewObjectFile(File* file,bool isAlive){
+ObjectFile *NewObjectFile(File* file,bool isAlive)
+{
     ObjectFile *objectFile = (ObjectFile*) malloc(sizeof (ObjectFile));
     objectFile->inputFile = NewInputFile(file);
     objectFile->inputFile->isAlive = isAlive;
@@ -3035,7 +1590,8 @@ ObjectFile *NewObjectFile(File* file,bool isAlive){
 }
 
 //解析目标文件
-void Parse(Context *ctx,ObjectFile* o){
+void Parse(Context *ctx,ObjectFile* o)
+{
     DBG("Parse: start %s\\n", o->inputFile->file->Name);
     o->SymtabSec = FindSection(o->inputFile,2);  //SHT_SYMTAB
     if(o->SymtabSec != NULL){
@@ -3054,7 +1610,8 @@ void Parse(Context *ctx,ObjectFile* o){
 }
 
 // 添加 ObjectFile 到 Objs 数组
-void AddObjectFile(ObjectFile*** Objs, int* ObjsCount, ObjectFile* newObj) {
+void AddObjectFile(ObjectFile*** Objs, int* ObjsCount, ObjectFile* newObj) 
+{
     (*ObjsCount)++; // 增加数组元素个数
 
     // 动态调整 Objs 数组的大小
@@ -3071,7 +1628,8 @@ void AddObjectFile(ObjectFile*** Objs, int* ObjsCount, ObjectFile* newObj) {
 }
 
 //TODO 不造正确性
-void FillUpSymtabShndxSec(ObjectFile* o,Shdr* s){
+void FillUpSymtabShndxSec(ObjectFile* o,Shdr* s)
+{
     char* bs = GetBytesFromShdr(o->inputFile,s);
     int num = s->Size / s->EntSize;
     o->SymtabShndxSec = malloc(sizeof(uint32_t)*num);
@@ -3086,7 +1644,8 @@ void FillUpSymtabShndxSec(ObjectFile* o,Shdr* s){
     }
 }
 
-void InitializeSections(ObjectFile* o,Context* ctx){
+void InitializeSections(ObjectFile* o,Context* ctx)
+{
     o->Sections = (InputSection **)calloc(o->inputFile->sectionNum, sizeof(InputSection *));
     o->isecNum = o->inputFile->sectionNum;
 
@@ -3130,7 +1689,8 @@ void InitializeSections(ObjectFile* o,Context* ctx){
     }
 }
 
-int64_t GetShndx(ObjectFile* o, Sym* esym, int idx) {
+int64_t GetShndx(ObjectFile* o, Sym* esym, int idx) 
+{
     // 假设你有一个类似的 Assert 函数用于检查条件
     assert(idx >= 0 && idx < o->inputFile->symNum );
 
@@ -3143,7 +1703,8 @@ int64_t GetShndx(ObjectFile* o, Sym* esym, int idx) {
     return esym->Shndx;
 }
 
-void InitializeSymbols(Context *ctx,ObjectFile* o){
+void InitializeSymbols(Context *ctx,ObjectFile* o)
+{
     DBG("InitializeSymbols: start file=%s FirstGlobal=%ld symNum=%ld\\n",
         o->inputFile->file->Name,
         o->inputFile->FirstGlobal,
@@ -3217,7 +1778,8 @@ void InitializeSymbols(Context *ctx,ObjectFile* o){
     DBG("InitializeSymbols: done\\n");
 }
 
-void InitializeMergeableSections(ObjectFile * o,Context* ctx){
+void InitializeMergeableSections(ObjectFile * o,Context* ctx)
+{
     DBG("InitializeMergeableSections: start isecNum=%ld\n", o->isecNum);
     o->mergeableSectionsNum = o->isecNum;
     o->mergeableSections = (MergeableSection**)malloc(o->mergeableSectionsNum * sizeof(MergeableSection*));
@@ -3258,7 +1820,8 @@ void InitializeMergeableSections(ObjectFile * o,Context* ctx){
 }
 
 // 找到字符串结束即all zeors的位置
-int findNull(const char* data, uint64_t data_len, int entSize) {
+int findNull(const char* data, uint64_t data_len, int entSize) 
+{
     if (entSize <= 0) {
         entSize = 1;
     }
@@ -3286,7 +1849,8 @@ int findNull(const char* data, uint64_t data_len, int entSize) {
     return -1;
 }
 
-MergeableSection *splitSection(Context* ctx,InputSection* isec){
+MergeableSection *splitSection(Context* ctx,InputSection* isec)
+{
     MergeableSection *m = NewMergeableSection();
     Shdr *shdr = shdr_(isec);
     char* secName = Name(isec);
@@ -3386,11 +1950,13 @@ MergeableSection *splitSection(Context* ctx,InputSection* isec){
     return m;
 }
 
-InputSection *GetSection(ObjectFile* o,Sym* esym,int idx){
+InputSection *GetSection(ObjectFile* o,Sym* esym,int idx)
+{
     return o->Sections[GetShndx(o,esym,idx)];
 }
 
-void ResolveSymbols(ObjectFile* o){
+void ResolveSymbols(ObjectFile* o)
+{
     DBG("ResolveSymbols: %s start\\n", o->inputFile->file->Name);
     //localSymbol是不需要resolve的,从第一个全局符号开始解析就行
     for(int i=o->inputFile->FirstGlobal;i<o->inputFile->symNum;i++){
@@ -3419,7 +1985,8 @@ void ResolveSymbols(ObjectFile* o){
     DBG("ResolveSymbols: %s done\\n", o->inputFile->file->Name);
 }
 
-void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize){
+void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize)
+{
     assert(o->inputFile->isAlive);
     DBG("markLiveObjs: scanning %s\\n", o->inputFile->file->Name);
     for(int i=o->inputFile->FirstGlobal;i<o->inputFile->symNum;i++){
@@ -3443,7 +2010,8 @@ void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize){
     }
 }
 
-void ClearSymbols(ObjectFile* o){
+void ClearSymbols(ObjectFile* o)
+{
     for(int i=o->inputFile->FirstGlobal;i < o->inputFile->symNum;i++){
         Symbol *sym = o->inputFile->Symbols[i];
         if(sym->file == o)
@@ -3451,7 +2019,8 @@ void ClearSymbols(ObjectFile* o){
     }
 }
 
-void registerSectionPieces(ObjectFile* o){
+void registerSectionPieces(ObjectFile* o)
+{
     //printf("new obj num %zu\n",o->mergeableSectionsNum);
     for(int i=0; i< o->mergeableSectionsNum;i++){
         MergeableSection * m = o->mergeableSections[i];
@@ -3494,7 +2063,8 @@ void registerSectionPieces(ObjectFile* o){
 }
 
 //跳过.eh_frame，就不处理异常了
-void SkipEhframeSections(ObjectFile* o){
+void SkipEhframeSections(ObjectFile* o)
+{
     for(int i=0;i < o->isecNum;i++){
         InputSection *isec = o->Sections[i];
         if(isec != NULL && isec->isAlive && strcmp(Name(isec),".eh_frame")==0){
@@ -3503,7 +2073,8 @@ void SkipEhframeSections(ObjectFile* o){
     }
 }
 
-void ScanRelocations_(ObjectFile* o){
+void ScanRelocations_(ObjectFile* o)
+{
     DBG("ScanRelocations_: file=%s\n", o->inputFile->file->Name);
     for(int i=0;i < o->isecNum;i++) {
         InputSection *isec = o->Sections[i];
@@ -3529,11 +2100,9 @@ void ScanRelocations_(ObjectFile* o){
     }
     DBG("ScanRelocations_: done %s\n", o->inputFile->file->Name);
 }
-/*
-参考资料：https://en.wikipedia.org/wiki/Ar_(Unix)
-*/
 
-File** appendFile(File** files, File* newFile, int* count) {
+File** appendFile(File** files, File* newFile, int* count) 
+{
     *count += 1;
     files = (File**)realloc(files, (*count + 1) * sizeof(File*));
     files[*count - 1] = newFile;
@@ -3545,7 +2114,8 @@ File** appendFile(File** files, File* newFile, int* count) {
 // 读取并返回归档的静态文件中的所有目标文件
 // [!<arch>\n][Section ][Section ]......
 // [Section ] -> [ArHdr][                ][ArHdr][                ]
-File** ReadArchiveMembers(File* file,int * fileCount) {
+File** ReadArchiveMembers(File* file,int * fileCount) 
+{
     if (GetFileType(file->Contents) != FileTypeArchive) {
         return NULL;
     }
@@ -3604,7 +2174,8 @@ File** ReadArchiveMembers(File* file,int * fileCount) {
 
 HashMap *name_map;
 
-void ReadInputFiles(Context* ctx,char** remaining){
+void ReadInputFiles(Context* ctx,char** remaining)
+{
     name_map = HashMapInit();
     if (name_map == NULL) {
         fatal("failed to initialize name map");
@@ -3638,7 +2209,8 @@ void ReadInputFiles(Context* ctx,char** remaining){
     DBG("ReadInputFiles: done (objs=%d)\\n", ctx->ObjsCount);
 }
 
-void readFile(Context *ctx,File* file){
+void readFile(Context *ctx,File* file)
+{
     if (file == NULL) {
         fatal("readFile: null file pointer");
     }
@@ -3668,7 +2240,8 @@ void readFile(Context *ctx,File* file){
     }
 }
 
-ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib){
+ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib)
+{
     //TODO CheckFileCompatibility
     ObjectFile * objectFile = NewObjectFile(file,!inLib);
     DBG("CreateObjectFile: %s inLib=%d alive=%d\\n", file->Name, inLib, objectFile->inputFile->isAlive);
@@ -3677,7 +2250,8 @@ ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib){
     return objectFile;
 }
 
-OutputShdr *NewOutputShdr(){
+OutputShdr *NewOutputShdr()
+{
     OutputShdr *outputShdr = (OutputShdr*) malloc(sizeof (OutputShdr));
     outputShdr->chunk = NewChunk();
     outputShdr->chunk->shdr.AddrAlign = 8;
@@ -3685,11 +2259,13 @@ OutputShdr *NewOutputShdr(){
     return outputShdr;
 }
 
-void Shdr_UpdateShdr(Chunk* c,Context* ctx){
+void Shdr_UpdateShdr(Chunk* c,Context* ctx)
+{
     c->shdr.Size = 1 * sizeof (Shdr);
 }
 
-void Shdr_CopyBuf(Chunk* c,Context* ctx){
+void Shdr_CopyBuf(Chunk* c,Context* ctx)
+{
     //base := ctx.Buf[o.Shdr.Offset:]
     //utils.Write[Shdr](base, Shdr{})
     Shdr shdr;
@@ -3706,7 +2282,8 @@ void Shdr_CopyBuf(Chunk* c,Context* ctx){
     Write(ctx->buf+c->shdr.Offset,sizeof (Shdr),&shdr);
 }
 
-Chunk *NewChunk(){
+Chunk *NewChunk()
+{
     Chunk *chunk = (Chunk*) malloc(sizeof (Chunk));
     //AddrAlign对齐量为1，以一个字节为对齐,Addr必须被align值整除
     chunk->shdr.AddrAlign = 1;
@@ -3740,11 +2317,13 @@ Chunk *NewChunk(){
     return chunk;
 }
 
-Shdr *GetShdr(Chunk* c){
+Shdr *GetShdr(Chunk* c)
+{
     return &c->shdr;
 }
 
-void CopyBuf(Chunk* c,Context* ctx){
+void CopyBuf(Chunk* c,Context* ctx)
+{
     if(c->chunkType == ChunkTypeEhdr)
         Ehdr_CopyBuf(c,ctx);
     else if(c->chunkType == ChunkTypeShdr)
@@ -3759,7 +2338,8 @@ void CopyBuf(Chunk* c,Context* ctx){
         GotSec_CopyBuf(c,ctx);
 }
 
-void Update(Chunk* c,Context* ctx){
+void Update(Chunk* c,Context* ctx)
+{
     if(c->chunkType == ChunkTypeEhdr)
         ;
     else if(c->chunkType == ChunkTypeShdr)
@@ -3772,26 +2352,30 @@ void Update(Chunk* c,Context* ctx){
         ;
 }
 
-char* GetName(Chunk* c){
+char* GetName(Chunk* c)
+{
     return c->name;
 }
 
 // Shdr 返回一个section对应的section header的信息
-Shdr *shdr_(InputSection* i){
+Shdr *shdr_(InputSection* i)
+{
     assert(i->shndx < i->objectFile->inputFile->sectionNum);
     return &i->objectFile->inputFile->ElfSections[i->shndx];
 }
 
 //1 2 4 8 16
 //1 10 100 1000 10000
-uint8_t toP2Align(uint64_t align) {
+uint8_t toP2Align(uint64_t align) 
+{
     if (align == 0) {
         return 0;
     }
     return __builtin_ctzll(align);
 }
 
-InputSection *NewInputSection(Context *ctx,char* name,ObjectFile* file,uint32_t shndx){
+InputSection *NewInputSection(Context *ctx,char* name,ObjectFile* file,uint32_t shndx)
+{
     InputSection *inputSection = (InputSection*) malloc(sizeof (InputSection));
     inputSection->objectFile = file;
     inputSection->shndx = shndx;
@@ -3818,15 +2402,18 @@ InputSection *NewInputSection(Context *ctx,char* name,ObjectFile* file,uint32_t 
 }
 
 // Name 拿到这个inputSection的名字
-char* Name(InputSection* inputSection){
+char* Name(InputSection* inputSection)
+{
     return ElfGetName(inputSection->objectFile->inputFile->ShStrtab,shdr_(inputSection)->Name);
 }
 
-void  CopyContents(InputSection* i,char* buf){
+void CopyContents(InputSection* i,char* buf)
+{
     memcpy(buf,i->contents,i->shsize);
 }
 
-void WriteTo(InputSection *i,char* buf,Context* ctx){
+void WriteTo(InputSection *i,char* buf,Context* ctx)
+{
     if(shdr_(i)->Type == SHT_NOBITS || i->shsize == 0)
         return;
 
@@ -3837,8 +2424,8 @@ void WriteTo(InputSection *i,char* buf,Context* ctx){
     }
 }
 
-
-void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base){
+void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
+{
     Rela *rels = GetRels(i);
  //   printf("new\n before: ");
 //    uint32_t value1;
@@ -3975,12 +2562,11 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base){
     }
 }
 
-Rela *GetRels(InputSection* i){
-puts("1");
+Rela *GetRels(InputSection* i)
+{
     if(i->RelsecIdx == UINT32_MAX || i->rels != NULL){
         return i->rels;
     }
-puts("2");
 
     char* bs = GetBytesFromShdr(i->objectFile->inputFile,&i->objectFile->inputFile->ElfSections[i->RelsecIdx]);
     uint64_t numbs = (i->objectFile->inputFile->ElfSections[i->RelsecIdx].Size) / sizeof (Rela);
@@ -4002,12 +2588,13 @@ puts("2");
     return i->rels;
 }
 
-uint64_t InputSec_GetAddr(InputSection* i){
+uint64_t InputSec_GetAddr(InputSection* i)
+{
     return i->outputSection->chunk->shdr.Addr + i->offset;
 }
 
-void ScanRelocations__(InputSection* isec){
-puts("KKK");
+void ScanRelocations__(InputSection* isec)
+{
     GetRels(isec);
     DBG("ScanRelocations__: section=%s relNum=%d\n",
         Name(isec),
@@ -4029,29 +2616,35 @@ puts("KKK");
     //printf("relNUm %d\n",isec->relNum);
 }
 
-uint32_t itype(uint32_t val){
+uint32_t itype(uint32_t val)
+{
     return val << 20;
 }
 
-uint32_t stype(uint32_t val){
+uint32_t stype(uint32_t val)
+{
     return Bits_32(val,11,5) << 25 | Bits_32(val,4,0) << 7;
 }
 
-uint32_t btype(uint32_t val){
+uint32_t btype(uint32_t val)
+{
     return Bit_32(val,12) << 31 | Bits_32(val,10,5) << 25 |
             Bits_32(val,4,1) << 8 | Bit_32(val,11) << 7;
 }
 
-uint32_t utype(uint32_t val){
+uint32_t utype(uint32_t val)
+{
     return (val + 0x800) & 0xfffff000;
 }
 
-uint32_t jtype(uint32_t val){
+uint32_t jtype(uint32_t val)
+{
     return Bit_32(val,20) << 31 | Bits_32(val,10,1) << 21 |
             Bit_32(val,11) << 20 | Bits_32(val,19,12) << 12;
 }
 
-void writeItype(void* loc, uint32_t val) {
+void writeItype(void* loc, uint32_t val) 
+{
     uint32_t mask = 0b00000000000011111111111111111111;
     uint32_t v ;
     Read(&v,loc,sizeof (uint32_t));
@@ -4059,7 +2652,8 @@ void writeItype(void* loc, uint32_t val) {
     Write(loc,sizeof (uint32_t),&v);
 }
 
-void writeStype(void* loc, uint32_t val) {
+void writeStype(void* loc, uint32_t val) 
+{
     uint32_t mask = 0b0000001111111111111000001111111;
     uint32_t v ;
     Read(&v,loc,sizeof (uint32_t));
@@ -4067,7 +2661,8 @@ void writeStype(void* loc, uint32_t val) {
     Write(loc,sizeof (uint32_t),&v);
 }
 
-void writeBtype(void* loc, uint32_t val) {
+void writeBtype(void* loc, uint32_t val) 
+{
     uint32_t mask = 0b0000001111111111111000001111111;
     uint32_t v ;
     Read(&v,loc,sizeof (uint32_t));
@@ -4075,7 +2670,8 @@ void writeBtype(void* loc, uint32_t val) {
     Write(loc,sizeof (uint32_t),&v);
 }
 
-void writeUtype(void* loc, uint32_t val) {
+void writeUtype(void* loc, uint32_t val) 
+{
     uint32_t mask = 0b0000000000000000000111111111111;
     uint32_t v ;
     Read(&v,loc,sizeof (uint32_t));
@@ -4083,7 +2679,8 @@ void writeUtype(void* loc, uint32_t val) {
     Write(loc,sizeof (uint32_t),&v);
 }
 
-void writeJtype(void* loc, uint32_t val) {
+void writeJtype(void* loc, uint32_t val) 
+{
     uint32_t mask = 0b0000000000000000000111111111111;
     uint32_t v ;
     Read(&v,loc,sizeof (uint32_t));
@@ -4091,7 +2688,8 @@ void writeJtype(void* loc, uint32_t val) {
     Write(loc,sizeof (uint32_t),&v);
 }
 
-void setRs1(void* loc,uint32_t rs1){
+void setRs1(void* loc,uint32_t rs1)
+{
     uint32_t mask = 0b1111111111100000111111111111111;
     uint32_t v ;
     Read(&v,loc,sizeof (uint32_t));
@@ -4103,8 +2701,8 @@ void setRs1(void* loc,uint32_t rs1){
     Write(loc,sizeof (uint32_t),&v);
 }
 
-Symbol *NewSymbol(char* name){
-
+Symbol *NewSymbol(char* name)
+{
     Symbol *symbol = (Symbol*) malloc(sizeof (Symbol));
     if (symbol == NULL) {
         DBG("NewSymbol: malloc failed for %s\\n", name ? name : "<null>");
@@ -4121,17 +2719,20 @@ Symbol *NewSymbol(char* name){
     return symbol;
 }
 
-void SetInputSection(Symbol *s,InputSection* isec){
+void SetInputSection(Symbol *s,InputSection* isec)
+{
     s->inputSection = isec;
     s->sectionFragment = NULL;
 }
 
-void SetSectionFragment(Symbol* s,SectionFragment* frag){
+void SetSectionFragment(Symbol* s,SectionFragment* frag)
+{
     s->sectionFragment = frag;
     s->inputSection = NULL;
 }
 
-Symbol *GetSymbolByName(Context* ctx,char* name){
+Symbol *GetSymbolByName(Context* ctx,char* name)
+{
     //如果symbolMap中已存，直接拿
     if(HashMapContain(ctx->SymbolMap,name)){
         DBG("GetSymbolByName: hit %s\\n", name ? name : "<null>");
@@ -4151,19 +2752,22 @@ Symbol *GetSymbolByName(Context* ctx,char* name){
 }
 
 //返回这个symbol对应的一个Elf32_Sym条目
-Sym *ElfSym_(Symbol* s){
+Sym *ElfSym_(Symbol* s)
+{
     assert(s->symIdx < s->file->inputFile->symNum);
     return &s->file->inputFile->ElfSyms[s->symIdx];
 }
 
-void clear(Symbol* s){
+void clear(Symbol* s)
+{
     s->file = NULL;
     s->symIdx = -1;
     s->inputSection = NULL;
     s->sectionFragment = NULL;
 }
 
-uint64_t Symbol_GetAddr(Symbol* s){
+uint64_t Symbol_GetAddr(Symbol* s)
+{
     if(s->sectionFragment != NULL)
         return SectionFragment_GetAddr(s->sectionFragment) + s->value;
 
@@ -4173,13 +2777,15 @@ uint64_t Symbol_GetAddr(Symbol* s){
     return s->value;
 }
 
-uint64_t GetGotTpAddr(Context* ctx,Symbol* s){
+uint64_t GetGotTpAddr(Context* ctx,Symbol* s)
+{
     return ctx->got->chunk->shdr.Addr + s->gotTpIdx * 8;
 }
 
 //thread local storage TLS段也会把数据存到.got , libC中很多
 
-GotSection *NewGotSection(){
+GotSection *NewGotSection()
+{
     GotSection *gotSection = (GotSection*) malloc(sizeof (GotSection));
     gotSection->chunk = NewChunk();
     gotSection->chunk->name = malloc(sizeof (".got") + 1);
@@ -4192,7 +2798,8 @@ GotSection *NewGotSection(){
 }
 
 //向GotTpSyms中增加一个元素
-void AddGotTpSymbol(Chunk* chunk, Symbol* sym){
+void AddGotTpSymbol(Chunk* chunk, Symbol* sym)
+{
     sym->gotTpIdx = chunk->shdr.Size / 8;
     chunk->shdr.Size += 8;
    // printf("%lu\n",chunk->shdr.Size);
@@ -4201,7 +2808,8 @@ void AddGotTpSymbol(Chunk* chunk, Symbol* sym){
     chunk->gotSec.TpSymNum++;
 }
 
-GotEntry *GetEntries(Chunk *chunk,Context* ctx,int* num){
+GotEntry *GetEntries(Chunk *chunk,Context* ctx,int* num)
+{
     GotEntry *entries = NULL;
     for(int i =0; i< chunk->gotSec.TpSymNum;i++){
         Symbol *sym = chunk->gotSec.GotTpSyms[i];
@@ -4216,7 +2824,8 @@ GotEntry *GetEntries(Chunk *chunk,Context* ctx,int* num){
     return entries;
 }
 
-void GotSec_CopyBuf(Chunk* c,Context* ctx){
+void GotSec_CopyBuf(Chunk* c,Context* ctx)
+{
   //  printf("in !!\n");
     int num =0 ;
     GotEntry *entries = GetEntries(c,ctx,&num);
@@ -4226,7 +2835,8 @@ void GotSec_CopyBuf(Chunk* c,Context* ctx){
     }
 }
 
-static uint64_t findWritableAllocBase(Context* ctx) {
+static uint64_t findWritableAllocBase(Context* ctx) 
+{
     uint64_t base = UINT64_MAX;
     for (int i = 0; i < ctx->chunkNum; i++) {
         Chunk *chunk = ctx->chunk[i];
@@ -4245,7 +2855,8 @@ static uint64_t findWritableAllocBase(Context* ctx) {
     return base;
 }
 
-void FinalizeGlobalPointer(Context* ctx){
+void FinalizeGlobalPointer(Context* ctx)
+{
     uint64_t base = findWritableAllocBase(ctx);
     if (base == 0 && ctx->got && (ctx->got->chunk->shdr.Flags & SHF_ALLOC))
         base = ctx->got->chunk->shdr.Addr;
@@ -4265,7 +2876,8 @@ void FinalizeGlobalPointer(Context* ctx){
     gp->sectionFragment = NULL;
 }
 
-Context* NewContext(){
+Context* NewContext()
+{
     DBG("NewContext: start\\n");
     Context* ctx = (Context*)malloc(sizeof(Context));
     if (ctx == NULL) {
@@ -4308,7 +2920,8 @@ Context* NewContext(){
 }
 
 // 实现追加字符串的函数
-void appendLibraryPath(Context* ctx, char* arg) {
+void appendLibraryPath(Context* ctx, char* arg) 
+{
 
     ctx->Args.LibraryPaths = (char**)realloc(ctx->Args.LibraryPaths, (ctx->Args.LibraryPathsCount + 1) * sizeof(char*));
 
@@ -4319,7 +2932,8 @@ void appendLibraryPath(Context* ctx, char* arg) {
     ++ctx->Args.LibraryPathsCount;
 }
 
-File* NewFile(const char* filename) {
+File* NewFile(const char* filename) 
+{
     File* file = (File*)malloc(sizeof(File));
     char* contents = ReadFile(filename,&file->contents_len);
     if (contents == NULL) {
@@ -4332,8 +2946,8 @@ File* NewFile(const char* filename) {
     return file;
 }
 
-File* OpenLibrary(const char* filepath) {
-
+File* OpenLibrary(const char* filepath) 
+{
     File* library = (File*)malloc(sizeof(File));
     char* contents = ReadFile(filepath, &library->contents_len);
     if (contents == NULL) {
@@ -4351,7 +2965,8 @@ File* OpenLibrary(const char* filepath) {
 }
 
 // FindLibrary 返回一个.a文件的file
-File* FindLibrary(Context* ctx, const char* name) {
+File* FindLibrary(Context* ctx, const char* name) 
+{
     for (size_t i = 0; i < ctx->Args.LibraryPathsCount; i++) {
         const char* dir = ctx->Args.LibraryPaths[i];
         size_t stemSize = strlen(dir) + strlen("/lib") + strlen(name) + strlen(".a") + 1;
@@ -4377,7 +2992,8 @@ File* FindLibrary(Context* ctx, const char* name) {
     return NULL;
 }
 
-MergedSection *NewMergedSection(char* name , uint64_t flags , uint32_t typ){
+MergedSection *NewMergedSection(char* name , uint64_t flags , uint32_t typ)
+{
     MergedSection *mergedSection = (MergedSection*) malloc(sizeof (MergedSection));
     //mergedSection->map = HashMapInit();
     mergedSection->chunk = NewChunk();
@@ -4391,7 +3007,8 @@ MergedSection *NewMergedSection(char* name , uint64_t flags , uint32_t typ){
 }
 
 //单例
-MergedSection* find(Context* ctx,char* name,uint32_t typ,uint64_t flags) {
+MergedSection* find(Context* ctx,char* name,uint32_t typ,uint64_t flags) 
+{
     for (size_t i = 0; i < ctx->mergedSectionNum; i++) {
         MergedSection* osec = ctx->mergedSections[i];
         if (strcmp(name, osec->chunk->name) == 0 && flags == osec->chunk->shdr.Flags &&
@@ -4403,7 +3020,8 @@ MergedSection* find(Context* ctx,char* name,uint32_t typ,uint64_t flags) {
 }
 
 //单例模式找到一个name section对应的merged section
-MergedSection *GetMergedSectionInstance(Context* ctx, char* name,uint32_t typ,uint64_t flags){
+MergedSection *GetMergedSectionInstance(Context* ctx, char* name,uint32_t typ,uint64_t flags)
+{
     name = GetOutputName(name,flags);
 
     flags = flags & ~(SHF_GROUP) & ~(SHF_MERGE) &
@@ -4423,7 +3041,8 @@ MergedSection *GetMergedSectionInstance(Context* ctx, char* name,uint32_t typ,ui
     return osec;
 }
 
-void printBytes(const char* str, size_t length) {
+void printBytes(const char* str, size_t length) 
+{
     printf("%s\t",str);
     printf("Bytes__: ");
     for (size_t i = 0; i < length; i++) {
@@ -4432,7 +3051,8 @@ void printBytes(const char* str, size_t length) {
     printf("finish\n");
 }
 
-char* checke(HashMap* map,char* key,int len){
+char* checke(HashMap* map,char* key,int len)
+{
     HashMapFirst(map);
     for(Pair *p = HashMapNext(map); p!=NULL; p= HashMapNext(map)){
         SectionFragment *frag = p->value;
@@ -4444,7 +3064,8 @@ char* checke(HashMap* map,char* key,int len){
 
 // Insert 向merged section插一个section fragment
 // key是split section中的原数据
-SectionFragment *Insert(MergedSection* m,char* key,uint32_t p2align,int strslen){
+SectionFragment *Insert(MergedSection* m,char* key,uint32_t p2align,int strslen)
+{
     SectionFragment *frag = NULL;
 
     char* kk = checke(m->chunk->mergedSec.map,key,strslen);
@@ -4466,7 +3087,8 @@ SectionFragment *Insert(MergedSection* m,char* key,uint32_t p2align,int strslen)
 }
 
 // AssignOffsets 计算各个section fragment的offset
-void AssignOffsets(MergedSection* m){
+void AssignOffsets(MergedSection* m)
+{
     Fragment **fragments;
     fragments = (Fragment**) malloc(sizeof (Fragment*) * HashMapSize(m->chunk->mergedSec.map));
     HashMapFirst(m->chunk->mergedSec.map);
@@ -4549,7 +3171,8 @@ void AssignOffsets(MergedSection* m){
     m->chunk->shdr.AddrAlign = 1<<p2align;
 }
 
-void MergedSec_CopyBuf(Chunk* c,Context* ctx){
+void MergedSec_CopyBuf(Chunk* c,Context* ctx)
+{
     char* buf = ctx->buf + c->shdr.Offset;
 
     HashMapFirst(c->mergedSec.map);
@@ -4560,7 +3183,8 @@ void MergedSec_CopyBuf(Chunk* c,Context* ctx){
     }
 }
 
-char* GetOutputName(char* name, uint64_t flags) {
+char* GetOutputName(char* name, uint64_t flags) 
+{
     const char* prefixes_[] = {
             ".text.", ".data.rel.ro.", ".data.", ".rodata.", ".bss.rel.ro.", ".bss.",
             ".init_array.", ".fini_array.", ".tbss.", ".tdata.", ".gcc_except_table.",
@@ -4607,7 +3231,8 @@ char* GetOutputName(char* name, uint64_t flags) {
     return name;
 }
 
-const char* MachineType_String(MachineType m) {
+const char* MachineType_String(MachineType m) 
+{
     switch (m) {
         case MachineTypeRISCV64:
             return "riscv64";
@@ -4616,7 +3241,8 @@ const char* MachineType_String(MachineType m) {
     return "none";
 }
 
-MachineType GetMachineTypeFromContents(const char* contents){
+MachineType GetMachineTypeFromContents(const char* contents)
+{
     FileType ft = GetFileType(contents);
 
     switch (ft) {
@@ -4638,7 +3264,8 @@ MachineType GetMachineTypeFromContents(const char* contents){
     return MachineTypeNone;
 }
 
-void fatal(const char* format, ...) {
+void fatal(const char* format, ...) 
+{
     va_list args;
     va_start(args, format);
 
@@ -4652,7 +3279,8 @@ void fatal(const char* format, ...) {
 }
 
 // Function to read the entire content of a file into a dynamically allocated buffer
-char* ReadFile(const char* filename,uint64_t *len) {
+char* ReadFile(const char* filename,uint64_t *len) 
+{
     FILE* file;
     char* buffer;
     size_t file_size;
@@ -4694,12 +3322,14 @@ char* ReadFile(const char* filename,uint64_t *len) {
     return buffer;
 }
 
-void Read(void* out, const void* data, size_t size) {
+void Read(void* out, const void* data, size_t size) 
+{
     // Assuming little-endian format
     memcpy(out, data, size);
 }
 
-char** appendToRemaining(char** remaining, const char* arg,bool l) {
+char** appendToRemaining(char** remaining, const char* arg,bool l) 
+{
     size_t length = 0;
 
     // 计算 remaining 的长度
@@ -4727,7 +3357,8 @@ char** appendToRemaining(char** remaining, const char* arg,bool l) {
 }
 
 // 移除字符串前缀
-char* removePrefix(const char* s, const char* prefix) {
+char* removePrefix(const char* s, const char* prefix) 
+{
     size_t prefixLen = strlen(prefix);
     size_t sLen = strlen(s);
 
@@ -4746,7 +3377,8 @@ char* removePrefix(const char* s, const char* prefix) {
 }
 
 // 检查字符串是否以指定前缀开头
-bool hasPrefix(const char* s, const char* prefix) {
+bool hasPrefix(const char* s, const char* prefix) 
+{
     size_t prefixLen = strlen(prefix);
 
     // 检查 s 是否以 prefix 开头
@@ -4757,7 +3389,8 @@ bool hasPrefix(const char* s, const char* prefix) {
     return false;
 }
 
-int endsWith(const char *str, const char *suffix) {
+int endsWith(const char *str, const char *suffix) 
+{
     int str_len = strlen(str);
     int suffix_len = strlen(suffix);
 
@@ -4768,7 +3401,8 @@ int endsWith(const char *str, const char *suffix) {
     }
 }
 
-static unsigned hash_string_key(void* key) {
+static unsigned hash_string_key(void* key) 
+{
     if (key == NULL) {
         return 0;
     }
@@ -4782,7 +3416,8 @@ static unsigned hash_string_key(void* key) {
     return hashValue;
 }
 
-static int compare_string_key(void* lhs, void* rhs) {
+static int compare_string_key(void* lhs, void* rhs) 
+{
     if (lhs == rhs) {
         return 0;
     }
@@ -4795,7 +3430,8 @@ static int compare_string_key(void* lhs, void* rhs) {
     return strcmp((const char*)lhs, (const char*)rhs);
 }
 
-uint64_t AlignTo(uint64_t val, uint64_t align) {
+uint64_t AlignTo(uint64_t val, uint64_t align) 
+{
     if (align == 0) {
         return val;
     }
@@ -4803,23 +3439,28 @@ uint64_t AlignTo(uint64_t val, uint64_t align) {
     return (val + align - 1) & /*clear bit*/(~(align - 1));
 }
 
-void Write(void* data, size_t dataSize, void* element) {
+void Write(void* data, size_t dataSize, void* element) 
+{
     memcpy(data, element, dataSize);
 }
 
-uint32_t Bit_32(uint32_t val, int pos) {
+uint32_t Bit_32(uint32_t val, int pos) 
+{
     return (val >> pos) & 1;
 }
 
-uint32_t Bits_32(uint32_t val, uint32_t hi, uint32_t lo) {
+uint32_t Bits_32(uint32_t val, uint32_t hi, uint32_t lo) 
+{
     return (val >> lo) & ((1 << (hi - lo + 1)) - 1);
 }
 
-uint64_t SignExtend(uint64_t val,int size){
+uint64_t SignExtend(uint64_t val,int size)
+{
     return (uint64_t)((int64_t)(val << (63 - size)) >> (63-size));
 }
 
-char** dashes(const char* name) {
+char** dashes(const char* name) 
+{
     // 分配足够的内存来存储带有单破折号和双破折号的参数
     char** result = (char**)malloc(3 * sizeof(char*));
     result[0] = (char*)malloc((strlen(name) + 2) * sizeof(char));
@@ -4832,7 +3473,8 @@ char** dashes(const char* name) {
 
     return result;
 }
-int readFlag(const char* name, char*** args) {
+int readFlag(const char* name, char*** args) 
+{
     char** opts = dashes(name);
 
     for (int i = 0; opts[i]; i++) {
@@ -4848,7 +3490,8 @@ int readFlag(const char* name, char*** args) {
 }
 
 // 实现 readArg 函数
-int readArg(const char* name, char*** args, char** arg) {
+int readArg(const char* name, char*** args, char** arg) 
+{
     char** opts = dashes(name);
 
 
@@ -4888,7 +3531,8 @@ int readArg(const char* name, char*** args, char** arg) {
     return 0; // 未找到选项
 }
 
-char** parseArgs(int argc, char* argv[],Context* ctx){
+char** parseArgs(int argc, char* argv[],Context* ctx)
+{
     char** remaining = NULL;
     //忽略第一个
     argv += 1;
@@ -4949,13 +3593,10 @@ char** parseArgs(int argc, char* argv[],Context* ctx){
     return remaining;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) 
+{
     DBG("main: argc=%d\n", argc);
-    if(argc < 2)
-        fatal("less args\n");
-//    for(int i = 0;i<argc;i++){
-//        printf("%s\n",argv[i]);
-//    }
+    if(argc < 2) fatal("less args\n");
 
     Context *ctx = NewContext();
     DBG("main: context initialized\n");
@@ -5062,7 +3703,6 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-
 unsigned HashMurMur32(void* key, size_t size)
 {
     if (!key || size == 0)
@@ -5126,40 +3766,16 @@ unsigned HashDjb2(char* key)
         hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
 
     return hash;
-}/**
- *   The MIT License (MIT)
- *   Copyright (C) 2016 ZongXian Shen <andy.zsshen@gmail.com>
- *
- *   Permission is hereby granted, free of charge, to any person obtaining a
- *   copy of this software and associated documentation files (the "Software"),
- *   to deal in the Software without restriction, including without limitation
- *   the rights to use, copy, modify, merge, publish, distribute, sublicense,
- *   and/or sell copies of the Software, and to permit persons to whom the
- *   Software is furnished to do so, subject to the following conditions:
- *
- *   The above copyright notice and this permission notice shall be included in
- *   all copies or substantial portions of the Software.
- *
- *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- *   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- *   IN THE SOFTWARE.
- */
+}
 
-
-
-/*===========================================================================*
- *                        The container private data                         *
- *===========================================================================*/
 static const unsigned magic_primes[] = {
     769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241, 786433,
     1572869, 3145739, 6291469, 12582917, 25165843, 50331653, 100663319,
     201326611, 402653189, 805306457, 1610612741,
 };
+
 static const int num_prime = sizeof(magic_primes) / sizeof(unsigned);
+
 #define HASH_LOAD_FACTOR_NUM 3
 #define HASH_LOAD_FACTOR_DEN 4
 
@@ -5176,58 +3792,11 @@ static unsigned compute_limit_from_slots(unsigned slots) {
     return (unsigned)(num / HASH_LOAD_FACTOR_DEN);
 }
 
-
-
-
-
-/*===========================================================================*
- *                  Definition for internal operations                       *
- *===========================================================================*/
+///////////////////////////////////////////////////////////////////////////
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
-/**
- * @brief Initialize the set with the specified slot size.
- *
- * @param idx_prime     The index to the array of magic primes
- *
- * @retval obj          The successfully constructed set
- * @retval NULL         Insufficient memory for set construction
- */
-HashSet* _HashSetInit(int idx_prime);
 
-/**
- * @brief The default hash function.
- *
- * @param key           The specified key
- *
- * @retval hash         The corresponding hash value
- */
-unsigned _HashSetHash(void* key);
-
-/**
- * @brief The default hash key comparison function.
- *
- * @param lhs           The source key
- * @param rhs           The target key
- *
- * @retval  1           The source key should go after the target one.
- * @retval  0           The source key is equal to the target one.
- * @retval -1           The source key should go before the target one.
- */
-int _HashSetCompare(void* lhs, void* rhs);
-
-/**
- * @brief Extend the slot array and re-distribute the stored keys.
- *
- * @param data          The pointer to the map private data
- */
-void _HashSetReHash(HashSetData* data);
-
-
-/*===========================================================================*
- *               Implementation for the exported operations                  *
- *===========================================================================*/
 HashSet* HashSetInit()
 {
     return _HashSetInit(0);
@@ -5583,10 +4152,6 @@ HashSet* HashSetDifference(HashSet* lhs, HashSet* rhs)
     return result;
 }
 
-
-/*===========================================================================*
- *               Implementation for internal operations                      *
- *===========================================================================*/
 HashSet* _HashSetInit(int idx_prime)
 {
     HashSet* obj = (HashSet*)malloc(sizeof(HashSet));
@@ -5702,75 +4267,10 @@ void _HashSetReHash(HashSetData* data)
     data->curr_limit_ = compute_limit_from_slots(num_slot_new);
     return;
 }
-/**
- *   The MIT License (MIT)
- *   Copyright (C) 2016 ZongXian Shen <andy.zsshen@gmail.com>
- *
- *   Permission is hereby granted, free of charge, to any person obtaining a
- *   copy of this software and associated documentation files (the "Software"),
- *   to deal in the Software without restriction, including without limitation
- *   the rights to use, copy, modify, merge, publish, distribute, sublicense,
- *   and/or sell copies of the Software, and to permit persons to whom the
- *   Software is furnished to do so, subject to the following conditions:
- *
- *   The above copyright notice and this permission notice shall be included in
- *   all copies or substantial portions of the Software.
- *
- *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- *   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- *   IN THE SOFTWARE.
- */
 
-/*===========================================================================*
- *                        The container private data                         *
- *===========================================================================*/
-
-
-
-
-/*===========================================================================*
- *                  Definition for internal operations                       *
- *===========================================================================*/
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
-/**
- * @brief The default hash function.
- *
- * @param key           The designated key
- *
- * @retval Hash         The corresponding hash value
- */
-unsigned _HashMapHash(void* key);
-
-/**
- * @brief The default hash key comparison function.
- *
- * @param lhs           The source key
- * @param rhs           The target key
- *
- * @retval  1           The source key should go after the target one.
- * @retval  0           The source key is equal to the target one.
- * @retval -1           The source key should go before the target one.
- */
-int _HashMapCompare(void* lhs, void* rhs);
-
-/**
- * @brief Extend the slot array and re-distribute the stored pairs.
- *
- * @param data         The pointer to the map private data
- */
-void _HashMapReHash(HashMapData* data);
-
-
-
-/*===========================================================================*
- *               Implementation for the exported operations                  *
- *===========================================================================*/
 HashMap* HashMapInit()
 {
     DBG("HashMapInit: start\\n");
@@ -6046,7 +4546,8 @@ void HashMapSetCleanValue(HashMap* self, HashMapCleanValue func)
     self->data->func_clean_val_ = func;
 }
 
-void HashMapClean(HashMap *self){
+void HashMapClean(HashMap *self)
+{
     if(self == NULL){
         return;
     }
@@ -6057,10 +4558,6 @@ void HashMapClean(HashMap *self){
     }
 }
 
-
-/*===========================================================================*
- *               Implementation for internal operations                      *
- *===========================================================================*/
 unsigned _HashMapHash(void* key)
 {
     return (unsigned)(intptr_t)key;
@@ -6134,14 +4631,16 @@ void _HashMapReHash(HashMapData* data)
 
 extern HashMap *name_map;
 
-bool CheckMagic(const char* contents) {
+bool CheckMagic(const char* contents) 
+{
     const unsigned char magic[] = {0x7F, 'E', 'L', 'F'};
     size_t magicSize = sizeof(magic) / sizeof(magic[0]);
 
     return memcmp(contents, magic, magicSize) == 0;
 }
 
-void WriteMagic(uint8_t * contents) {
+void WriteMagic(uint8_t * contents) 
+{
     const char magic[] = {0x7F, 'E', 'L', 'F'};
     size_t magicSize = sizeof(magic) / sizeof(magic[0]);
 
@@ -6149,7 +4648,8 @@ void WriteMagic(uint8_t * contents) {
 }
 
 //获取一个section对应的名字 , 延展在section strtab和symbol strtab中根据name偏移拿到对应名字
-char* ElfGetName(char* strTab, uint32_t offset) {
+char* ElfGetName(char* strTab, uint32_t offset) 
+{
     uint32_t length = 0;
     while (strTab[offset + length] != '\0') {
         length++;
@@ -6170,7 +4670,8 @@ char* ElfGetName(char* strTab, uint32_t offset) {
     return name;
 }
 
-int GetSize(const ArHdr* a) {
+int GetSize(const ArHdr* a) 
+{
     char sizeStr[11];
     strncpy(sizeStr, a->Size, sizeof(sizeStr) - 1);
     sizeStr[sizeof(sizeStr) - 1] = '\0';
@@ -6179,36 +4680,43 @@ int GetSize(const ArHdr* a) {
 }
 
 //返回判断这一个符号是不是绝对符号,即值确定，不需要重定向, 不指向任何section
-bool IsAbs(const Sym* s) {
+bool IsAbs(const Sym* s) 
+{
     return s->Shndx == 65521; // Assuming elf.SHN_ABS is defined as 0
 }
 
 //未定义符号，需要链接器来找
-bool IsUndef(const Sym* s) {
+bool IsUndef(const Sym* s) 
+{
     return s->Shndx == 0; // Assuming elf.SHN_UNDEF is defined as 65521
 }
 
 //比如a.o和b.o中都声明或定义了一个全局变量，在a.o中进行定义，在b.o中进行声明，那么这个符号在b.o中就是common symbol
 // 链接器最终处理时，只会加入a.o中的common symbol
-bool IsCommon(const Sym* s) {
+bool IsCommon(const Sym* s) 
+{
     return s->Shndx == 65522; // Assuming elf.SHN_COMMON is defined as 65522
 }
 
-bool HasPrefix(const ArHdr* a, const char* s) {
+bool HasPrefix(const ArHdr* a, const char* s) 
+{
     return strncmp(a->Name, s, strlen(s)) == 0;
 }
 
 //一个archive通常只有一个strtab , strtab归档文件里面obj的名字
-bool IsStrtab(const ArHdr* a) {
+bool IsStrtab(const ArHdr* a) 
+{
     return HasPrefix(a, "// ");
 }
 
-bool IsSymtab(const ArHdr* a) {
+bool IsSymtab(const ArHdr* a) 
+{
     return HasPrefix(a, "/ ") || HasPrefix(a, "/SYM64/ ");
 }
 
 //得到obj的文件名，如果名字不长，直接放在arhdr的name里，如果文件名字长，name放不下，才去strtab里找
-char* ReadName(const ArHdr* a, char* strTab) {
+char* ReadName(const ArHdr* a, char* strTab) 
+{
     // Long filename
     if (a->Name[0] == '/') {
         int start = atoi(a->Name + 1);
