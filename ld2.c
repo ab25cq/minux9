@@ -1526,12 +1526,13 @@ DBG("XXXX symbols :%d\n", HashMapSize(ctx->SymbolMap));
     const char* entry_candidates[] = {"_start", "__start", "start", "main", NULL};
     for (const char** cand = entry_candidates; *cand != NULL; ++cand) {
         Symbol* sym = GetSymbolByName(ctx, *cand);
-        DBG("sym %s is %x\n", *cand, sym->value);
+        DBG("sym %s is %p %x\n", *cand, sym, sym->value);
         if (sym == NULL) {
             DBG("getEntryAddr: candidate %s not found or unsuitable\n", *cand);
             continue;
         }
         uint64_t addr = adjustForLiteralPrefix(sym, Symbol_GetAddr(sym));
+printf("SYMBOL GET ADDR %x\n", Symbol_GetAddr(sym));
         DBG("getEntryAddr: candidate %s addr=0x%lx\n", *cand, (unsigned long)addr);
         if (addr != 0) {
             return addr;
@@ -1585,6 +1586,8 @@ void Ehdr_CopyBuf(Chunk *c,Context* ctx)
     ehdr->Type = ET_EXEC;
     ehdr->Machine = 243;      //EM_RISCV
     ehdr->Version = EV_CURRENT;
+Sym* sym = GetSymbolByName(ctx, "main");
+printf("BIBI sym %p\n", sym);
     ehdr->Entry = getEntryAddr(ctx);
     ehdr->ShOff = ctx->shdr->chunk->shdr.Offset;
     ehdr->PhOff = ctx->phdr->chunk->shdr.Offset;
@@ -1843,10 +1846,15 @@ void Parse(Context *ctx,ObjectFile* o)
     DBG("Parse: sections initialized (%ld)\n", o->isecNum);
     InitializeSymbols(ctx,o);
     DBG("Parse: symbols initialized (symNum=%ld firstGlobal=%ld)\n", o->inputFile->symNum, o->inputFile->FirstLocal);
+puts("1\n");
     InitializeMergeableSections(o,ctx);
+puts("2\n");
     DBG("Parse: mergeable sections initialized\n");
     SkipEhframeSections(o);
+puts("3\n");
     DBG("Parse: completed %s\n", o->inputFile->file->Name);
+Symbol* sym = GetSymbolByName(ctx, "main");
+printf("XXX sym %p value %d\n", sym, sym->value);
 }
 
 // 添加 ObjectFile 到 Objs 数组
@@ -1977,46 +1985,53 @@ void InitializeSymbols(Context *ctx,ObjectFile* o)
         sym->name  = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
         DBG("name %s index %d value %x\n", sym->name, i, esym->Val);
         sym->file = o;
+printf("%s value %d\n", sym->name, esym->Val);
         sym->value = esym->Val;
         sym->symIdx = i;
         if ((i & 0x3ff) == 0) {
             DBG("InitializeSymbols: local sym i=%d name=%s\n", i, sym->name ? sym->name : "<null>");
+        }
+        
+        if (!HashMapPut(ctx->SymbolMap,sym->name, sym)) {
+            fatal("XXX: HashMapPut failed for %s", sym->name ? sym->name : "<null>");
         }
 
         //绝对符号没有对应的inputSection
         if(!IsAbs(esym))
             SetInputSection(sym,o->Sections[GetShndx(o,esym,i)]);
     }
-    DBG("InitializeSymbols: sym done\n");
 
     o->inputFile->LocalSymbols = (Symbol **)calloc(o->inputFile->symNum, sizeof(Symbol *));
     if (o->inputFile->LocalSymbols == NULL) {
         fatal("InitializeSymbols: calloc LocalSymbols failed");
     }
     //填充其他非local的symbols , 在初始化阶段填入的值还是默认初值
-    for(int i=1; i<o->inputFile->FirstLocal; i++) {
+    for(int i=0; i<o->inputFile->FirstLocal; i++) {
+printf("i %d\n", i);
         Sym* esym = &o->inputFile->ElfSyms[i];
+printf("esym %p\n", esym);
         char* name = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
-        o->inputFile->LocalSymbols[i-o->inputFile->FirstLocal] = GetSymbolByName(ctx,name);
-        
-        if (!HashMapPut(ctx->SymbolMap,name, esym)) {
-            fatal("XXX: HashMapPut failed for %s", name ? name : "<null>");
-        }
+printf("name %p %s\n", name, name);
+        o->inputFile->LocalSymbols[i] = &o->inputFile->Symbols[i];
     }
     for(int i=o->inputFile->FirstLocal; i<o->inputFile->symNum; i++) {
+printf("i2 %d\n", i);
         Sym* esym = &o->inputFile->ElfSyms[i];
         char* name = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
         o->inputFile->LocalSymbols[i-o->inputFile->FirstLocal] = GetSymbolByName(ctx,name);
         if (o->inputFile->LocalSymbols[i-o->inputFile->FirstLocal] == NULL) {
             fatal("InitializeLocalSymbols: GetSymbolByName returned NULL for %s", name ? name : "<null>");
         }
-        if (!HashMapPut(ctx->SymbolMap,name, esym)) {
+        if (!HashMapPut(ctx->SymbolMap,name, GetSymbolByName(ctx,name))) {
             fatal("XXX: HashMapPut failed for %s", name ? name : "<null>");
         }
     }
     o->inputFile->numSymbols = o->inputFile->symNum;
+    DBG("InitializeSymbols: sym done\n");
     
 DBG("XXXX symbols :%d\n", HashMapSize(ctx->SymbolMap));
+Symbol* sym = GetSymbolByName(ctx, "main");
+printf("ZZZ sym %p value %d\n", sym, sym->value);
     DBG("InitializeSymbols: done\n");
 }
 
@@ -2204,6 +2219,8 @@ void ResolveSymbols(ObjectFile* o)
     for(int i=0; i<o->inputFile->FirstLocal; i++) {
         Sym* esym = &o->inputFile->ElfSyms[i];
         Symbol *sym = &o->inputFile->Symbols[i];
+        
+printf("RESOLVE %s\n", sym->name);
 
         //printf那些不也是undef吗，是不是也还是得处理 ; 不是，这些会在别的objFile处理到
         if(IsUndef(esym)){
@@ -2213,11 +2230,13 @@ void ResolveSymbols(ObjectFile* o)
         InputSection *isec = NULL;
         if(!IsAbs(esym)){
             isec = GetSection(o,esym,i);
+printf("isec %p\n", isec);
             if(isec == NULL)
                 continue;
         }
         //读到不同文件时，会将每一个global符号应该在的文件赋到对应的file
         if(sym->file == NULL){
+puts("INSERT");
             sym->file = o;
             SetInputSection(sym,isec);
             sym->value = esym->Val;
@@ -2417,6 +2436,7 @@ File** ReadArchiveMembers(File* file,int * fileCount)
 
 void ReadInputFiles(Context* ctx,char** remaining)
 {
+puts("ReadInputFiles");
     name_map = HashMapInit();
     if (name_map == NULL) {
         fatal("failed to initialize name map");
@@ -2452,6 +2472,7 @@ void ReadInputFiles(Context* ctx,char** remaining)
 
 void readFile(Context *ctx,File* file)
 {
+puts("readFile");
     if (file == NULL) {
         fatal("readFile: null file pointer");
     }
@@ -2466,7 +2487,7 @@ void readFile(Context *ctx,File* file)
             DBG("readFile: added object %s (total=%d)\n", file->Name, ctx->ObjsCount);
             break;
         case FileTypeArchive:
-           // printf("file name a :%s\n",file->Name);
+            printf("file name a :%s\n",file->Name);
             aFiles = ReadArchiveMembers(file,&fileCount);
             DBG("readFile: archive %s yielded %d members\n", file->Name, fileCount);
             for(int i = 0;i<fileCount;i++){
@@ -2483,6 +2504,7 @@ void readFile(Context *ctx,File* file)
 
 ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib)
 {
+puts("CreateObjectFile");
     //TODO CheckFileCompatibility
     ObjectFile * objectFile = NewObjectFile(file,!inLib);
     DBG("CreateObjectFile: %s inLib=%d alive=%d\n", file->Name, inLib, objectFile->inputFile->isAlive);
@@ -2755,6 +2777,8 @@ Shdr *GetShdr(Chunk* c)
 
 void CopyBuf(Chunk* c,Context* ctx)
 {
+Symbol* sym = GetSymbolByName(ctx, "main");
+printf("GUHI sym %p value %d\n", sym, sym->value);
     if(c->chunkType == ChunkTypeEhdr)
         Ehdr_CopyBuf(c,ctx);
     else if(c->chunkType == ChunkTypeShdr)
@@ -4072,10 +4096,10 @@ int main(int argc, char* argv[])
     DBG("%d\n",ctx->ObjsCount);
     DBG("symbols :%d\n", HashMapSize(ctx->SymbolMap));
     HashMapFirst(ctx->SymbolMap);
+/*
     for(Pair* p = HashMapNext(ctx->SymbolMap); p!=NULL; p = HashMapNext(ctx->SymbolMap)){
         DBG("%s\n",p->key);
     }
-/*
     for(int i=0;i<ctx->ObjsCount;i++){
         printf("%d : %s\n",i,ctx->Objs[i]->inputFile->file->Name);
     }
@@ -4105,14 +4129,6 @@ int main(int argc, char* argv[])
 //        Chunk *c = ctx->chunk[i];
 //        printf("i %d name %s , type %d\n",i,c->name,c->chunkType);
 //    }
-/*
-DBG("UHO");
-Symbol* sym = findDefinedSymbolByName(ctx, "main");
-*/
-
-char* m = "main";
-Symbol *sym = HashMapGet(ctx->SymbolMap, m);
-DBG("sym X %x\n", sym);
 
     DBG("main: SortOutputSections start\n");
     SortOutputSections(ctx);
@@ -4123,6 +4139,8 @@ DBG("sym X %x\n", sym);
         DBG("main: Update chunk %d (%s type=%d)\n", i, c->name ? c->name : "<anon>", c->chunkType);
         Update(c,ctx);
     }
+Symbol* sym = GetSymbolByName(ctx, "main");
+printf("sym %p %d\n", sym, sym->value);
 
     DBG("main: SetOutputSectionOffsets start\n");
     uint64_t fileoff = SetOutputSectionOffsets(ctx);
@@ -4130,12 +4148,16 @@ DBG("sym X %x\n", sym);
     printf("fileoff %lu\n",fileoff);
 
     FinalizeGlobalPointer(ctx);
+sym = GetSymbolByName(ctx, "main");
+printf("sym %p %d\n", sym, sym->value);
 
     ctx->buf = malloc(fileoff);
     //printf("%s\n",ctx->Args.Output);
     DBG("main: opening output '%s'\n", ctx->Args.Output);
     int file = open(ctx->Args.Output, O_RDWR | O_CREAT, 0777);
     assert(file != -1);
+sym = GetSymbolByName(ctx, "main");
+printf("sym %p\n", sym);
 
     for(int i=0; i< ctx->chunkNum;i++){
         Chunk *c = ctx->chunk[i];
