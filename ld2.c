@@ -2904,7 +2904,7 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
         uint64_t S = Symbol_GetAddr(sym);
         uint64_t A = rel.Addend;
         uint64_t P = InputSec_GetAddr(i) + rel.Offset;
-        DBG("name %s S %lu A %lu P %lu\n", sym->name, S, A, P);
+        DBG("SUCK name %s S %x A %x P %x rel.Type %d\n", sym->name, S, A, P, rel.Type);
 
         uint32_t tmp = 0;
         uint64_t tmp_64 =0;
@@ -2912,41 +2912,50 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
         uint64_t value1;
         switch (rel.Type) {
             case 1/*R_RISCV_32*/:
+DBG("1");
                 tmp = S+A;
                 Write(loc,sizeof (uint32_t),&tmp);
                 break;
             case 2/*R_RISCV_64*/:
+DBG("2");
                 tmp_64 = S+A;
                 Write(loc,sizeof (uint64_t),&tmp_64);
                 break;
             case 16/*R_RISCV_BRANCH*/:
+DBG("16");
                 tmp = S+A-P;
                 writeBtype(loc,tmp);
                 break;
             case 17/*R_RISCV_JAL*/:
+DBG("17");
                 tmp = S+A-P;
                 writeJtype(loc,tmp);
                 break;
             case 18/*R_RISCV_CALL*/:
             case 19/*R_RISCV_CALL_PLT*/:
+DBG("18 19");
                 tmp = S+A-P;
                 writeUtype(loc,tmp);
                 writeItype((loc + 4),tmp);
                 break;
             case 21/*R_RISCV_TLS_GOT_HI20*/:
+DBG("21");
                 tmp = GetGotTpAddr(ctx,sym) + A -P;
                 Write(loc,sizeof (uint32_t),&tmp);
                 break;
             case 23/*R_RISCV_PCREL_HI20*/:
+DBG("23");
                 tmp = S+A-P;
                 Write(loc,sizeof (uint32_t),&tmp);
                 break;
             case 26/*R_RISCV_HI20*/:
+DBG("26");
                 tmp = S+A;
                 writeUtype(loc,tmp);
                 break;
             case 27/*R_RISCV_LO12_I*/:
             case 28/*R_RISCV_LO12_S*/:
+DBG("27 28");
                 val = S+A;
                 if(rel.Type == 27)
                     writeItype(loc,(uint64_t)val);
@@ -2958,6 +2967,7 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
                 break;
             case 37/*R_RISCV_GPREL_I*/:
             case 38/*R_RISCV_GPREL_S*/:
+DBG("37 38");
                 if (ctx->GpAddr == 0)
                     fatal("GP-relative relocation but gp is unset");
                 val = S + A - ctx->GpAddr;
@@ -2968,6 +2978,7 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
                 break;
             case 30/*R_RISCV_TPREL_LO12_I*/:
             case 31/*R_RISCV_TPREL_LO12_S*/:
+DBG("30 31");
                 val = S+A-ctx->TpAddr;
                 if(rel.Type == 30)
                     writeItype(loc,(uint32_t)val);
