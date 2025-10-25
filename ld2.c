@@ -558,7 +558,7 @@ struct InputFile_
     int64_t sectionNum;
 
     char* ShStrtab;
-    int64_t FirstGlobal;
+    int64_t FirstLocal;
 
     Sym *ElfSyms;
     int64_t symNum;
@@ -1218,7 +1218,7 @@ InputFile* NewInputFile(File* file)
     memcpy(inputFile->ShStrtab,c, len);
 
     //其他的初始化
-    inputFile->FirstGlobal = 0;
+    inputFile->FirstLocal = 0;
     inputFile->numLocalSymbols = 0;
     inputFile->LocalSymbols = NULL;
     inputFile->numSymbols = 0;
@@ -1522,6 +1522,7 @@ static Symbol* findFirstExecutableSymbol(Context* ctx)
 // 找到第一条执行代码地址
 uint64_t getEntryAddr(Context* ctx)
 {
+DBG("XXXX symbols :%d\n", HashMapSize(ctx->SymbolMap));
     const char* entry_candidates[] = {"_start", "__start", "start", "main", NULL};
     for (const char** cand = entry_candidates; *cand != NULL; ++cand) {
         Symbol* sym = GetSymbolByName(ctx, *cand);
@@ -1834,14 +1835,14 @@ void Parse(Context *ctx,ObjectFile* o)
     DBG("Parse: start %s\n", o->inputFile->file->Name);
     o->SymtabSec = FindSection(o->inputFile,2);  //SHT_SYMTAB
     if(o->SymtabSec != NULL){
-        o->inputFile->FirstGlobal = o->SymtabSec->Info;
+        o->inputFile->FirstLocal = o->SymtabSec->Info;
         FillUpElfSyms(o->inputFile,o->SymtabSec);
         o->inputFile->SymbolStrtab = GetBytesFromIdx(o->inputFile,o->SymtabSec->Link);
     }
     InitializeSections(o,ctx);
     DBG("Parse: sections initialized (%ld)\n", o->isecNum);
     InitializeSymbols(ctx,o);
-    DBG("Parse: symbols initialized (symNum=%ld firstGlobal=%ld)\n", o->inputFile->symNum, o->inputFile->FirstGlobal);
+    DBG("Parse: symbols initialized (symNum=%ld firstGlobal=%ld)\n", o->inputFile->symNum, o->inputFile->FirstLocal);
     InitializeMergeableSections(o,ctx);
     DBG("Parse: mergeable sections initialized\n");
     SkipEhframeSections(o);
@@ -1942,11 +1943,13 @@ int64_t GetShndx(ObjectFile* o, Sym* esym, int idx)
     return esym->Shndx;
 }
 
+HashMap *name_map;
+
 void InitializeSymbols(Context *ctx,ObjectFile* o)
 {
-    DBG("InitializeSymbols: start file=%s FirstGlobal=%ld symNum=%ld\n",
+    DBG("InitializeSymbols: start file=%s FirstLocal=%ld symNum=%ld\n",
         o->inputFile->file->Name,
-        o->inputFile->FirstGlobal,
+        o->inputFile->FirstLocal,
         o->inputFile->symNum);
     if(o->SymtabSec == NULL)
         return;
@@ -1954,7 +1957,7 @@ void InitializeSymbols(Context *ctx,ObjectFile* o)
     o->inputFile->Symbols = (Symbol*) malloc(sizeof (Symbol)*o->inputFile->symNum);
     DBG("InitializeSymbols: allocated Symbols=%p\n", (void*)o->inputFile->Symbols);
     o->inputFile->Symbols[0].file = o;
-    for(int i=1; i< o->inputFile->FirstGlobal;i++){
+    for(int i=1; i< o->inputFile->FirstLocal;i++){
         Symbol *tmp = NewSymbol("");
         if (tmp == NULL) {
             fatal("InitializeSymbols: NewSymbol failed at %d", i);
@@ -1962,13 +1965,13 @@ void InitializeSymbols(Context *ctx,ObjectFile* o)
         o->inputFile->Symbols[i]= *tmp;
         free(tmp);
         if ((i & 0x3ff) == 0) {
-            DBG("InitializeSymbols: local init i=%d\n", i);
+            DBG("InitializeSymbols: global init i=%d\n", i);
         }
         if ((i & 0x3f) == 0) {
-            DBG("InitializeSymbols: local init progress i=%d\n", i);
+            DBG("InitializeSymbols: global init progress i=%d\n", i);
         }
     }
-    for(int i=1; i< o->inputFile->FirstGlobal;i++){
+    for(int i=1; i< o->inputFile->FirstLocal;i++){
         Sym* esym = &o->inputFile->ElfSyms[i];
         Symbol *sym = &o->inputFile->Symbols[i];
         sym->name  = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
@@ -1991,15 +1994,29 @@ void InitializeSymbols(Context *ctx,ObjectFile* o)
         fatal("InitializeSymbols: calloc LocalSymbols failed");
     }
     //填充其他非local的symbols , 在初始化阶段填入的值还是默认初值
-    for(int i=o->inputFile->FirstGlobal; i<o->inputFile->symNum; i++) {
+    for(int i=1; i<o->inputFile->FirstLocal; i++) {
         Sym* esym = &o->inputFile->ElfSyms[i];
         char* name = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
-        o->inputFile->LocalSymbols[i-o->inputFile->FirstGlobal] = GetSymbolByName(ctx,name);
-        if (o->inputFile->LocalSymbols[i-o->inputFile->FirstGlobal] == NULL) {
+        o->inputFile->LocalSymbols[i-o->inputFile->FirstLocal] = GetSymbolByName(ctx,name);
+        
+        if (!HashMapPut(ctx->SymbolMap,name, esym)) {
+            fatal("XXX: HashMapPut failed for %s", name ? name : "<null>");
+        }
+    }
+    for(int i=o->inputFile->FirstLocal; i<o->inputFile->symNum; i++) {
+        Sym* esym = &o->inputFile->ElfSyms[i];
+        char* name = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
+        o->inputFile->LocalSymbols[i-o->inputFile->FirstLocal] = GetSymbolByName(ctx,name);
+        if (o->inputFile->LocalSymbols[i-o->inputFile->FirstLocal] == NULL) {
             fatal("InitializeLocalSymbols: GetSymbolByName returned NULL for %s", name ? name : "<null>");
+        }
+        if (!HashMapPut(ctx->SymbolMap,name, esym)) {
+            fatal("XXX: HashMapPut failed for %s", name ? name : "<null>");
         }
     }
     o->inputFile->numSymbols = o->inputFile->symNum;
+    
+DBG("XXXX symbols :%d\n", HashMapSize(ctx->SymbolMap));
     DBG("InitializeSymbols: done\n");
 }
 
@@ -2184,7 +2201,7 @@ void ResolveSymbols(ObjectFile* o)
 {
     DBG("ResolveSymbols: %s start\n", o->inputFile->file->Name);
     //localSymbol是不需要resolve的,从第一个全局符号开始解析就行
-    for(int i=0; i<o->inputFile->FirstGlobal; i++) {
+    for(int i=0; i<o->inputFile->FirstLocal; i++) {
         Sym* esym = &o->inputFile->ElfSyms[i];
         Symbol *sym = &o->inputFile->Symbols[i];
 
@@ -2214,7 +2231,7 @@ void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize)
 {
     assert(o->inputFile->isAlive);
     DBG("markLiveObjs: scanning %s\n", o->inputFile->file->Name);
-    for(int i=0; i<o->inputFile->FirstGlobal; i++) {
+    for(int i=0; i<o->inputFile->FirstLocal; i++) {
         Symbol *sym = &o->inputFile->Symbols[i];
         Sym *esym = &o->inputFile->ElfSyms[i];
 
@@ -2237,7 +2254,7 @@ void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize)
 
 void ClearSymbols(ObjectFile* o)
 {
-    for(int i=0; i<o->inputFile->FirstGlobal; i++) {
+    for(int i=0; i<o->inputFile->FirstLocal; i++) {
         Symbol *sym = &o->inputFile->Symbols[i];
         if(sym->file == o)
             clear(sym);
@@ -2397,7 +2414,6 @@ File** ReadArchiveMembers(File* file,int * fileCount)
     return files;
 }
 
-HashMap *name_map;
 
 void ReadInputFiles(Context* ctx,char** remaining)
 {
