@@ -872,6 +872,7 @@ static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* ou
 }
 
 void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index) {
+puts("alloc_prog\n");
     struct proc* result = kalloc();
     
     result->process_pages = kalloc();
@@ -918,6 +919,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         if (ph->type != ELF_PROG_LOAD)
             continue;
     
+printf("ELF_PROG_LOAD i%d\n", i);
         for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
             void *pa = kalloc();
             
@@ -940,6 +942,8 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             max_va_end = va + PGSIZE;
         }
         
+printf("ELF_PROG_LOAD ph->vaddr %x ph->off %d\n", ph->vaddr, ph->off);
+printf("ELF PROG MEPC DATA PA %x exec %d\n", *(char*)(elf_buf + eh->entry), exec_flag);
         if (copyout(result->pagetable, ph->vaddr, elf_buf + ph->off, ph->filesz) < 0) {
             panic("copyout");
         }
@@ -957,6 +961,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             }
         }
     }
+puts("alloc_prog2\n");
 
     struct elfshdr *sh = (struct elfshdr *)(elf_buf + eh->shoff);
     const char *shstrtab = elf_buf + sh[eh->shstrndx].offset;
@@ -992,9 +997,12 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             // printf("start2 %p end2 %p (%s)\n", (void*)sh[i].addr, (void*)(sh[i].addr+sh[i].size), shstrtab+sh[i].name);
         }
     }
+puts("alloc_prog3\n");
     
     result->vaddr = ph->vaddr;
     result->memsz = ph->memsz;
+    
+printf("vaddr %p exec %d\n", ph->vaddr, exec_flag);
 
     // Find global pointer
     uint64_t gp = 0;
@@ -1125,6 +1133,8 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     result->context.mepc = eh->entry;
     
     if(exec_flag) {
+puts("alloc_prog4 exec_flag\n");
+printf("mepc %x\n", result->context.mepc);
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
         free_proc(parent);
         gProc[gActiveProc] = result;

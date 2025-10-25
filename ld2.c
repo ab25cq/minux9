@@ -24,9 +24,35 @@
 #include "minux.h"
 #include <stdarg.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <elf.h>
 
 #define EXIT_FAILURE 1
+
+#ifndef STT_NOTYPE
+#define STT_NOTYPE 0
+#endif
+#ifndef STT_OBJECT
+#define STT_OBJECT 1
+#endif
+#ifndef STT_FUNC
+#define STT_FUNC 2
+#endif
+#ifndef STB_LOCAL
+#define STB_LOCAL 0
+#endif
+#ifndef STB_GLOBAL
+#define STB_GLOBAL 1
+#endif
+#ifndef STB_WEAK
+#define STB_WEAK 2
+#endif
+#ifndef ELF64_ST_TYPE
+#define ELF64_ST_TYPE(i) ((i) & 0xf)
+#endif
+#ifndef ELF64_ST_BIND
+#define ELF64_ST_BIND(i) ((i) >> 4)
+#endif
 
 #define DEBUG_LINKER 1
 
@@ -45,7 +71,8 @@
 #define uint unsigned int
 #define uchar unsigned char
 
-static int DebugCountArgs(char** args) {
+static int DebugCountArgs(char** args) 
+{
     if (args == NULL) {
         return 0;
     }
@@ -62,17 +89,20 @@ typedef int (*HashMapCompare) (void*, void*);
 typedef void (*HashMapCleanKey) (void*);
 typedef void (*HashMapCleanValue) (void*);
 
-typedef struct _Pair {
+typedef struct _Pair 
+{
     void* key;
     void* value;
 } Pair;
 
-typedef struct _SlotNode {
+typedef struct _SlotNode 
+{
     Pair pair_;
     struct _SlotNode* next_;
 } SlotNode;
 
-struct _HashMapData {
+struct _HashMapData 
+{
     int size_;
     int idx_prime_;
     unsigned num_slot_;
@@ -88,7 +118,8 @@ struct _HashMapData {
 
 typedef struct _HashMapData HashMapData;
 
-typedef struct _HashMap {
+typedef struct _HashMap 
+{
     HashMapData *data;
     bool (*put) (struct _HashMap*, void*, void*);
     void* (*get) (struct _HashMap*, void*);
@@ -123,12 +154,14 @@ typedef unsigned (*HashSetHash) (void*);
 typedef int (*HashSetCompare) (void*, void*);
 typedef void (*HashSetCleanKey) (void*);
 
-typedef struct _HashSetSlotNode {
+typedef struct _HashSetSlotNode 
+{
     void* key_;
     struct _HashSetSlotNode* next_;
 } HashSetSlotNode;
 
-struct _HashSetData {
+struct _HashSetData 
+{
     int idx_prime_;
     unsigned size_;
     unsigned num_slot_;
@@ -143,7 +176,8 @@ struct _HashSetData {
 
 typedef struct _HashSetData HashSetData;
 
-typedef struct _HashSet {
+typedef struct _HashSet 
+{
     HashSetData* data;
 
     bool (*add) (struct _HashSet*, void*);
@@ -185,7 +219,8 @@ unsigned _HashMapHash(void* key);
 int _HashMapCompare(void* lhs, void* rhs);
 void _HashMapReHash(HashMapData* data);
 
-typedef struct File {
+typedef struct File 
+{
     char* Name;
     char* Contents;
     uint64_t contents_len;   //由于有'\0'，添加这个
@@ -193,7 +228,8 @@ typedef struct File {
 } File;
 
 // Elf32_Ehdr Executable header type. One per ELF file.
-typedef struct Ehdr_ {
+typedef struct Ehdr_ 
+{
     uint8_t Ident[16];      //表示ELF文件的标识信息
     uint16_t  Type;         //表示 ELF 文件的类型，比如可执行文件、共享库等
     uint16_t  Machine;
@@ -211,7 +247,8 @@ typedef struct Ehdr_ {
 }Ehdr;
 
 // Elf32_Shdr Section header
-typedef struct {
+typedef struct 
+{
     uint32_t Name;          //section名称，是在字符串表节区的索引
     uint32_t Type;
     uint64_t Flags;         //描述杂项属性
@@ -224,7 +261,8 @@ typedef struct {
     uint64_t EntSize;       //某些节区中包含固定大小的项目，如符号表节中每个符号的大小,没有则是0
 } Shdr;
 
-typedef struct {
+typedef struct 
+{
     uint32_t Name;          //存储一个指向字符串表的索引来表示对应符号的名称
     uint8_t Info;
     uint8_t Other;
@@ -233,7 +271,8 @@ typedef struct {
     uint64_t Size;
 } Sym;
 
-typedef struct {
+typedef struct 
+{
     uint64_t Offset;
     uint32_t Type;
     uint32_t Sym;
@@ -241,7 +280,8 @@ typedef struct {
 } Rela;
 
 // [Section ] -> [ArHdr][                ][ArHdr][
-typedef struct {
+typedef struct 
+{
     char Name[16];
     char Date[12];
     char Uid[6];
@@ -251,7 +291,8 @@ typedef struct {
     char Fmag[2];
 } ArHdr;
 
-typedef struct {
+typedef struct 
+{
     uint32_t Type;
     uint32_t Flags;
     uint64_t Offset;
@@ -271,6 +312,7 @@ struct OutputShdr_;
 struct OutputSection_;
 struct OutputPhdr_;
 struct GotSection_;
+struct OutputShStrtab_;
 struct Chunk_;
 
 typedef struct ObjectFile_ ObjectFile;
@@ -279,7 +321,8 @@ typedef struct InputFile_ InputFile;
 
 typedef uint8_t MachineType;
 
-typedef struct {
+typedef struct 
+{
     char* Output;
     MachineType Emulation;
     char** LibraryPaths;
@@ -289,7 +332,8 @@ typedef struct {
 typedef struct SectionFragment_ SectionFragment;
 typedef struct MergedSection_ MergedSection;
 
-typedef struct {
+typedef struct 
+{
     ContextArgs Args;
 
     struct ObjectFile_** Objs;
@@ -309,14 +353,17 @@ typedef struct {
     struct OutputShdr_* shdr;
     struct OutputPhdr_* phdr;
     struct GotSection_* got;
+    struct OutputShStrtab_* shstrtab;
     struct OutputSection_** outputSections;
     int outputSecNum;
 
     uint64_t TpAddr;
     uint64_t GpAddr;
+    uint16_t ShStrtabIndex;
 } Context;
 
-typedef struct Symbol_{
+typedef struct Symbol_
+{
     ObjectFile *file;
     char* name;
     uint64_t value;
@@ -330,7 +377,8 @@ typedef struct Symbol_{
     uint32_t flags;
 }Symbol;
 
-typedef struct Chunk_{
+typedef struct Chunk_
+{
     char* name;
     Shdr shdr;
     ChunkType chunkType;
@@ -355,46 +403,68 @@ typedef struct Chunk_{
         Symbol ** GotTpSyms;
         int TpSymNum;
     }gotSec;
+
+    struct {
+        Shdr *entries;
+        size_t count;
+    }shdrTable;
 }Chunk;
 
-typedef struct OutputEhdr_{
+typedef struct OutputEhdr_
+{
     Chunk *chunk;
 }OutputEhdr;
 
-typedef struct OutputShdr_{
+typedef struct OutputShdr_
+{
     Chunk *chunk;
 }OutputShdr;
 
-typedef struct OutputSection_{
+typedef struct OutputSection_
+{
     Chunk * chunk;
 }OutputSection;
 
-typedef struct OutputPhdr_{
+typedef struct OutputPhdr_
+{
     Chunk *chunk;
 }OutputPhdr;
 
-typedef struct GotSection_{
+typedef struct GotSection_
+{
     Chunk *chunk;
 }GotSection;
 
+typedef struct OutputShStrtab_
+{
+    Chunk *chunk;
+    char* data;
+    size_t size;
+    size_t capacity;
+}OutputShStrtab;
+
 // .got 表中的每个条目对应一个全局变量或函数的地址 , 针对tp_addr的偏移量
-typedef struct GotEntry_{
+typedef struct GotEntry_
+{
     int64_t idx;
     uint64_t val;
 }GotEntry;
 
 //合并后的section
-struct MergedSection_{
+struct MergedSection_
+{
     Chunk *chunk;
 };
 
-typedef struct Fragment_ {
+typedef struct Fragment_ 
+{
     char* key;
     SectionFragment* val;
 }Fragment;
 
 //将merge-able section分成小的数据块
-struct SectionFragment_ {
+struct SectionFragment_ 
+{
     MergedSection* OutputSection;   //进行一个双向关联吧
     uint32_t Offset;      //在section中的offset
     uint32_t P2Align;
@@ -403,7 +473,8 @@ struct SectionFragment_ {
 } ;
 
 //input section拆成一个(? y)包含多个sectionFragment的merge-able section , 再放入merged section
-typedef struct MergeableSection{
+typedef struct MergeableSection
+{
     MergedSection * parent;
     uint8_t p2align;
     char** strs;            //fragments的原始数据, 是数据，不一定是字符串 , 还有const原始数据
@@ -416,7 +487,8 @@ typedef struct MergeableSection{
 }MergeableSection;
 
 // File header
-struct elfhdr {
+struct elfhdr 
+{
   uint magic;  // must equal ELF_MAGIC
   uchar elf[12];
   ushort type;
@@ -435,7 +507,8 @@ struct elfhdr {
 };
 
 // Program section header
-struct proghdr {
+struct proghdr 
+{
   uint32 type;
   uint32 flags;
   uint64 off;
@@ -446,7 +519,8 @@ struct proghdr {
   uint64 align;
 };
 
-struct ObjectFile_{
+struct ObjectFile_
+{
     InputFile *inputFile;    //这样表示继承
     Shdr *SymtabSec;
     InputSection ** Sections;
@@ -456,7 +530,8 @@ struct ObjectFile_{
     size_t mergeableSectionsNum;
 };
 
-struct InputSection_{
+struct InputSection_
+{
     struct ObjectFile_ *objectFile;     //来自于某个文件
     char* contents;
     uint32_t shndx;    //在section header数组中的下标值，为了找到它的section header信息
@@ -475,7 +550,8 @@ struct InputSection_{
 
 // InputFile 包含obj file或so file, 作为一个基类
 // 用于解析elf文件后存储信息用
-struct InputFile_{
+struct InputFile_
+{
     File *file;
     //ElfSyms 是一个 Sym 结构体的数组
     Shdr* ElfSections;
@@ -490,9 +566,9 @@ struct InputFile_{
     char* SymbolStrtab;
     bool isAlive;
 
-    Symbol* LocalSymbols;    //只对内部可见
+    Symbol* Symbols;
 
-    Symbol** Symbols;       //可能und等全部symbol，会指向别处
+    Symbol** LocalSymbols;
     int64_t numSymbols;
 
     int numLocalSymbols;
@@ -505,6 +581,7 @@ struct InputFile_{
 #define ChunkTypeOutputSection ((ChunkType)4)
 #define ChunkTypeMergedSection ((ChunkType)5)
 #define ChunkTypeGotSection ((ChunkType)6)
+#define ChunkTypeShStrtab ((ChunkType)7)
 
 File** ReadArchiveMembers(File* file,int * fileCount);
 ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib);
@@ -530,6 +607,10 @@ void Shdr_CopyBuf(Chunk* c,Context* ctx);
 OutputSection *GetOutputSection(Context* ctx,char* name,uint64_t typ,uint64_t flags);
 OutputSection *NewOutputSection(char* name,uint32_t typ, uint64_t flags, uint32_t idx);
 void OutputSec_CopyBuf(Chunk* c,Context* ctx);
+
+//-------------------shstrtab
+OutputShStrtab *NewOutputShStrtab();
+void ShStrtab_CopyBuf(Chunk* c,Context* ctx);
 
 //-------------------phdr
 OutputPhdr *NewOutputPhdr();
@@ -599,7 +680,6 @@ void SortOutputSections(Context* ctx);
 bool isTbss(Chunk* chunk);
 void ComputeMergedSectionSizes(Context* ctx);
 void ScanRelocations(Context* ctx);
-
 
 ObjectFile *NewObjectFile(File* file,bool isAlive);
 void Parse(Context *ctx,ObjectFile* o);
@@ -691,7 +771,8 @@ bool IsStrtab(const ArHdr* a);
 bool IsSymtab(const ArHdr* a);
 char* ReadName(const ArHdr* a, char* strTab);
 
-static const char* FileTypeToString(FileType type) {
+static const char* FileTypeToString(FileType type) 
+{
     switch (type) {
         case FileTypeEmpty:
             return "empty";
@@ -723,30 +804,30 @@ ObjectFile** RemoveIf(ObjectFile** elems, int* count)
 
 void ResolveSymbols_pass(Context* ctx)
 {
-    DBG("ResolveSymbols_pass: start (objs=%d)\\n", ctx->ObjsCount);
+    DBG("ResolveSymbols_pass: start (objs=%d)\n", ctx->ObjsCount);
     for(int i=0;i<ctx->ObjsCount;i++){
         ObjectFile *objectFile = ctx->Objs[i];
-        DBG("ResolveSymbols_pass: resolving %s (alive=%d)\\n",
+        DBG("ResolveSymbols_pass: resolving %s (alive=%d)\n",
             objectFile->inputFile->file->Name,
             objectFile->inputFile->isAlive);
         ResolveSymbols(objectFile);
     }
 
-    DBG("ResolveSymbols_pass: MarkLiveObjects start\\n");
+    DBG("ResolveSymbols_pass: MarkLiveObjects start\n");
     MarkLiveObjects(ctx);
-    DBG("ResolveSymbols_pass: MarkLiveObjects done\\n");
+    DBG("ResolveSymbols_pass: MarkLiveObjects done\n");
 
     for(int i=0;i<ctx->ObjsCount;i++){
         ObjectFile *objectFile = ctx->Objs[i];
         if(!objectFile->inputFile->isAlive) {
-            DBG("ResolveSymbols_pass: clearing symbols for %s\\n",
+            DBG("ResolveSymbols_pass: clearing symbols for %s\n",
                 objectFile->inputFile->file->Name);
             ClearSymbols(objectFile);
         }
     }
 
     ctx->Objs = RemoveIf(ctx->Objs,&ctx->ObjsCount);
-    DBG("ResolveSymbols_pass: done (objs=%d)\\n", ctx->ObjsCount);
+    DBG("ResolveSymbols_pass: done (objs=%d)\n", ctx->ObjsCount);
 }
 
 void MarkLiveObjects(Context* ctx) 
@@ -764,10 +845,10 @@ void MarkLiveObjects(Context* ctx)
     int num = 0;
     int stuck_num = -1;
     int stuck_count = 0;
-    DBG("MarkLiveObjects: rootSize=%d\\n", rootSize);
+    DBG("MarkLiveObjects: rootSize=%d\n", rootSize);
     while (num < rootSize) {
         ObjectFile *file = roots[num];
-        DBG("MarkLiveObjects: visit root[%d/%d] %s alive=%d\\n",
+        DBG("MarkLiveObjects: visit root[%d/%d] %s alive=%d\n",
             num, rootSize, file->inputFile->file->Name,
             file->inputFile->isAlive);
         if (!file->inputFile->isAlive) {
@@ -778,7 +859,7 @@ void MarkLiveObjects(Context* ctx)
                 stuck_count = 1;
             }
             if (stuck_count == 1 || stuck_count % 1000 == 0) {
-                DBG("MarkLiveObjects: root[%d] %s unexpectedly not alive (count=%d)\\n",
+                DBG("MarkLiveObjects: root[%d] %s unexpectedly not alive (count=%d)\n",
                     num, file->inputFile->file->Name, stuck_count);
             }
             if (stuck_count > 100000) {
@@ -791,20 +872,22 @@ void MarkLiveObjects(Context* ctx)
         stuck_count = 0;
 
         markLiveObjs(file, &roots, &rootSize);
-        DBG("MarkLiveObjects: after mark, rootSize=%d\\n", rootSize);
+        DBG("MarkLiveObjects: after mark, rootSize=%d\n", rootSize);
         num++;
     }
 }
 
-void RegisterSectionPieces(Context* ctx){
+void RegisterSectionPieces(Context* ctx)
+{
     for (int i = 0; i < ctx->ObjsCount; i++) {
         ObjectFile *file = ctx->Objs[i];
         registerSectionPieces(file);
     }
 }
 
-uint64_t SetOutputSectionOffsets(Context* ctx){
-    uint64_t addr = 0x200000;
+uint64_t SetOutputSectionOffsets(Context* ctx)
+{
+    uint64_t addr = 0x1000;
     for(int i=0; i< ctx->chunkNum;i++){
         Chunk *chunk = ctx->chunk[i];
         if((GetShdr(chunk)->Flags & SHF_ALLOC) == 0)
@@ -844,6 +927,7 @@ uint64_t SetOutputSectionOffsets(Context* ctx){
 
     //算完值后重新更新phdr
     Phdr_UpdateShdr(ctx->phdr->chunk,ctx);
+    Shdr_UpdateShdr(ctx->shdr->chunk,ctx);
     return fileoff;
 }
 
@@ -866,6 +950,12 @@ void CreateSyntheticSections(Context* ctx)
     ctx->shdr = outputShdr;
     ctx->chunk = realloc(ctx->chunk,sizeof (Chunk*) * (ctx->chunkNum+1));
     ctx->chunk[ctx->chunkNum] = outputShdr->chunk;
+    ctx->chunkNum++;
+
+    struct OutputShStrtab_* shstrtab = NewOutputShStrtab();
+    ctx->shstrtab = shstrtab;
+    ctx->chunk = realloc(ctx->chunk,sizeof (Chunk*) * (ctx->chunkNum+1));
+    ctx->chunk[ctx->chunkNum] = shstrtab->chunk;
     ctx->chunkNum++;
 
     struct GotSection_ *gotSec = NewGotSection();
@@ -1067,7 +1157,7 @@ void ScanRelocations(Context* ctx)
         ObjectFile *file = ctx->Objs[i];
        // printf("numSymbols %ld\n",file->inputFile->numSymbols);
         for(int j=0;j<file->inputFile->numSymbols;j++){
-            Symbol *sym = file->inputFile->Symbols[j];
+            Symbol *sym = &file->inputFile->Symbols[j];
 //            if(sym->flags != 0)
 //                count++;
             if(sym->file == file && sym->flags!=0){
@@ -1160,6 +1250,7 @@ char* GetBytesFromIdx(InputFile* inputFile, int64_t idx)
 Shdr* FindSection(InputFile* f, uint32_t ty) 
 {
     for (int i = 0; i < f->sectionNum; i++) {
+DBG("FindSection %d\n", i);
         Shdr* shdr = &(f->ElfSections[i]);
         if (shdr->Type == ty) {
             return shdr;
@@ -1309,9 +1400,154 @@ OutputEhdr *NewOutputEhdr()
     return outputEhdr;
 }
 
+static bool symbolHasExecutableAddr(Symbol* sym, Sym* esym, bool allowLocal)
+{
+    if (sym == NULL || esym == NULL) {
+        return false;
+    }
+    if (!allowLocal) {
+        uint8_t bind = ELF64_ST_BIND(esym->Info);
+        if (bind == STB_LOCAL) {
+            return false;
+        }
+    }
+    if (sym->inputSection == NULL) {
+        return false;
+    }
+
+    Shdr *shdr = shdr_(sym->inputSection);
+    if ((shdr->Flags & SHF_EXECINSTR) == 0) {
+        return false;
+    }
+
+    uint8_t type = ELF64_ST_TYPE(esym->Info);
+    if (!(type == STT_FUNC || type == STT_NOTYPE)) {
+        return false;
+    }
+
+    return true;
+}
+
+static uint64_t adjustForLiteralPrefix(Symbol* sym, uint64_t baseAddr)
+{
+    if (sym == NULL || sym->inputSection == NULL) {
+        return baseAddr;
+    }
+
+    InputSection *isec = sym->inputSection;
+    if (sym->value >= isec->shsize) {
+        return baseAddr;
+    }
+
+    const char *bytes = isec->contents;
+    uint32_t size = isec->shsize;
+    uint32_t cursor = sym->value;
+    uint64_t sectionBase = InputSec_GetAddr(isec);
+
+    for (; cursor + 4 <= size; cursor += 2) {
+        uint32_t word;
+        memcpy(&word, bytes + cursor, sizeof(uint32_t));
+        if (word != 0 && (word & 0x3u) == 0x3u) {
+            return sectionBase + cursor;
+        }
+    }
+
+    return baseAddr;
+}
+
+static Symbol* findDefinedSymbolByName(Context* ctx, const char* name)
+{
+    if (name == NULL) {
+        return NULL;
+    }
+    if (!HashMapContain(ctx->SymbolMap, (void*)name)) {
+        return NULL;
+    }
+
+    Symbol *sym = HashMapGet(ctx->SymbolMap, (void*)name);
+    if (sym == NULL || sym->file == NULL || sym->inputSection == NULL) {
+        return NULL;
+    }
+
+    Sym *esym = &sym->file->inputFile->ElfSyms[sym->symIdx];
+    if (IsUndef(esym) || IsCommon(esym)) {
+        return NULL;
+    }
+    if (!symbolHasExecutableAddr(sym, esym, true)) {
+        return NULL;
+    }
+    return sym;
+}
+
+static Symbol* findFirstExecutableSymbol(Context* ctx)
+{
+    Symbol* best = NULL;
+    uint64_t bestAddr = UINT64_MAX;
+
+    for (int i = 0; i < ctx->ObjsCount; i++) {
+        ObjectFile *obj = ctx->Objs[i];
+        InputFile *in = obj->inputFile;
+        if (in == NULL || in->ElfSyms == NULL) {
+            continue;
+        }
+
+        for (int j = 0; j < in->symNum; j++) {
+            Sym *esym = &in->ElfSyms[j];
+            if (IsUndef(esym) || IsCommon(esym)) {
+                continue;
+            }
+
+            Symbol *sym = &in->Symbols[j];
+            if (sym == NULL) {
+                continue;
+            }
+            if (!symbolHasExecutableAddr(sym, esym, false)) {
+                continue;
+            }
+
+            uint64_t addr = adjustForLiteralPrefix(sym, Symbol_GetAddr(sym));
+            if (addr == 0) {
+                continue;
+            }
+            if (addr < bestAddr) {
+                bestAddr = addr;
+                best = sym;
+            }
+        }
+    }
+
+    return best;
+}
+
 // 找到第一条执行代码地址
 uint64_t getEntryAddr(Context* ctx)
 {
+    const char* entry_candidates[] = {"_start", "__start", "start", "main", NULL};
+    for (const char** cand = entry_candidates; *cand != NULL; ++cand) {
+        Symbol* sym = GetSymbolByName(ctx, *cand);
+        DBG("sym %s is %x\n", *cand, sym->value);
+        if (sym == NULL) {
+            DBG("getEntryAddr: candidate %s not found or unsuitable\n", *cand);
+            continue;
+        }
+        uint64_t addr = adjustForLiteralPrefix(sym, Symbol_GetAddr(sym));
+        DBG("getEntryAddr: candidate %s addr=0x%lx\n", *cand, (unsigned long)addr);
+        if (addr != 0) {
+            return addr;
+        }
+    }
+
+    Symbol* fallbackSym = findFirstExecutableSymbol(ctx);
+    if (fallbackSym != NULL) {
+        uint64_t addr = adjustForLiteralPrefix(fallbackSym, Symbol_GetAddr(fallbackSym));
+        DBG("getEntryAddr: fallback symbol %s addr=0x%lx\n",
+            fallbackSym->name ? fallbackSym->name : "<noname>",
+            (unsigned long)addr);
+        if (addr != 0) {
+            return addr;
+        }
+    }
+
     for(int i=0; i<ctx->outputSecNum;i++){
         OutputSection *osec = ctx->outputSections[i];
         if(strcmp(osec->chunk->name,".text")==0){
@@ -1356,8 +1592,14 @@ void Ehdr_CopyBuf(Chunk *c,Context* ctx)
     ehdr->PhEntSize = sizeof (Phdr);
     ehdr->PhNum = ctx->phdr->chunk->shdr.Size / sizeof (Phdr);
     ehdr->ShEntSize = sizeof(Shdr);
-    ehdr->ShNum = ctx->shdr->chunk->shdr.Size / sizeof (Shdr);
-    ehdr->ShStrndx = 0;
+    if (ctx->shdr->chunk->shdrTable.count >= SHN_LORESERVE) {
+        fatal("too many sections");
+    }
+    if (ctx->ShStrtabIndex >= SHN_LORESERVE) {
+        fatal("shstrtab index overflow");
+    }
+    ehdr->ShNum = (uint16_t)ctx->shdr->chunk->shdrTable.count;
+    ehdr->ShStrndx = ctx->ShStrtabIndex;
 
     char* buf = malloc(sizeof (Ehdr));
     memcpy(buf,ehdr,sizeof (Ehdr));
@@ -1407,12 +1649,6 @@ bool isTls(Chunk* c)
 bool isBss(Chunk* c)
 {
     return GetShdr(c)->Type == SHT_NOBITS && !isTls(c);
-}
-
-bool isNote(Chunk* c)
-{
-    Shdr *shdr = GetShdr(c);
-    return (shdr->Type == SHT_NOTE) && ((shdr->Flags & SHF_ALLOC) != 0);
 }
 
 bool isTbss_(Chunk* chunk)
@@ -1480,82 +1716,85 @@ Phdr *createPhdr(Context* ctx, int *num)
 {
     Phdr *vec = NULL;
 
-    Phdr *phdr = define(PT_PHDR,PF_R,8,ctx->phdr->chunk);
-    vec = realloc(vec,sizeof (Phdr) * (*num + 1));
-    vec[*num] = *phdr;
-    *num += 1;
-
-    for(int i=0; i<ctx->chunkNum;){
-        Chunk *first = ctx->chunk[i];
-        i++;
-        if(!isNote(first))
-            continue;
-
-        uint32_t flags = toPhdrFlags(first);
-        uint64_t alignment = first->shdr.AddrAlign;
-        Phdr *p1 = define(PT_NOTE,flags,(int64_t )alignment,first);
-        vec = realloc(vec,sizeof (Phdr) * (*num + 1));
-        vec[*num] = *p1;
-        *num += 1;
-        while (i < ctx->chunkNum && isNote(ctx->chunk[i]) && toPhdrFlags(ctx->chunk[i]) == flags){
-            push(ctx->chunk[i],vec,*num);
-            i++;
-        }
+    Chunk **chunks = (Chunk**) malloc(sizeof (Chunk*) * ctx->chunkNum);
+    if (chunks == NULL) {
+        fatal("failed to allocate chunk buffer for program headers");
+    }
+    for (int idx = 0; idx < ctx->chunkNum; idx++) {
+        chunks[idx] = ctx->chunk[idx];
     }
 
-    {
-        Chunk **chunks = (Chunk**) malloc(sizeof (Chunk*) * ctx->chunkNum);
-        for(int i=0; i<ctx->chunkNum;i++){
-            chunks[i] = ctx->chunk[i];
+    int count = ctx->chunkNum;
+    chunks = Chunk_RemoveIf(chunks,&count);
+
+    int i = 0;
+    while (i < count) {
+        Chunk *first = chunks[i];
+        if ((GetShdr(first)->Flags & SHF_ALLOC) == 0) {
+            i++;
+            continue;
         }
 
-        int count = ctx->chunkNum;
-        chunks = Chunk_RemoveIf(chunks,&count);
-        for(int i=0; i<count;){
-            Chunk *first = chunks[i];
-            i++;
+        uint32_t segFlags = toPhdrFlags(first);
+        Phdr *seg = define(PT_LOAD, segFlags, 4096, first);
+        vec = realloc(vec, sizeof(Phdr) * (*num + 1));
+        if (vec == NULL) {
+            free(seg);
+            free(chunks);
+            fatal("failed to grow program header table");
+        }
+        vec[*num] = *seg;
+        free(seg);
+        Phdr *active = &vec[*num];
+        *num += 1;
 
-            if((GetShdr(first)->Flags & SHF_ALLOC) == 0)
+        i++;
+
+        while (i < count) {
+            Chunk *sec = chunks[i];
+            if ((GetShdr(sec)->Flags & SHF_ALLOC) == 0) {
                 break;
-
-            uint32_t flags = toPhdrFlags(first);
-            Phdr *p2 = define(PT_LOAD,flags,4096,first);
-            vec = realloc(vec,sizeof (Phdr) * (*num + 1));
-            vec[*num] = *p2;
-            *num += 1;
-
-            if(!isBss(first)){
-                while (i < count && !isBss(chunks[i]) && toPhdrFlags(chunks[i]) == flags){
-                    push(chunks[i],vec,*num);
-                    i++;
-                }
             }
 
-            while (i <count && isBss(chunks[i]) && toPhdrFlags(chunks[i]) == flags){
-                push(chunks[i],vec,*num);
-                i++;
+            uint32_t secFlags = toPhdrFlags(sec);
+            if ((segFlags & PF_W) != (secFlags & PF_W)) {
+                break;
+            }
+
+            segFlags |= secFlags;
+            active->Flags = segFlags;
+
+            push(sec, vec, *num);
+            i++;
+
+            if (isBss(sec)) {
+                continue;
             }
         }
-    }
 
-    for(int i=0; i<ctx->chunkNum;i++){
-        if(!isTls(ctx->chunk[i]))
-            continue;
-
-        Phdr *p3 = define(PT_TLS, toPhdrFlags(ctx->chunk[i]),1,ctx->chunk[i]);
-        vec = realloc(vec,sizeof (Phdr) * (*num + 1));
-        vec[*num] = *p3;
-        *num += 1;
-        i++;
-
-        while (i < ctx->chunkNum && isTls(ctx->chunk[i])){
-            push(ctx->chunk[i],vec,*num);
+        while (i < count) {
+            Chunk *sec = chunks[i];
+            if (!isBss(sec)) {
+                break;
+            }
+            uint32_t secFlags = toPhdrFlags(sec);
+            if ((segFlags & PF_W) != (secFlags & PF_W)) {
+                break;
+            }
+            push(sec, vec, *num);
             i++;
         }
 
-        Phdr *ph = &vec[*num-1];
-        ctx->TpAddr = ph->VAddr;
+        if (*num > 0) {
+            Phdr *load = &vec[*num - 1];
+            if (load->MemSize == 0 && load->FileSize == 0) {
+                (*num)--;
+            }
+        }
     }
+
+    free(chunks);
+    ctx->TpAddr = 0;
     return vec;
 }
 
@@ -1592,7 +1831,7 @@ ObjectFile *NewObjectFile(File* file,bool isAlive)
 //解析目标文件
 void Parse(Context *ctx,ObjectFile* o)
 {
-    DBG("Parse: start %s\\n", o->inputFile->file->Name);
+    DBG("Parse: start %s\n", o->inputFile->file->Name);
     o->SymtabSec = FindSection(o->inputFile,2);  //SHT_SYMTAB
     if(o->SymtabSec != NULL){
         o->inputFile->FirstGlobal = o->SymtabSec->Info;
@@ -1600,13 +1839,13 @@ void Parse(Context *ctx,ObjectFile* o)
         o->inputFile->SymbolStrtab = GetBytesFromIdx(o->inputFile,o->SymtabSec->Link);
     }
     InitializeSections(o,ctx);
-    DBG("Parse: sections initialized (%ld)\\n", o->isecNum);
+    DBG("Parse: sections initialized (%ld)\n", o->isecNum);
     InitializeSymbols(ctx,o);
-    DBG("Parse: symbols initialized (symNum=%ld firstGlobal=%ld)\\n", o->inputFile->symNum, o->inputFile->FirstGlobal);
+    DBG("Parse: symbols initialized (symNum=%ld firstGlobal=%ld)\n", o->inputFile->symNum, o->inputFile->FirstGlobal);
     InitializeMergeableSections(o,ctx);
     DBG("Parse: mergeable sections initialized\n");
     SkipEhframeSections(o);
-    DBG("Parse: completed %s\\n", o->inputFile->file->Name);
+    DBG("Parse: completed %s\n", o->inputFile->file->Name);
 }
 
 // 添加 ObjectFile 到 Objs 数组
@@ -1705,77 +1944,63 @@ int64_t GetShndx(ObjectFile* o, Sym* esym, int idx)
 
 void InitializeSymbols(Context *ctx,ObjectFile* o)
 {
-    DBG("InitializeSymbols: start file=%s FirstGlobal=%ld symNum=%ld\\n",
+    DBG("InitializeSymbols: start file=%s FirstGlobal=%ld symNum=%ld\n",
         o->inputFile->file->Name,
         o->inputFile->FirstGlobal,
         o->inputFile->symNum);
     if(o->SymtabSec == NULL)
         return;
 
-    o->inputFile->LocalSymbols = (Symbol*) malloc(sizeof (Symbol)*o->inputFile->FirstGlobal);
-    DBG("InitializeSymbols: allocated LocalSymbols=%p\\n", (void*)o->inputFile->LocalSymbols);
-    for(int i=0; i< o->inputFile->FirstGlobal;i++){
+    o->inputFile->Symbols = (Symbol*) malloc(sizeof (Symbol)*o->inputFile->symNum);
+    DBG("InitializeSymbols: allocated Symbols=%p\n", (void*)o->inputFile->Symbols);
+    o->inputFile->Symbols[0].file = o;
+    for(int i=1; i< o->inputFile->FirstGlobal;i++){
         Symbol *tmp = NewSymbol("");
         if (tmp == NULL) {
             fatal("InitializeSymbols: NewSymbol failed at %d", i);
         }
-        o->inputFile->LocalSymbols[i]= *tmp;
+        o->inputFile->Symbols[i]= *tmp;
         free(tmp);
         if ((i & 0x3ff) == 0) {
-            DBG("InitializeSymbols: local init i=%d\\n", i);
+            DBG("InitializeSymbols: local init i=%d\n", i);
         }
         if ((i & 0x3f) == 0) {
-            DBG("InitializeSymbols: local init progress i=%d\\n", i);
+            DBG("InitializeSymbols: local init progress i=%d\n", i);
         }
     }
-    DBG("InitializeSymbols: local init done\\n");
-    o->inputFile->LocalSymbols[0].file = o;
     for(int i=1; i< o->inputFile->FirstGlobal;i++){
         Sym* esym = &o->inputFile->ElfSyms[i];
-        Symbol *sym = &o->inputFile->LocalSymbols[i];
+        Symbol *sym = &o->inputFile->Symbols[i];
         sym->name  = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
+        DBG("name %s index %d value %x\n", sym->name, i, esym->Val);
         sym->file = o;
         sym->value = esym->Val;
         sym->symIdx = i;
         if ((i & 0x3ff) == 0) {
-            DBG("InitializeSymbols: local sym i=%d name=%s\\n", i, sym->name ? sym->name : "<null>");
+            DBG("InitializeSymbols: local sym i=%d name=%s\n", i, sym->name ? sym->name : "<null>");
         }
 
         //绝对符号没有对应的inputSection
         if(!IsAbs(esym))
             SetInputSection(sym,o->Sections[GetShndx(o,esym,i)]);
     }
-    DBG("InitializeSymbols: local sym done\\n");
+    DBG("InitializeSymbols: sym done\n");
 
-    o->inputFile->Symbols = (Symbol **)calloc(o->inputFile->symNum, sizeof(Symbol *));
-    if (o->inputFile->Symbols == NULL) {
-        fatal("InitializeSymbols: calloc Symbols failed");
+    o->inputFile->LocalSymbols = (Symbol **)calloc(o->inputFile->symNum, sizeof(Symbol *));
+    if (o->inputFile->LocalSymbols == NULL) {
+        fatal("InitializeSymbols: calloc LocalSymbols failed");
     }
-    DBG("InitializeSymbols: allocated Symbols=%p\\n", (void*)o->inputFile->Symbols);
-    o->inputFile->numSymbols = 0;
-    ////填充上所有localSym
-    for(int i=0;i<o->inputFile->FirstGlobal;i++){
-        o->inputFile->Symbols[i] = &o->inputFile->LocalSymbols[i];
-        o->inputFile->numSymbols++;
-        if ((i & 0x3ff) == 0) {
-            DBG("InitializeSymbols: hook local symbol i=%d ptr=%p\\n", i, (void*)o->inputFile->Symbols[i]);
-        }
-    }
-    DBG("InitializeSymbols: copy local symbols done\\n");
     //填充其他非local的symbols , 在初始化阶段填入的值还是默认初值
-    for(int i=o->inputFile->FirstGlobal;i<o->inputFile->symNum;i++){
+    for(int i=o->inputFile->FirstGlobal; i<o->inputFile->symNum; i++) {
         Sym* esym = &o->inputFile->ElfSyms[i];
         char* name = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
-        o->inputFile->Symbols[i] = GetSymbolByName(ctx,name);
-        if (o->inputFile->Symbols[i] == NULL) {
-            fatal("InitializeSymbols: GetSymbolByName returned NULL for %s", name ? name : "<null>");
-        }
-        o->inputFile->numSymbols++;
-        if (((i - o->inputFile->FirstGlobal) & 0x3ff) == 0) {
-            DBG("InitializeSymbols: global sym i=%d name=%s\\n", i, name ? name : "<null>");
+        o->inputFile->LocalSymbols[i-o->inputFile->FirstGlobal] = GetSymbolByName(ctx,name);
+        if (o->inputFile->LocalSymbols[i-o->inputFile->FirstGlobal] == NULL) {
+            fatal("InitializeLocalSymbols: GetSymbolByName returned NULL for %s", name ? name : "<null>");
         }
     }
-    DBG("InitializeSymbols: done\\n");
+    o->inputFile->numSymbols = o->inputFile->symNum;
+    DBG("InitializeSymbols: done\n");
 }
 
 void InitializeMergeableSections(ObjectFile * o,Context* ctx)
@@ -1957,11 +2182,11 @@ InputSection *GetSection(ObjectFile* o,Sym* esym,int idx)
 
 void ResolveSymbols(ObjectFile* o)
 {
-    DBG("ResolveSymbols: %s start\\n", o->inputFile->file->Name);
+    DBG("ResolveSymbols: %s start\n", o->inputFile->file->Name);
     //localSymbol是不需要resolve的,从第一个全局符号开始解析就行
-    for(int i=o->inputFile->FirstGlobal;i<o->inputFile->symNum;i++){
+    for(int i=0; i<o->inputFile->FirstGlobal; i++) {
         Sym* esym = &o->inputFile->ElfSyms[i];
-        Symbol *sym = o->inputFile->Symbols[i];
+        Symbol *sym = &o->inputFile->Symbols[i];
 
         //printf那些不也是undef吗，是不是也还是得处理 ; 不是，这些会在别的objFile处理到
         if(IsUndef(esym)){
@@ -1982,15 +2207,15 @@ void ResolveSymbols(ObjectFile* o)
             sym->symIdx = i;
         }
     }
-    DBG("ResolveSymbols: %s done\\n", o->inputFile->file->Name);
+    DBG("ResolveSymbols: %s done\n", o->inputFile->file->Name);
 }
 
 void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize)
 {
     assert(o->inputFile->isAlive);
-    DBG("markLiveObjs: scanning %s\\n", o->inputFile->file->Name);
-    for(int i=o->inputFile->FirstGlobal;i<o->inputFile->symNum;i++){
-        Symbol *sym = o->inputFile->Symbols[i];
+    DBG("markLiveObjs: scanning %s\n", o->inputFile->file->Name);
+    for(int i=0; i<o->inputFile->FirstGlobal; i++) {
+        Symbol *sym = &o->inputFile->Symbols[i];
         Sym *esym = &o->inputFile->ElfSyms[i];
 
         if(sym->file == NULL){
@@ -2001,7 +2226,7 @@ void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize)
             sym->file->inputFile->isAlive = true;
             *roots = realloc(*roots, (*rootSize + 1) * sizeof(ObjectFile*));
             (*roots)[*rootSize] = sym->file;
-            DBG("markLiveObjs: %s needs %s via symbol %s\\n",
+            DBG("markLiveObjs: %s needs %s via symbol %s\n",
                 o->inputFile->file->Name,
                 sym->file->inputFile->file->Name,
                 sym->name ? sym->name : "<noname>");
@@ -2012,8 +2237,8 @@ void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize)
 
 void ClearSymbols(ObjectFile* o)
 {
-    for(int i=o->inputFile->FirstGlobal;i < o->inputFile->symNum;i++){
-        Symbol *sym = o->inputFile->Symbols[i];
+    for(int i=0; i<o->inputFile->FirstGlobal; i++) {
+        Symbol *sym = &o->inputFile->Symbols[i];
         if(sym->file == o)
             clear(sym);
     }
@@ -2040,7 +2265,7 @@ void registerSectionPieces(ObjectFile* o)
 
     //因为symbol可能要改成属于一个fragment , 进行处理
     for(int i = 1;i<o->inputFile->symNum;i++){
-        Symbol *sym = o->inputFile->Symbols[i];
+        Symbol *sym = &o->inputFile->Symbols[i];
         Sym *esym = &o->inputFile->ElfSyms[i];
 
         if(IsAbs(esym) || IsUndef(esym) || IsCommon(esym))
@@ -2120,7 +2345,7 @@ File** ReadArchiveMembers(File* file,int * fileCount)
         return NULL;
     }
 
-    DBG("ReadArchiveMembers: file=%s size=%lu\\n", file->Name, (unsigned long)file->contents_len);
+    DBG("ReadArchiveMembers: file=%s size=%lu\n", file->Name, (unsigned long)file->contents_len);
 
     //读取位置跳过文件头
     int pos = 8;
@@ -2139,7 +2364,7 @@ File** ReadArchiveMembers(File* file,int * fileCount)
 
         int dataStart = pos + sizeof(ArHdr);
         int memberSize = GetSize(hdr);
-        DBG("ReadArchiveMembers: hdr raw='%.16s' size=%d pos=%d\\n", hdr->Name, memberSize, pos);
+        DBG("ReadArchiveMembers: hdr raw='%.16s' size=%d pos=%d\n", hdr->Name, memberSize, pos);
         pos = dataStart + memberSize;
         int dataEnd = pos;
 
@@ -2165,7 +2390,7 @@ File** ReadArchiveMembers(File* file,int * fileCount)
         newFile->Parent = file;
         //printf("%s\n",name);
 
-        DBG("ReadArchiveMembers: member '%s' size=%d\\n", newFile->Name, memberSize);
+        DBG("ReadArchiveMembers: member '%s' size=%d\n", newFile->Name, memberSize);
 
         files = appendFile(files, newFile, fileCount);
     }
@@ -2183,16 +2408,16 @@ void ReadInputFiles(Context* ctx,char** remaining)
     HashMapSetHash(name_map, hash_string_key);
     HashMapSetCompare(name_map, compare_string_key);
     HashMapSetCleanKey(name_map, free);
-    DBG("ReadInputFiles: start (%d entries)\\n", DebugCountArgs(remaining));
+    DBG("ReadInputFiles: start (%d entries)\n", DebugCountArgs(remaining));
     for(int i =0;remaining[i];i++){
         char* arg = remaining[i];
-        DBG("ReadInputFiles: arg[%d]=%s\\n", i, arg);
+        DBG("ReadInputFiles: arg[%d]=%s\n", i, arg);
         if(hasPrefix(arg,"-l")){
           //  printf("a   .%s \n ",arg);
             char* filename = removePrefix(arg,"-l");
-            DBG("ReadInputFiles: resolving library '%s'\\n", filename);
+            DBG("ReadInputFiles: resolving library '%s'\n", filename);
             File *f = FindLibrary(ctx,filename);
-            DBG("ReadInputFiles: library '%s' => %s\\n", filename, f ? f->Name : "<not found>");
+            DBG("ReadInputFiles: library '%s' => %s\n", filename, f ? f->Name : "<not found>");
             readFile(ctx, f);
            // printf("%d\n",ctx->ObjsCount);
         } else{
@@ -2201,12 +2426,12 @@ void ReadInputFiles(Context* ctx,char** remaining)
             if (file == NULL) {
                 fatal("failed to open %s", arg);
             }
-            DBG("ReadInputFiles: loading file '%s'\\n", file->Name);
+            DBG("ReadInputFiles: loading file '%s'\n", file->Name);
             readFile(ctx, file);
            // printf("%d\n",ctx->ObjsCount);
         }
     }
-    DBG("ReadInputFiles: done (objs=%d)\\n", ctx->ObjsCount);
+    DBG("ReadInputFiles: done (objs=%d)\n", ctx->ObjsCount);
 }
 
 void readFile(Context *ctx,File* file)
@@ -2215,24 +2440,24 @@ void readFile(Context *ctx,File* file)
         fatal("readFile: null file pointer");
     }
     FileType ft = GetFileType(file->Contents);
-    DBG("readFile: %s type=%s\\n", file->Name, FileTypeToString(ft));
+    DBG("readFile: %s type=%s\n", file->Name, FileTypeToString(ft));
     int fileCount = 0;
     File **aFiles = NULL;
     switch (ft) {
         case FileTypeObject:
-           // printf("file name o :%s\n",file->Name);
+            DBG("file name o :%s\n",file->Name);
             AddObjectFile(&ctx->Objs,&ctx->ObjsCount, CreateObjectFile(ctx,file,false));
-            DBG("readFile: added object %s (total=%d)\\n", file->Name, ctx->ObjsCount);
+            DBG("readFile: added object %s (total=%d)\n", file->Name, ctx->ObjsCount);
             break;
         case FileTypeArchive:
            // printf("file name a :%s\n",file->Name);
             aFiles = ReadArchiveMembers(file,&fileCount);
-            DBG("readFile: archive %s yielded %d members\\n", file->Name, fileCount);
+            DBG("readFile: archive %s yielded %d members\n", file->Name, fileCount);
             for(int i = 0;i<fileCount;i++){
                 File *child = aFiles[i];
                 assert(GetFileType(child->Contents) == FileTypeObject);
                 AddObjectFile(&ctx->Objs,&ctx->ObjsCount, CreateObjectFile(ctx,child,true));
-                DBG("readFile: added archive member %s (total=%d)\\n", child->Name, ctx->ObjsCount);
+                DBG("readFile: added archive member %s (total=%d)\n", child->Name, ctx->ObjsCount);
             }
             break;
         default:
@@ -2244,9 +2469,9 @@ ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib)
 {
     //TODO CheckFileCompatibility
     ObjectFile * objectFile = NewObjectFile(file,!inLib);
-    DBG("CreateObjectFile: %s inLib=%d alive=%d\\n", file->Name, inLib, objectFile->inputFile->isAlive);
+    DBG("CreateObjectFile: %s inLib=%d alive=%d\n", file->Name, inLib, objectFile->inputFile->isAlive);
     Parse(ctx,objectFile);
-    DBG("CreateObjectFile: %s parsed (isecNum=%ld)\\n", file->Name, objectFile->isecNum);
+    DBG("CreateObjectFile: %s parsed (isecNum=%ld)\n", file->Name, objectFile->isecNum);
     return objectFile;
 }
 
@@ -2259,27 +2484,215 @@ OutputShdr *NewOutputShdr()
     return outputShdr;
 }
 
+static void ShStrtabEnsureCapacity(OutputShStrtab* tab, size_t required)
+{
+    if (required <= tab->capacity)
+        return;
+
+    size_t newCap = tab->capacity ? tab->capacity : 64;
+    while (newCap < required) {
+        if (newCap > SIZE_MAX / 2) {
+            newCap = required;
+            break;
+        }
+        newCap *= 2;
+    }
+
+    char* newData = realloc(tab->data, newCap);
+    if (newData == NULL) {
+        fatal("failed to grow shstrtab");
+    }
+
+    tab->data = newData;
+    tab->capacity = newCap;
+}
+
+static void ShStrtabReset(OutputShStrtab* tab)
+{
+    if (tab->data == NULL) {
+        tab->capacity = 64;
+        tab->data = malloc(tab->capacity);
+        if (tab->data == NULL) {
+            fatal("failed to allocate shstrtab buffer");
+        }
+    }
+    tab->data[0] = '\0';
+    tab->size = 1;
+    tab->chunk->shdr.Size = tab->size;
+}
+
+OutputShStrtab *NewOutputShStrtab()
+{
+    OutputShStrtab *tab = (OutputShStrtab*) malloc(sizeof (OutputShStrtab));
+    if (tab == NULL) {
+        fatal("failed to allocate shstrtab");
+    }
+
+    tab->chunk = NewChunk();
+    tab->chunk->chunkType = ChunkTypeShStrtab;
+    tab->chunk->shdr.Type = SHT_STRTAB;
+    tab->chunk->shdr.Flags = 0;
+    tab->chunk->shdr.AddrAlign = 1;
+    tab->chunk->shdr.EntSize = 0;
+    tab->chunk->shdr.Info = 0;
+    tab->chunk->shdr.Link = 0;
+
+    const char* name = ".shstrtab";
+    size_t len = strlen(name) + 1;
+    tab->chunk->name = (char*)malloc(len);
+    if (tab->chunk->name == NULL) {
+        fatal("failed to allocate shstrtab name");
+    }
+    memcpy(tab->chunk->name, name, len);
+
+    tab->data = NULL;
+    tab->size = 0;
+    tab->capacity = 0;
+    ShStrtabReset(tab);
+    return tab;
+}
+
+static uint32_t ShStrtabAppend(OutputShStrtab* tab, const char* name)
+{
+    if (name == NULL || name[0] == '\0') {
+        return 0;
+    }
+
+    size_t len = strlen(name) + 1;
+    if (tab->size + len > UINT32_MAX) {
+        fatal("shstrtab overflow");
+    }
+
+    ShStrtabEnsureCapacity(tab, tab->size + len);
+    uint32_t offset = (uint32_t)tab->size;
+    memcpy(tab->data + tab->size, name, len);
+    tab->size += len;
+    tab->chunk->shdr.Size = tab->size;
+    return offset;
+}
+
+void ShStrtab_CopyBuf(Chunk* c,Context* ctx)
+{
+    if (ctx->shstrtab == NULL || ctx->shstrtab->chunk != c) {
+        return;
+    }
+
+    if (ctx->shstrtab->size == 0) {
+        return;
+    }
+
+    memcpy(ctx->buf + c->shdr.Offset, ctx->shstrtab->data, ctx->shstrtab->size);
+}
+
+static bool ShouldEmitSectionHeader(Context* ctx, Chunk* chunk)
+{
+    if (chunk == NULL) {
+        return false;
+    }
+
+    if (chunk == ctx->ehdr->chunk || chunk == ctx->phdr->chunk || chunk == ctx->shdr->chunk) {
+        return false;
+    }
+
+    switch (chunk->chunkType) {
+        case ChunkTypeOutputSection:
+        case ChunkTypeMergedSection:
+        case ChunkTypeGotSection:
+        case ChunkTypeShStrtab:
+            break;
+        default:
+            return false;
+    }
+
+    if (chunk->shdr.Type == SHT_NULL && chunk->chunkType != ChunkTypeShStrtab) {
+        return false;
+    }
+
+    return true;
+}
+
 void Shdr_UpdateShdr(Chunk* c,Context* ctx)
 {
-    c->shdr.Size = 1 * sizeof (Shdr);
+    if (ctx->shstrtab == NULL) {
+        return;
+    }
+
+    OutputShStrtab* tab = ctx->shstrtab;
+    ShStrtabReset(tab);
+
+    size_t sectionCount = 1; // NULL section
+    for (int i = 0; i < ctx->chunkNum; i++) {
+        Chunk *chunk = ctx->chunk[i];
+        if (ShouldEmitSectionHeader(ctx, chunk)) {
+            sectionCount++;
+        }
+    }
+
+    if (c->shdrTable.entries != NULL) {
+        free(c->shdrTable.entries);
+        c->shdrTable.entries = NULL;
+        c->shdrTable.count = 0;
+    }
+
+    c->shdrTable.entries = (Shdr*)calloc(sectionCount, sizeof(Shdr));
+    if (c->shdrTable.entries == NULL) {
+        fatal("failed to allocate section headers");
+    }
+    c->shdrTable.count = sectionCount;
+
+    size_t idx = 1;
+    ctx->ShStrtabIndex = 0;
+
+    for (int i = 0; i < ctx->chunkNum; i++) {
+        Chunk *chunk = ctx->chunk[i];
+        if (!ShouldEmitSectionHeader(ctx, chunk)) {
+            continue;
+        }
+
+        if (idx >= sectionCount) {
+            break;
+        }
+
+        Shdr sh = chunk->shdr;
+        sh.Name = ShStrtabAppend(tab, chunk->name);
+
+        if (chunk == tab->chunk) {
+            if (idx >= SHN_LORESERVE) {
+                fatal("section index overflow");
+            }
+            ctx->ShStrtabIndex = (uint16_t)idx;
+        }
+
+        c->shdrTable.entries[idx] = sh;
+        idx++;
+    }
+
+    if (ctx->ShStrtabIndex == 0) {
+        fatal(".shstrtab section header not generated");
+    }
+
+    if (idx != c->shdrTable.count) {
+        c->shdrTable.count = idx;
+    }
+
+    c->shdr.Size = c->shdrTable.count * sizeof(Shdr);
+    c->shdr.AddrAlign = 8;
+    c->shdr.Type = SHT_NULL;
+    c->shdr.Flags = 0;
+    c->shdr.Link = 0;
+    c->shdr.Info = 0;
+    c->shdr.EntSize = sizeof(Shdr);
+
+    tab->chunk->shdr.Size = tab->size;
 }
 
 void Shdr_CopyBuf(Chunk* c,Context* ctx)
 {
-    //base := ctx.Buf[o.Shdr.Offset:]
-    //utils.Write[Shdr](base, Shdr{})
-    Shdr shdr;
-    shdr.Offset = 0;
-    shdr.Name = 0;
-    shdr.Type = 0;
-    shdr.Flags = 0;
-    shdr.Addr = 0;
-    shdr.Size = 0;
-    shdr.Info = 0;
-    shdr.AddrAlign = 0;
-    shdr.EntSize = 0;
-    shdr.Link =0;
-    Write(ctx->buf+c->shdr.Offset,sizeof (Shdr),&shdr);
+    if (c->shdrTable.entries == NULL || c->shdrTable.count == 0) {
+        return;
+    }
+
+    memcpy(ctx->buf + c->shdr.Offset, c->shdrTable.entries, c->shdrTable.count * sizeof(Shdr));
 }
 
 Chunk *NewChunk()
@@ -2309,10 +2722,12 @@ Chunk *NewChunk()
     chunk->phdrS.phdrNum = 0;
     chunk->phdrS.phdrs = NULL;
     chunk->gotSec.GotTpSyms = NULL;
-    chunk->gotSec.TpSymNum = 0;
+   chunk->gotSec.TpSymNum = 0;
 
     chunk->rank = -1;
     chunk->chunkType = 0;
+    chunk->shdrTable.entries = NULL;
+    chunk->shdrTable.count = 0;
 
     return chunk;
 }
@@ -2336,6 +2751,8 @@ void CopyBuf(Chunk* c,Context* ctx)
         Phdr_CopyBuf(c,ctx);
     else if(c->chunkType == ChunkTypeGotSection)
         GotSec_CopyBuf(c,ctx);
+    else if(c->chunkType == ChunkTypeShStrtab)
+        ShStrtab_CopyBuf(c,ctx);
 }
 
 void Update(Chunk* c,Context* ctx)
@@ -2438,7 +2855,7 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
             continue;
         }
 
-        Symbol *sym = i->objectFile->inputFile->Symbols[rel.Sym];
+        Symbol *sym = &i->objectFile->inputFile->Symbols[rel.Sym];
         char* loc = base + rel.Offset;
 
         if(sym->file == NULL)
@@ -2447,7 +2864,7 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
         uint64_t S = Symbol_GetAddr(sym);
         uint64_t A = rel.Addend;
         uint64_t P = InputSec_GetAddr(i) + rel.Offset;
-        //printf("P %lu\n",P);
+        DBG("name %s S %lu A %lu P %lu\n", sym->name, S, A, P);
 
         uint32_t tmp = 0;
         uint64_t tmp_64 =0;
@@ -2528,7 +2945,7 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
 
     for(int a = 0; a < i->relNum;a++) {
         Rela rel = rels[a];
-        Symbol *sym = i->objectFile->inputFile->Symbols[rel.Sym];
+        Symbol *sym = &i->objectFile->inputFile->Symbols[rel.Sym];
         char* loc = base + rel.Offset;
         uint32_t val = 0;
         switch (rel.Type) {
@@ -2605,7 +3022,7 @@ void ScanRelocations__(InputSection* isec)
                 Name(isec), i, isec->relNum);
         }
         Rela rel = isec->rels[i];
-        Symbol *sym = isec->objectFile->inputFile->Symbols[rel.Sym];
+        Symbol *sym = &isec->objectFile->inputFile->Symbols[rel.Sym];
         if(sym->file == NULL)
             continue;
 
@@ -2705,10 +3122,11 @@ Symbol *NewSymbol(char* name)
 {
     Symbol *symbol = (Symbol*) malloc(sizeof (Symbol));
     if (symbol == NULL) {
-        DBG("NewSymbol: malloc failed for %s\\n", name ? name : "<null>");
+        DBG("NewSymbol: malloc failed for %s\n", name ? name : "<null>");
         return NULL;
     }
     symbol->name = name;
+    DBG("NewSymbol: name is %s\n", name);
     symbol->symIdx = -1;
     symbol->file = NULL;
     symbol->inputSection = NULL;
@@ -2735,7 +3153,7 @@ Symbol *GetSymbolByName(Context* ctx,char* name)
 {
     //如果symbolMap中已存，直接拿
     if(HashMapContain(ctx->SymbolMap,name)){
-        DBG("GetSymbolByName: hit %s\\n", name ? name : "<null>");
+        DBG("GetSymbolByName: hit %s\n", name ? name : "<null>");
         return HashMapGet(ctx->SymbolMap,name);
     }
 
@@ -2747,7 +3165,7 @@ Symbol *GetSymbolByName(Context* ctx,char* name)
     if (!HashMapPut(ctx->SymbolMap,name, sym)) {
         fatal("GetSymbolByName: HashMapPut failed for %s", name ? name : "<null>");
     }
-    DBG("GetSymbolByName: miss %s new=%p\\n", name ? name : "<null>", (void*)sym);
+    DBG("GetSymbolByName: miss %s new=%p\n", name ? name : "<null>", (void*)sym);
     return HashMapGet(ctx->SymbolMap,name);
 }
 
@@ -2878,26 +3296,26 @@ void FinalizeGlobalPointer(Context* ctx)
 
 Context* NewContext()
 {
-    DBG("NewContext: start\\n");
+    DBG("NewContext: start\n");
     Context* ctx = (Context*)malloc(sizeof(Context));
     if (ctx == NULL) {
-        DBG("NewContext: malloc failed\\n");
+        DBG("NewContext: malloc failed\n");
         return NULL;
     }
-    DBG("NewContext: ctx=%p size=%llu\\n", (void*)ctx, (unsigned long long)sizeof(Context));
+    DBG("NewContext: ctx=%p size=%llu\n", (void*)ctx, (unsigned long long)sizeof(Context));
 
     ctx->Args.Output = "a.out";
     ctx->Args.Emulation = 0;
     ctx->Args.LibraryPathsCount=0;
-    DBG("NewContext: initializing SymbolMap\\n");
+    DBG("NewContext: initializing SymbolMap\n");
     ctx->SymbolMap = HashMapInit();
     if (ctx->SymbolMap == NULL) {
-        DBG("NewContext: HashMapInit failed\\n");
+        DBG("NewContext: HashMapInit failed\n");
         fatal("failed to initialize symbol map");
     }
     HashMapSetHash(ctx->SymbolMap, hash_string_key);
     HashMapSetCompare(ctx->SymbolMap, compare_string_key);
-    DBG("NewContext: SymbolMap=%p\\n", (void*)ctx->SymbolMap);
+    DBG("NewContext: SymbolMap=%p\n", (void*)ctx->SymbolMap);
     ctx->Args.LibraryPaths = NULL;
     ctx->ObjsCount = 0;
     ctx->Objs = NULL;
@@ -2915,7 +3333,9 @@ Context* NewContext()
     ctx->TpAddr = 0;
     ctx->GpAddr = 0;
     ctx->got = NULL;
-    DBG("NewContext: done\\n");
+    ctx->shstrtab = NULL;
+    ctx->ShStrtabIndex = 0;
+    DBG("NewContext: done\n");
     return ctx;
 }
 
@@ -3633,15 +4053,17 @@ int main(int argc, char* argv[])
     DBG("main: ReadInputFiles start\n");
     ReadInputFiles(ctx,remaining);
     DBG("main: ReadInputFiles done, objs=%d\n", ctx->ObjsCount);
-    printf("%d\n",ctx->ObjsCount);
-//    printf("symbols :%d\n", HashMapSize(ctx->SymbolMap));
-//    HashMapFirst(ctx->SymbolMap);
-//    for(Pair* p = HashMapNext(ctx->SymbolMap); p!=NULL; p = HashMapNext(ctx->SymbolMap)){
-//        printf("%s\n",p->key);
-//    }
-//    for(int i=0;i<ctx->ObjsCount;i++){
-//        printf("%d : %s\n",i,ctx->Objs[i]->inputFile->file->Name);
-//    }
+    DBG("%d\n",ctx->ObjsCount);
+    DBG("symbols :%d\n", HashMapSize(ctx->SymbolMap));
+    HashMapFirst(ctx->SymbolMap);
+    for(Pair* p = HashMapNext(ctx->SymbolMap); p!=NULL; p = HashMapNext(ctx->SymbolMap)){
+        DBG("%s\n",p->key);
+    }
+/*
+    for(int i=0;i<ctx->ObjsCount;i++){
+        printf("%d : %s\n",i,ctx->Objs[i]->inputFile->file->Name);
+    }
+*/
     DBG("main: ResolveSymbols_pass start\n");
     ResolveSymbols_pass(ctx);
     DBG("main: ResolveSymbols_pass done, objs=%d\n", ctx->ObjsCount);
@@ -3667,6 +4089,14 @@ int main(int argc, char* argv[])
 //        Chunk *c = ctx->chunk[i];
 //        printf("i %d name %s , type %d\n",i,c->name,c->chunkType);
 //    }
+/*
+DBG("UHO");
+Symbol* sym = findDefinedSymbolByName(ctx, "main");
+*/
+
+char* m = "main";
+Symbol *sym = HashMapGet(ctx->SymbolMap, m);
+DBG("sym X %x\n", sym);
 
     DBG("main: SortOutputSections start\n");
     SortOutputSections(ctx);
@@ -4273,21 +4703,21 @@ void _HashSetReHash(HashSetData* data)
 
 HashMap* HashMapInit()
 {
-    DBG("HashMapInit: start\\n");
+    DBG("HashMapInit: start\n");
     HashMap* obj = (HashMap*)malloc(sizeof(HashMap));
-    DBG("HashMapInit: malloc obj=%p size=%llu\\n", (void*)obj, (unsigned long long)sizeof(HashMap));
+    DBG("HashMapInit: malloc obj=%p size=%llu\n", (void*)obj, (unsigned long long)sizeof(HashMap));
     if (unlikely(!obj))
         return NULL;
 
     HashMapData* data = (HashMapData*)malloc(sizeof(HashMapData));
-    DBG("HashMapInit: malloc data=%p size=%llu\\n", (void*)data, (unsigned long long)sizeof(HashMapData));
+    DBG("HashMapInit: malloc data=%p size=%llu\n", (void*)data, (unsigned long long)sizeof(HashMapData));
     if (unlikely(!data)) {
         free(obj);
         return NULL;
     }
 
     SlotNode** arr_slot = (SlotNode**)malloc(sizeof(SlotNode*) * magic_primes[0]);
-    DBG("HashMapInit: malloc arr_slot=%p count=%u elem=%llu\\n", (void*)arr_slot, magic_primes[0], (unsigned long long)sizeof(SlotNode*));
+    DBG("HashMapInit: malloc arr_slot=%p count=%u elem=%llu\n", (void*)arr_slot, magic_primes[0], (unsigned long long)sizeof(SlotNode*));
     if (unlikely(!arr_slot)) {
         free(data);
         free(obj);
@@ -4296,28 +4726,28 @@ HashMap* HashMapInit()
     unsigned i;
     for (i = 0 ; i < magic_primes[0] ; ++i)
         arr_slot[i] = NULL;
-    DBG("HashMapInit: cleared %u slots\\n", magic_primes[0]);
+    DBG("HashMapInit: cleared %u slots\n", magic_primes[0]);
 
     data->size_ = 0;
-    DBG("HashMapInit: data->size_=0\\n");
+    DBG("HashMapInit: data->size_=0\n");
     data->idx_prime_ = 0;
-    DBG("HashMapInit: data->idx_prime_=0\\n");
+    DBG("HashMapInit: data->idx_prime_=0\n");
     data->num_slot_ = magic_primes[0];
-    DBG("HashMapInit: data->num_slot_=%u\\n", data->num_slot_);
+    DBG("HashMapInit: data->num_slot_=%u\n", data->num_slot_);
     data->curr_limit_ = compute_limit_from_slots(magic_primes[0]);
-    DBG("HashMapInit: data->curr_limit_=%u\\n", data->curr_limit_);
+    DBG("HashMapInit: data->curr_limit_=%u\n", data->curr_limit_);
     data->arr_slot_ = arr_slot;
-    DBG("HashMapInit: data->arr_slot_=%p\\n", (void*)data->arr_slot_);
+    DBG("HashMapInit: data->arr_slot_=%p\n", (void*)data->arr_slot_);
     data->func_hash_ = _HashMapHash;
-    DBG("HashMapInit: func_hash set\\n");
+    DBG("HashMapInit: func_hash set\n");
     data->func_cmp_ = _HashMapCompare;
-    DBG("HashMapInit: func_cmp set\\n");
+    DBG("HashMapInit: func_cmp set\n");
     data->func_clean_key_ = NULL;
-    DBG("HashMapInit: func_clean_key NULL\\n");
+    DBG("HashMapInit: func_clean_key NULL\n");
     data->func_clean_val_ = NULL;
-    DBG("HashMapInit: func_clean_val NULL\\n");
+    DBG("HashMapInit: func_clean_val NULL\n");
 
-    DBG("HashMapInit: configured num_slot=%u curr_limit=%u\\n", data->num_slot_, data->curr_limit_);
+    DBG("HashMapInit: configured num_slot=%u curr_limit=%u\n", data->num_slot_, data->curr_limit_);
 
     obj->data = data;
     obj->put = HashMapPut;
@@ -4332,7 +4762,7 @@ HashMap* HashMapInit()
     obj->set_clean_key = HashMapSetCleanKey;
     obj->set_clean_value = HashMapSetCleanValue;
 
-    DBG("HashMapInit: ready obj=%p data=%p slots=%u\\n", (void*)obj, (void*)data, data->num_slot_);
+    DBG("HashMapInit: ready obj=%p data=%p slots=%u\n", (void*)obj, (void*)data, data->num_slot_);
     return obj;
 }
 
