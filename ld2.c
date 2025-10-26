@@ -3046,12 +3046,12 @@ Rela *GetRels(InputSection* i)
         bs += sizeof(Rela);
         numbs--;
         i->relNum++;
-        if ((i->relNum & 0x3ff) == 0) {
+//        if ((i->relNum & 0x3ff) == 0) {
             DBG("GetRels: section=%s loaded=%d/%lu\n",
                 Name(i),
                 i->relNum,
                 (unsigned long)total);
-        }
+//        }
     }
     return i->rels;
 }
