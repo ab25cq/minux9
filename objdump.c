@@ -1,5 +1,4 @@
 #include "minux.h"
-#include <stdint.h>
 
 #ifndef SEEK_SET
 #define SEEK_SET 0
@@ -86,6 +85,12 @@ typedef struct {
 #define SHT_SYMTAB  2
 #define SHT_STRTAB  3
 #define SHT_NOBITS  8
+
+#define STT_NOTYPE 0
+#define STT_OBJECT 1
+#define STT_FUNC   2
+
+#define ELF64_ST_TYPE(val) ((val) & 0xf)
 
 // -------- utils --------
 static int is_printable(unsigned char c) {
@@ -198,28 +203,28 @@ static void print_shdrs(const unsigned char* buf, const Elf64_Ehdr* eh,
   *out_shstrsz = shstrsz;
 }
 
+static int load_symtab(const unsigned char* buf,
+                       const Elf64_Ehdr* eh,
+                       const Elf64_Sym** out_syms,
+                       uint64_t* out_count,
+                       const char** out_strtab);
+
 static void print_symbols(const unsigned char* buf, const Elf64_Ehdr* eh,
                           const char* shstr, uint64_t shstrsz) {
-  if (!eh->e_shoff || !eh->e_shnum) return;
-  const Elf64_Shdr* sh = (const Elf64_Shdr*)(buf + eh->e_shoff);
+  (void)shstr;
+  (void)shstrsz;
+  const Elf64_Sym* syms = 0;
+  uint64_t count = 0;
+  const char* strtab = 0;
 
-  int idx_sym = -1, idx_str = -1;
-  for (uint16_t i=0;i<eh->e_shnum;i++) {
-    if (sh[i].sh_type == SHT_SYMTAB) idx_sym = i;
-    if (sh[i].sh_type == SHT_STRTAB && i != eh->e_shstrndx && idx_str < 0) idx_str = i;
+  if (!load_symtab(buf, eh, &syms, &count, &strtab)) {
+    printf("Symbols: (none)\n");
+    return;
   }
-  if (idx_sym < 0) { printf("Symbols: (none)\n"); return; }
 
-  const Elf64_Shdr* sh_sym = &sh[idx_sym];
-  const Elf64_Shdr* sh_str = (sh_sym->sh_link < eh->e_shnum) ? &sh[sh_sym->sh_link]
-                          : (idx_str>=0 ? &sh[idx_str] : 0);
-  const char* strtab = sh_str ? (const char*)(buf + sh_str->sh_offset) : 0;
-  uint64_t n = (sh_sym->sh_entsize ? (sh_sym->sh_size / sh_sym->sh_entsize) : 0);
-  const Elf64_Sym* syms = (const Elf64_Sym*)(buf + sh_sym->sh_offset);
-
-  printf("Symbols (%llu entries):\n", (unsigned long long)n);
+  printf("Symbols (%llu entries):\n", (unsigned long long)count);
   uint64_t gp_val = 0; int gp_found=0;
-  for (uint64_t i=0;i<n;i++) {
+  for (uint64_t i=0;i<count;i++) {
     const char* nm = strtab ? (strtab + syms[i].st_name) : "(no-strtab)";
     printf("  [%llu] %-24s  val=0x%llx  size=0x%llx  shndx=%u  info=0x%x\n",
       (unsigned long long)i, nm,
@@ -254,6 +259,37 @@ static const Elf64_Shdr* find_section_by_name(const unsigned char* buf,
     if (eq) return &sh[i];
   }
   return 0;
+}
+
+static int load_symtab(const unsigned char* buf,
+                       const Elf64_Ehdr* eh,
+                       const Elf64_Sym** out_syms,
+                       uint64_t* out_count,
+                       const char** out_strtab) {
+  if (!eh->e_shoff || !eh->e_shnum) return 0;
+  const Elf64_Shdr* sh = (const Elf64_Shdr*)(buf + eh->e_shoff);
+  int idx_sym = -1;
+  int idx_str_fallback = -1;
+
+  for (uint16_t i = 0; i < eh->e_shnum; i++) {
+    if (sh[i].sh_type == SHT_SYMTAB) idx_sym = i;
+    if (sh[i].sh_type == SHT_STRTAB && i != eh->e_shstrndx && idx_str_fallback < 0) {
+      idx_str_fallback = i;
+    }
+  }
+
+  if (idx_sym < 0) return 0;
+  const Elf64_Shdr* sh_sym = &sh[idx_sym];
+  if (!sh_sym->sh_entsize) return 0;
+
+  const Elf64_Shdr* sh_str = 0;
+  if (sh_sym->sh_link < eh->e_shnum) sh_str = &sh[sh_sym->sh_link];
+  else if (idx_str_fallback >= 0) sh_str = &sh[idx_str_fallback];
+
+  *out_syms = (const Elf64_Sym*)(buf + sh_sym->sh_offset);
+  *out_count = sh_sym->sh_size / sh_sym->sh_entsize;
+  *out_strtab = sh_str ? (const char*)(buf + sh_str->sh_offset) : 0;
+  return 1;
 }
 
 // -------- minimal RV64 disassembler --------
@@ -397,6 +433,24 @@ static void rv_decode(uint32_t inst, uint64_t addr, char* out, size_t outsz) {
   }
 }
 
+typedef struct {
+  const char* name;
+  uint64_t addr;
+  uint64_t size;
+} FuncEntry;
+
+static void sort_function_entries(FuncEntry* funcs, uint64_t count) {
+  for (uint64_t i = 0; i < count; i++) {
+    for (uint64_t j = i + 1; j < count; j++) {
+      if (funcs[j].addr < funcs[i].addr) {
+        FuncEntry tmp = funcs[i];
+        funcs[i] = funcs[j];
+        funcs[j] = tmp;
+      }
+    }
+  }
+}
+
 static void print_disassembly(const unsigned char* buf,
                               const Elf64_Ehdr* eh,
                               const char* shstr, uint64_t shstrsz) {
@@ -405,27 +459,124 @@ static void print_disassembly(const unsigned char* buf,
     printf("Disassembly: .text not present\n");
     return;
   }
-  uint64_t size = text->sh_size;
-  uint64_t rounded = size & ~0x3ull;
-  if (size % 4 != 0) {
-    printf("Disassembly: .text size (%llu) not multiple of 4, truncating tail\n",
-           (unsigned long long)size);
+
+  const Elf64_Sym* syms = 0;
+  uint64_t sym_count = 0;
+  const char* strtab = 0;
+  if (!load_symtab(buf, eh, &syms, &sym_count, &strtab)) {
+    printf("Disassembly: symbol table not found\n");
+    return;
   }
+
+  const Elf64_Shdr* sh_base = (const Elf64_Shdr*)(buf + eh->e_shoff);
+  int text_index = -1;
+  for (uint16_t i = 0; i < eh->e_shnum; i++) {
+    if (&sh_base[i] == text) { text_index = (int)i; break; }
+  }
+  if (text_index < 0) {
+    printf("Disassembly: .text index not found\n");
+    return;
+  }
+
+  uint64_t func_count = 0;
+  for (uint64_t i = 0; i < sym_count; i++) {
+    const Elf64_Sym* sym = &syms[i];
+    uint8_t type = ELF64_ST_TYPE(sym->st_info);
+    if (!(type == STT_FUNC || type == STT_NOTYPE))
+      continue;
+    uint64_t addr = sym->st_value;
+    if (addr < text->sh_addr || addr >= text->sh_addr + text->sh_size) continue;
+    func_count++;
+  }
+
+  if (!func_count) {
+    printf("Disassembly: no function symbols in .text\n");
+    return;
+  }
+
+  FuncEntry* funcs = (FuncEntry*)malloc(func_count * sizeof(FuncEntry));
+  if (!funcs) {
+    printf("Disassembly: malloc failed\n");
+    return;
+  }
+
+  uint64_t fi = 0;
+  for (uint64_t i = 0; i < sym_count && fi < func_count; i++) {
+    const Elf64_Sym* sym = &syms[i];
+    uint8_t type = ELF64_ST_TYPE(sym->st_info);
+    if (!(type == STT_FUNC || type == STT_NOTYPE))
+      continue;
+    uint64_t addr = sym->st_value;
+    if (addr < text->sh_addr || addr >= text->sh_addr + text->sh_size) continue;
+    funcs[fi].addr = addr;
+    funcs[fi].size = sym->st_size;
+    if (strtab) {
+      funcs[fi].name = strtab + sym->st_name;
+      if (!funcs[fi].name || funcs[fi].name[0] == '\0') funcs[fi].name = "(anonymous)";
+    } else {
+      funcs[fi].name = "(no-strtab)";
+    }
+    fi++;
+  }
+  func_count = fi;
+  if (!func_count) {
+    free(funcs);
+    printf("Disassembly: no function entries collected\n");
+    return;
+  }
+
+  sort_function_entries(funcs, func_count);
+
   const unsigned char* base = buf + text->sh_offset;
-  uint64_t addr = text->sh_addr;
-  printf("Disassembly of section .text:\n");
-  for (uint64_t off = 0; off < rounded; off += 4, addr += 4) {
-    uint32_t inst = base[off] |
-                    (base[off+1] << 8) |
-                    (base[off+2] << 16) |
-                    (base[off+3] << 24);
-    char decoded[80];
-    rv_decode(inst, addr, decoded, sizeof(decoded));
-    printf("  0x%08llx: %08x  %s\n",
-           (unsigned long long)addr,
-           inst,
-           decoded);
+  uint64_t text_addr = text->sh_addr;
+  uint64_t text_end = text_addr + text->sh_size;
+
+  printf("Disassembly of section .text (by function):\n");
+  int first = 1;
+  for (uint64_t idx = 0; idx < func_count; idx++) {
+    const FuncEntry* f = &funcs[idx];
+    if (f->addr < text_addr || f->addr >= text_end) continue;
+    uint64_t start_off = f->addr - text_addr;
+    uint64_t end_addr = f->size ? (f->addr + f->size)
+                                : (idx + 1 < func_count ? funcs[idx + 1].addr : text_end);
+    if (end_addr > text_end) end_addr = text_end;
+    if (end_addr <= f->addr) end_addr = f->addr;
+    if (!first) printf("\n");
+    first = 0;
+    printf("%s:\n", f->name ? f->name : "(noname)");
+
+    if (start_off % 4 != 0) {
+      printf("  (start offset not 4-byte aligned)\n");
+      continue;
+    }
+
+    uint64_t end_off = end_addr - text_addr;
+    uint64_t end_off_aligned = end_off & ~0x3ull;
+    if (end_off_aligned <= start_off) end_off_aligned = start_off;
+    if (end_off_aligned > text->sh_size) end_off_aligned = text->sh_size;
+
+    if (start_off >= text->sh_size || start_off >= end_off_aligned) {
+      printf("  (no instructions)\n");
+      continue;
+    }
+
+    for (uint64_t off = start_off; off < end_off_aligned; off += 4) {
+      if (off + 3 >= text->sh_size) break;
+      uint32_t inst = base[off] |
+                      (base[off+1] << 8) |
+                      (base[off+2] << 16) |
+                      (base[off+3] << 24);
+      uint64_t addr = text_addr + off;
+      char decoded[80];
+      rv_decode(inst, addr, decoded, sizeof(decoded));
+      printf("  0x%08llx: %08x  %s\n",
+             (unsigned long long)addr,
+             inst,
+             decoded);
+    }
   }
+
+  free(funcs);
 }
 
 

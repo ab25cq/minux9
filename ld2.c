@@ -53,11 +53,15 @@
 #ifndef ELF64_ST_BIND
 #define ELF64_ST_BIND(i) ((i) >> 4)
 #endif
+#ifndef ELF64_ST_INFO
+#define ELF64_ST_INFO(bind, type) (((bind) << 4) + ((type) & 0xf))
+#endif
 
 #define DEBUG_LINKER 1
 
 #define SYMBOL_FLAG_GOT_TP 0x1
 #define SYMBOL_FLAG_GOT     0x2
+#define SYMBOL_FLAG_SYMTAB  0x4
 
 #define max_(a, b) ((a) > (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -316,6 +320,8 @@ struct OutputSection_;
 struct OutputPhdr_;
 struct GotSection_;
 struct OutputShStrtab_;
+struct OutputStrtab_;
+struct OutputSymtab_;
 struct Chunk_;
 
 typedef struct ObjectFile_ ObjectFile;
@@ -357,6 +363,8 @@ typedef struct
     struct OutputPhdr_* phdr;
     struct GotSection_* got;
     struct OutputShStrtab_* shstrtab;
+    struct OutputStrtab_* strtab;
+    struct OutputSymtab_* symtab;
     struct OutputSection_** outputSections;
     int outputSecNum;
 
@@ -448,6 +456,35 @@ typedef struct OutputShStrtab_
     size_t size;
     size_t capacity;
 }OutputShStrtab;
+
+typedef struct OutputStrtab_
+{
+    Chunk *chunk;
+    char* data;
+    size_t size;
+    size_t capacity;
+}OutputStrtab;
+
+typedef struct SymtabEntry_
+{
+    Symbol* sym;
+    Chunk* sectionChunk;
+    uint32_t nameOffset;
+    uint16_t shndx;
+    uint8_t info;
+    uint8_t other;
+    uint64_t size;
+} SymtabEntry;
+
+typedef struct OutputSymtab_
+{
+    Chunk *chunk;
+    OutputStrtab* strtab;
+    SymtabEntry* entries;
+    size_t count;
+    size_t capacity;
+    size_t localCount;
+}OutputSymtab;
 
 // .got 表中的每个条目对应一个全局变量或函数的地址 , 针对tp_addr的偏移量
 typedef struct GotEntry_
@@ -588,6 +625,8 @@ struct InputFile_
 #define ChunkTypeMergedSection ((ChunkType)5)
 #define ChunkTypeGotSection ((ChunkType)6)
 #define ChunkTypeShStrtab ((ChunkType)7)
+#define ChunkTypeSymtab ((ChunkType)8)
+#define ChunkTypeStrtab ((ChunkType)9)
 
 File** ReadArchiveMembers(File* file,int * fileCount);
 ObjectFile *CreateObjectFile(Context *ctx,File* file,bool inLib);
@@ -617,6 +656,20 @@ void OutputSec_CopyBuf(Chunk* c,Context* ctx);
 //-------------------shstrtab
 OutputShStrtab *NewOutputShStrtab();
 void ShStrtab_CopyBuf(Chunk* c,Context* ctx);
+
+//-------------------strtab
+typedef struct OutputStrtab_ OutputStrtab;
+OutputStrtab *NewOutputStrtab(const char* name);
+uint32_t StrtabAppend(OutputStrtab* tab, const char* name);
+void Strtab_CopyBuf(Chunk* c, Context* ctx);
+
+//-------------------symtab
+typedef struct OutputSymtab_ OutputSymtab;
+OutputSymtab *NewOutputSymtab(OutputStrtab* strtab);
+void BuildOutputSymtab(Context* ctx);
+void Symtab_CopyBuf(Chunk* c, Context* ctx);
+
+static bool ShouldEmitSectionHeader(Context* ctx, Chunk* chunk);
 
 //-------------------phdr
 OutputPhdr *NewOutputPhdr();
@@ -968,6 +1021,18 @@ void CreateSyntheticSections(Context* ctx)
     ctx->shstrtab = shstrtab;
     ctx->chunk = realloc(ctx->chunk,sizeof (Chunk*) * (ctx->chunkNum+1));
     ctx->chunk[ctx->chunkNum] = shstrtab->chunk;
+    ctx->chunkNum++;
+
+    struct OutputStrtab_* strtab = NewOutputStrtab(".strtab");
+    ctx->strtab = strtab;
+    ctx->chunk = realloc(ctx->chunk,sizeof (Chunk*) * (ctx->chunkNum+1));
+    ctx->chunk[ctx->chunkNum] = strtab->chunk;
+    ctx->chunkNum++;
+
+    struct OutputSymtab_* symtab = NewOutputSymtab(strtab);
+    ctx->symtab = symtab;
+    ctx->chunk = realloc(ctx->chunk,sizeof (Chunk*) * (ctx->chunkNum+1));
+    ctx->chunk[ctx->chunkNum] = symtab->chunk;
     ctx->chunkNum++;
 
     struct GotSection_ *gotSec = NewGotSection();
@@ -2037,8 +2102,8 @@ printf("name %p %s\n", name, name);
 printf("i2 %d\n", i);
         Sym* esym = &o->inputFile->ElfSyms[i];
         char* name = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
-        o->inputFile->LocalSymbols[i-o->inputFile->FirstLocal] = GetSymbolByName(ctx,name);
-        if (o->inputFile->LocalSymbols[i-o->inputFile->FirstLocal] == NULL) {
+        o->inputFile->LocalSymbols[i] = GetSymbolByName(ctx,name);
+        if (o->inputFile->LocalSymbols[i] == NULL) {
             fatal("InitializeLocalSymbols: GetSymbolByName returned NULL for %s", name ? name : "<null>");
         }
         if (!HashMapPut(ctx->SymbolMap,name, GetSymbolByName(ctx,name))) {
@@ -2646,6 +2711,358 @@ void ShStrtab_CopyBuf(Chunk* c,Context* ctx)
     memcpy(ctx->buf + c->shdr.Offset, ctx->shstrtab->data, ctx->shstrtab->size);
 }
 
+static void StrtabEnsureCapacity(OutputStrtab* tab, size_t required)
+{
+    if (required <= tab->capacity)
+        return;
+
+    size_t newCap = tab->capacity ? tab->capacity : 64;
+    while (newCap < required) {
+        if (newCap > SIZE_MAX / 2) {
+            newCap = required;
+            break;
+        }
+        newCap *= 2;
+    }
+
+    char* newData = realloc(tab->data, newCap);
+    if (newData == NULL) {
+        fatal("failed to grow strtab");
+    }
+
+    tab->data = newData;
+    tab->capacity = newCap;
+}
+
+static void StrtabReset(OutputStrtab* tab)
+{
+    if (tab->data == NULL) {
+        tab->capacity = 64;
+        tab->data = malloc(tab->capacity);
+        if (tab->data == NULL) {
+            fatal("failed to allocate strtab buffer");
+        }
+    }
+    tab->data[0] = '\0';
+    tab->size = 1;
+    tab->chunk->shdr.Size = tab->size;
+}
+
+OutputStrtab *NewOutputStrtab(const char* name)
+{
+    OutputStrtab *tab = (OutputStrtab*)malloc(sizeof(OutputStrtab));
+    if (tab == NULL) {
+        fatal("failed to allocate strtab");
+    }
+
+    tab->chunk = NewChunk();
+    tab->chunk->chunkType = ChunkTypeStrtab;
+    tab->chunk->shdr.Type = SHT_STRTAB;
+    tab->chunk->shdr.Flags = 0;
+    tab->chunk->shdr.AddrAlign = 1;
+    tab->chunk->shdr.EntSize = 0;
+    tab->chunk->shdr.Info = 0;
+    tab->chunk->shdr.Link = 0;
+
+    size_t len = strlen(name) + 1;
+    tab->chunk->name = (char*)malloc(len);
+    if (tab->chunk->name == NULL) {
+        fatal("failed to allocate strtab name");
+    }
+    memcpy(tab->chunk->name, name, len);
+
+    tab->data = NULL;
+    tab->size = 0;
+    tab->capacity = 0;
+    StrtabReset(tab);
+    return tab;
+}
+
+uint32_t StrtabAppend(OutputStrtab* tab, const char* name)
+{
+    if (name == NULL || name[0] == '\0') {
+        return 0;
+    }
+
+    size_t len = strlen(name) + 1;
+    if (tab->size + len > UINT32_MAX) {
+        fatal("strtab overflow");
+    }
+
+    StrtabEnsureCapacity(tab, tab->size + len);
+    uint32_t offset = (uint32_t)tab->size;
+    memcpy(tab->data + tab->size, name, len);
+    tab->size += len;
+    tab->chunk->shdr.Size = tab->size;
+    return offset;
+}
+
+void Strtab_CopyBuf(Chunk* c, Context* ctx)
+{
+    if (ctx->strtab == NULL || ctx->strtab->chunk != c) {
+        return;
+    }
+    if (ctx->strtab->size == 0) {
+        return;
+    }
+    memcpy(ctx->buf + c->shdr.Offset, ctx->strtab->data, ctx->strtab->size);
+}
+
+static void SymtabEnsureCapacity(OutputSymtab* tab, size_t required)
+{
+    if (required <= tab->capacity)
+        return;
+
+    size_t newCap = tab->capacity ? tab->capacity : 64;
+    while (newCap < required) {
+        if (newCap > SIZE_MAX / 2) {
+            newCap = required;
+            break;
+        }
+        newCap *= 2;
+    }
+
+    SymtabEntry* newEntries = realloc(tab->entries, newCap * sizeof(SymtabEntry));
+    if (newEntries == NULL) {
+        fatal("failed to grow symtab");
+    }
+    tab->entries = newEntries;
+    tab->capacity = newCap;
+}
+
+static void SymtabReset(OutputSymtab* tab)
+{
+    tab->count = 0;
+    tab->localCount = 0;
+}
+
+static SymtabEntry* SymtabAddEntry(OutputSymtab* tab)
+{
+    SymtabEnsureCapacity(tab, tab->count + 1);
+    SymtabEntry* rec = &tab->entries[tab->count++];
+    memset(rec, 0, sizeof(SymtabEntry));
+    return rec;
+}
+
+static Chunk* GetSymbolSectionChunk(Symbol* sym)
+{
+    if (sym == NULL)
+        return NULL;
+    if (sym->sectionFragment != NULL)
+        return sym->sectionFragment->OutputSection->chunk;
+    if (sym->inputSection != NULL && sym->inputSection->outputSection != NULL)
+        return sym->inputSection->outputSection->chunk;
+    return NULL;
+}
+
+static uint16_t GetSectionIndexByChunk(Context* ctx, Chunk* target)
+{
+    if (ctx == NULL || target == NULL)
+        return 0;
+
+    uint16_t idx = 1;
+    for (int i = 0; i < ctx->chunkNum; i++) {
+        Chunk *chunk = ctx->chunk[i];
+        if (!ShouldEmitSectionHeader(ctx, chunk))
+            continue;
+        if (chunk == target)
+            return idx;
+        idx++;
+    }
+    return 0;
+}
+
+OutputSymtab *NewOutputSymtab(OutputStrtab* strtab)
+{
+    OutputSymtab *tab = (OutputSymtab*)malloc(sizeof(OutputSymtab));
+    if (tab == NULL) {
+        fatal("failed to allocate symtab");
+    }
+    tab->chunk = NewChunk();
+    tab->chunk->chunkType = ChunkTypeSymtab;
+    tab->chunk->shdr.Type = SHT_SYMTAB;
+    tab->chunk->shdr.Flags = 0;
+    tab->chunk->shdr.AddrAlign = 8;
+    tab->chunk->shdr.EntSize = sizeof(Elf64_Sym);
+    tab->chunk->shdr.Info = 0;
+    tab->chunk->shdr.Link = 0;
+    tab->chunk->name = malloc(strlen(".symtab") + 1);
+    if (tab->chunk->name == NULL) {
+        fatal("failed to allocate symtab name");
+    }
+    strcpy(tab->chunk->name, ".symtab");
+
+    tab->strtab = strtab;
+    tab->entries = NULL;
+    tab->count = 0;
+    tab->capacity = 0;
+    tab->localCount = 0;
+    return tab;
+}
+
+static uint8_t SymbolInfoForLocal(const Sym* esym)
+{
+    uint8_t type = esym ? ELF64_ST_TYPE(esym->Info) : STT_NOTYPE;
+    return ELF64_ST_INFO(STB_LOCAL, type);
+}
+
+void BuildOutputSymtab(Context* ctx)
+{
+    if (ctx == NULL || ctx->symtab == NULL || ctx->strtab == NULL)
+        return;
+
+    OutputSymtab* tab = ctx->symtab;
+
+    StrtabReset(ctx->strtab);
+    SymtabReset(tab);
+
+    // Clear previously emitted markers
+    HashMapFirst(ctx->SymbolMap);
+    for (Pair* p = HashMapNext(ctx->SymbolMap); p != NULL; p = HashMapNext(ctx->SymbolMap)) {
+        Symbol* sym = (Symbol*)p->value;
+        if (sym)
+            sym->flags &= ~SYMBOL_FLAG_SYMTAB;
+    }
+    for (int i = 0; i < ctx->ObjsCount; i++) {
+        ObjectFile *obj = ctx->Objs[i];
+        InputFile *in = obj->inputFile;
+        if (!in || !in->Symbols)
+            continue;
+        int64_t limit = in->FirstLocal;
+        if (limit > in->symNum)
+            limit = in->symNum;
+        for (int64_t idx = 1; idx < limit; idx++) {
+            in->Symbols[idx].flags &= ~SYMBOL_FLAG_SYMTAB;
+        }
+    }
+
+    // Null symbol entry
+    SymtabAddEntry(tab);
+    tab->localCount = 1;
+
+    // Collect local symbols from each object file
+    for (int i = 0; i < ctx->ObjsCount; i++) {
+        ObjectFile *obj = ctx->Objs[i];
+        InputFile *in = obj->inputFile;
+        if (in == NULL || in->ElfSyms == NULL)
+            continue;
+        int64_t firstGlobal = in->FirstLocal;
+        if (firstGlobal > in->symNum)
+            firstGlobal = in->symNum;
+        for (int64_t idx = 1; idx < firstGlobal; idx++) {
+            Sym *esym = &in->ElfSyms[idx];
+            if (IsUndef(esym) || IsCommon(esym))
+                continue;
+            uint8_t bind = ELF64_ST_BIND(esym->Info);
+            if (bind != STB_LOCAL)
+                continue;
+            Symbol *sym = &in->Symbols[idx];
+            if (sym == NULL || sym->file != obj)
+                continue;
+
+            if (sym->flags & SYMBOL_FLAG_SYMTAB)
+                continue;
+
+            SymtabEntry* rec = SymtabAddEntry(tab);
+            rec->sym = sym;
+            rec->info = SymbolInfoForLocal(esym);
+            rec->other = esym->Other;
+            rec->size = esym->Size;
+            rec->nameOffset = (sym->name && sym->name[0]) ? StrtabAppend(ctx->strtab, sym->name) : 0;
+            if (IsAbs(esym))
+                rec->shndx = SHN_ABS;
+            else if (IsCommon(esym))
+                rec->shndx = SHN_COMMON;
+            else {
+                rec->sectionChunk = GetSymbolSectionChunk(sym);
+                rec->shndx = 0;
+            }
+            tab->localCount++;
+            sym->flags |= SYMBOL_FLAG_SYMTAB;
+        }
+    }
+
+    // Collect global/weak symbols from symbol map
+    HashMapFirst(ctx->SymbolMap);
+    for (Pair* p = HashMapNext(ctx->SymbolMap); p != NULL; p = HashMapNext(ctx->SymbolMap)) {
+        Symbol* sym = (Symbol*)p->value;
+        if (sym == NULL || sym->file == NULL || sym->symIdx < 0)
+            continue;
+        Sym* esym = &sym->file->inputFile->ElfSyms[sym->symIdx];
+        if (IsUndef(esym) || IsCommon(esym))
+            continue;
+        uint8_t bind = ELF64_ST_BIND(esym->Info);
+        if (bind == STB_LOCAL)
+            continue;
+        if (sym->flags & SYMBOL_FLAG_SYMTAB)
+            continue;
+
+        SymtabEntry* rec = SymtabAddEntry(tab);
+        rec->sym = sym;
+        rec->info = esym->Info;
+        rec->other = esym->Other;
+        rec->size = esym->Size;
+        rec->nameOffset = (sym->name && sym->name[0]) ? StrtabAppend(ctx->strtab, sym->name) : 0;
+        if (IsAbs(esym))
+            rec->shndx = SHN_ABS;
+        else if (IsCommon(esym))
+            rec->shndx = SHN_COMMON;
+        else {
+            rec->sectionChunk = GetSymbolSectionChunk(sym);
+            rec->shndx = 0;
+        }
+        sym->flags |= SYMBOL_FLAG_SYMTAB;
+    }
+
+    if (tab->localCount > tab->count)
+        tab->localCount = tab->count;
+
+    // Resolve section indices for entries that reference sections
+    for (size_t i = 1; i < tab->count; i++) {
+        SymtabEntry* rec = &tab->entries[i];
+        if (rec->shndx == 0) {
+            if (rec->sectionChunk != NULL) {
+                uint16_t idx = GetSectionIndexByChunk(ctx, rec->sectionChunk);
+                rec->shndx = idx ? idx : SHN_ABS;
+            } else {
+                rec->shndx = SHN_ABS;
+            }
+        }
+    }
+
+    tab->chunk->shdr.Size = tab->count * sizeof(Elf64_Sym);
+    tab->chunk->shdr.Info = (uint32_t)tab->localCount;
+    uint16_t strtabIndex = GetSectionIndexByChunk(ctx, ctx->strtab->chunk);
+    if (strtabIndex == 0)
+        fatal(".strtab section header index not found");
+    tab->chunk->shdr.Link = strtabIndex;
+    tab->chunk->shdr.EntSize = sizeof(Elf64_Sym);
+    ctx->strtab->chunk->shdr.Size = ctx->strtab->size;
+}
+
+void Symtab_CopyBuf(Chunk* c, Context* ctx)
+{
+    if (ctx == NULL || ctx->symtab == NULL || ctx->symtab->chunk != c)
+        return;
+    OutputSymtab* tab = ctx->symtab;
+    if (tab->count == 0)
+        return;
+
+    Elf64_Sym* out = (Elf64_Sym*)(ctx->buf + c->shdr.Offset);
+    for (size_t i = 0; i < tab->count; i++) {
+        SymtabEntry* rec = &tab->entries[i];
+        Elf64_Sym* dst = &out[i];
+        memset(dst, 0, sizeof(Elf64_Sym));
+        dst->st_name = rec->nameOffset;
+        dst->st_info = rec->info;
+        dst->st_other = rec->other;
+        dst->st_shndx = rec->shndx;
+        dst->st_size = rec->size;
+        if (rec->sym != NULL)
+            dst->st_value = Symbol_GetAddr(rec->sym);
+    }
+}
+
 static bool ShouldEmitSectionHeader(Context* ctx, Chunk* chunk)
 {
     if (chunk == NULL) {
@@ -2661,6 +3078,8 @@ static bool ShouldEmitSectionHeader(Context* ctx, Chunk* chunk)
         case ChunkTypeMergedSection:
         case ChunkTypeGotSection:
         case ChunkTypeShStrtab:
+        case ChunkTypeSymtab:
+        case ChunkTypeStrtab:
             break;
         default:
             return false;
@@ -2821,6 +3240,10 @@ printf("GUHI sym %p value %d\n", sym, sym->value);
         GotSec_CopyBuf(c,ctx);
     else if(c->chunkType == ChunkTypeShStrtab)
         ShStrtab_CopyBuf(c,ctx);
+    else if(c->chunkType == ChunkTypeStrtab)
+        Strtab_CopyBuf(c,ctx);
+    else if(c->chunkType == ChunkTypeSymtab)
+        Symtab_CopyBuf(c,ctx);
 }
 
 void Update(Chunk* c,Context* ctx)
@@ -3555,6 +3978,8 @@ Context* NewContext()
     ctx->GpAddr = 0;
     ctx->got = NULL;
     ctx->shstrtab = NULL;
+    ctx->strtab = NULL;
+    ctx->symtab = NULL;
     ctx->ShStrtabIndex = 0;
     DBG("NewContext: done\n");
     return ctx;
@@ -4313,6 +4738,9 @@ int main(int argc, char* argv[])
 
     DBG("main: SortOutputSections start\n");
     SortOutputSections(ctx);
+
+    DBG("main: BuildOutputSymtab start\n");
+    BuildOutputSymtab(ctx);
 
     for(int i=0; i<ctx->chunkNum;i++){
         Chunk *c = ctx->chunk[i];
