@@ -256,12 +256,212 @@ static const Elf64_Shdr* find_section_by_name(const unsigned char* buf,
   return 0;
 }
 
+// -------- minimal RV64 disassembler --------
+static const char* rv_regs[32] = {
+  "zero","ra","sp","gp","tp","t0","t1","t2",
+  "s0","s1","a0","a1","a2","a3","a4","a5",
+  "a6","a7","s2","s3","s4","s5","s6","s7",
+  "s8","s9","s10","s11","t3","t4","t5","t6"
+};
+
+static int32_t rv_sext(uint32_t value, int bits) {
+  int32_t shift = 32 - bits;
+  return (int32_t)(value << shift) >> shift;
+}
+
+static uint32_t rv_bits(uint32_t inst, int hi, int lo) {
+  return (inst >> lo) & ((1u << (hi - lo + 1)) - 1u);
+}
+
+static void rv_decode(uint32_t inst, uint64_t addr, char* out, size_t outsz) {
+  uint32_t opcode = inst & 0x7f;
+  uint32_t rd = rv_bits(inst, 11, 7);
+  uint32_t funct3 = rv_bits(inst, 14, 12);
+  uint32_t rs1 = rv_bits(inst, 19, 15);
+  uint32_t rs2 = rv_bits(inst, 24, 20);
+  uint32_t funct7 = rv_bits(inst, 31, 25);
+
+  switch (opcode) {
+    case 0x13: { // OP-IMM
+      int32_t imm = rv_sext(inst >> 20, 12);
+      if (funct3 == 0x0)
+        snprintf(out, outsz, "addi   %s, %s, %d", rv_regs[rd], rv_regs[rs1], imm);
+      else if (funct3 == 0x6)
+        snprintf(out, outsz, "ori    %s, %s, %d", rv_regs[rd], rv_regs[rs1], imm);
+      else if (funct3 == 0x7)
+        snprintf(out, outsz, "andi   %s, %s, %d", rv_regs[rd], rv_regs[rs1], imm);
+      else if (funct3 == 0x4)
+        snprintf(out, outsz, "xori   %s, %s, %d", rv_regs[rd], rv_regs[rs1], imm);
+      else if (funct3 == 0x1)
+        snprintf(out, outsz, "slli   %s, %s, %u", rv_regs[rd], rv_regs[rs1], rv_bits(inst, 25, 20));
+      else if (funct3 == 0x5 && (funct7 & 0x20))
+        snprintf(out, outsz, "srai   %s, %s, %u", rv_regs[rd], rv_regs[rs1], rv_bits(inst, 25, 20));
+      else if (funct3 == 0x5)
+        snprintf(out, outsz, "srli   %s, %s, %u", rv_regs[rd], rv_regs[rs1], rv_bits(inst, 25, 20));
+      else
+        snprintf(out, outsz, "op-imm (funct3=0x%x)", funct3);
+      return;
+    }
+    case 0x33: {
+      if (funct3 == 0x0 && funct7 == 0x00)
+        snprintf(out, outsz, "add    %s, %s, %s", rv_regs[rd], rv_regs[rs1], rv_regs[rs2]);
+      else if (funct3 == 0x0 && funct7 == 0x20)
+        snprintf(out, outsz, "sub    %s, %s, %s", rv_regs[rd], rv_regs[rs1], rv_regs[rs2]);
+      else if (funct3 == 0x7)
+        snprintf(out, outsz, "and    %s, %s, %s", rv_regs[rd], rv_regs[rs1], rv_regs[rs2]);
+      else if (funct3 == 0x6)
+        snprintf(out, outsz, "or     %s, %s, %s", rv_regs[rd], rv_regs[rs1], rv_regs[rs2]);
+      else if (funct3 == 0x4)
+        snprintf(out, outsz, "xor    %s, %s, %s", rv_regs[rd], rv_regs[rs1], rv_regs[rs2]);
+      else
+        snprintf(out, outsz, "op (funct3=0x%x funct7=0x%x)", funct3, funct7);
+      return;
+    }
+    case 0x17: {
+      int32_t imm = rv_sext(inst & 0xfffff000u, 32);
+      snprintf(out, outsz, "auipc  %s, 0x%x", rv_regs[rd], imm >> 12);
+      return;
+    }
+    case 0x37: {
+      int32_t imm = rv_sext(inst & 0xfffff000u, 32);
+      snprintf(out, outsz, "lui    %s, 0x%x", rv_regs[rd], imm >> 12);
+      return;
+    }
+    case 0x6f: {
+      uint32_t imm =
+        ((inst >> 12) & 0x000ff) |
+        ((inst >> 20) & 0x00100) |
+        ((inst >> 21) & 0x3fe00) |
+        ((inst & 0x80000000u) ? 0xffe00000u : 0);
+      int32_t simm = rv_sext(imm, 21);
+      snprintf(out, outsz, "jal    %s, 0x%llx", rv_regs[rd],
+               (unsigned long long)(addr + simm));
+      return;
+    }
+    case 0x67: {
+      int32_t imm = rv_sext(inst >> 20, 12);
+      snprintf(out, outsz, "jalr   %s, %d(%s)", rv_regs[rd], imm, rv_regs[rs1]);
+      return;
+    }
+    case 0x63: {
+      uint32_t imm =
+        ((inst >> 7) & 0x1e) |
+        ((inst >> 20) & 0x7e0) |
+        ((inst << 4) & 0x800) |
+        ((inst & 0x80000000u) ? 0xfffff000u : 0);
+      int32_t simm = rv_sext(imm, 13);
+      const char* name = "branch";
+      if (funct3 == 0x0) name = "beq";
+      else if (funct3 == 0x1) name = "bne";
+      else if (funct3 == 0x4) name = "blt";
+      else if (funct3 == 0x5) name = "bge";
+      else if (funct3 == 0x6) name = "bltu";
+      else if (funct3 == 0x7) name = "bgeu";
+      snprintf(out, outsz, "%-5s %s, %s, 0x%llx", name, rv_regs[rs1], rv_regs[rs2],
+               (unsigned long long)(addr + simm));
+      return;
+    }
+    case 0x03: {
+      int32_t imm = rv_sext(inst >> 20, 12);
+      const char* name = "ld";
+      if (funct3 == 0x0) name = "lb";
+      else if (funct3 == 0x1) name = "lh";
+      else if (funct3 == 0x2) name = "lw";
+      else if (funct3 == 0x3) name = "ld";
+      else if (funct3 == 0x4) name = "lbu";
+      else if (funct3 == 0x5) name = "lhu";
+      else if (funct3 == 0x6) name = "lwu";
+      snprintf(out, outsz, "%-5s %s, %d(%s)", name, rv_regs[rd], imm, rv_regs[rs1]);
+      return;
+    }
+    case 0x23: {
+      uint32_t imm = (rv_bits(inst, 31, 25) << 5) | rv_bits(inst, 11, 7);
+      int32_t simm = rv_sext(imm, 12);
+      const char* name = "sd";
+      if (funct3 == 0x0) name = "sb";
+      else if (funct3 == 0x1) name = "sh";
+      else if (funct3 == 0x2) name = "sw";
+      else if (funct3 == 0x3) name = "sd";
+      snprintf(out, outsz, "%-5s %s, %d(%s)", name, rv_regs[rs2], simm, rv_regs[rs1]);
+      return;
+    }
+    case 0x73:
+      if (inst == 0x00000073)
+        snprintf(out, outsz, "ecall");
+      else
+        snprintf(out, outsz, "system");
+      return;
+    default:
+      snprintf(out, outsz, "0x%08x", inst);
+      return;
+  }
+}
+
+static void print_disassembly(const unsigned char* buf,
+                              const Elf64_Ehdr* eh,
+                              const char* shstr, uint64_t shstrsz) {
+  const Elf64_Shdr* text = find_section_by_name(buf, eh, shstr, shstrsz, ".text");
+  if (!text || text->sh_size == 0) {
+    printf("Disassembly: .text not present\n");
+    return;
+  }
+  uint64_t size = text->sh_size;
+  uint64_t rounded = size & ~0x3ull;
+  if (size % 4 != 0) {
+    printf("Disassembly: .text size (%llu) not multiple of 4, truncating tail\n",
+           (unsigned long long)size);
+  }
+  const unsigned char* base = buf + text->sh_offset;
+  uint64_t addr = text->sh_addr;
+  printf("Disassembly of section .text:\n");
+  for (uint64_t off = 0; off < rounded; off += 4, addr += 4) {
+    uint32_t inst = base[off] |
+                    (base[off+1] << 8) |
+                    (base[off+2] << 16) |
+                    (base[off+3] << 24);
+    char decoded[80];
+    rv_decode(inst, addr, decoded, sizeof(decoded));
+    printf("  0x%08llx: %08x  %s\n",
+           (unsigned long long)addr,
+           inst,
+           decoded);
+  }
+}
+
+
+static void print_got_entries(const unsigned char* buf,
+                              const Elf64_Ehdr* eh,
+                              const char* shstr, uint64_t shstrsz) {
+  const Elf64_Shdr* got = find_section_by_name(buf, eh, shstr, shstrsz, ".got");
+  if (!got || got->sh_size == 0) {
+    printf(".got: (not present or empty)\n");
+    return;
+  }
+
+  if (got->sh_size % sizeof(uint64_t) != 0) {
+    printf(".got: unexpected size (%llu bytes)\n",
+           (unsigned long long)got->sh_size);
+    return;
+  }
+
+  uint64_t count = got->sh_size / sizeof(uint64_t);
+  const uint64_t* entries = (const uint64_t*)(buf + got->sh_offset);
+
+  printf(".got entries (count=%llu)\n", (unsigned long long)count);
+  for (uint64_t i = 0; i < count; i++) {
+    printf("  [%3llu] 0x%016llx\n",
+           (unsigned long long)i,
+           (unsigned long long)entries[i]);
+  }
+}
+
 // -------- main --------
 static void usage(void) {
-  printf("usage: objdump_min [-h] [-p] [-t] [-x] [-s <name>] <elf>\n");
+  printf("usage: objdump_min [-h] [-p] [-t] [-G] [-d] [-x] [-s <name>] <elf>\n");
   printf("  -h : headers only (ELF/PHDR/SHDR)\n");
   printf("  -p : print program headers\n");
   printf("  -t : print symbols (.symtab)\n");
+  printf("  -G : print GOT (.got) entries\n");
   printf("  -x : hexdump all PROGBITS sections\n");
   printf("  -s <name> : hexdump specific section (e.g., .text)\n");
   printf("  (default) headers + dump .text and .data if present\n");
@@ -271,6 +471,8 @@ int main(int argc, char** argv) {
   int opt_headers_only = 0;
   int opt_print_ph = 0;
   int opt_print_syms = 0;
+  int opt_print_got = 0;
+  int opt_disassemble = 0;
   int opt_dump_all_progbits = 0;
   const char* dump_one = 0;
 
@@ -280,6 +482,8 @@ int main(int argc, char** argv) {
     if (a[1]=='h' && a[2]==0) { opt_headers_only=1; iarg++; }
     else if (a[1]=='p' && a[2]==0) { opt_print_ph=1; iarg++; }
     else if (a[1]=='t' && a[2]==0) { opt_print_syms=1; iarg++; }
+    else if (a[1]=='G' && a[2]==0) { opt_print_got=1; iarg++; }
+    else if (a[1]=='d' && a[2]==0) { opt_disassemble=1; iarg++; }
     else if (a[1]=='x' && a[2]==0) { opt_dump_all_progbits=1; iarg++; }
     else if (a[1]=='s' && a[2]==0) {
       if (iarg+1 >= argc) { usage(); return 1; }
@@ -325,6 +529,8 @@ int main(int argc, char** argv) {
   if (opt_headers_only) { free(buf); return 0; }
 
   if (opt_print_syms) print_symbols(buf, eh, shstr, shstrsz);
+  if (opt_print_got) print_got_entries(buf, eh, shstr, shstrsz);
+  if (opt_disassemble) print_disassembly(buf, eh, shstr, shstrsz);
 
   const Elf64_Shdr* sh_base = (const Elf64_Shdr*)(buf + eh->e_shoff);
 
@@ -364,4 +570,3 @@ int main(int argc, char** argv) {
   free(buf);
   return 0;
 }
-

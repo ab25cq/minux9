@@ -56,6 +56,9 @@
 
 #define DEBUG_LINKER 1
 
+#define SYMBOL_FLAG_GOT_TP 0x1
+#define SYMBOL_FLAG_GOT     0x2
+
 #define max_(a, b) ((a) > (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
@@ -373,6 +376,7 @@ typedef struct Symbol_
     InputSection * inputSection;
     SectionFragment *sectionFragment;
 
+    int32_t gotIdx;
     int32_t gotTpIdx;
     uint32_t flags;
 }Symbol;
@@ -402,6 +406,8 @@ typedef struct Chunk_
     struct {
         Symbol ** GotTpSyms;
         int TpSymNum;
+        Symbol ** GotSyms;
+        int GotSymNum;
     }gotSec;
 
     struct {
@@ -620,8 +626,10 @@ void Phdr_UpdateShdr(Chunk* c,Context* ctx);
 //-------------------got section
 GotSection *NewGotSection();
 void AddGotTpSymbol(Chunk* chunk, Symbol* sym);
+void AddGotSymbol(Chunk* chunk, Symbol* sym);
 void GotSec_CopyBuf(Chunk* c,Context* ctx);
 GotEntry *GetEntries(Chunk *chunk,Context* ctx,int* num);
+uint64_t GetGotAddr(Context* ctx,Symbol* s);
 void FinalizeGlobalPointer(Context* ctx);
 void AssignOffsets(MergedSection* m);
 void MergedSec_CopyBuf(Chunk* c,Context* ctx);
@@ -695,7 +703,6 @@ void markLiveObjs(ObjectFile* o,ObjectFile*** roots,int *rootSize);
 void ClearSymbols(ObjectFile* o);
 void registerSectionPieces(ObjectFile* o);
 void SkipEhframeSections(ObjectFile* o);
-void ScanRelocations_(ObjectFile* o);
 
 //-----------------------
 void AddObjectFile(ObjectFile*** Objs, int* ObjsCount, ObjectFile* newObj);
@@ -706,7 +713,7 @@ char* Name(struct InputSection_* inputSection);
 void WriteTo(struct InputSection_ *i,char* buf,Context* ctx);
 Rela *GetRels(InputSection* i);
 uint64_t InputSec_GetAddr(InputSection* i);
-void ScanRelocations__(InputSection* isec);
+void ScanRelocations_(Context* ctx,ObjectFile* o);
 void ApplyRelocAlloc(InputSection* i,Context* ctx,char* buf);
 void writeItype(void* loc, uint32_t val);
 void writeStype(void* loc, uint32_t val);
@@ -895,6 +902,11 @@ uint64_t SetOutputSectionOffsets(Context* ctx)
 
         addr = AlignTo(addr,GetShdr(chunk)->AddrAlign);
         GetShdr(chunk)->Addr = addr;
+        if (chunk->name && strcmp(chunk->name, ".got") == 0) {
+            DBG("SetOutputSectionOffsets: .got size=%lu addr=0x%lx\n",
+                (unsigned long)GetShdr(chunk)->Size,
+                (unsigned long)addr);
+        }
 
         if(!isTbss(chunk)){
             addr += GetShdr(chunk)->Size;
@@ -1146,7 +1158,7 @@ void ScanRelocations(Context* ctx)
             i,
             ctx->Objs[i]->inputFile->file->Name,
             ctx->Objs[i]->isecNum);
-        ScanRelocations_(ctx->Objs[i]);
+        ScanRelocations_(ctx, ctx->Objs[i]);
     }
     DBG("ScanRelocations: finished section scan\n");
 
@@ -1157,26 +1169,33 @@ void ScanRelocations(Context* ctx)
         ObjectFile *file = ctx->Objs[i];
        // printf("numSymbols %ld\n",file->inputFile->numSymbols);
         for(int j=0;j<file->inputFile->numSymbols;j++){
-            Symbol *sym = &file->inputFile->Symbols[j];
-//            if(sym->flags != 0)
-//                count++;
-            if(sym->file == file && sym->flags!=0){
-                syms = (Symbol**) realloc(syms,sizeof (Symbol*) * (numSyms+1));
-                syms[numSyms] = sym;
-                numSyms++;
-            }
+            Symbol *sym = file->inputFile->LocalSymbols[j];
+            if (sym == NULL || sym->flags == 0)
+                continue;
+            syms = (Symbol**) realloc(syms,sizeof (Symbol*) * (numSyms+1));
+            syms[numSyms] = sym;
+            numSyms++;
         }
     }
     DBG("ScanRelocations: flagged syms=%d\n", numSyms);
 
     for(int i=0; i<numSyms;i++){
         Symbol *sym = syms[i];
-        if((sym->flags & 1) != 0){
-            AddGotTpSymbol(ctx->got->chunk,sym);
+        if((sym->flags & SYMBOL_FLAG_GOT) != 0){
+            if (!ctx->got)
+                fatal("GOT section missing");
+            AddGotSymbol(ctx->got->chunk,sym);
+            DBG("ScanRelocations: add GOT for %s\n", sym->name ? sym->name : "<noname>");
         }
-
+        if((sym->flags & SYMBOL_FLAG_GOT_TP) != 0){
+            if (!ctx->got)
+                fatal("GOT section missing");
+            AddGotTpSymbol(ctx->got->chunk,sym);
+            DBG("ScanRelocations: add TLS GOT for %s\n", sym->name ? sym->name : "<noname>");
+        }
         sym->flags = 0;
     }
+    free(syms);
     DBG("ScanRelocations: done\n");
 }
 
@@ -2215,14 +2234,13 @@ InputSection *GetSection(ObjectFile* o,Sym* esym,int idx)
 void ResolveSymbols(ObjectFile* o)
 {
     DBG("ResolveSymbols: %s start\n", o->inputFile->file->Name);
-    //localSymbol是不需要resolve的,从第一个全局符号开始解析就行
-    for(int i=0; i<o->inputFile->FirstLocal; i++) {
+    for(int i=o->inputFile->FirstLocal; i<o->inputFile->symNum; i++) {
         Sym* esym = &o->inputFile->ElfSyms[i];
-        Symbol *sym = &o->inputFile->Symbols[i];
-        
-printf("RESOLVE %s\n", sym->name);
+        Symbol *sym = o->inputFile->LocalSymbols[i];
+        if (sym == NULL) {
+            continue;
+        }
 
-        //printf那些不也是undef吗，是不是也还是得处理 ; 不是，这些会在别的objFile处理到
         if(IsUndef(esym)){
             continue;
         }
@@ -2230,17 +2248,19 @@ printf("RESOLVE %s\n", sym->name);
         InputSection *isec = NULL;
         if(!IsAbs(esym)){
             isec = GetSection(o,esym,i);
-printf("isec %p\n", isec);
             if(isec == NULL)
                 continue;
         }
         //读到不同文件时，会将每一个global符号应该在的文件赋到对应的file
         if(sym->file == NULL){
-puts("INSERT");
             sym->file = o;
             SetInputSection(sym,isec);
             sym->value = esym->Val;
             sym->symIdx = i;
+            DBG("ResolveSymbols: set %s file=%s val=0x%lx\n",
+                sym->name ? sym->name : "<noname>",
+                sym->file && sym->file->inputFile ? sym->file->inputFile->file->Name : "<none>",
+                (unsigned long)sym->value);
         }
     }
     DBG("ResolveSymbols: %s done\n", o->inputFile->file->Name);
@@ -2250,11 +2270,11 @@ void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize)
 {
     assert(o->inputFile->isAlive);
     DBG("markLiveObjs: scanning %s\n", o->inputFile->file->Name);
-    for(int i=0; i<o->inputFile->FirstLocal; i++) {
-        Symbol *sym = &o->inputFile->Symbols[i];
+    for(int i=o->inputFile->FirstLocal; i<o->inputFile->symNum; i++) {
+        Symbol *sym = o->inputFile->LocalSymbols[i];
         Sym *esym = &o->inputFile->ElfSyms[i];
 
-        if(sym->file == NULL){
+        if(sym == NULL || sym->file == NULL){
             continue;
         }
 
@@ -2273,9 +2293,9 @@ void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize)
 
 void ClearSymbols(ObjectFile* o)
 {
-    for(int i=0; i<o->inputFile->FirstLocal; i++) {
-        Symbol *sym = &o->inputFile->Symbols[i];
-        if(sym->file == o)
+    for(int i=o->inputFile->FirstLocal; i<o->inputFile->symNum; i++) {
+        Symbol *sym = o->inputFile->LocalSymbols[i];
+        if(sym != NULL && sym->file == o)
             clear(sym);
     }
 }
@@ -2301,7 +2321,9 @@ void registerSectionPieces(ObjectFile* o)
 
     //因为symbol可能要改成属于一个fragment , 进行处理
     for(int i = 1;i<o->inputFile->symNum;i++){
-        Symbol *sym = &o->inputFile->Symbols[i];
+        Symbol *sym = o->inputFile->LocalSymbols[i];
+        if (sym == NULL)
+            continue;
         Sym *esym = &o->inputFile->ElfSyms[i];
 
         if(IsAbs(esym) || IsUndef(esym) || IsCommon(esym))
@@ -2334,7 +2356,9 @@ void SkipEhframeSections(ObjectFile* o)
     }
 }
 
-void ScanRelocations_(ObjectFile* o)
+void ScanRelocations__(Context* ctx,InputSection* isec);
+
+void ScanRelocations_(Context* ctx,ObjectFile* o)
 {
     DBG("ScanRelocations_: file=%s\n", o->inputFile->file->Name);
     for(int i=0;i < o->isecNum;i++) {
@@ -2357,7 +2381,7 @@ void ScanRelocations_(ObjectFile* o)
             i,
             Name(isec),
             (unsigned long)shdr_(isec)->Flags);
-        ScanRelocations__(isec);
+        ScanRelocations__(ctx,isec);
     }
     DBG("ScanRelocations_: done %s\n", o->inputFile->file->Name);
 }
@@ -2760,7 +2784,11 @@ Chunk *NewChunk()
     chunk->phdrS.phdrNum = 0;
     chunk->phdrS.phdrs = NULL;
     chunk->gotSec.GotTpSyms = NULL;
-   chunk->gotSec.TpSymNum = 0;
+    chunk->gotSec.TpSymNum = 0;
+    chunk->gotSec.GotSyms = NULL;
+    chunk->gotSec.GotSymNum = 0;
+    chunk->gotSec.GotSyms = NULL;
+    chunk->gotSec.GotSymNum = 0;
 
     chunk->rank = -1;
     chunk->chunkType = 0;
@@ -2881,21 +2909,36 @@ void WriteTo(InputSection *i,char* buf,Context* ctx)
     }
 }
 
-void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
+//static void writeLo12(void* loc, uint32_t diff);
+
+int gLO;
+
+void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
 {
-    Rela *rels = GetRels(i);
+    Rela *rels = GetRels(isec);
  //   printf("new\n before: ");
 //    uint32_t value1;
 //    memcpy(&value1, base, sizeof(uint32_t));
 //    printf("test!__  %u\n",value1);
-    for(int a = 0; a < i->relNum;a++){
+    for(int a = 0; a < isec->relNum;a++){
         Rela rel = rels[a];
         if(rel.Type == 0/*R_RISCV_NONE*/ ||
             rel.Type == 51 /*R_RISCV_RELAX*/){
             continue;
         }
 
-        Symbol *sym = &i->objectFile->inputFile->Symbols[rel.Sym];
+        Symbol *sym = isec->objectFile->inputFile->LocalSymbols[rel.Sym];
+        if (sym == NULL)
+            continue;
+        if (ctx && sym->name && sym->name[0] != '\0') {
+            Symbol *canon = GetSymbolByName(ctx, sym->name);
+            if (canon) {
+                isec->objectFile->inputFile->LocalSymbols[rel.Sym] = canon;
+                sym = canon;
+            }
+        }
+        if(sym->file == NULL)
+            continue;
         char* loc = base + rel.Offset;
 
         if(sym->file == NULL)
@@ -2903,7 +2946,7 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
 
         uint64_t S = Symbol_GetAddr(sym);
         uint64_t A = rel.Addend;
-        uint64_t P = InputSec_GetAddr(i) + rel.Offset;
+        uint64_t P = InputSec_GetAddr(isec) + rel.Offset;
         DBG("SUCK name %s S %x A %x P %x rel.Type %d\n", sym->name, S, A, P, rel.Type);
 
         uint32_t tmp = 0;
@@ -2912,50 +2955,73 @@ void ApplyRelocAlloc(InputSection* i,Context* ctx,char* base)
         uint64_t value1;
         switch (rel.Type) {
             case 1/*R_RISCV_32*/:
-DBG("1");
+DBG("ApplyRelocAlloc1");
                 tmp = S+A;
                 Write(loc,sizeof (uint32_t),&tmp);
                 break;
             case 2/*R_RISCV_64*/:
-DBG("2");
+DBG("ApplyRelocAlloc2");
                 tmp_64 = S+A;
                 Write(loc,sizeof (uint64_t),&tmp_64);
                 break;
             case 16/*R_RISCV_BRANCH*/:
-DBG("16");
+DBG("ApplyRelocAlloc16");
                 tmp = S+A-P;
                 writeBtype(loc,tmp);
                 break;
             case 17/*R_RISCV_JAL*/:
-DBG("17");
+DBG("ApplyRelocAlloc17");
                 tmp = S+A-P;
                 writeJtype(loc,tmp);
                 break;
             case 18/*R_RISCV_CALL*/:
             case 19/*R_RISCV_CALL_PLT*/:
-DBG("18 19");
+DBG("ApplyRelocAlloc18 19");
                 tmp = S+A-P;
                 writeUtype(loc,tmp);
                 writeItype((loc + 4),tmp);
                 break;
+            case 20/*R_RISCV_GOT_HI20*/: {
+DBG("ApplyRelocAlloc20");
+                if (sym->gotIdx < 0) {
+                    if (!ctx->got)
+                        fatal("GOT section missing");
+                    AddGotSymbol(ctx->got->chunk, sym);
+                }
+                tmp = GetGotAddr(ctx,sym) + A - P;
+                uint32_t hi = (uint32_t)(((tmp + 0x800) >> 12) & 0xfffff);
+                hi = hi << 12;
+                tmp = GetGotAddr(ctx,sym) + A - P;
+                int64_t lo = tmp - (hi << 12);
+                gLO = lo;
+DBG("A %ld P %ld target %p tmp %ld sym->Name %s\n", A, P, GetGotAddr(ctx,sym), tmp, sym->name);
+                writeUtype(loc,(uint32_t)hi);
+                }
+                break;
             case 21/*R_RISCV_TLS_GOT_HI20*/:
-DBG("21");
+DBG("ApplyRelocAlloc21");
+                if (sym->gotTpIdx < 0) {
+                    if (!ctx->got)
+                        fatal("GOT section missing");
+                    AddGotTpSymbol(ctx->got->chunk, sym);
+                }
                 tmp = GetGotTpAddr(ctx,sym) + A -P;
-                Write(loc,sizeof (uint32_t),&tmp);
+                writeUtype(loc,(uint32_t)tmp);
+                //writeLo12(loc + 4,(uint32_t)tmp);
                 break;
             case 23/*R_RISCV_PCREL_HI20*/:
-DBG("23");
+DBG("ApplyRelocAlloc23");
                 tmp = S+A-P;
-                Write(loc,sizeof (uint32_t),&tmp);
+                writeUtype(loc,(uint32_t)tmp);
                 break;
             case 26/*R_RISCV_HI20*/:
-DBG("26");
+DBG("ApplyRelocAlloc26");
                 tmp = S+A;
                 writeUtype(loc,tmp);
                 break;
             case 27/*R_RISCV_LO12_I*/:
             case 28/*R_RISCV_LO12_S*/:
-DBG("27 28");
+DBG("ApplyRelocAlloc27 28");
                 val = S+A;
                 if(rel.Type == 27)
                     writeItype(loc,(uint64_t)val);
@@ -2967,7 +3033,7 @@ DBG("27 28");
                 break;
             case 37/*R_RISCV_GPREL_I*/:
             case 38/*R_RISCV_GPREL_S*/:
-DBG("37 38");
+DBG("ApplyRelocAlloc37 38");
                 if (ctx->GpAddr == 0)
                     fatal("GP-relative relocation but gp is unset");
                 val = S + A - ctx->GpAddr;
@@ -2978,7 +3044,7 @@ DBG("37 38");
                 break;
             case 30/*R_RISCV_TPREL_LO12_I*/:
             case 31/*R_RISCV_TPREL_LO12_S*/:
-DBG("30 31");
+DBG("ApplyRelocAlloc30 31");
                 val = S+A-ctx->TpAddr;
                 if(rel.Type == 30)
                     writeItype(loc,(uint32_t)val);
@@ -2994,26 +3060,56 @@ DBG("30 31");
         }
     }
 
-    for(int a = 0; a < i->relNum;a++) {
+    for(int a = 0; a < isec->relNum;a++) {
         Rela rel = rels[a];
-        Symbol *sym = &i->objectFile->inputFile->Symbols[rel.Sym];
+        Symbol *sym = isec->objectFile->inputFile->LocalSymbols[rel.Sym];
+        if (sym == NULL)
+            continue;
+        if (ctx && sym->name && sym->name[0] != '\0') {
+            Symbol *canon = GetSymbolByName(ctx, sym->name);
+            if (canon) {
+                isec->objectFile->inputFile->LocalSymbols[rel.Sym] = canon;
+                sym = canon;
+            }
+        }
+        if(sym->file == NULL)
+            continue;
         char* loc = base + rel.Offset;
-        uint32_t val = 0;
+        uint64_t target;
+        if (sym->gotIdx >= 0)
+            target = GetGotAddr(ctx, sym);
+        else if (sym->gotTpIdx >= 0)
+            target = GetGotTpAddr(ctx, sym);
+        else
+            target = Symbol_GetAddr(sym);
+        target += rel.Addend;
+        uint64_t P = InputSec_GetAddr(isec) + rel.Offset;
+        int64_t diff = (int64_t)(target - P);
+        uint32_t hi = (uint32_t)(((diff + 0x800) >> 12) & 0xfffff);
+        
         switch (rel.Type) {
-            case 24/*R_RISCV_PCREL_LO12_I*/:
-            case 25/*R_RISCV_PCREL_LO12_S*/:
-                assert(sym->inputSection == i);
-                Read(&val,base + sym->value,sizeof(uint32_t));
-
-                if(rel.Type == 24)
-                    writeItype(loc,val);
-                else
-                    writeStype(loc,val);
+/*
+            case 20:
+DBG("R_RISCV_PCREL_HI20 low %ul\n", diff);
+                writeUtype(loc, hi << 12);
+                writeItype(loc,(uint32_t)diff);
                 break;
+*/
+            case 24/*R_RISCV_PCREL_LO12_I*/:
+DBG("UHIIII R_RISCV_PCREL_LO12_I %ul\n", diff);
+                writeItype(loc,(uint32_t)gLO);
+                //writeItype(loc,(uint32_t)diff);
+                break;
+            case 25/*R_RISCV_PCREL_LO12_S*/:
+DBG("GUIIIII R_RISCV_PCREL_LO12_S %ul\n", diff);
+                writeStype(loc,(uint32_t)diff);
+                break;
+        default:
+printf("LOOOOOOO rel.Type %d\n", rel.Type);
         }
     }
 
-    for(int a = 0; a < i->relNum;a++) {
+    for(int a = 0; a < isec->relNum;a++) {
         Rela rel = rels[a];
         char *loc = base + rel.Offset;
         uint32_t val = 0;
@@ -3022,7 +3118,7 @@ DBG("30 31");
             case 23/*R_RISCV_PCREL_HI20*/:
             case 21/*R_RISCV_TLS_GOT_HI20*/:
                 Read(&val,loc,sizeof(uint32_t));
-                Read(&tmp,i->contents + rel.Offset,sizeof (uint32_t));
+                Read(&tmp,isec->contents + rel.Offset,sizeof (uint32_t));
                 Write(loc,sizeof (uint32_t),&tmp);
                 writeUtype(loc,val);
                 break;
@@ -3061,7 +3157,7 @@ uint64_t InputSec_GetAddr(InputSection* i)
     return i->outputSection->chunk->shdr.Addr + i->offset;
 }
 
-void ScanRelocations__(InputSection* isec)
+void ScanRelocations__(Context* ctx,InputSection* isec)
 {
     GetRels(isec);
     DBG("ScanRelocations__: section=%s relNum=%d\n",
@@ -3073,12 +3169,28 @@ void ScanRelocations__(InputSection* isec)
                 Name(isec), i, isec->relNum);
         }
         Rela rel = isec->rels[i];
-        Symbol *sym = &isec->objectFile->inputFile->Symbols[rel.Sym];
+        Symbol *sym = isec->objectFile->inputFile->LocalSymbols[rel.Sym];
+        if (sym == NULL)
+            continue;
+        if (ctx && sym->name && sym->name[0] != '\0') {
+            Symbol *canon = GetSymbolByName(ctx, sym->name);
+            if (canon) {
+                DBG("ScanRelocations__: canonical %s file=%s\n",
+                    sym->name,
+                    canon->file && canon->file->inputFile ? canon->file->inputFile->file->Name : "<none>");
+                isec->objectFile->inputFile->LocalSymbols[rel.Sym] = canon;
+                sym = canon;
+            }
+        }
         if(sym->file == NULL)
             continue;
 
         if(rel.Type == 21/*R_RISCV_TLS_GOT_HI20*/){
-            sym->flags |= 1;
+            DBG("ScanRelocations__: TLS GOT sym=%s\n", sym->name ? sym->name : "<noname>");
+            sym->flags |= SYMBOL_FLAG_GOT_TP;
+        } else if (rel.Type == 20/*R_RISCV_GOT_HI20*/) {
+            DBG("ScanRelocations__: GOT sym=%s\n", sym->name ? sym->name : "<noname>");
+            sym->flags |= SYMBOL_FLAG_GOT;
         }
     }
     //printf("relNUm %d\n",isec->relNum);
@@ -3109,6 +3221,18 @@ uint32_t jtype(uint32_t val)
 {
     return Bit_32(val,20) << 31 | Bits_32(val,10,1) << 21 |
             Bit_32(val,11) << 20 | Bits_32(val,19,12) << 12;
+}
+
+static void writeLo12(void* loc, uint32_t diff)
+{
+    uint32_t inst;
+    Read(&inst, loc, sizeof(uint32_t));
+    uint32_t opcode = inst & 0x7f;
+    if (opcode == 0x23) {
+        writeStype(loc, diff);
+    } else {
+        writeItype(loc, diff);
+    }
 }
 
 void writeItype(void* loc, uint32_t val) 
@@ -3184,7 +3308,8 @@ Symbol *NewSymbol(char* name)
     symbol->value = 0;
     symbol->sectionFragment = NULL;
     symbol->flags = 0;
-    symbol->gotTpIdx = 0;
+    symbol->gotIdx = -1;
+    symbol->gotTpIdx = -1;
     return symbol;
 }
 
@@ -3261,7 +3386,7 @@ GotSection *NewGotSection()
     strcpy(gotSection->chunk->name,".got");
     gotSection->chunk->shdr.Type = SHT_PROGBITS;
     gotSection->chunk->shdr.Flags = SHF_ALLOC | SHF_WRITE;
-    gotSection->chunk->shdr.AddrAlign = 0;
+    gotSection->chunk->shdr.AddrAlign = 8;
     gotSection->chunk->chunkType = ChunkTypeGotSection;
     return gotSection;
 }
@@ -3269,12 +3394,32 @@ GotSection *NewGotSection()
 //向GotTpSyms中增加一个元素
 void AddGotTpSymbol(Chunk* chunk, Symbol* sym)
 {
+    if (sym->gotTpIdx >= 0)
+        return;
     sym->gotTpIdx = chunk->shdr.Size / 8;
     chunk->shdr.Size += 8;
-   // printf("%lu\n",chunk->shdr.Size);
+    if (chunk->shdr.AddrAlign < 8)
+        chunk->shdr.AddrAlign = 8;
     chunk->gotSec.GotTpSyms = realloc(chunk->gotSec.GotTpSyms,sizeof (Symbol*) * (chunk->gotSec.TpSymNum + 1));
     chunk->gotSec.GotTpSyms[chunk->gotSec.TpSymNum] = sym;
     chunk->gotSec.TpSymNum++;
+}
+
+void AddGotSymbol(Chunk* chunk, Symbol* sym)
+{
+    if (sym->gotIdx >= 0)
+        return;
+    sym->gotIdx = chunk->shdr.Size / 8;
+    chunk->shdr.Size += 8;
+    if (chunk->shdr.AddrAlign < 8)
+        chunk->shdr.AddrAlign = 8;
+    chunk->gotSec.GotSyms = realloc(chunk->gotSec.GotSyms,sizeof (Symbol*) * (chunk->gotSec.GotSymNum + 1));
+    chunk->gotSec.GotSyms[chunk->gotSec.GotSymNum] = sym;
+    chunk->gotSec.GotSymNum++;
+    DBG("AddGotSymbol: %s idx=%d file=%s\n",
+        sym->name ? sym->name : "<noname>",
+        sym->gotIdx,
+        sym->file && sym->file->inputFile ? sym->file->inputFile->file->Name : "<none>");
 }
 
 GotEntry *GetEntries(Chunk *chunk,Context* ctx,int* num)
@@ -3295,13 +3440,38 @@ GotEntry *GetEntries(Chunk *chunk,Context* ctx,int* num)
 
 void GotSec_CopyBuf(Chunk* c,Context* ctx)
 {
-  //  printf("in !!\n");
+    char* base = ctx->buf + c->shdr.Offset;
+
+    DBG("GotSec_CopyBuf: chunk size=%lu offset=0x%lx\n",
+        (unsigned long)c->shdr.Size,
+        (unsigned long)c->shdr.Offset);
+
+    for(int i =0; i< c->gotSec.GotSymNum;i++){
+        Symbol *sym = c->gotSec.GotSyms[i];
+        if (sym == NULL || sym->gotIdx < 0)
+            continue;
+        uint64_t val = Symbol_GetAddr(sym);
+        DBG("GotSec_CopyBuf: %s idx=%d val=0x%lx\n",
+            sym->name ? sym->name : "<noname>",
+            sym->gotIdx,
+            (unsigned long)val);
+        Write(base + sym->gotIdx * 8,sizeof (uint64_t),&val);
+    }
+
     int num =0 ;
     GotEntry *entries = GetEntries(c,ctx,&num);
     for(int i=0; i< num;i++){
         GotEntry ent = entries[i];
-        Write(ctx->buf + c->shdr.Offset + ent.idx*8 ,sizeof (uint64_t),&ent.val);
+        Write(base + ent.idx*8 ,sizeof (uint64_t),&ent.val);
     }
+    free(entries);
+}
+
+uint64_t GetGotAddr(Context* ctx,Symbol* s)
+{
+    if (s->gotIdx < 0)
+        fatal("symbol has no GOT entry");
+    return ctx->got->chunk->shdr.Addr + (uint64_t)s->gotIdx * 8;
 }
 
 static uint64_t findWritableAllocBase(Context* ctx) 
