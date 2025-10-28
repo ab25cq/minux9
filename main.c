@@ -924,26 +924,31 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         }
     
 //printf("ELF_PROG_LOAD i%d\n", i);
-        for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
-            void *pa = kalloc();
-            
-            struct process_pages* page = result->process_pages[result->num_process_pages - 1];
-            
-            page->process_kalloc_address[page->num_process_kalloc_address++] = pa;
-            
-            if(page->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
-                result->process_pages[++result->num_process_pages] = kalloc();
+        uint64_t seg_start = PGROUNDDOWN(ph->vaddr);
+        uint64_t seg_end   = PGROUNDUP(ph->vaddr + ph->memsz);
+        for (va = seg_start; va < seg_end; va += PGSIZE) {
+            uint64_t existing_pa = (uint64_t)walkaddr(result->pagetable, va);
+            if (existing_pa != 0) {
+                continue; // 既に割り当て済み (テキストとデータが1ページを共有している等)
             }
-            
+
+            void *pa = kalloc();
+            struct process_pages* page = result->process_pages[result->num_process_pages - 1];
+
             if (!pa) panic("kalloc");
             memset(pa, 0, PGSIZE);
+
+            page->process_kalloc_address[page->num_process_kalloc_address++] = pa;
+            if (page->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
+                result->process_pages[++result->num_process_pages] = kalloc();
+            }
 
             mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
                      PTE_U | PTE_R | PTE_W | PTE_X | PTE_V);
         }
 
-        if (va + PGSIZE > max_va_end) {
-            max_va_end = va + PGSIZE;
+        if (seg_end > max_va_end) {
+            max_va_end = seg_end;
         }
         
 //printf("ELF_PROG_LOAD ph->vaddr %x ph->off %d\n", ph->vaddr, ph->off);
