@@ -57,7 +57,7 @@ struct sCommand
 
 int shell_pgrp;
 
-int run_command(int n, struct sCommand* commands, int num_commands)
+int run_command(int n, struct sCommand* commands, int num_commands, int debug_)
 {
     int pipes[2] = { 0, 0 };
     
@@ -99,14 +99,24 @@ int run_command(int n, struct sCommand* commands, int num_commands)
         }
         
         // Try exec as given; if no slash and fails, try "/cmd"
-        execve(argv[0], argv, envp);
+        if(debug_) {
+            execved(argv[0], argv, envp);
+        }
+        else {
+            execve(argv[0], argv, envp);
+        }
         if (argv[0] && argv[0][0] && !s_strchr(argv[0], '/')) {
             char abuf[64];
             abuf[0] = '/';
             int i=0; while (argv[0][i] && i < (int)sizeof(abuf)-2) { abuf[i+1] = argv[0][i]; i++; }
             abuf[i+1] = '\0';
             argv[0] = abuf; // safe: we exit on failure anyway
-            execve(argv[0], argv, envp);
+            if(debug_) {
+                execved(argv[0], argv, envp);
+            }
+            else {
+                execve(argv[0], argv, envp);
+            }
         }
         exit(126);
     }
@@ -119,7 +129,7 @@ int run_command(int n, struct sCommand* commands, int num_commands)
             close(pipes[1]);
             dup2(pipes[0], 0);
             close(pipes[0]);
-            run_command(n+1, commands, num_commands);
+            run_command(n+1, commands, num_commands, debug_);
         }
         else {
             tcsetpgrp(0, shell_pgrp);
@@ -142,14 +152,24 @@ int run_command(int n, struct sCommand* commands, int num_commands)
             envbuf[ei] = '\0';
             char* envp[2]; envp[0] = envbuf; envp[1] = 0;
 
-            execve(argv[0], argv, envp);
+            if(debug_) {
+                execved(argv[0], argv, envp);
+            }
+            else {
+                execve(argv[0], argv, envp);
+            }
             if (argv[0] && argv[0][0] && !s_strchr(argv[0], '/')) {
                 char abuf[64];
                 abuf[0] = '/';
                 int i=0; while (argv[0][i] && i < (int)sizeof(abuf)-2) { abuf[i+1] = argv[0][i]; i++; }
                 abuf[i+1] = '\0';
                 argv[0] = abuf;
-                execve(argv[0], argv, envp);
+                if(debug_) {
+                    execved(argv[0], argv, envp);
+                }
+                else {
+                    execve(argv[0], argv, envp);
+                }
             }
             exit(126);
         }
@@ -176,6 +196,7 @@ int main(int argc, char** argv) {
     buf[0] = '\0';
     
     int run_once = 0;
+    int debug_ = 0;
     for(i=1; i<argc; i++) {
         if(strcmp(argv[i], "-c") == 0) {
             run_once = 1;
@@ -191,7 +212,13 @@ int main(int argc, char** argv) {
         if(run_once == 0) {
             cmdline = readline("$ ");
             
-            strncpy(buf, cmdline, BUF_SIZE);
+            if(cmdline[0] == '!') {
+                debug_ = 1;
+                strncpy(buf, cmdline + 1, BUF_SIZE);
+            }
+            else {
+                strncpy(buf, cmdline, BUF_SIZE);
+            }
         }
         
         // save whole command line into global for MINUX_CMDLINE
@@ -362,7 +389,7 @@ int main(int argc, char** argv) {
         
         if(pid == 0) {
             tcsetpgrp(0, shell_pgrp);
-            run_command(0, commands, num_commands);
+            run_command(0, commands, num_commands, debug_);
         }
         else {
             for(int k=0; k<num_commands; k++) {

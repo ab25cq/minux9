@@ -168,9 +168,8 @@ extern FILE* stderr;
 
 typedef int pid_t;
 
-#ifndef SYS_execve
 #define SYS_execve 100
-#endif
+#define SYS_execved 199
 #define SYS_settimeofday 92
 #define SYS_utimes 93
 #define SYS_umask 94
@@ -541,6 +540,19 @@ extern int errno;
     register long _a1 asm("a1") = (long)(argv);                  \
     register long _a2 asm("a2") = (long)(envp);                  \
     register long _a7 asm("a7") = SYS_execve;                    \
+    asm volatile("ecall"                                         \
+                 : "+r"(_a0)                                    \
+                 : "r"(_a1), "r"(_a2), "r"(_a7)                 \
+                 : "memory");                                   \
+    (int)_a0;                                                    \
+})
+
+// execve: exec with environment (envp = array of "KEY=VAL" strings)
+#define execved(path, argv, envp) ({                               \
+    register long _a0 asm("a0") = (long)(path);                  \
+    register long _a1 asm("a1") = (long)(argv);                  \
+    register long _a2 asm("a2") = (long)(envp);                  \
+    register long _a7 asm("a7") = SYS_execved;                    \
     asm volatile("ecall"                                         \
                  : "+r"(_a0)                                    \
                  : "r"(_a1), "r"(_a2), "r"(_a7)                 \

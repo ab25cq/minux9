@@ -871,8 +871,8 @@ static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* ou
     return -1; // not found
 }
 
-void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index) {
-puts("alloc_prog\n");
+void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index, int debug_) {
+//puts("alloc_prog\n");
     struct proc* result = kalloc();
     
     result->process_pages = kalloc();
@@ -912,14 +912,18 @@ puts("alloc_prog\n");
     }
         
     struct proghdr *ph = (struct proghdr *)(elf_buf + eh->phoff);
+//printf("eh->phnum %d\n", eh->phnum);
     
     uint64_t va = 0;
     uint64_t max_va_end = 0;
     for (int i = 0; i < eh->phnum; i++, ph++) {
-        if (ph->type != ELF_PROG_LOAD)
+//printf("i %d\n", i);
+        if (ph->type != ELF_PROG_LOAD) {
+//printf("continue\n", i);
             continue;
+        }
     
-printf("ELF_PROG_LOAD i%d\n", i);
+//printf("ELF_PROG_LOAD i%d\n", i);
         for (va = PGROUNDDOWN(ph->vaddr); va < ph->vaddr + ph->memsz; va += PGSIZE) {
             void *pa = kalloc();
             
@@ -942,8 +946,8 @@ printf("ELF_PROG_LOAD i%d\n", i);
             max_va_end = va + PGSIZE;
         }
         
-printf("ELF_PROG_LOAD ph->vaddr %x ph->off %d\n", ph->vaddr, ph->off);
-printf("ELF PROG MEPC DATA PA %x exec %d\n", *(char*)(elf_buf + eh->entry), exec_flag);
+//printf("ELF_PROG_LOAD ph->vaddr %x ph->off %d\n", ph->vaddr, ph->off);
+//printf("ELF PROG MEPC DATA PA %x exec %d\n", *(char*)(elf_buf + eh->entry), exec_flag);
         if (copyout(result->pagetable, ph->vaddr, elf_buf + ph->off, ph->filesz) < 0) {
             panic("copyout");
         }
@@ -961,12 +965,14 @@ printf("ELF PROG MEPC DATA PA %x exec %d\n", *(char*)(elf_buf + eh->entry), exec
             }
         }
     }
-puts("alloc_prog2\n");
+//puts("alloc_prog2\n");
 
     struct elfshdr *sh = (struct elfshdr *)(elf_buf + eh->shoff);
     const char *shstrtab = elf_buf + sh[eh->shstrndx].offset;
     static const char zpg[PGSIZE] = {0};
+//printf("eh->shnum %d\n", eh->shnum);
     for (int i = 0; i < eh->shnum; i++) {
+//printf("i %d\n", i);
         uint64_t pos = sh[i].addr;
         uint64_t end = sh[i].addr + sh[i].size;
         if (sh[i].type == SHT_NOBITS && (sh[i].flags & 0x2) && sh[i].size) {
@@ -997,12 +1003,12 @@ puts("alloc_prog2\n");
             // printf("start2 %p end2 %p (%s)\n", (void*)sh[i].addr, (void*)(sh[i].addr+sh[i].size), shstrtab+sh[i].name);
         }
     }
-puts("alloc_prog3\n");
+//puts("alloc_prog3\n");
     
     result->vaddr = ph->vaddr;
     result->memsz = ph->memsz;
     
-printf("vaddr %p exec %d\n", ph->vaddr, exec_flag);
+//printf("vaddr %p exec %d\n", ph->vaddr, exec_flag);
 
     // Find global pointer
     uint64_t gp = 0;
@@ -1133,13 +1139,15 @@ printf("vaddr %p exec %d\n", ph->vaddr, exec_flag);
     result->context.mepc = eh->entry;
     
     if(exec_flag) {
-puts("alloc_prog4 exec_flag\n");
-printf("mepc %x\n", result->context.mepc);
+//puts("alloc_prog4 exec_flag\n");
+//printf("mepc %x\n", result->context.mepc);
         struct proc *parent = gProc[gActiveProc]; // 現在のプロセスを取得
         free_proc(parent);
         gProc[gActiveProc] = result;
         user_satp = MAKE_SATP(result->pagetable);
         user_sp   = result->context.sp;
+        
+        result->debug_ = debug_;
 
         *child_proc_index = gActiveProc;
     }
@@ -1342,6 +1350,7 @@ void kernel_yield_return() {
 }
 
 extern void swtch(struct context_t *new_);
+extern void swtch_debug(struct context_t *new_);
 
 void timer_handler() {
     disable_timer_interrupts();
@@ -1386,7 +1395,12 @@ void timer_handler() {
         //gCPU.proc = new_;
         uint64_t a0 = new_->context.a0;
         asm volatile("csrw sscratch, %0" : "=r" (a0));
-        swtch(&new_->context);
+        if(new_->debug_) {
+            swtch_debug(&new_->context);
+        }
+        else {
+            swtch(&new_->context);
+        }
     }
     else {
         gActiveProc = old_active_proc;
@@ -1644,6 +1658,10 @@ uintptr_t syscall_handler()
             result = Sys_execve();
             }
             break;
+        case SYS_execved: {
+            result = Sys_execved();
+            }
+            break;
         case SYS_isatty: {
             result = Sys_isatty();
             }
@@ -1762,7 +1780,7 @@ int main()
 
     int fork_flag;
     int child_proc_index = 0;
-    alloc_prog((char*)sh_elf, sizeof(sh_elf), fork_flag=0, 0, &child_proc_index);
+    alloc_prog((char*)sh_elf, sizeof(sh_elf), fork_flag=0, 0, &child_proc_index, 0 /* debug */);
 
     /// カーネルページからユーザープロセスをアクセス可能にする
     asm volatile("csrs sstatus, %0" : : "r"(SSTATUS_SUM));

@@ -361,6 +361,84 @@ enter_user:
 
     # 実際に U-mode へ
     sret
+    
+    .extern user_satp      # C のグローバルを取り込む
+.global swtch_debug
+swtch_debug:
+    ld ra, 0(a0)
+    ld sp, 8(a0)
+    ld gp, 16(a0)
+    ld tp, 24(a0)
+    sd t0, 32(a0)
+    ld t1, 40(a0)
+    ld t2, 48(a0)
+    ld t3, 56(a0)
+    ld t4, 64(a0)
+    ld t5, 72(a0)
+    ld t6, 80(a0)
+/* ld a0, 88(a0) */
+    ld a1, 96(a0)
+    ld a2, 104(a0)
+    ld a3, 112(a0)
+    ld a4, 120(a0)
+    ld a5, 128(a0)
+    ld a6, 136(a0)
+    ld a7, 144(a0)
+    ld s0, 152(a0)
+    ld s1, 160(a0)
+    ld s2, 168(a0)
+    ld s3, 176(a0)
+    ld s4, 184(a0)
+    ld s5, 192(a0)
+    ld s6, 200(a0)
+    ld s7, 208(a0)
+    ld s8, 216(a0)
+    ld s9, 224(a0)
+    ld s10, 232(a0)
+    ld s11, 240(a0)
+    ld a0, 248(a0)
+    csrw sepc, a0
+    
+    csrr a0, sscratch
+    
+    # 1) SATP をユーザー用ページテーブルにセット
+    ld t0, user_satp
+    csrw    satp, t0
+    sfence.vma zero, zero
+    
+    # 2) スタックをユーザースタックに
+    la t0, user_sp
+    ld sp, 0(t0)
+
+    # 3) sstatus.SPP=0, SPIE=1
+    csrr    t0, sstatus
+    li      t1,     (1<<5)       # SPIE = bit5
+    or      t0, t0, t1
+    li      t1,     ~(1<<8)      # clear SPP = bit8
+    and     t0, t0, t1
+    csrw    sstatus, t0
+
+    # 4) sepc にエントリセット
+#    csrw    sepc, a0
+
+    # 5) Supervisor timer interrupt をセット (STIE=1, SIE=1)
+    li      t0, (1<<5)           # bit5 = STIE
+    csrs    sie, t0
+    csrr    t0, sstatus
+    li      t1, (1<<1)           # bit1 = SIE
+    or      t0, t0, t1
+    csrw    sstatus, t0
+
+    # 6) タイマー割り込み用 CLINT 書き込み (MTIMECMP = MTIME + interval)
+#    li      t0, CLINT_MTIME
+#    ld      t1, 0(t0)            # t1 = *CLINT_MTIME
+#    add     t1, t1, a3           # t1 += interval
+#    li      t0, CLINT_MTIMECMP
+#    sd      t1, 0(t0)
+
+    # 7) 最後にユーザーモードに戻る
+    sret
+
 
     .align 2
     .globl mtvec

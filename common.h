@@ -93,6 +93,8 @@ struct proc {
     struct process_pages** process_pages;
     int num_process_pages;
     
+    int debug_;
+    
     int deleted;
 
     struct proc* next;
@@ -251,6 +253,7 @@ void printlonglong(unsigned long long val_, int base, int sign);
 int printf(const char* fmt, ...);
 void* sbrk(ptrdiff_t incr);
 int Sys_execve();
+int Sys_execved();
 int Sys_getpid();
 int Sys_tcsetpgrp();
 int Sys_fstat();
@@ -329,7 +332,7 @@ static inline void w_stimecmp(uint64_t x)
 
 extern int gNumProc;
 
-void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index);
+void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index, int debug_);
 void free_proc(struct proc *p);
 void remove_kernel_state(int active_proc);
 
