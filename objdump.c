@@ -598,10 +598,17 @@ static void print_got_entries(const unsigned char* buf,
   uint64_t count = got->sh_size / sizeof(uint64_t);
   const uint64_t* entries = (const uint64_t*)(buf + got->sh_offset);
 
-  printf(".got entries (count=%llu)\n", (unsigned long long)count);
+  printf(".got entries (count=%llu, section_addr=0x%llx, section_off=0x%llx)\n",
+         (unsigned long long)count,
+         (unsigned long long)got->sh_addr,
+         (unsigned long long)got->sh_offset);
   for (uint64_t i = 0; i < count; i++) {
-    printf("  [%3llu] 0x%016llx\n",
+    uint64_t slot_addr = got->sh_addr + i * sizeof(uint64_t);
+    uint64_t slot_off  = got->sh_offset + i * sizeof(uint64_t);
+    printf("  [%3llu] addr=0x%016llx (off=0x%llx) value=0x%016llx\n",
            (unsigned long long)i,
+           (unsigned long long)slot_addr,
+           (unsigned long long)slot_off,
            (unsigned long long)entries[i]);
   }
 }

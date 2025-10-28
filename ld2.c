@@ -947,53 +947,67 @@ void RegisterSectionPieces(Context* ctx)
 
 uint64_t SetOutputSectionOffsets(Context* ctx)
 {
-    uint64_t addr = 0x1000;
-    for(int i=0; i< ctx->chunkNum;i++){
-        Chunk *chunk = ctx->chunk[i];
-        if((GetShdr(chunk)->Flags & SHF_ALLOC) == 0)
-            continue;
-
-        addr = AlignTo(addr,GetShdr(chunk)->AddrAlign);
-        GetShdr(chunk)->Addr = addr;
-        if (chunk->name && strcmp(chunk->name, ".got") == 0) {
-            DBG("SetOutputSectionOffsets: .got size=%lu addr=0x%lx\n",
-                (unsigned long)GetShdr(chunk)->Size,
-                (unsigned long)addr);
-        }
-
-        if(!isTbss(chunk)){
-            addr += GetShdr(chunk)->Size;
-        }
-    }
-
-    size_t i = 0;
-    Chunk *first = ctx->chunk[0];
+    uint64_t fileoff = 0;
+    int iter = 0;
 
     while (1) {
-        Shdr* shdr = GetShdr(ctx->chunk[i]);
-        //偏移地址是当前虚拟地址减去起始虚拟地址
-        shdr->Offset = shdr->Addr - GetShdr(first)->Addr;
-        i++;
+        uint64_t oldPhdrSize = ctx->phdr->chunk->shdr.Size;
 
-        if (i >= ctx->chunkNum ||
+        uint64_t addr = 0x1000;
+        for (int idx = 0; idx < ctx->chunkNum; idx++) {
+            Chunk *chunk = ctx->chunk[idx];
+            if ((GetShdr(chunk)->Flags & SHF_ALLOC) == 0)
+                continue;
+
+            addr = AlignTo(addr, GetShdr(chunk)->AddrAlign);
+            GetShdr(chunk)->Addr = addr;
+            if (chunk->name && strcmp(chunk->name, ".got") == 0) {
+                DBG("SetOutputSectionOffsets: .got size=%lu addr=0x%lx\n",
+                    (unsigned long)GetShdr(chunk)->Size,
+                    (unsigned long)addr);
+            }
+
+            if (!isTbss(chunk)) {
+                addr += GetShdr(chunk)->Size;
+            }
+        }
+
+        size_t i = 0;
+        Chunk *first = ctx->chunk[0];
+
+        while (1) {
+            Shdr* shdr = GetShdr(ctx->chunk[i]);
+            // 偏移地址是当前虚拟地址减去起始虚拟地址
+            shdr->Offset = shdr->Addr - GetShdr(first)->Addr;
+            i++;
+
+            if (i >= ctx->chunkNum ||
                 ((GetShdr(ctx->chunk[i])->Flags & SHF_ALLOC) == 0)) {
-            break;
+                break;
+            }
+        }
+
+        Shdr *lastShdr = GetShdr(ctx->chunk[i-1]);
+        fileoff = lastShdr->Offset + lastShdr->Size;
+
+        for (; i < ctx->chunkNum; i++) {
+            fileoff = AlignTo(fileoff, ctx->chunk[i]->shdr.AddrAlign);
+            GetShdr(ctx->chunk[i])->Offset = fileoff;
+            fileoff += ctx->chunk[i]->shdr.Size;
+        }
+
+        // 算完值后重新更新 phdr；如果大小变化则重新迭代
+        Phdr_UpdateShdr(ctx->phdr->chunk, ctx);
+        Shdr_UpdateShdr(ctx->shdr->chunk, ctx);
+
+        if (ctx->phdr->chunk->shdr.Size == oldPhdrSize) {
+            return fileoff;
+        }
+
+        if (++iter > 4) {
+            fatal("SetOutputSectionOffsets: phdr size failed to converge");
         }
     }
-
-    Shdr *lastShdr = GetShdr(ctx->chunk[i-1]);
-    uint64_t fileoff = lastShdr->Offset + lastShdr->Size;
-
-    for(; i< ctx->chunkNum;i++){
-        fileoff = AlignTo(fileoff,ctx->chunk[i]->shdr.AddrAlign);
-        GetShdr(ctx->chunk[i])->Offset = fileoff;
-        fileoff += ctx->chunk[i]->shdr.Size;
-    }
-
-    //算完值后重新更新phdr
-    Phdr_UpdateShdr(ctx->phdr->chunk,ctx);
-    Shdr_UpdateShdr(ctx->shdr->chunk,ctx);
-    return fileoff;
 }
 
 // 创建自己合成的section
@@ -1122,15 +1136,23 @@ void ComputeSectionSizes(Context* ctx)
 
         for(int j=0; j<osec->chunk->outpuSec.memberNum; j++){
             InputSection *isec = osec->chunk->outpuSec.members[j];
-            offset = AlignTo(offset, 1<<isec->P2Align);
+            uint32_t memberP2Align = isec->P2Align;
+            Shdr *ishdr = shdr_(isec);
+            if ((ishdr->Flags & SHF_EXECINSTR) != 0 && memberP2Align < 2) {
+                // RISC-V instructions are 4-byte aligned; upgrade poorly-aligned code sections
+                memberP2Align = 2;
+                isec->P2Align = memberP2Align;
+            }
+            offset = AlignTo(offset, 1ULL << memberP2Align);
             isec->offset = offset;
           //  printf("__offset %lu\n",offset);
             offset += isec->shsize;
-            p2align = max(p2align,isec->P2Align);
+            p2align = max(p2align,memberP2Align);
         }
 
+        uint64_t align = p2align > 0 ? (uint64_t)1 << p2align : 1;
         osec->chunk->shdr.Size = offset;
-        osec->chunk->shdr.AddrAlign = 1 << p2align;
+        osec->chunk->shdr.AddrAlign = align;
     }
 }
 
@@ -3303,6 +3325,10 @@ InputSection *NewInputSection(Context *ctx,char* name,ObjectFile* file,uint32_t 
     inputSection->shsize = shdr->Size;
     inputSection->isAlive = true;
     inputSection->P2Align = toP2Align(shdr->AddrAlign);
+    if ((shdr->Flags & SHF_EXECINSTR) != 0 && inputSection->P2Align < 2) {
+        // Ensure code sections request at least 4-byte alignment when merged
+        inputSection->P2Align = 2;
+    }
 
     inputSection->outputSection = GetOutputSection(ctx,name,shdr->Type,shdr->Flags);
 
@@ -4685,10 +4711,12 @@ int main(int argc, char* argv[])
         }
     }
 
+/*
     if (ctx->Args.Emulation != MachineTypeRISCV64) {
         printf("%d\n",ctx->Args.Emulation);
         fatal("unknown emulation type");
     }
+*/
 
     DBG("main: emulation resolved (%d)\n", ctx->Args.Emulation);
 
@@ -4760,7 +4788,7 @@ printf("sym %p %d\n", sym, sym->value);
 sym = GetSymbolByName(ctx, "main");
 printf("sym %p %d\n", sym, sym->value);
 
-    ctx->buf = malloc(fileoff);
+    ctx->buf = calloc(1, fileoff);
     //printf("%s\n",ctx->Args.Output);
     DBG("main: opening output '%s'\n", ctx->Args.Output);
     int file = open(ctx->Args.Output, O_RDWR | O_CREAT, 0777);

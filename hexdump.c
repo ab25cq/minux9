@@ -30,11 +30,12 @@ static unsigned long long parse_ull(const char* s) {
 static int is_print(unsigned char c) { return (c >= 32 && c <= 126); }
 
 static void usage(void) {
-  printf("usage: hexdump_min [-o OUT] [-s OFF] [-n LEN] [-w WIDTH] FILE\n");
+  printf("usage: hexdump_min [-o OUT] [-s OFF] [-n LEN] [-w WIDTH] [-G] FILE\n");
   printf("  -o OUT   : write dump to OUT (default: stdout)\n");
   printf("  -s OFF   : start offset (dec or 0x... hex), default 0\n");
   printf("  -n LEN   : dump length  (dec or 0x... hex), default: to EOF\n");
   printf("  -w WIDTH : bytes per line (8..32), default 16\n");
+  printf("  -G       : shortcut for -s 0x1000 (useful for GOT dumps)\n");
 }
 
 /* write all helper */
@@ -61,6 +62,7 @@ int main(int argc, char** argv) {
     const char* a = argv[i];
     if (a[1]=='o' && a[2]==0 && i+1 < argc) { out_path = argv[i+1]; i += 2; }
     else if (a[1]=='s' && a[2]==0 && i+1 < argc) { opt_off = parse_ull(argv[i+1]); i += 2; }
+    else if (a[1]=='G' && a[2]==0) { opt_off = 0x1000ull; i += 1; }
     else if (a[1]=='n' && a[2]==0 && i+1 < argc) { opt_len = parse_ull(argv[i+1]); i += 2; }
     else if (a[1]=='w' && a[2]==0 && i+1 < argc) {
       width = (int)parse_ull(argv[i+1]); if (width < 8) width=8; if (width > 32) width=32; i += 2;
@@ -151,4 +153,3 @@ out:
   free(rbuf);
   return 0;
 }
-

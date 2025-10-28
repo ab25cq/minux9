@@ -379,6 +379,7 @@ size_t getl(char **lineptr, size_t *n, FILE *stream)
     return (size_t)(p - bufptr - 1);
 }
 
+struct sectionpos get_outputpos2(void);
 struct sectionpos get_outputpos(void);
 int parse_line(char *line, struct sectionpos position);
 
@@ -501,15 +502,18 @@ int parse_label(char *line, struct sectionpos position)
     struct symbol *label = get_or_create_symbol(name, SYMBOL_LABEL);
     free(name);
 
-    const struct sectionpos fpos = get_outputpos();
+    struct sectionpos fpos = get_outputpos2();
     if (fpos.offset == (size_t)-1) {
         logger(CRITICAL, error_system,
                "Unable to determine section file position");
         return 1;
     }
 
+//    fpos.offset = (fpos.offset + 3) & ~3; // 4 byte aligment
+
     label->section = fpos.section;
     label->value = (long)fpos.offset;
+printf("label %d %x\n", label->value, label->value);
 
     logger(DEBUG, no_error, "Moving on to line (%s %p)", end, end);
     return parse_line(end, position);
@@ -2936,6 +2940,15 @@ void change_output(enum sections section)
     if (section >= SECTION_COUNT || section < 0)
         return;
     outputsection = section;
+}
+
+struct sectionpos get_outputpos2(void)
+{
+    outputsections[outputsection].size = (outputsections[outputsection].size + 3) & ~3;
+    return (struct sectionpos){
+        .section = outputsection,
+        .offset = outputsections[outputsection].size
+    };
 }
 
 struct sectionpos get_outputpos(void)
