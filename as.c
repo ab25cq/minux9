@@ -513,7 +513,6 @@ int parse_label(char *line, struct sectionpos position)
 
     label->section = fpos.section;
     label->value = (long)fpos.offset;
-printf("label %d %x\n", label->value, label->value);
 
     logger(DEBUG, no_error, "Moving on to line (%s %p)", end, end);
     return parse_line(end, position);
