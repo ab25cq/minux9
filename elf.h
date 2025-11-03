@@ -3,8 +3,114 @@
 
 #include <stdint.h>
 
+// Identifier index values for e_ident
+#ifndef EI_NIDENT
+#define EI_NIDENT 16
+#endif
+#ifndef EI_CLASS
+#define EI_CLASS 4
+#endif
+#ifndef EI_DATA
+#define EI_DATA 5
+#endif
+#ifndef EI_VERSION
+#define EI_VERSION 6
+#endif
+#ifndef EI_OSABI
+#define EI_OSABI 7
+#endif
+#ifndef EI_ABIVERSION
+#define EI_ABIVERSION 8
+#endif
+
+// ELF class
+#ifndef ELFCLASS64
+#define ELFCLASS64 2
+#endif
+
+// Data encoding
+#ifndef ELFDATA2LSB
+#define ELFDATA2LSB 1
+#endif
+
+// ELF version
+#ifndef EV_CURRENT
+#define EV_CURRENT 1
+#endif
+
+// Object file types
+#ifndef ET_EXEC
+#define ET_EXEC 2
+#endif
+
+// Program header types
+#ifndef PT_LOAD
+#define PT_LOAD 1
+#endif
+
+// Section indices
+#ifndef SHN_LORESERVE
+#define SHN_LORESERVE 0xFF00
+#endif
+#ifndef SHN_XINDEX
+#define SHN_XINDEX 0xFFFF
+#endif
+#ifndef SHN_ABS
+#define SHN_ABS 0xFFF1
+#endif
+#ifndef SHN_COMMON
+#define SHN_COMMON 0xFFF2
+#endif
+
+// Section header flags
+#ifndef SHF_WRITE
+#define SHF_WRITE 0x1
+#endif
+#ifndef SHF_ALLOC
+#define SHF_ALLOC 0x2
+#endif
+#ifndef SHF_EXECINSTR
+#define SHF_EXECINSTR 0x4
+#endif
+#ifndef SHF_MERGE
+#define SHF_MERGE 0x10
+#endif
+#ifndef SHF_STRINGS
+#define SHF_STRINGS 0x20
+#endif
+#ifndef SHF_TLS
+#define SHF_TLS 0x400
+#endif
+#ifndef SHF_GROUP
+#define SHF_GROUP 0x200
+#endif
+#ifndef SHF_LINK_ORDER
+#define SHF_LINK_ORDER 0x80
+#endif
+
+// Section header types
+#ifndef SHT_GROUP
+#define SHT_GROUP 17
+#endif
+#ifndef SHT_SYMTAB_SHNDX
+#define SHT_SYMTAB_SHNDX 18
+#endif
+
+// Program header flags
+#ifndef PF_X
+#define PF_X 0x1
+#endif
+#ifndef PF_W
+#define PF_W 0x2
+#endif
+#ifndef PF_R
+#define PF_R 0x4
+#endif
+
 // ELFヘッダのマジックナンバー (リトルエンディアン)
-#define ELF_MAGIC 0x464C457F  // "\x7FELF"
+#ifndef ELF_MAGIC
+#define ELF_MAGIC 0x464C457FU  // "\x7FELF"
+#endif
 
 // ELFヘッダ (64-bit)
 struct elfhdr {
@@ -83,5 +189,13 @@ struct elfsym {
     uint64_t size;       // シンボルのサイズ
 };
 
-#endif // _ELF_H
+typedef struct {
+    uint32_t st_name;
+    uint8_t  st_info;
+    uint8_t  st_other;
+    uint16_t st_shndx;
+    uint64_t st_value;
+    uint64_t st_size;
+} Elf64_Sym;
 
+#endif // _ELF_H

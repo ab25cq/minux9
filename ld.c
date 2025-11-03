@@ -22,12 +22,7 @@
  */
 
 #include "minux.h"
-/*
-#include <stdarg.h>
-#include <stdint.h>
-#include <stddef.h>
-*/
-#include <elf.h>
+#include "elf.h"
 
 #define EXIT_FAILURE 1
 
@@ -530,39 +525,6 @@ typedef struct MergeableSection
     SectionFragment ** fragments;
     int fragmentNum;
 }MergeableSection;
-
-// File header
-struct elfhdr 
-{
-  uint magic;  // must equal ELF_MAGIC
-  uchar elf[12];
-  ushort type;
-  ushort machine;
-  uint version;
-  uint64 entry;
-  uint64 phoff;
-  uint64 shoff;
-  uint flags;
-  ushort ehsize;
-  ushort phentsize;
-  ushort phnum;
-  ushort shentsize;
-  ushort shnum;
-  ushort shstrndx;
-};
-
-// Program section header
-struct proghdr 
-{
-  uint32 type;
-  uint32 flags;
-  uint64 off;
-  uint64 vaddr;
-  uint64 paddr;
-  uint64 filesz;
-  uint64 memsz;
-  uint64 align;
-};
 
 struct ObjectFile_
 {
