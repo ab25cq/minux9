@@ -22,9 +22,11 @@
  */
 
 #include "minux.h"
+/*
 #include <stdarg.h>
 #include <stdint.h>
 #include <stddef.h>
+*/
 #include <elf.h>
 
 #define EXIT_FAILURE 1

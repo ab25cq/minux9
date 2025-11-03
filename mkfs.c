@@ -600,7 +600,8 @@ main(int argc, char *argv[])
     write_file_to_file_system("cpp", 25);
     write_file_to_file_system("ld", 26);
     write_file_to_file_system("nm", 27);
-//    write_file_to_file_system("comelang.h", 27);
+//    write_file_to_file_system("comelang.h", 28);
+//    write_file_to_file_system("comelang", 29);
 //    write_file_to_file_system("a.h", 28);
 //    write_file_to_file_system("c.h", 29);
 

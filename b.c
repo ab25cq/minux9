@@ -8,6 +8,7 @@ int main(){
          , 1, "HELLO WORLD\r\n", 13);
     asm ("li a7, 70\nmv a0, %0\necall\n"
          , 8);
+    while(1);
          
     return 0;
 }
