@@ -51,7 +51,7 @@ mmu_smoke.elf: mmu_smoke.S
 
 # Run MINUX9 with MMU enabled
 run: all
-	./rv64emu -i ../kernel.elf --disk ../fs.img --mem 128 --mmu sv39
+	./rv64emu -i ../kernel.elf --disk ../fs.img --mem 32 --mmu sv39
 #	./rv64emu -i ../kernel.elf --disk ../fs.img --mmu sv39 --mem 512
 
 # Run with trace so registers print each step

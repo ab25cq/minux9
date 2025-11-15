@@ -203,12 +203,50 @@ char* strstr(const char* haystack, const char* needle) {
     return NULL;  
 }
 
+/*
 void* memset(void *dst, int c, unsigned int n) {
     char *cdst = (char *) dst;
     int i;
     for(i = 0; i < n; i++){
         cdst[i] = c;
     }
+    return dst;
+}
+*/
+void* memset(void *dst, int c, unsigned int n) {
+    unsigned char *p = (unsigned char*)dst;
+    unsigned int len = n;
+    unsigned char byte = (unsigned char)c;
+
+    if (len == 0) {
+        return dst;
+    }
+
+    // Align to 8-byte boundary
+    while (len && ((uintptr_t)p & 7)) {
+        *p++ = byte;
+        len--;
+    }
+
+    if (len >= 8) {
+        uint64_t pattern = byte;
+        pattern |= pattern << 8;
+        pattern |= pattern << 16;
+        pattern |= pattern << 32;
+
+        uint64_t *pw = (uint64_t*)p;
+        unsigned int words = len / 8;
+        while (words--) {
+            *pw++ = pattern;
+        }
+        p = (unsigned char*)pw;
+        len &= 7;
+    }
+
+    while (len--) {
+        *p++ = byte;
+    }
+
     return dst;
 }
 

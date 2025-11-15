@@ -21,6 +21,7 @@
 #include <termios.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <time.h>
 
 #define TLB_SIZE 256
 #define TLB_PERM_R 0x1
@@ -87,12 +88,16 @@ typedef struct {
     // 日本語: ホスト側に確保したフラットメモリ領域（先頭物理アドレス base）。
 } mem_t;
 
+#define UART_PLIC_IRQ 10
+#define CLINT_MTIME_FREQ 10000000ULL
+
 // Device I/O structure
 typedef struct {
     uint64_t uart_base;  // UART base address
     uint8_t uart_thr;    // Transmit holding register
     uint8_t uart_rbr;    // Receive buffer register
     uint8_t uart_lsr;    // Line status register
+    uint8_t uart_ier;    // Interrupt enable register
     bool uart_thr_empty; // THR empty flag
     bool uart_rx_ready;  // RX data ready flag
     uint64_t uart_write_count; // Count of UART writes
@@ -120,6 +125,8 @@ typedef struct {
     uint64_t clint_base;
     uint64_t mtime;      // Machine time
     uint64_t mtimecmp;   // Machine time comparison
+    struct timespec mtime_start;
+    int64_t mtime_offset;
 
     // PLIC (Platform-Level Interrupt Controller)
     uint64_t plic_base;
@@ -127,6 +134,7 @@ typedef struct {
     uint32_t plic_pending;       // Pending interrupts
     uint32_t plic_menable;       // Machine mode enable
     uint32_t plic_mpriority;     // Machine mode priority threshold
+    uint32_t plic_claim_value;
 
     // Interrupt statistics
     uint64_t timer_interrupt_count;
@@ -297,11 +305,86 @@ static void devices_init(devices_t *dev) {
     dev->plic_pending = 0;
     dev->plic_menable = 0;
     dev->plic_mpriority = 0;
+    dev->plic_claim_value = 0;
 
     // Interrupt statistics
     dev->timer_interrupt_count = 0;
     dev->external_interrupt_count = 0;
+
+    clock_gettime(CLOCK_MONOTONIC, &dev->mtime_start);
+    dev->mtime_offset = 0;
+    dev->uart_ier = 0;
 }
+
+static uint64_t clint_elapsed_ticks(const devices_t *dev) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    time_t sec = now.tv_sec - dev->mtime_start.tv_sec;
+    long nsec = now.tv_nsec - dev->mtime_start.tv_nsec;
+    if (nsec < 0) {
+        sec -= 1;
+        nsec += 1000000000L;
+    }
+    uint64_t ns = (uint64_t)sec * 1000000000ULL + (uint64_t)nsec;
+    return ns / (1000000000ULL / CLINT_MTIME_FREQ);
+}
+
+static void clint_update_mtime(devices_t *dev) {
+    uint64_t elapsed = clint_elapsed_ticks(dev);
+    if (dev->mtime_offset >= 0) {
+        dev->mtime = elapsed + (uint64_t)dev->mtime_offset;
+    } else {
+        uint64_t neg = (uint64_t)(-dev->mtime_offset);
+        dev->mtime = (elapsed > neg) ? (elapsed - neg) : 0;
+    }
+}
+
+static void clint_sync_offset(devices_t *dev) {
+    uint64_t elapsed = clint_elapsed_ticks(dev);
+    dev->mtime_offset = (int64_t)dev->mtime - (int64_t)elapsed;
+}
+
+static inline void plic_raise_irq(devices_t *dev, uint32_t irq) {
+    if (irq == 0 || irq >= 32) return;
+    dev->plic_pending |= (1u << irq);
+}
+
+static bool plic_irq_pending(const devices_t *dev) {
+    uint32_t enabled = dev->plic_menable;
+    uint32_t pending = dev->plic_pending & enabled;
+    if (!pending) return false;
+    uint32_t threshold = dev->plic_mpriority;
+    for (uint32_t irq = 1; irq < 32; ++irq) {
+        if (!(pending & (1u << irq))) continue;
+        uint32_t pri = dev->plic_priority[irq];
+        if (pri > threshold && pri != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static uint32_t plic_claim(devices_t *dev) {
+    uint32_t enabled = dev->plic_menable;
+    uint32_t pending = dev->plic_pending & enabled;
+    uint32_t threshold = dev->plic_mpriority;
+    uint32_t best_irq = 0;
+    uint32_t best_prio = 0;
+    for (uint32_t irq = 1; irq < 32; ++irq) {
+        if (!(pending & (1u << irq))) continue;
+        uint32_t prio = dev->plic_priority[irq];
+        if (prio == 0 || prio <= threshold) continue;
+        if (prio > best_prio || (prio == best_prio && irq < best_irq)) {
+            best_prio = prio;
+            best_irq = irq;
+        }
+    }
+    if (best_irq) {
+        dev->plic_pending &= ~(1u << best_irq);
+    }
+    return best_irq;
+}
+
 
 // Device I/O handlers
 static bool is_device_addr(const devices_t *dev, uint64_t addr) {
@@ -454,6 +537,8 @@ static void virtio_process_queue(devices_t *dev, mem_t *mem) {
 
     struct virtq_desc desc_hdr, desc_data, desc_status;
 
+    static int virtio_debug_count = 0;
+
     // Read header descriptor
     desc_hdr.addr = mem_read64(mem, desc_addr);
     desc_hdr.len = mem_read32(mem, desc_addr + 8);
@@ -479,6 +564,12 @@ static void virtio_process_queue(devices_t *dev, mem_t *mem) {
     desc_status.len = mem_read32(mem, status_desc_addr + 8);
     desc_status.flags = mem_read16(mem, status_desc_addr + 12);
     desc_status.next = mem_read16(mem, status_desc_addr + 14);
+
+    if (virtio_debug_count < 5) {
+        fprintf(stderr, "VirtIO req idx=%u type=%u sector=%" PRIu64 " data_len=%u status_addr=0x%016" PRIx64 "\n",
+                desc_idx, req.type, req.sector, desc_data.len, desc_status.addr);
+    }
+    virtio_debug_count++;
 
     // Process request
     uint8_t status = 0; // Success
@@ -520,6 +611,11 @@ static void virtio_process_queue(devices_t *dev, mem_t *mem) {
 static void virtio_write32(devices_t *dev, mem_t *mem, uint64_t offset, uint32_t val);
 
 static void virtio_write32(devices_t *dev, mem_t *mem, uint64_t offset, uint32_t val) {
+    static int virtio_wr_debug = 0;
+    if (virtio_wr_debug < 50) {
+        fprintf(stderr, "VirtIO write offset=0x%llx val=0x%x\n", (unsigned long long)offset, val);
+    }
+    virtio_wr_debug++;
     switch (offset) {
         case VIRTIO_MMIO_DEVICE_FEATURES_SEL:
             // Feature selection (not used in simple implementation)
@@ -653,7 +749,7 @@ static uint8_t device_read8(devices_t *dev, uint64_t addr) {
         } else if (offset >= 0xbff8 && offset < 0xc000) {
             // mtime register (64-bit)
             uint8_t byte_offset = offset - 0xbff8;
-            dev->mtime += 100; // Increment time more aggressively to trigger timer events
+            clint_update_mtime(dev);
             return (dev->mtime >> (byte_offset * 8)) & 0xFF;
         }
         return 0;
@@ -675,12 +771,17 @@ static uint8_t device_read8(devices_t *dev, uint64_t addr) {
         } else if (offset >= 0x200000 && offset < 0x4000000) {
             // Priority threshold and claim/complete (0x200000 - 0x3FFFFFF)
             uint64_t ctx_offset = offset - 0x200000;
-            if ((ctx_offset & 0x1FFF) == 0) {
+            uint64_t context_reg = ctx_offset % 0x1000;
+            if (context_reg == 0) {
                 // Priority threshold
-                return (dev->plic_mpriority >> ((ctx_offset & 3) * 8)) & 0xFF;
-            } else if ((ctx_offset & 0x1FFF) == 4) {
-                // Claim/complete register
-                return 0; // No pending claims for now
+                uint8_t byte_offset = ctx_offset & 3;
+                return (dev->plic_mpriority >> (byte_offset * 8)) & 0xFF;
+            } else if (context_reg == 4) {
+                uint8_t byte_offset = ctx_offset & 3;
+                if (byte_offset == 0) {
+                    dev->plic_claim_value = plic_claim(dev);
+                }
+                return (dev->plic_claim_value >> (byte_offset * 8)) & 0xFF;
             }
         }
         return 0;
@@ -698,6 +799,9 @@ static void device_write8(devices_t *dev, uint64_t addr, uint8_t val) {
                 fputc(val, stdout);  // Output to stdout for normal operation
                 fflush(stdout);
                 dev->uart_lsr |= 0x20;  // Set THR empty bit
+                break;
+            case 0x01: // IER - Interrupt Enable Register
+                dev->uart_ier = val;
                 break;
             default:
                 break;
@@ -719,6 +823,7 @@ static void device_write8(devices_t *dev, uint64_t addr, uint8_t val) {
             dev->mtime = (dev->mtime & mask) | ((uint64_t)val << (byte_offset * 8));
             fprintf(stderr, "CLINT: mtime write at offset 0x%lx, byte_offset=%d, val=0x%02x, new mtime=0x%016" PRIx64 "\n",
                     (unsigned long)offset, byte_offset, val, dev->mtime);
+            clint_sync_offset(dev);
         } else {
             // Silently ignore other CLINT writes
         }
@@ -741,14 +846,14 @@ static void device_write8(devices_t *dev, uint64_t addr, uint8_t val) {
         } else if (offset >= 0x200000 && offset < 0x4000000) {
             // Priority threshold and claim/complete (0x200000 - 0x3FFFFFF)
             uint64_t ctx_offset = offset - 0x200000;
-            if ((ctx_offset & 0x1FFF) == 0) {
-                // Priority threshold
+            uint64_t context_reg = ctx_offset % 0x1000;
+            if (context_reg == 0) {
                 uint8_t byte_offset = ctx_offset & 3;
                 uint32_t mask = ~(0xFFU << (byte_offset * 8));
                 dev->plic_mpriority = (dev->plic_mpriority & mask) | ((uint32_t)val << (byte_offset * 8));
-            } else if ((ctx_offset & 0x1FFF) == 4) {
-                // Claim/complete register - acknowledge interrupt
-                // Silently ignore for now
+            } else if (context_reg == 4) {
+                // Claim/complete register - acknowledge interrupt (value ignored)
+                dev->plic_claim_value = 0;
             }
         }
     }
@@ -1164,6 +1269,7 @@ static uint64_t csr_read(cpu_t *cpu, uint32_t csr_addr, devices_t *dev) {
         case CSR_STIMECMP: return cpu->csr_stimecmp;
         case CSR_TIME:
             // Time CSR reads from device mtime
+            clint_update_mtime(dev);
             cpu->csr_time = dev->mtime;
             return cpu->csr_time;
         case 0x51:         return cpu->csr_custom51; // Custom CSR 0x51
@@ -1262,6 +1368,16 @@ static bool check_pending_interrupts(cpu_t *cpu, devices_t *dev) {
         } else {
             cpu->csr_sip &= ~MIP_STIP; // Clear if timer hasn't fired
         }
+    }
+
+    if (plic_irq_pending(dev)) {
+        cpu->csr_mip |= MIP_MEIP;
+        if (cpu->csr_mideleg & MIP_MEIP) {
+            cpu->csr_sip |= MIP_SEIP;
+        }
+    } else {
+        cpu->csr_mip &= ~MIP_MEIP;
+        cpu->csr_sip &= ~MIP_SEIP;
     }
 
     // Check which interrupts are both pending and enabled
@@ -2018,7 +2134,8 @@ static void step(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) 
             return;
         }
         // Warn if PC is in unexpected range
-        if ((pc > 0x80032ba0 && pc < 0x8098b000) || pc > 0x81200000) {
+        bool in_trampoline = (pc >= 0x80088000 && pc < 0x80089000);
+        if (!in_trampoline && ((pc > 0x80032ba0 && pc < 0x8098b000) || pc > 0x81200000)) {
             static int warn_count = 0;
             if (warn_count++ < 10) {
                 fprintf(stderr, "WARNING: PC 0x%016" PRIx64 " in unexpected memory range\n", pc);
@@ -2747,6 +2864,9 @@ static void check_uart_rx(devices_t *dev) {
             dev->uart_rbr = (uint8_t)c;
             dev->uart_rx_ready = true;
             dev->uart_lsr |= 0x01; // Set RX_READY bit
+            if (dev->uart_ier & 0x01) {
+                plic_raise_irq(dev, UART_PLIC_IRQ);
+            }
         }
     }
 }
@@ -2754,11 +2874,22 @@ static void check_uart_rx(devices_t *dev) {
 static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
     g_debug_cpu = cpu; // Set global debug pointer
     uint64_t steps = 0;
+    bool user_mode_announced = false;
+    bool virtio_init_seen = false;
+    bool virtio_callsite_seen = false;
 
     // Setup non-blocking stdin for UART input
     setup_stdin();
 
     while (!cpu->halt) {
+        if (!virtio_callsite_seen && cpu->pc == 0x8000a29aULL) {
+            fprintf(stderr, "Calling virtio_blk_init()\n");
+            virtio_callsite_seen = true;
+        }
+        if (!virtio_init_seen && cpu->pc == 0x8000039aULL) {
+            fprintf(stderr, "Reached virtio_blk_init()\n");
+            virtio_init_seen = true;
+        }
         // Debug: Print PC periodically to detect infinite loops (disabled for performance)
         /*
         static uint64_t last_pc_log = 0;
@@ -2767,29 +2898,32 @@ static void run(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) {
             if (cpu->pc == last_pc_log) {
                 same_pc_count++;
                 if (same_pc_count > 3) {
-                    fprintf(stderr, ">>> STUCK at PC=0x%016" PRIx64 " for %lu iterations\n",
-                            cpu->pc, same_pc_count * 100000);
+                    fprintf(stderr, ">>> STUCK at PC=0x%016" PRIx64 " for %" PRIu64 " iterations\n",
+                            cpu->pc, same_pc_count * 100000ULL);
                 }
             } else {
                 same_pc_count = 0;
             }
             last_pc_log = cpu->pc;
-            fprintf(stderr, ">>> PC=0x%016" PRIx64 " steps=%lu\n", cpu->pc, steps);
+            fprintf(stderr, ">>> PC=0x%016" PRIx64 " steps=%" PRIu64 "\n", cpu->pc, steps);
         }
         */
+        
 
         // Check for UART RX input every step for immediate responsiveness
         check_uart_rx(dev);
 
-        // Increment timer every 5 steps for balanced OS responsiveness
-        if (steps % 5 == 0) {
-            dev->mtime++;
-        }
+        // Keep CLINT time in sync with host time
+        clint_update_mtime(dev);
 
         // Check for pending interrupts before executing instruction
         check_pending_interrupts(cpu, dev);
 
         step(cpu, mem, dev, opt);
+        if (!user_mode_announced && cpu->priv == 0) {
+            fprintf(stderr, "\nMINUX9 user mode entered. Shell has no prompt; type commands and press Enter.\n");
+            user_mode_announced = true;
+        }
         steps++;
         if (opt->max_steps && steps >= opt->max_steps) {
             fprintf(stderr, "Hit max steps (%" PRIu64 "), stopping.\n", opt->max_steps);

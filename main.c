@@ -320,7 +320,7 @@ void kfree(void *pa) {
     }
 
     // Fill with junk to catch dangling refs.
-    memset(pa, 0, PGSIZE);
+//    memset(pa, 0, PGSIZE);
 
     r = (struct run*)kmem.freelist;
     
