@@ -1,8 +1,8 @@
 # minux9
 
-version 1.2.2
+version 1.2.3
 
-VI, SHELL AND CC AND AS WORKS. ALSO COMELANG CPP.
+VI, SHELL AND CC AND AS WORKS. ALSO NEO-C CPP LD.
 
 unix like operating system on riscv.
 
