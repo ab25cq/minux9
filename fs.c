@@ -1309,7 +1309,8 @@ static int add_dirent(uint32_t parent_inum, const char *name, uint32_t child_inu
                 uint32_t cur_entries = pdi.size / (uint32_t)sizeof(struct dirent);
                 uint32_t abs_idx = (off / (uint32_t)sizeof(struct dirent)) + (uint32_t)i;
                 if (abs_idx >= cur_entries) {
-                    pdi.size = (abs_idx + 1) * (uint32_t)sizeof(struct dirent);
+                    uint32_t block_end = ((off / BSIZE) + 1) * BSIZE;
+                    if (pdi.size < block_end) pdi.size = block_end;
                     pdi.mtime = fs_now();
                     write_inode(parent_inum, &pdi);
                 }
@@ -1332,7 +1333,8 @@ static int add_dirent(uint32_t parent_inum, const char *name, uint32_t child_inu
     ents[(blk_off / sizeof(struct dirent))] = de;
     write_block(disk_blk, buf);
 
-    pdi.size += sizeof(struct dirent);
+    uint32_t block_end = (blk_idx + 1) * BSIZE;
+    if (pdi.size < block_end) pdi.size = block_end;
     pdi.mtime = fs_now();
     write_inode(parent_inum, &pdi);
     return 0;

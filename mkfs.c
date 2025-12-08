@@ -42,6 +42,7 @@
 #define T_FILE      2       // Regular file type
 
 #define DIRSIZ      14      // Maximum directory entry name length
+#define DIR_MAX_BLOCKS 2    // Allow directories to span this many blocks when building
 
 // ──────────────────────────────────────────
 // On-disk i-node structure (extended for double indirect)
@@ -202,7 +203,7 @@ write_inode(uint32_t inum, struct dinode *ip)
 // dirlink:
 //   Link a new child file/directory with inode file_inum
 //   into parent directory parent_inum under the given name.
-//   Simplified: parent directories use only direct block 0 for one block.
+//   Simplified: allow the first DIR_MAX_BLOCKS direct blocks for entries.
 //-------------------------------------------------------------
 void
 dirlink(uint32_t parent_inum, const char *name, uint32_t file_inum)
@@ -224,36 +225,39 @@ dirlink(uint32_t parent_inum, const char *name, uint32_t file_inum)
         exit(1);
     }
 
-    // In this simplified implementation, the parent directory uses only direct block 0
-    if (parent_ip.addrs[0] == 0) {
-        // If no directory data block has been allocated yet, allocate one
-        uint32_t b = alloc_data_block();
-        parent_ip.addrs[0] = b;
-        parent_ip.size = BSIZE;
-        write_inode(parent_inum, &parent_ip);
-    }
+    for (int blk_idx = 0; blk_idx < DIR_MAX_BLOCKS; blk_idx++) {
+        if (parent_ip.addrs[blk_idx] == 0) {
+            uint32_t b = alloc_data_block();
+            parent_ip.addrs[blk_idx] = b;
+            unsigned char z[BSIZE]; memset(z, 0, BSIZE);
+            write_block(b, z);
+            uint32_t block_end = (uint32_t)(blk_idx + 1) * BSIZE;
+            if (parent_ip.size < block_end) parent_ip.size = block_end;
+            write_inode(parent_inum, &parent_ip);
+        }
 
-    // Read the contents of block 0 and look for a free entry
-    unsigned char buf[BSIZE];
-    read_block(parent_ip.addrs[0], buf);
-    struct dirent *de = (struct dirent *)buf;
-    int entries = BSIZE / sizeof(struct dirent);
+        // Read the contents of this block and look for a free entry
+        unsigned char buf[BSIZE];
+        read_block(parent_ip.addrs[blk_idx], buf);
+        struct dirent *de = (struct dirent *)buf;
+        int entries = BSIZE / sizeof(struct dirent);
 
-    for (int i = 0; i < entries; i++) {
-        if (de[i].inum == 0) {
-            // Found a free entry
-            de[i].inum = file_inum;
-            strncpy(de[i].name, name, DIRSIZ);
-            // NUL-terminate the name (skip trailing NUL if DIRSIZ is fully used)
-            if (strlen(name) < DIRSIZ) {
-                de[i].name[strlen(name)] = '\0';
+        for (int i = 0; i < entries; i++) {
+            if (de[i].inum == 0) {
+                de[i].inum = file_inum;
+                for (int k = 0; k < DIRSIZ; k++) de[i].name[k] = 0;
+                strncpy(de[i].name, name, DIRSIZ);
+                write_block(parent_ip.addrs[blk_idx], buf);
+                uint32_t block_end = (uint32_t)(blk_idx + 1) * BSIZE;
+                if (parent_ip.size < block_end) parent_ip.size = block_end;
+                write_inode(parent_inum, &parent_ip);
+                return;
             }
-            write_block(parent_ip.addrs[0], buf);
-            return;
         }
     }
 
-    fprintf(stderr, "dirlink: 親ディレクトリに空きエントリがありません\n");
+    fprintf(stderr, "dirlink: 親ディレクトリに空きエントリがありません (最大 %d バイト)\n",
+            DIR_MAX_BLOCKS * BSIZE);
     exit(1);
 }
 
@@ -599,10 +603,16 @@ main(int argc, char *argv[])
     write_file_to_file_system("ld", 26);
     write_file_to_file_system("b.c", 27);
     write_file_to_file_system("c.c", 28);
-//    write_file_to_file_system("comelang.h", 28);
-//    write_file_to_file_system("comelang", 29);
-//    write_file_to_file_system("a.h", 28);
-//    write_file_to_file_system("c.h", 29);
+    write_file_to_file_system("neo-c.h", 29);
+    write_file_to_file_system("neo-c", 30);
+    write_file_to_file_system("cpp", 31);
+    write_file_to_file_system("minux.o", 32);
+    write_file_to_file_system("minux.h", 33);
+    write_file_to_file_system("a.c", 34);
+    write_file_to_file_system("stdint.h", 35);
+    write_file_to_file_system("stdbool.h", 36);
+    write_file_to_file_system("stdarg.h", 37);
+    write_file_to_file_system("stddef.h", 38);
 
     // 5) Finally write the entire img[] out to the real file
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);

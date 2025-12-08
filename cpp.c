@@ -1153,7 +1153,7 @@ int main(int argc, char **argv) {
         curdir = dirname_dup(path);
         
         char path2[512];
-        snprintf(path2, 512, "%s.i", path);
+        snprintf(path2, 512, "%s.i.c", path);
         
         FILE *output = fopen(path2, "w");
         

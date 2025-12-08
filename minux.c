@@ -363,6 +363,89 @@ char* strndup(const char* s, size_t n) {
     return p;
 }
 
+wchar_t *wcscpy(wchar_t *dest, const wchar_t *src) {
+    wchar_t *d = dest;
+    while ((*d++ = *src++) != L'\0') {
+    }
+    return dest;
+}
+
+wchar_t *wcscat(wchar_t *dest, const wchar_t *src) {
+    wchar_t *d = dest;
+    while (*d) d++;
+    while ((*d++ = *src++) != L'\0') {
+    }
+    return dest;
+}
+
+int wcscmp(const wchar_t *s1, const wchar_t *s2) {
+    while (*s1 && *s1 == *s2) {
+        s1++;
+        s2++;
+    }
+    if (*s1 == *s2) return 0;
+    return (*s1 > *s2) ? 1 : -1;
+}
+
+size_t wcslen(const wchar_t *s) {
+    size_t len = 0;
+    while (*s++) len++;
+    return len;
+}
+
+wchar_t *wcsstr(const wchar_t *haystack, const wchar_t *needle) {
+    if (!*needle) return (wchar_t *)haystack;
+    for (const wchar_t *h = haystack; *h; h++) {
+        const wchar_t *hp = h;
+        const wchar_t *np = needle;
+        while (*hp && *np && *hp == *np) {
+            hp++;
+            np++;
+        }
+        if (!*np) return (wchar_t *)h;
+    }
+    return NULL;
+}
+
+size_t wcstombs(char *dest, const wchar_t *src, size_t n) {
+    size_t count = 0;
+    if (!dest) {
+        while (src[count] != L'\0') {
+            if ((unsigned long)src[count] > 255) return (size_t)-1;
+            count++;
+        }
+        return count;
+    }
+
+    while (count < n) {
+        wchar_t wc = src[count];
+        if (wc == L'\0') {
+            dest[count] = '\0';
+            return count;
+        }
+        if ((unsigned long)wc > 255) return (size_t)-1;
+        dest[count] = (char)wc;
+        count++;
+    }
+    return count;
+}
+
+size_t mbstowcs(wchar_t *dest, const char *src, size_t n) {
+    size_t count = 0;
+    if (!dest) {
+        while (src[count] != '\0') count++;
+        return count;
+    }
+
+    while (count < n) {
+        unsigned char c = (unsigned char)src[count];
+        dest[count] = (wchar_t)c;
+        if (c == '\0') return count;
+        count++;
+    }
+    return count;
+}
+
 int mkstemp(char* template) {
     static unsigned long seed = 0x1234abcd;
     if (!template) return -1;
