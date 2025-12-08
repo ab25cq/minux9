@@ -1,4 +1,4 @@
-#include "minux.h"
+#include "minux2.h"
 
 int main(int argc, char** argv) {
     puts("HELLO WORLD");

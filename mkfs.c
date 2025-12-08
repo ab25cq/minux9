@@ -606,13 +606,9 @@ main(int argc, char *argv[])
     write_file_to_file_system("neo-c.h", 29);
     write_file_to_file_system("neo-c", 30);
     write_file_to_file_system("cpp", 31);
-    write_file_to_file_system("minux.o", 32);
-    write_file_to_file_system("minux.h", 33);
+    write_file_to_file_system("minux2.o", 32);
+    write_file_to_file_system("minux2.h", 33);
     write_file_to_file_system("a.c", 34);
-    write_file_to_file_system("stdint.h", 35);
-    write_file_to_file_system("stdbool.h", 36);
-    write_file_to_file_system("stdarg.h", 37);
-    write_file_to_file_system("stddef.h", 38);
 
     // 5) Finally write the entire img[] out to the real file
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);
