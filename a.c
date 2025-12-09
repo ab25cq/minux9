@@ -1,7 +1,16 @@
-#include "minux2.h"
+//#include "minux9.h"
+
+#define write(fd, buf, len) ({ asm ("li a7, 64\nmv a0, %0\nmv a1, %1\nmv a2, %2\necall\n", fd, buf, len); len; })
+
+void exit(long status) {
+    asm ("li a7, 70\nmv a0, %0\necall\n", status);
+}
 
 int main(int argc, char** argv) {
-    puts("HELLO WORLD");
-    return 0;
+    write(1, "HELLO WORLD\r\n", 13);
+    asm ("li a7, 64\nmv a0, %0\nmv a1, %1\nmv a2, %2\necall\n"
+         
+         , 1, "HELLO WORLD\r\n", 13);
+    exit(8);
 }
 

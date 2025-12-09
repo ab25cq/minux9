@@ -603,12 +603,13 @@ main(int argc, char *argv[])
     write_file_to_file_system("ld", 26);
     write_file_to_file_system("b.c", 27);
     write_file_to_file_system("c.c", 28);
-    write_file_to_file_system("neo-c.h", 29);
-    write_file_to_file_system("neo-c", 30);
-    write_file_to_file_system("cpp", 31);
-    write_file_to_file_system("minux2.o", 32);
-    write_file_to_file_system("minux2.h", 33);
-    write_file_to_file_system("a.c", 34);
+    write_file_to_file_system("cpp", 29);
+    write_file_to_file_system("minux9.c", 30);
+    write_file_to_file_system("minux9.h", 31);
+    write_file_to_file_system("a.c", 32);
+    write_file_to_file_system("crt0.o", 33);
+//    write_file_to_file_system("neo-c.h", 34);
+//    write_file_to_file_system("neo-c", 35);
 
     // 5) Finally write the entire img[] out to the real file
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);

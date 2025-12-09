@@ -1,4 +1,3 @@
-#include "minux2.h"
 
 void putchar(char c)
 {

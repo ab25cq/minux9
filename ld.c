@@ -333,6 +333,7 @@ typedef struct
     MachineType Emulation;
     char** LibraryPaths;
     int LibraryPathsCount;
+    char* Entry; // -e ENTRY
 } ContextArgs;
 
 typedef struct SectionFragment_ SectionFragment;
@@ -1592,6 +1593,19 @@ static Symbol* findFirstExecutableSymbol(Context* ctx)
 uint64_t getEntryAddr(Context* ctx)
 {
     const char* entry_candidates[] = {"_start", "__start", "start", "main", NULL};
+
+    // Explicit -e ENTRY overrides search order
+    if (ctx->Args.Entry) {
+        Symbol* sym = GetSymbolByName(ctx, ctx->Args.Entry);
+        if (sym == NULL) {
+            fatal("entry symbol not found: %s\n", ctx->Args.Entry);
+        }
+        uint64_t addr = adjustForLiteralPrefix(sym, Symbol_GetAddr(sym));
+        if (addr == 0)
+            fatal("entry symbol has no address: %s\n", ctx->Args.Entry);
+        return addr;
+    }
+
     for (const char** cand = entry_candidates; *cand != NULL; ++cand) {
         Symbol* sym = GetSymbolByName(ctx, *cand);
         DBG("sym %s is %p %x\n", *cand, sym, sym->value);
@@ -3910,6 +3924,7 @@ Context* NewContext()
     ctx->Args.Output = "a.out";
     ctx->Args.Emulation = 0;
     ctx->Args.LibraryPathsCount=0;
+    ctx->Args.Entry = NULL;
     DBG("NewContext: initializing SymbolMap\n");
     ctx->SymbolMap = HashMapInit();
     if (ctx->SymbolMap == NULL) {
@@ -4565,14 +4580,17 @@ char** parseArgs(int argc, char* argv[],Context* ctx)
     while (argv[0] != NULL){
         char *arg;
         if(readArg("output",&argv,&arg) || readArg("o",&argv,&arg)){
-            ctx->Args.Output = malloc(strlen(arg));
-            memcpy(ctx->Args.Output,arg,strlen(arg));
+            ctx->Args.Output = malloc(strlen(arg)+1);
+            strcpy(ctx->Args.Output,arg);
         } else if(readArg("m",&argv,&arg)){
             if(strcmp(arg,"elf64lriscv")==0){
                 ctx->Args.Emulation = MachineTypeRISCV64;
                 printf("%s\n",MachineType_String(ctx->Args.Emulation));
             } else
                 fatal("unknown -m arg\n");
+        } else if(readArg("e",&argv,&arg)){
+            ctx->Args.Entry = malloc(strlen(arg)+1);
+            strcpy(ctx->Args.Entry,arg);
         }else if (readArg("L",&argv,&arg)) {
 //            printf("%s\n",argv[0]);
 //            printf("arg : %s\n",arg);
