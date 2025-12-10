@@ -2368,15 +2368,22 @@ static void genStmt(Node *Nd) {
     return;
     
   case ND_ASM: {
-      // 1) 引数を t0.. に積む
+      // 1) 引数を左から順に評価し、一度スタックに退避する
       int idx = 0;
       for (Node *A = Nd->Args; A; A = A->Next, idx++) {
-        if (idx > 6) errorTok(Nd->Tok, "asm operands > 7 not supported");
+        if (idx > 6)
+          errorTok(Nd->Tok, "asm operands > 7 not supported");
         genExpr(A);
-        printLn("  mv t%d, a0", idx);
+        push();
+      }
+
+      // 2) 後ろから取り出して t0.. に並べる
+      for (int i = idx - 1; i >= 0; --i) {
+        pop(0);
+        printLn("  mv t%d, a0", i);
       }
     
-      // 2) 文字列置換
+      // 3) 文字列置換
       char *fmt = Nd->AsmStr;
       StringBuilder sb = {0}; // 好きなやり方で実装（あるいは malloc + 手書き）
       for (char *p = fmt; *p; ) {
