@@ -14,7 +14,10 @@ crt0.o: crt0.S
 minux.o: minux.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux.o minux.c
 
-kernel.elf: minux.o crt0.o cc
+minux9.o: minux9.c
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux9.o minux9.c
+
+kernel.elf: minux.o minux9.o crt0.o cc
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o entry.o entry.S
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o trap.o trap.S
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o userret.o userret.S

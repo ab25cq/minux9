@@ -604,7 +604,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("b.c", 27);
     write_file_to_file_system("c.c", 28);
     write_file_to_file_system("cpp", 29);
-    write_file_to_file_system("minux9.c", 30);
+    write_file_to_file_system("minux9.o", 30);
     write_file_to_file_system("minux9.h", 31);
     write_file_to_file_system("a.c", 32);
     write_file_to_file_system("crt0.o", 33);

@@ -1,3 +1,5 @@
+void exit(int status);
+/*
 #define write(fd, buf, len) ({ asm ("li a7, 64\nmv a0, %0\nmv a1, %1\nmv a2, %2\necall\n", fd, buf, len); len; })
 
 void exit(long status) {
@@ -14,8 +16,10 @@ void puts(const char *s) {
         putchar(*s++);
     }
 }
+*/
 
 int main(int argc, char** argv) {
+/*
     int a = 9;
     char buf[3];
     buf[0] = a + '0';
@@ -27,6 +31,7 @@ int main(int argc, char** argv) {
     asm ("li a7, 64\nmv a0, %0\nmv a1, %1\nmv a2, %2\necall\n"
          
          , 1, "HELLO WORLD\r\n", 13);
+*/
     exit(8);
 }
 
