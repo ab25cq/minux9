@@ -1,10 +1,10 @@
 #ifndef MINUX_H
 #define MINUX_H
 
-#include "stdarg.h"
-#include "stddef.h"
-#include "stdint.h"
-#include "stdbool.h"
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 //──────────────────────────────────────────
 // Filesystem constants/structures (keep in sync with mkfs.c)

@@ -3786,7 +3786,7 @@ static void printTokens(Token *Tok) {
     if (Tok->HasSpace && !Tok->AtBOL)
       fprintf(Out, " ");
     // 打印出终结符
-    fprintf(Out, "%.*s", Tok->Len, Tok->Loc);
+    fprintf(Out, "%d %d", Tok->Len, Tok->Loc);
     Line++;
   }
   // 文件以换行符结尾
@@ -8779,7 +8779,7 @@ static Token *stringize(Token *Hash, Token *Arg) {
 // 拼接两个终结符构建一个新的终结符
 static Token *paste(Token *LHS, Token *RHS) {
   // 合并两个终结符
-  char *Buf = format("%.*s%.*s", LHS->Len, LHS->Loc, RHS->Len, RHS->Loc);
+  char *Buf = format("%d %d %d %d", LHS->Len, LHS->Loc, RHS->Len, RHS->Loc);
 
   // 词法解析生成的字符串，转换为相应的终结符
   Token *Tok = tokenize(newFile(LHS->File->Name, LHS->File->FileNo, Buf));
@@ -9773,7 +9773,7 @@ static void verrorAt(char *Filename, char *Input, int LineNo, char *Loc,
   // Indent记录输出了多少个字符
   int Indent = fprintf(stderr, "%s:%d: ", Filename, LineNo);
   // 输出Line的行内所有字符（不含换行符）
-  fprintf(stderr, "%.*s\n", (int)(End - Line), Line);
+  fprintf(stderr, "%d %d\n", (int)(End - Line), Line);
 
   // 计算错误信息位置，在当前行内的偏移量+前面输出了多少个字符
   int Pos = displayWidth(Line, Loc - Line) + Indent;

@@ -608,6 +608,7 @@ main(int argc, char *argv[])
     write_file_to_file_system("minux9.h", 31);
     write_file_to_file_system("a.c", 32);
     write_file_to_file_system("crt0.o", 33);
+    write_file_to_file_system("stdarg.h", 34);
 //    write_file_to_file_system("neo-c.h", 34);
 //    write_file_to_file_system("neo-c", 35);
 
