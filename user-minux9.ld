@@ -1,6 +1,6 @@
 /* user.ld */
 OUTPUT_ARCH( "riscv" )
-ENTRY( main ) /* crt0 sets up and jumps to main */
+ENTRY( _start ) /* crt0 sets up and jumps to main */
 
 /* Define the start address of the user program */
 BASE_ADDRESS = 0x1000;

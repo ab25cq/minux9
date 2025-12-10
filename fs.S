@@ -6,7 +6,7 @@
 	.text
 .Ltext0:
 	.cfi_sections	.debug_frame
-	.file 0 "/Users/ab25cq/minux9" "fs.c"
+	.file 0 "/Users/ab25cq/minux9-dev.org" "fs.c"
 	.local	vbase
 	.comm	vbase,8,8
 	.local	Q
@@ -22318,7 +22318,7 @@ fs_lseek:
 	.string	"FK_STDIN"
 	.section	.debug_line_str,"MS",@progbits,1
 .LASF1:
-	.string	"/Users/ab25cq/minux9"
+	.string	"/Users/ab25cq/minux9-dev.org"
 .LASF0:
 	.string	"fs.c"
 	.ident	"GCC: (g04696df09) 14.2.0"

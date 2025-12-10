@@ -1530,74 +1530,23 @@ static Symbol* findDefinedSymbolByName(Context* ctx, const char* name)
     if (name == NULL) {
         return NULL;
     }
-
-    Symbol *best = NULL;
-    uint64_t bestAddr = UINT64_MAX;
-
-    for (int i = 0; i < ctx->ObjsCount; i++) {
-        ObjectFile *obj = ctx->Objs[i];
-        InputFile *in = obj->inputFile;
-        if (in == NULL || in->ElfSyms == NULL) {
-            continue;
-        }
-
-        for (int j = 0; j < in->symNum; j++) {
-            Symbol *sym = (in->LocalSymbols != NULL) ? in->LocalSymbols[j] : &in->Symbols[j];
-            if (sym == NULL || sym->name == NULL) {
-                continue;
-            }
-            if (strcmp(sym->name, name) != 0) {
-                continue;
-            }
-
-            Sym *esym = &in->ElfSyms[j];
-            if (IsUndef(esym) || IsCommon(esym)) {
-                continue;
-            }
-            if (!symbolHasExecutableAddr(sym, esym, true)) {
-                continue;
-            }
-
-            uint64_t addr = adjustForLiteralPrefix(sym, Symbol_GetAddr(sym));
-            if (addr == 0) {
-                continue;
-            }
-            if (addr < bestAddr) {
-                bestAddr = addr;
-                best = sym;
-            }
-        }
+    if (!HashMapContain(ctx->SymbolMap, (void*)name)) {
+        return NULL;
     }
 
-    if (best != NULL) {
-        return best;
+    Symbol *sym = HashMapGet(ctx->SymbolMap, (void*)name);
+    if (sym == NULL || sym->file == NULL || sym->inputSection == NULL) {
+        return NULL;
     }
 
-    // Fallback: return any defined symbol with the requested name, even if it
-    // is local or non-executable. This lets -e pick up minimalist stubs where
-    // section flags or symbol bindings are unusual.
-    for (int i = 0; i < ctx->ObjsCount; i++) {
-        InputFile *in = ctx->Objs[i]->inputFile;
-        if (in == NULL || in->ElfSyms == NULL) {
-            continue;
-        }
-        for (int j = 0; j < in->symNum; j++) {
-            Symbol *sym = (in->LocalSymbols != NULL) ? in->LocalSymbols[j] : &in->Symbols[j];
-            if (sym == NULL || sym->name == NULL) {
-                continue;
-            }
-            if (strcmp(sym->name, name) != 0) {
-                continue;
-            }
-            Sym *esym = &in->ElfSyms[j];
-            if (IsUndef(esym) || IsCommon(esym)) {
-                continue;
-            }
-            return sym;
-        }
+    Sym *esym = &sym->file->inputFile->ElfSyms[sym->symIdx];
+    if (IsUndef(esym) || IsCommon(esym)) {
+        return NULL;
     }
-
-    return NULL;
+    if (!symbolHasExecutableAddr(sym, esym, true)) {
+        return NULL;
+    }
+    return sym;
 }
 
 static Symbol* findFirstExecutableSymbol(Context* ctx)
@@ -1618,7 +1567,7 @@ static Symbol* findFirstExecutableSymbol(Context* ctx)
                 continue;
             }
 
-            Symbol *sym = (in->LocalSymbols != NULL) ? in->LocalSymbols[j] : &in->Symbols[j];
+            Symbol *sym = &in->Symbols[j];
             if (sym == NULL) {
                 continue;
             }
@@ -1647,7 +1596,7 @@ uint64_t getEntryAddr(Context* ctx)
 
     // Explicit -e ENTRY overrides search order
     if (ctx->Args.Entry) {
-        Symbol* sym = findDefinedSymbolByName(ctx, ctx->Args.Entry);
+        Symbol* sym = GetSymbolByName(ctx, ctx->Args.Entry);
         if (sym == NULL) {
             fatal("entry symbol not found: %s\n", ctx->Args.Entry);
         }
@@ -1658,7 +1607,7 @@ uint64_t getEntryAddr(Context* ctx)
     }
 
     for (const char** cand = entry_candidates; *cand != NULL; ++cand) {
-        Symbol* sym = findDefinedSymbolByName(ctx, *cand);
+        Symbol* sym = GetSymbolByName(ctx, *cand);
         DBG("sym %s is %p %x\n", *cand, sym, sym->value);
         if (sym == NULL) {
             DBG("getEntryAddr: candidate %s not found or unsuitable\n", *cand);
@@ -3365,9 +3314,6 @@ void WriteTo(InputSection *i,char* buf,Context* ctx)
 
 //static void writeLo12(void* loc, uint32_t diff);
 
-static void writeRvcBranch(void *loc, int64_t diff);
-static void writeRvcJump(void *loc, int64_t diff);
-
 int gLO;
 
 void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
@@ -3419,37 +3365,6 @@ void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
                 tmp_64 = S+A;
                 Write(loc,sizeof (uint64_t),&tmp_64);
                 break;
-            case 34/*R_RISCV_ADD16*/:
-            case 35/*R_RISCV_ADD32*/:
-            case 36/*R_RISCV_ADD64*/:
-            case 37/*R_RISCV_SUB8*/:
-            case 38/*R_RISCV_SUB16*/:
-            case 39/*R_RISCV_SUB32*/:
-            case 40/*R_RISCV_SUB64*/: {
-                    uint64_t cur = 0;
-                    size_t sz = (rel.Type == 37) ? 1 :
-                                 (rel.Type == 34 || rel.Type == 38) ? 2 :
-                                 (rel.Type == 35 || rel.Type == 39) ? 4 : 8;
-                    Read(&cur, loc, sz);
-                    int64_t delta = (int64_t)S + (int64_t)A;
-                    if (rel.Type == 37 || rel.Type == 38 || rel.Type == 39 || rel.Type == 40)
-                        delta = -delta;
-                    int64_t res = (int64_t)cur + delta;
-                    if (sz == 1) {
-                        uint8_t v8 = (uint8_t)res;
-                        Write(loc, sz, &v8);
-                    } else if (sz == 2) {
-                        uint16_t v16 = (uint16_t)res;
-                        Write(loc, sz, &v16);
-                    } else if (sz == 4) {
-                        uint32_t v32 = (uint32_t)res;
-                        Write(loc, sz, &v32);
-                    } else {
-                        uint64_t v64 = (uint64_t)res;
-                        Write(loc, sz, &v64);
-                    }
-                }
-                break;
             case 16/*R_RISCV_BRANCH*/:
                 tmp = S+A-P;
                 writeBtype(loc,tmp);
@@ -3457,14 +3372,6 @@ void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
             case 17/*R_RISCV_JAL*/:
                 tmp = S+A-P;
                 writeJtype(loc,tmp);
-                break;
-            case 44/*R_RISCV_RVC_BRANCH*/:
-                tmp = S+A-P;
-                writeRvcBranch(loc, (int64_t)tmp);
-                break;
-            case 45/*R_RISCV_RVC_JUMP*/:
-                tmp = S+A-P;
-                writeRvcJump(loc, (int64_t)tmp);
                 break;
             case 18/*R_RISCV_CALL*/:
             case 19/*R_RISCV_CALL_PLT*/:
@@ -3531,12 +3438,12 @@ void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
                 if(SignExtend(val,11) == val)
                     setRs1(loc,0);
                 break;
-            case 47/*R_RISCV_GPREL_I*/:
-            case 48/*R_RISCV_GPREL_S*/:
+            case 37/*R_RISCV_GPREL_I*/:
+            case 38/*R_RISCV_GPREL_S*/:
                 if (ctx->GpAddr == 0)
                     fatal("GP-relative relocation but gp is unset");
                 val = S + A - ctx->GpAddr;
-                if(rel.Type == 47)
+                if(rel.Type == 37)
                     writeItype(loc,(uint32_t)val);
                 else
                     writeStype(loc,(uint32_t)val);
@@ -3767,64 +3674,6 @@ void writeJtype(void* loc, uint32_t val)
     Read(&v,loc,sizeof (uint32_t));
     v = (v & mask) | jtype(val);
     Write(loc,sizeof (uint32_t),&v);
-}
-
-static void writeRvcBranch(void *loc, int64_t diff)
-{
-    if ((diff & 0x1) != 0)
-        fatal("R_RISCV_RVC_BRANCH: misaligned target");
-
-    int64_t imm = diff >> 1;
-    if (imm < -128 || imm > 127)
-        fatal("R_RISCV_RVC_BRANCH: overflow");
-
-    uint16_t inst;
-    Read(&inst, loc, sizeof(uint16_t));
-
-    uint16_t immu = (uint16_t)imm & 0xff;
-    inst &= ~((1u << 12) | (1u << 11) | (1u << 10) | (1u << 6) | (1u << 5) | (1u << 4) | (1u << 3) | (1u << 2));
-
-    inst |= ((immu >> 7) & 0x1) << 12; // imm[8]
-    inst |= ((immu >> 3) & 0x1) << 11; // imm[4]
-    inst |= ((immu >> 2) & 0x1) << 10; // imm[3]
-    inst |= ((immu >> 6) & 0x1) << 6;  // imm[7]
-    inst |= ((immu >> 5) & 0x1) << 5;  // imm[6]
-    inst |= ((immu >> 1) & 0x1) << 4;  // imm[2]
-    inst |= ((immu >> 0) & 0x1) << 3;  // imm[1]
-    inst |= ((immu >> 4) & 0x1) << 2;  // imm[5]
-
-    Write(loc, sizeof(uint16_t), &inst);
-}
-
-static void writeRvcJump(void *loc, int64_t diff)
-{
-    if ((diff & 0x1) != 0)
-        fatal("R_RISCV_RVC_JUMP: misaligned target");
-
-    int64_t imm = diff >> 1;
-    if (imm < -(1 << 10) || imm > ((1 << 10) - 1))
-        fatal("R_RISCV_RVC_JUMP: overflow");
-
-    uint16_t inst;
-    Read(&inst, loc, sizeof(uint16_t));
-
-    uint16_t immu = (uint16_t)imm & 0x7ff;
-    inst &= ~((1u << 12) | (1u << 11) | (1u << 10) | (1u << 9) | (1u << 8) |
-              (1u << 7) | (1u << 6) | (1u << 5) | (1u << 4) | (1u << 3) | (1u << 2));
-
-    inst |= ((immu >> 10) & 0x1) << 12; // imm[11]
-    inst |= ((immu >> 3)  & 0x1) << 11; // imm[4]
-    inst |= ((immu >> 8)  & 0x1) << 10; // imm[9]
-    inst |= ((immu >> 7)  & 0x1) << 9;  // imm[8]
-    inst |= ((immu >> 9)  & 0x1) << 8;  // imm[10]
-    inst |= ((immu >> 5)  & 0x1) << 7;  // imm[6]
-    inst |= ((immu >> 6)  & 0x1) << 6;  // imm[7]
-    inst |= ((immu >> 2)  & 0x1) << 5;  // imm[3]
-    inst |= ((immu >> 1)  & 0x1) << 4;  // imm[2]
-    inst |= ((immu >> 0)  & 0x1) << 3;  // imm[1]
-    inst |= ((immu >> 4)  & 0x1) << 2;  // imm[5]
-
-    Write(loc, sizeof(uint16_t), &inst);
 }
 
 void setRs1(void* loc,uint32_t rs1)
@@ -4538,7 +4387,8 @@ char** appendToRemaining(char** remaining, const char* arg,bool l)
         strcpy(newEntry, "-l");
         strcat(newEntry, arg);
     } else {
-        newEntry = (char*)malloc(strlen(arg));
+        // 预留结尾的 '\0'
+        newEntry = (char*)malloc(strlen(arg) + 1);
         strcpy(newEntry,arg);
     }
     newRemaining[length] = newEntry;
