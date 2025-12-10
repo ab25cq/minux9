@@ -183,6 +183,17 @@ static void sort_entries(NmEntry* entries, size_t count) {
     }
 }
 
+static int read_at(int fd, unsigned long off, void* buf, unsigned long len) {
+    if (lseek(fd, (long)off, SEEK_SET) < 0) return -1;
+    unsigned long got = 0;
+    while (got < len) {
+        int n = read(fd, (char*)buf + got, (int)(len - got));
+        if (n <= 0) return -1;
+        got += (unsigned long)n;
+    }
+    return 0;
+}
+
 static int process_file(const char* path, int print_header) {
     struct stat st;
     if (stat(path, &st) < 0) {
@@ -200,43 +211,42 @@ static int process_file(const char* path, int print_header) {
         return 1;
     }
 
-    unsigned long fsize = (unsigned long)st.size;
-    unsigned char* buf = (unsigned char*)malloc(fsize);
-    if (!buf) {
-        printf("nm: malloc failed\n");
+    Elf64_Ehdr ehdr;
+    if (read_at(fd, 0, &ehdr, sizeof(ehdr)) < 0) {
+        printf("nm: failed to read header %s\n", path);
         close(fd);
         return 1;
     }
 
-    unsigned long off = 0;
-    while (off < fsize) {
-        int n = read(fd, buf + off, (int)(fsize - off));
-        if (n <= 0) break;
-        off += (unsigned long)n;
-    }
-    close(fd);
-    if (off != fsize) {
-        printf("nm: short read on %s\n", path);
-        free(buf);
-        return 1;
-    }
-
-    const Elf64_Ehdr* eh = (const Elf64_Ehdr*)buf;
-    if (!check_magic(eh) || eh->e_ident[EI_CLASS] != ELFCLASS64 || eh->e_ident[EI_DATA] != ELFDATA2LSB) {
+    if (!check_magic(&ehdr) || ehdr.e_ident[EI_CLASS] != ELFCLASS64 || ehdr.e_ident[EI_DATA] != ELFDATA2LSB) {
         printf("nm: unsupported ELF format: %s\n", path);
-        free(buf);
+        close(fd);
         return 1;
     }
 
-    if (eh->e_shoff == 0 || eh->e_shnum == 0) {
+    if (ehdr.e_shoff == 0 || ehdr.e_shnum == 0) {
         printf("nm: no section headers: %s\n", path);
-        free(buf);
+        close(fd);
         return 1;
     }
 
-    const Elf64_Shdr* sections = (const Elf64_Shdr*)(buf + eh->e_shoff);
+    // Read section headers
+    unsigned long shdr_bytes = (unsigned long)ehdr.e_shentsize * ehdr.e_shnum;
+    Elf64_Shdr* sections = (Elf64_Shdr*)malloc(shdr_bytes);
+    if (!sections) {
+        printf("nm: malloc failed for sections\n");
+        close(fd);
+        return 1;
+    }
+    if (read_at(fd, (unsigned long)ehdr.e_shoff, sections, shdr_bytes) < 0) {
+        printf("nm: failed to read sections %s\n", path);
+        free(sections);
+        close(fd);
+        return 1;
+    }
+
     int sym_index = -1;
-    for (uint16_t i = 0; i < eh->e_shnum; i++) {
+    for (uint16_t i = 0; i < ehdr.e_shnum; i++) {
         if (sections[i].sh_type == SHT_SYMTAB) {
             sym_index = (int)i;
             break;
@@ -247,32 +257,67 @@ static int process_file(const char* path, int print_header) {
             printf("\n%s:\n", path);
         }
         printf("nm: no symbols\n");
-        free(buf);
+        free(sections);
+        close(fd);
         return 1;
     }
 
     const Elf64_Shdr* sym_sec = &sections[sym_index];
     if (sym_sec->sh_entsize == 0) {
         printf("nm: invalid symbol table\n");
-        free(buf);
+        free(sections);
+        close(fd);
         return 1;
     }
 
     uint16_t str_index = sym_sec->sh_link;
     const char* strtab = NULL;
     uint64_t strsz = 0;
-    if (str_index < eh->e_shnum && sections[str_index].sh_type == SHT_STRTAB) {
-        strtab = (const char*)(buf + sections[str_index].sh_offset);
+    char* strtab_buf = NULL;
+    if (str_index < ehdr.e_shnum && sections[str_index].sh_type == SHT_STRTAB) {
         strsz = sections[str_index].sh_size;
+        strtab_buf = (char*)malloc((size_t)strsz);
+        if (!strtab_buf) {
+            printf("nm: malloc failed for strtab\n");
+            free(sections);
+            close(fd);
+            return 1;
+        }
+        if (read_at(fd, (unsigned long)sections[str_index].sh_offset, strtab_buf, (unsigned long)strsz) < 0) {
+            printf("nm: failed to read strtab\n");
+            free(strtab_buf);
+            free(sections);
+            close(fd);
+            return 1;
+        }
+        strtab = strtab_buf;
     }
 
     uint64_t sym_count = sym_sec->sh_size / sym_sec->sh_entsize;
-    const Elf64_Sym* syms = (const Elf64_Sym*)(buf + sym_sec->sh_offset);
+    Elf64_Sym* syms = (Elf64_Sym*)malloc((size_t)(sym_count * sizeof(Elf64_Sym)));
+    if (!syms) {
+        printf("nm: malloc failed for symbols\n");
+        free(strtab_buf);
+        free(sections);
+        close(fd);
+        return 1;
+    }
+    if (read_at(fd, (unsigned long)sym_sec->sh_offset, syms, (unsigned long)(sym_count * sizeof(Elf64_Sym))) < 0) {
+        printf("nm: failed to read symbols\n");
+        free(syms);
+        free(strtab_buf);
+        free(sections);
+        close(fd);
+        return 1;
+    }
 
     NmEntry* entries = (NmEntry*)malloc(sizeof(NmEntry) * sym_count);
     if (!entries) {
         printf("nm: malloc failed for symbols\n");
-        free(buf);
+        free(syms);
+        free(strtab_buf);
+        free(sections);
+        close(fd);
         return 1;
     }
 
@@ -292,7 +337,7 @@ static int process_file(const char* path, int print_header) {
             continue;
         }
 
-        char kind = classify_symbol(sym, sections, eh->e_shnum);
+        char kind = classify_symbol(sym, sections, ehdr.e_shnum);
         entries[count].name = name;
         entries[count].value = sym->st_value;
         entries[count].type = kind;
@@ -318,7 +363,10 @@ static int process_file(const char* path, int print_header) {
     }
 
     free(entries);
-    free(buf);
+    free(syms);
+    free(strtab_buf);
+    free(sections);
+    close(fd);
     return 0;
 }
 
