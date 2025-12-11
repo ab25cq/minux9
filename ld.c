@@ -54,7 +54,7 @@
 #define ELF64_ST_INFO(bind, type) (((bind) << 4) + ((type) & 0xf))
 #endif
 
-#define DEBUG_LINKER 0
+#define DEBUG_LINKER 1
 
 #define SYMBOL_FLAG_GOT_TP 0x1
 #define SYMBOL_FLAG_GOT     0x2

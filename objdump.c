@@ -625,6 +625,21 @@ static void usage(void) {
   printf("  (default) headers + dump .text and .data if present\n");
 }
 
+// Read the whole file but issue reads in small chunks to avoid the kernel's
+// 4KB read limit (Sys_read panics if a single request exceeds 4096 bytes).
+static int read_streaming(int fd, unsigned char* buf, unsigned long sz) {
+  const unsigned long CHUNK = 1024;
+  unsigned long off = 0;
+  while (off < sz) {
+    unsigned long want = sz - off;
+    if (want > CHUNK) want = CHUNK;
+    int n = read(fd, buf + off, (int)want);
+    if (n <= 0) return -1;
+    off += (unsigned long)n;
+  }
+  return 0;
+}
+
 int main(int argc, char** argv) {
   int opt_headers_only = 0;
   int opt_print_ph = 0;
@@ -662,14 +677,13 @@ int main(int argc, char** argv) {
   unsigned char* buf = (unsigned char*)malloc(sz);
   if (!buf) { printf("malloc failed\n"); close(fd); return 1; }
 
-  unsigned long off = 0;
-  while (off < sz) {
-    int n = read(fd, buf + off, (int)(sz - off));
-    if (n <= 0) break;
-    off += (unsigned long)n;
+  if (read_streaming(fd, buf, sz) < 0) {
+    printf("short read\n");
+    free(buf);
+    close(fd);
+    return 1;
   }
   close(fd);
-  if (off != sz) { printf("short read: %lu/%lu\n", off, sz); free(buf); return 1; }
 
   const Elf64_Ehdr* eh = (const Elf64_Ehdr*)buf;
   if (!check_magic(eh)) { printf("Not ELF (bad magic)\n"); free(buf); return 1; }
