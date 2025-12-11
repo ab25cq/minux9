@@ -3380,6 +3380,7 @@ void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
                 writeItype((loc + 4),tmp);
                 break;
             case 20/*R_RISCV_GOT_HI20*/: {
+DBG("20");
                 if (sym->gotIdx < 0) {
                     if (!ctx->got)
                         fatal("GOT section missing");
@@ -3390,10 +3391,12 @@ void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
                 hi = hi << 12;
                 int64_t lo = tmp - (hi << 12);
                 gLO = lo;
+DBG("gLO %x", gLO);
                 writeUtype(loc,(uint32_t)hi);
                 }
                 break;
             case 21/*R_RISCV_TLS_GOT_HI20*/:
+DBG("21");
                 if (sym->gotTpIdx < 0) {
                     if (!ctx->got)
                         fatal("GOT section missing");
@@ -3413,6 +3416,7 @@ void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
                 break;
                 
             case 23/*R_RISCV_PCREL_HI20*/: {
+DBG("23");
                 int64_t tmp = (int64_t)S + A - P;
                 uint32_t hi = (uint32_t)(((tmp + 0x800) >> 12) & 0xfffff);
                 writeUtype(loc, hi << 12);
@@ -3450,6 +3454,7 @@ void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
                 break;
             case 30/*R_RISCV_TPREL_LO12_I*/:
             case 31/*R_RISCV_TPREL_LO12_S*/:
+DBG("30");
                 val = S+A-ctx->TpAddr;
                 if(rel.Type == 30)
                     writeItype(loc,(uint32_t)val);
@@ -3494,10 +3499,13 @@ void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
         
         switch (rel.Type) {
             case 24/*R_RISCV_PCREL_LO12_I*/:
+DBG("24");
+DBG("gLO %x", gLO);
                 writeItype(loc,(uint32_t)gLO);
                 //writeItype(loc,(uint32_t)diff);
                 break;
             case 25/*R_RISCV_PCREL_LO12_S*/:
+DBG("25");
                 writeItype(loc,(uint32_t)gLO);
                 //writeStype(loc,(uint32_t)diff);
                 break;

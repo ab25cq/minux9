@@ -3,6 +3,7 @@ CCPREFIX=riscv64-unknown-elf-
 #CHILD_CFLAGS=-I. -fno-omit-frame-pointer #-momit-leaf-frame-pointer #-mstack-alignment=16
 CFLAGS_AS=-march=rv64gc -mabi=lp64
 CFLAGS=-march=rv64gc -mabi=lp64 -msmall-data-limit=0 -fno-pic -fno-pie -Wl,-no-pie
+CFLAGS2=-march=rv64g -mabi=lp64 -msmall-data-limit=0 -fno-pic -fno-pie -Wl,-no-pie
 CHILD_CFLAGS=-ffreestanding -fno-stack-protector -fno-builtin -fno-pic -fno-pie -nostdlib -mcmodel=medany -static -nostartfiles  -Wl,-e,_start -Wl,-no-pie -msmall-data-limit=0 -march=rv64gc -mabi=lp64 -Tuser.ld -Wno-incompatible-pointer-types minux.o
 
 all: kernel.elf 
@@ -15,7 +16,7 @@ minux.o: minux.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux.o minux.c
 
 minux9.o: minux9.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux9.o minux9.c
+	$(CCPREFIX)gcc $(CFLAGS2) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux9.o minux9.c
 
 kernel.elf: minux.o minux9.o crt0.o cc
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o entry.o entry.S
