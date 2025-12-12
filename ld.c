@@ -273,7 +273,7 @@ typedef struct
     uint16_t Shndx;         //每个符号都有属于的节，当前成员存储的就是对应节的索引
     uint64_t Val;           //存储对应符号的取值，具体值依赖于上下文，可能是一个指针地址，立即数等
     uint64_t Size;
-} Sym;
+} ElfSym;
 
 typedef struct 
 {
@@ -566,20 +566,20 @@ struct InputFile_
     int64_t sectionNum;
 
     char* ShStrtab;
-    int64_t FirstLocal;
+    int64_t FirstGlobal;
 
-    Sym *ElfSyms;
-    int64_t symNum;
+    ElfSym *ElfSyms;
+    int64_t ElfSymNum;
 
     char* SymbolStrtab;
     bool isAlive;
 
-    Symbol* Symbols;
+    Symbol* Symbols;   // all symbols
 
-    Symbol** LocalSymbols;
-    int64_t numSymbols;
-
+    Symbol** LocalSymbols; // local symbols
     int numLocalSymbols;
+    
+    int64_t numSymbols;
 };
 
 #define ChunkTypeUnknown ((ChunkType)0)
@@ -714,7 +714,7 @@ void InitializeSections(ObjectFile* o,Context* ctx);
 void InitializeSymbols(Context *ctx,ObjectFile* o);
 void InitializeMergeableSections(ObjectFile * o,Context* ctx);
 MergeableSection *splitSection(Context* ctx,InputSection* isec);
-int64_t GetShndx(ObjectFile* o, Sym* esym, int idx);
+int64_t GetShndx(ObjectFile* o, ElfSym* esym, int idx);
 void ResolveSymbols(ObjectFile* o);
 //typedef void (*FeederFunc)(ObjectFile*);
 void markLiveObjs(ObjectFile* o,ObjectFile*** roots,int *rootSize);
@@ -742,9 +742,7 @@ void setRs1(void* loc,uint32_t rs1);
 
 Symbol *NewSymbol(char* name);
 Symbol *GetSymbolByName(Context* ctx,char* name);
-void SetInputSection(Symbol *s,InputSection* isec);
-void SetSectionFragment(Symbol* s,SectionFragment* frag);
-Sym *ElfSym_(Symbol* s);
+ElfSym *GetElfSymbol(Symbol* s);
 void clear(Symbol* s);
 uint64_t Symbol_GetAddr(Symbol* s);
 uint64_t GetGotTpAddr(Context* ctx,Symbol* s);
@@ -788,9 +786,9 @@ bool CheckMagic(const char* contents);
 void WriteMagic(uint8_t * contents);
 char* ElfGetName(char* strTab, uint32_t offset);
 int GetSize(const ArHdr* a);
-bool IsAbs(const Sym* s);
-bool IsUndef(const Sym* s);
-bool IsCommon(const Sym* s);
+bool IsAbs(const ElfSym* s);
+bool IsUndef(const ElfSym* s);
+bool IsCommon(const ElfSym* s);
 bool HasPrefix(const ArHdr* a, const char* s);
 bool IsStrtab(const ArHdr* a);
 bool IsSymtab(const ArHdr* a);
@@ -1121,13 +1119,6 @@ void ComputeSectionSizes(Context* ctx)
     }
 }
 
-int b2i(bool b)
-{
-    if(b)
-        return 1;
-    return 0;
-}
-
 void getRank(Chunk *chunk,Context* ctx)
 {
     uint32_t typ = GetShdr(chunk)->Type;
@@ -1143,24 +1134,15 @@ void getRank(Chunk *chunk,Context* ctx)
     else if(typ == SHT_NOTE)
         chunk->rank = 2;
     else {
-        int writeable = b2i((flags & SHF_WRITE) != 0);
-        int notExec = b2i((flags & SHF_EXECINSTR) == 0);
-        int notTls = b2i((flags & SHF_TLS) == 0);
-        int isBss = b2i(typ == SHT_NOBITS);
+        int writeable = ((flags & SHF_WRITE) ? 1:0) != 0;
+        int notExec = (((flags & SHF_EXECINSTR) ? 1:0) == 0);
+        int notTls = (((flags & SHF_TLS) ? 1:0) == 0);
+        int isBss = typ == SHT_NOBITS ? 1 :0;
 
         chunk->rank = writeable << 7 | notExec << 6 | notTls << 5 | isBss << 4;
     }
-    //printf("name %s , rank %d\n",chunk->name,chunk->rank);
 }
 
-// SortOutputSections 给output section排序，尽量让可以合为一个segment的section连在一起
-// 基本顺序 :
-// EHDR     //rank 0
-// PHDR     //rank 1
-// .note sections
-// alloc sections
-// non-alloc sections : 不会参与最终可执行文件的执行 , 也放在后面 max int32 -1
-// SHDR     //max int32
 void SortOutputSections(Context* ctx)
 {
     for(int i=0;i<ctx->chunkNum;i++){
@@ -1181,19 +1163,12 @@ void SortOutputSections(Context* ctx)
     }
 }
 
-//在磁盘上不占任何空间
-//.tbss 段存储的是未初始化的线程本地存储（TLS）变量，而这些变量的初始值是在程序运行时动态分配的。因此，.tbss 段不需要在磁盘上占据空间，而是在程序加载和运行时根据需要进行动态分配
-//.bss 段存储的是未初始化的全局和静态变量，这些变量在程序加载时会被初始化为零或空值 ,在磁盘上，.bss 段占据的空间会被预留出来，并在程序加载时分配给这些变量
-//这里是虚拟地址，所以要分，但是在文件中.bss并不写入
-// .data .bss
-// .tdata .tbss
 bool isTbss(Chunk* chunk)
 {
     Shdr *shdr = GetShdr(chunk);
     return (shdr->Type == SHT_NOBITS) && ((shdr->Flags & SHF_TLS) !=0);
 }
 
-//给每一个merged section中的fragments分别进行排序
 void ComputeMergedSectionSizes(Context* ctx)
 {
     for(int i=0;i<ctx->mergedSectionNum;i++){
@@ -1219,9 +1194,8 @@ void ScanRelocations(Context* ctx)
    // int count =0;
     for(int i=0; i< ctx->ObjsCount;i++){
         ObjectFile *file = ctx->Objs[i];
-       // printf("numSymbols %ld\n",file->inputFile->numSymbols);
         for(int j=0;j<file->inputFile->numSymbols;j++){
-            Symbol *sym = file->inputFile->LocalSymbols[j];
+            Symbol *sym = &file->inputFile->Symbols[j];
             if (sym == NULL || sym->flags == 0)
                 continue;
             syms = (Symbol**) realloc(syms,sizeof (Symbol*) * (numSyms+1));
@@ -1289,12 +1263,12 @@ InputFile* NewInputFile(File* file)
     memcpy(inputFile->ShStrtab,c, len);
 
     //其他的初始化
-    inputFile->FirstLocal = 0;
+    inputFile->FirstGlobal = 0;
     inputFile->numLocalSymbols = 0;
     inputFile->LocalSymbols = NULL;
     inputFile->numSymbols = 0;
     inputFile->Symbols = NULL;
-    inputFile->symNum = 0;
+    inputFile->ElfSymNum = 0;
     inputFile->ElfSyms = NULL;
     inputFile->SymbolStrtab = NULL;
     return inputFile;
@@ -1333,13 +1307,13 @@ Shdr* FindSection(InputFile* f, uint32_t ty)
 void FillUpElfSyms(InputFile* inputFile,Shdr* s)
 {
     char *bs = GetBytesFromShdr(inputFile,s);
-    int numbs = s->Size / sizeof (Sym);
-    inputFile->ElfSyms = (Sym*) malloc(numbs* sizeof(Sym));
-    inputFile->symNum = numbs;
+    int numbs = s->Size / sizeof (ElfSym);
+    inputFile->ElfSyms = (ElfSym*) malloc(numbs* sizeof(ElfSym));
+    inputFile->ElfSymNum = numbs;
 
     while (numbs > 0){
-        Read(&inputFile->ElfSyms[inputFile->symNum - numbs],bs,sizeof(Sym));
-        bs += sizeof(Sym);
+        Read(&inputFile->ElfSyms[inputFile->ElfSymNum - numbs],bs,sizeof(ElfSym));
+        bs += sizeof(ElfSym);
         numbs--;
     }
 }
@@ -1470,7 +1444,7 @@ OutputEhdr *NewOutputEhdr()
     return outputEhdr;
 }
 
-static bool symbolHasExecutableAddr(Symbol* sym, Sym* esym, bool allowLocal)
+static bool symbolHasExecutableAddr(Symbol* sym, ElfSym* esym, bool allowLocal)
 {
     if (sym == NULL || esym == NULL) {
         return false;
@@ -1539,7 +1513,7 @@ static Symbol* findDefinedSymbolByName(Context* ctx, const char* name)
         return NULL;
     }
 
-    Sym *esym = &sym->file->inputFile->ElfSyms[sym->symIdx];
+    ElfSym *esym = &sym->file->inputFile->ElfSyms[sym->symIdx];
     if (IsUndef(esym) || IsCommon(esym)) {
         return NULL;
     }
@@ -1561,8 +1535,8 @@ static Symbol* findFirstExecutableSymbol(Context* ctx)
             continue;
         }
 
-        for (int j = 0; j < in->symNum; j++) {
-            Sym *esym = &in->ElfSyms[j];
+        for (int j = 0; j < in->ElfSymNum; j++) {
+            ElfSym *esym = &in->ElfSyms[j];
             if (IsUndef(esym) || IsCommon(esym)) {
                 continue;
             }
@@ -1917,14 +1891,14 @@ void Parse(Context *ctx,ObjectFile* o)
     DBG("Parse: start %s\n", o->inputFile->file->Name);
     o->SymtabSec = FindSection(o->inputFile,2);  //SHT_SYMTAB
     if(o->SymtabSec != NULL){
-        o->inputFile->FirstLocal = o->SymtabSec->Info;
+        o->inputFile->FirstGlobal = o->SymtabSec->Info;
         FillUpElfSyms(o->inputFile,o->SymtabSec);
         o->inputFile->SymbolStrtab = GetBytesFromIdx(o->inputFile,o->SymtabSec->Link);
     }
     InitializeSections(o,ctx);
     DBG("Parse: sections initialized (%ld)\n", o->isecNum);
     InitializeSymbols(ctx,o);
-    DBG("Parse: symbols initialized (symNum=%ld firstGlobal=%ld)\n", o->inputFile->symNum, o->inputFile->FirstLocal);
+    DBG("Parse: symbols initialized (ElfSymNum=%ld firstGlobal=%ld)\n", o->inputFile->ElfSymNum, o->inputFile->FirstGlobal);
     InitializeMergeableSections(o,ctx);
     DBG("Parse: mergeable sections initialized\n");
     SkipEhframeSections(o);
@@ -2011,10 +1985,10 @@ void InitializeSections(ObjectFile* o,Context* ctx)
     }
 }
 
-int64_t GetShndx(ObjectFile* o, Sym* esym, int idx) 
+int64_t GetShndx(ObjectFile* o, ElfSym* esym, int idx) 
 {
     // 假设你有一个类似的 Assert 函数用于检查条件
-    assert(idx >= 0 && idx < o->inputFile->symNum );
+    assert(idx >= 0 && idx < o->inputFile->ElfSymNum );
 
     // 如果 esym 的 Shndx 是 SHN_XINDEX，则返回 SymtabShndxSec 中对应索引的值
     if (esym->Shndx == SHN_XINDEX) {
@@ -2029,73 +2003,73 @@ HashMap *name_map;
 
 void InitializeSymbols(Context *ctx,ObjectFile* o)
 {
-    DBG("InitializeSymbols: start file=%s FirstLocal=%ld symNum=%ld\n",
+    DBG("InitializeSymbols: start file=%s FirstGlobal=%ld ElfSymNum=%ld\n",
         o->inputFile->file->Name,
-        o->inputFile->FirstLocal,
-        o->inputFile->symNum);
+        o->inputFile->FirstGlobal,
+        o->inputFile->ElfSymNum);
     if(o->SymtabSec == NULL)
         return;
 
-    o->inputFile->Symbols = (Symbol*) malloc(sizeof (Symbol)*o->inputFile->symNum);
+    o->inputFile->Symbols = (Symbol*) malloc(sizeof (Symbol)*o->inputFile->ElfSymNum);
     DBG("InitializeSymbols: allocated Symbols=%p\n", (void*)o->inputFile->Symbols);
     o->inputFile->Symbols[0].file = o;
-    for(int i=1; i< o->inputFile->FirstLocal;i++){
+puts("1\n");
+    for(int i=1; i< o->inputFile->ElfSymNum;i++){
         Symbol *tmp = NewSymbol("");
         if (tmp == NULL) {
             fatal("InitializeSymbols: NewSymbol failed at %d", i);
         }
         o->inputFile->Symbols[i]= *tmp;
         free(tmp);
-        if ((i & 0x3ff) == 0) {
-            DBG("InitializeSymbols: global init i=%d\n", i);
-        }
-        if ((i & 0x3f) == 0) {
-            DBG("InitializeSymbols: global init progress i=%d\n", i);
-        }
     }
-    for(int i=1; i< o->inputFile->FirstLocal;i++){
-        Sym* esym = &o->inputFile->ElfSyms[i];
+puts("2\n");
+    o->inputFile->LocalSymbols = (Symbol **)calloc(o->inputFile->ElfSymNum, sizeof(Symbol *));
+    if (o->inputFile->LocalSymbols == NULL) {
+        fatal("InitializeSymbols: calloc LocalSymbols failed");
+    }
+    for(int i=1; i< o->inputFile->FirstGlobal;i++){
+        ElfSym* esym = &o->inputFile->ElfSyms[i];
         Symbol *sym = &o->inputFile->Symbols[i];
+        
         sym->name  = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
-        DBG("name %s index %d value %x\n", sym->name, i, esym->Val);
+        
         sym->file = o;
         sym->value = esym->Val;
         sym->symIdx = i;
-        if ((i & 0x3ff) == 0) {
-            DBG("InitializeSymbols: local sym i=%d name=%s\n", i, sym->name ? sym->name : "<null>");
-        }
         
         if (!HashMapPut(ctx->SymbolMap,sym->name, sym)) {
             fatal("XXX: HashMapPut failed for %s", sym->name ? sym->name : "<null>");
         }
 
         //绝对符号没有对应的inputSection
-        if(!IsAbs(esym))
-            SetInputSection(sym,o->Sections[GetShndx(o,esym,i)]);
+        if(!IsAbs(esym)) {
+            sym->inputSection = o->Sections[GetShndx(o,esym,i)];
+            sym->sectionFragment = NULL;
+        }
     }
 
-    o->inputFile->LocalSymbols = (Symbol **)calloc(o->inputFile->symNum, sizeof(Symbol *));
-    if (o->inputFile->LocalSymbols == NULL) {
-        fatal("InitializeSymbols: calloc LocalSymbols failed");
-    }
-    //填充其他非local的symbols , 在初始化阶段填入的值还是默认初值
-    for(int i=0; i<o->inputFile->FirstLocal; i++) {
-        Sym* esym = &o->inputFile->ElfSyms[i];
+puts("3\n");
+    for(int i=0; i<o->inputFile->FirstGlobal; i++) {
+        ElfSym* esym = &o->inputFile->ElfSyms[i];
         char* name = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
+puts(name);
+puts("\n");
         o->inputFile->LocalSymbols[i] = &o->inputFile->Symbols[i];
     }
-    for(int i=o->inputFile->FirstLocal; i<o->inputFile->symNum; i++) {
-        Sym* esym = &o->inputFile->ElfSyms[i];
+puts("4\n");
+    for(int i=o->inputFile->FirstGlobal; i<o->inputFile->ElfSymNum; i++) {
+        ElfSym* esym = &o->inputFile->ElfSyms[i];
         char* name = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
-        o->inputFile->LocalSymbols[i] = GetSymbolByName(ctx,name);
-        if (o->inputFile->LocalSymbols[i] == NULL) {
-            fatal("InitializeLocalSymbols: GetSymbolByName returned NULL for %s", name ? name : "<null>");
-        }
+puts(name);
+puts("\n");
+//printf("name %s index %d value %x Shndx %x\n", esym->Name, i, esym->Val, esym->Shndx);
+printf("ctx->SymbolMap %p\n", ctx->SymbolMap);
+printf("Global esym->Shndx %p\n", esym->Shndx);
         if (!HashMapPut(ctx->SymbolMap,name, GetSymbolByName(ctx,name))) {
             fatal("XXX: HashMapPut failed for %s", name ? name : "<null>");
         }
     }
-    o->inputFile->numSymbols = o->inputFile->symNum;
+    o->inputFile->numSymbols = o->inputFile->ElfSymNum;
     DBG("InitializeSymbols: sym done\n");
     
     DBG("InitializeSymbols: done\n");
@@ -2273,7 +2247,7 @@ MergeableSection *splitSection(Context* ctx,InputSection* isec)
     return m;
 }
 
-InputSection *GetSection(ObjectFile* o,Sym* esym,int idx)
+InputSection *GetSection(ObjectFile* o,ElfSym* esym,int idx)
 {
     return o->Sections[GetShndx(o,esym,idx)];
 }
@@ -2281,27 +2255,49 @@ InputSection *GetSection(ObjectFile* o,Sym* esym,int idx)
 void ResolveSymbols(ObjectFile* o)
 {
     DBG("ResolveSymbols: %s start\n", o->inputFile->file->Name);
-    for(int i=o->inputFile->FirstLocal; i<o->inputFile->symNum; i++) {
-        Sym* esym = &o->inputFile->ElfSyms[i];
-        Symbol *sym = o->inputFile->LocalSymbols[i];
+    for(int i=o->inputFile->FirstGlobal; i<o->inputFile->numSymbols; i++) {
+        ElfSym* esym = &o->inputFile->ElfSyms[i];
+        Symbol *sym = &o->inputFile->Symbols[i];
+puts(sym->name);
+puts("\n");
         if (sym == NULL) {
+puts("SYM == NULL\n");
             continue;
         }
 
+/*
         if(IsUndef(esym)){
+puts("IS UNDEF\n");
             continue;
         }
+*/
 
         InputSection *isec = NULL;
         if(!IsAbs(esym)){
+puts("!IS ABS\n");
             isec = GetSection(o,esym,i);
-            if(isec == NULL)
+            if(isec == NULL) {
+puts("CONTINUE");
                 continue;
+            }
         }
-        //读到不同文件时，会将每一个global符号应该在的文件赋到对应的file
-        if(sym->file == NULL){
+        
+/*
+        // 既存の定義が弱い/未解決なら新しい定義で上書きする                                                             
+        ElfSym *curEsym = (sym->file != NULL && sym->symIdx >= 0) ? GetElfSymbol(sym) : NULL;                                    
+        bool curIsWeak = curEsym && ELF64_ST_BIND(curEsym->Info) == STB_WEAK;                                            
+        bool newIsWeak = ELF64_ST_BIND(esym->Info) == STB_WEAK;                                                          
+        bool shouldReplace = (sym->file == NULL) || curIsWeak; 
+*/
+        ElfSym *curEsym = (sym->file != NULL && sym->symIdx >= 0) ? GetElfSymbol(sym) : NULL;                                    
+        
+/*
+        if(shouldReplace) {
+puts("REPLACE\n");
+puts("\n");
             sym->file = o;
-            SetInputSection(sym,isec);
+            sym->inputSection = isec;
+            sym->sectionFragment = NULL;
             sym->value = esym->Val;
             sym->symIdx = i;
             DBG("ResolveSymbols: set %s file=%s val=0x%lx\n",
@@ -2309,6 +2305,21 @@ void ResolveSymbols(ObjectFile* o)
                 sym->file && sym->file->inputFile ? sym->file->inputFile->file->Name : "<none>",
                 (unsigned long)sym->value);
         }
+        //读到不同文件时，会将每一个global符号应该在的文件赋到对应的file
+        else if(sym->file == NULL){
+puts("FILE == NULL\n");
+puts("\n");
+            sym->file = o;
+            sym->inputSection = isec;
+            sym->sectionFragment = NULL;
+            sym->value = esym->Val;
+            sym->symIdx = i;
+            DBG("ResolveSymbols: set %s file=%s val=0x%lx\n",
+                sym->name ? sym->name : "<noname>",
+                sym->file && sym->file->inputFile ? sym->file->inputFile->file->Name : "<none>",
+                (unsigned long)sym->value);
+        }
+*/
     }
     DBG("ResolveSymbols: %s done\n", o->inputFile->file->Name);
 }
@@ -2317,9 +2328,9 @@ void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize)
 {
     assert(o->inputFile->isAlive);
     DBG("markLiveObjs: scanning %s\n", o->inputFile->file->Name);
-    for(int i=o->inputFile->FirstLocal; i<o->inputFile->symNum; i++) {
+    for(int i=o->inputFile->FirstGlobal; i<o->inputFile->ElfSymNum; i++) {
         Symbol *sym = o->inputFile->LocalSymbols[i];
-        Sym *esym = &o->inputFile->ElfSyms[i];
+        ElfSym *esym = &o->inputFile->ElfSyms[i];
 
         if(sym == NULL || sym->file == NULL){
             continue;
@@ -2340,7 +2351,7 @@ void markLiveObjs(ObjectFile* o,ObjectFile***roots,int *rootSize)
 
 void ClearSymbols(ObjectFile* o)
 {
-    for(int i=o->inputFile->FirstLocal; i<o->inputFile->symNum; i++) {
+    for(int i=o->inputFile->FirstGlobal; i<o->inputFile->ElfSymNum; i++) {
         Symbol *sym = o->inputFile->LocalSymbols[i];
         if(sym != NULL && sym->file == o)
             clear(sym);
@@ -2367,11 +2378,11 @@ void registerSectionPieces(ObjectFile* o)
     }
 
     //因为symbol可能要改成属于一个fragment , 进行处理
-    for(int i = 1;i<o->inputFile->symNum;i++){
+    for(int i = 1;i<o->inputFile->ElfSymNum;i++){
         Symbol *sym = o->inputFile->LocalSymbols[i];
         if (sym == NULL)
             continue;
-        Sym *esym = &o->inputFile->ElfSyms[i];
+        ElfSym *esym = &o->inputFile->ElfSyms[i];
 
         if(IsAbs(esym) || IsUndef(esym) || IsCommon(esym))
             continue;
@@ -2387,7 +2398,8 @@ void registerSectionPieces(ObjectFile* o)
             fatal("bad symbol value");
         }
 
-        SetSectionFragment(sym,frag);
+        sym->sectionFragment = frag;
+        sym->inputSection = NULL;
         sym->value = fragOffset;
     }
 }
@@ -2878,7 +2890,7 @@ OutputSymtab *NewOutputSymtab(OutputStrtab* strtab)
     return tab;
 }
 
-static uint8_t SymbolInfoForLocal(const Sym* esym)
+static uint8_t SymbolInfoForLocal(const ElfSym* esym)
 {
     uint8_t type = esym ? ELF64_ST_TYPE(esym->Info) : STT_NOTYPE;
     return ELF64_ST_INFO(STB_LOCAL, type);
@@ -2906,9 +2918,9 @@ void BuildOutputSymtab(Context* ctx)
         InputFile *in = obj->inputFile;
         if (!in || !in->Symbols)
             continue;
-        int64_t limit = in->FirstLocal;
-        if (limit > in->symNum)
-            limit = in->symNum;
+        int64_t limit = in->FirstGlobal;
+        if (limit > in->ElfSymNum)
+            limit = in->ElfSymNum;
         for (int64_t idx = 1; idx < limit; idx++) {
             in->Symbols[idx].flags &= ~SYMBOL_FLAG_SYMTAB;
         }
@@ -2924,11 +2936,192 @@ void BuildOutputSymtab(Context* ctx)
         InputFile *in = obj->inputFile;
         if (in == NULL || in->ElfSyms == NULL)
             continue;
-        int64_t firstGlobal = in->FirstLocal;
-        if (firstGlobal > in->symNum)
-            firstGlobal = in->symNum;
+        int64_t firstGlobal = in->FirstGlobal;
+        if (firstGlobal > in->ElfSymNum)
+            firstGlobal = in->ElfSymNum;
         for (int64_t idx = 1; idx < firstGlobal; idx++) {
-            Sym *esym = &in->ElfSyms[idx];
+            ElfSym *esym = &in->ElfSyms[idx];
+            if (IsUndef(esym) || IsCommon(esym))
+                continue;
+            uint8_t bind = ELF64_ST_BIND(esym->Info);
+            if (bind != STB_LOCAL)
+                continue;
+            Symbol *sym = &in->Symbols[idx];
+            if (sym == NULL || sym->file != obj)
+                continue;
+
+            if (sym->flags & SYMBOL_FLAG_SYMTAB)
+                continue;
+
+            SymtabEntry* rec = SymtabAddEntry(tab);
+            rec->sym = sym;
+            rec->info = SymbolInfoForLocal(esym);
+            rec->other = esym->Other;
+            rec->size = esym->Size;
+            rec->nameOffset = (sym->name && sym->name[0]) ? StrtabAppend(ctx->strtab, sym->name) : 0;
+            if (IsAbs(esym))
+                rec->shndx = SHN_ABS;
+            else if (IsCommon(esym))
+                rec->shndx = SHN_COMMON;
+            else {
+                rec->sectionChunk = GetSymbolSectionChunk(sym);
+                rec->shndx = 0;
+            }
+            tab->localCount++;
+            sym->flags |= SYMBOL_FLAG_SYMTAB;
+        }
+    }
+
+  // Collect global/weak symbols from symbol map
+  HashMapFirst(ctx->SymbolMap);
+  for (Pair* p = HashMapNext(ctx->SymbolMap); p != NULL; p = HashMapNext(ctx->SymbolMap)) {
+    Symbol* sym = (Symbol*)p->value;
+    if (sym == NULL || sym->file == NULL || sym->symIdx < 0)
+        continue;
+    ElfSym* esym = &sym->file->inputFile->ElfSyms[sym->symIdx];
+    if (IsUndef(esym) || IsCommon(esym))
+        continue;
+    uint8_t bind = ELF64_ST_BIND(esym->Info);
+    if (bind == STB_LOCAL)
+        continue;
+    if (sym->flags & SYMBOL_FLAG_SYMTAB)
+        continue;
+
+    SymtabEntry* rec = SymtabAddEntry(tab);
+    rec->sym = sym;
+    rec->info = esym->Info;
+    rec->other = esym->Other;
+    rec->size = esym->Size;
+    rec->nameOffset = (sym->name && sym->name[0]) ? StrtabAppend(ctx->strtab, sym->name) : 0;
+    if (IsAbs(esym))
+        rec->shndx = SHN_ABS;
+    else if (IsCommon(esym))
+        rec->shndx = SHN_COMMON;
+    else {
+        rec->sectionChunk = GetSymbolSectionChunk(sym);
+        rec->shndx = 0;
+    }
+    sym->flags |= SYMBOL_FLAG_SYMTAB;
+  }
+
+  // Fallback: walk all objects to ensure every defined global/weak symbol is emitted,
+  // even if the symbol map missed it for some reason.
+  for (int i = 0; i < ctx->ObjsCount; i++) {
+    ObjectFile *obj = ctx->Objs[i];
+    InputFile *in = obj->inputFile;
+    if (in == NULL || in->ElfSyms == NULL)
+        continue;
+    int64_t start = 1;  // skip null symbol
+    for (int64_t idx = start; idx < in->ElfSymNum; idx++) {
+        ElfSym *esym = &in->ElfSyms[idx];
+        if (IsUndef(esym) || IsCommon(esym))
+            continue;
+        uint8_t bind = ELF64_ST_BIND(esym->Info);
+        if (bind == STB_LOCAL)
+            continue;
+        Symbol *sym = in->LocalSymbols ? in->LocalSymbols[idx] : NULL;
+puts("Fallback sym\n");
+puts(sym->name);
+puts("\n");
+        if (sym == NULL || sym->file == NULL || sym->symIdx < 0) {
+puts("GUHI");
+            continue;
+        }
+        if (sym->flags & SYMBOL_FLAG_SYMTAB) {
+puts("UHI");
+            continue;
+        }
+
+        SymtabEntry* rec = SymtabAddEntry(tab);
+        rec->sym = sym;
+        rec->info = esym->Info;
+        rec->other = esym->Other;
+        rec->size = esym->Size;
+        rec->nameOffset = (sym->name && sym->name[0]) ? StrtabAppend(ctx->strtab, sym->name) : 0;
+        if (IsAbs(esym))
+            rec->shndx = SHN_ABS;
+        else if (IsCommon(esym))
+            rec->shndx = SHN_COMMON;
+        else {
+            rec->sectionChunk = GetSymbolSectionChunk(sym);
+            rec->shndx = 0;
+        }
+        sym->flags |= SYMBOL_FLAG_SYMTAB;
+    }
+  }
+
+  if (tab->localCount > tab->count)
+      tab->localCount = tab->count;
+
+  // Resolve section indices for entries that reference sections
+  for (size_t i = 1; i < tab->count; i++) {
+        SymtabEntry* rec = &tab->entries[i];
+        if (rec->shndx == 0) {
+            if (rec->sectionChunk != NULL) {
+                uint16_t idx = GetSectionIndexByChunk(ctx, rec->sectionChunk);
+                rec->shndx = idx ? idx : SHN_ABS;
+            } else {
+                rec->shndx = SHN_ABS;
+            }
+        }
+    }
+
+    tab->chunk->shdr.Size = tab->count * sizeof(Elf64_Sym);
+    tab->chunk->shdr.Info = (uint32_t)tab->localCount;
+    uint16_t strtabIndex = GetSectionIndexByChunk(ctx, ctx->strtab->chunk);
+    if (strtabIndex == 0)
+        fatal(".strtab section header index not found");
+    tab->chunk->shdr.Link = strtabIndex;
+    tab->chunk->shdr.EntSize = sizeof(Elf64_Sym);
+    ctx->strtab->chunk->shdr.Size = ctx->strtab->size;
+}
+
+/*
+void BuildOutputSymtab(Context* ctx)
+{
+    if (ctx == NULL || ctx->symtab == NULL || ctx->strtab == NULL)
+        return;
+
+    OutputSymtab* tab = ctx->symtab;
+
+    StrtabReset(ctx->strtab);
+    SymtabReset(tab);
+
+    // Clear previously emitted markers
+    HashMapFirst(ctx->SymbolMap);
+    for (Pair* p = HashMapNext(ctx->SymbolMap); p != NULL; p = HashMapNext(ctx->SymbolMap)) {
+        Symbol* sym = (Symbol*)p->value;
+        if (sym)
+            sym->flags &= ~SYMBOL_FLAG_SYMTAB;
+    }
+    for (int i = 0; i < ctx->ObjsCount; i++) {
+        ObjectFile *obj = ctx->Objs[i];
+        InputFile *in = obj->inputFile;
+        if (!in || !in->Symbols)
+            continue;
+        int64_t limit = in->FirstGlobal;
+        if (limit > in->ElfSymNum)
+            limit = in->ElfSymNum;
+        for (int64_t idx = 1; idx < limit; idx++) {
+            in->Symbols[idx].flags &= ~SYMBOL_FLAG_SYMTAB;
+        }
+    }
+
+    // Null symbol entry
+    SymtabAddEntry(tab);
+    tab->localCount = 1;
+
+    // Collect local symbols from each object file
+    for (int i = 0; i < ctx->ObjsCount; i++) {
+        ObjectFile *obj = ctx->Objs[i];
+        InputFile *in = obj->inputFile;
+        if (in == NULL || in->ElfSyms == NULL)
+            continue;
+        int64_t firstGlobal = in->FirstGlobal;
+        if (firstGlobal > in->ElfSymNum)
+            firstGlobal = in->ElfSymNum;
+        for (int64_t idx = 1; idx < firstGlobal; idx++) {
+            ElfSym *esym = &in->ElfSyms[idx];
             if (IsUndef(esym) || IsCommon(esym))
                 continue;
             uint8_t bind = ELF64_ST_BIND(esym->Info);
@@ -2966,7 +3159,7 @@ void BuildOutputSymtab(Context* ctx)
         Symbol* sym = (Symbol*)p->value;
         if (sym == NULL || sym->file == NULL || sym->symIdx < 0)
             continue;
-        Sym* esym = &sym->file->inputFile->ElfSyms[sym->symIdx];
+        ElfSym* esym = &sym->file->inputFile->ElfSyms[sym->symIdx];
         if (IsUndef(esym) || IsCommon(esym))
             continue;
         uint8_t bind = ELF64_ST_BIND(esym->Info);
@@ -3017,6 +3210,7 @@ void BuildOutputSymtab(Context* ctx)
     tab->chunk->shdr.EntSize = sizeof(Elf64_Sym);
     ctx->strtab->chunk->shdr.Size = ctx->strtab->size;
 }
+*/
 
 void Symtab_CopyBuf(Chunk* c, Context* ctx)
 {
@@ -3380,7 +3574,6 @@ void ApplyRelocAlloc(InputSection* isec,Context* ctx,char* base)
                 writeItype((loc + 4),tmp);
                 break;
             case 20/*R_RISCV_GOT_HI20*/: {
-DBG("20");
                 if (sym->gotIdx < 0) {
                     if (!ctx->got)
                         fatal("GOT section missing");
@@ -3391,12 +3584,10 @@ DBG("20");
                 hi = hi << 12;
                 int64_t lo = tmp - (hi << 12);
                 gLO = lo;
-DBG("gLO %x", gLO);
                 writeUtype(loc,(uint32_t)hi);
                 }
                 break;
             case 21/*R_RISCV_TLS_GOT_HI20*/:
-DBG("21");
                 if (sym->gotTpIdx < 0) {
                     if (!ctx->got)
                         fatal("GOT section missing");
@@ -3416,7 +3607,6 @@ DBG("21");
                 break;
                 
             case 23/*R_RISCV_PCREL_HI20*/: {
-DBG("23");
                 int64_t tmp = (int64_t)S + A - P;
                 uint32_t hi = (uint32_t)(((tmp + 0x800) >> 12) & 0xfffff);
                 writeUtype(loc, hi << 12);
@@ -3499,13 +3689,10 @@ DBG("30");
         
         switch (rel.Type) {
             case 24/*R_RISCV_PCREL_LO12_I*/:
-DBG("24");
-DBG("gLO %x", gLO);
                 writeItype(loc,(uint32_t)gLO);
                 //writeItype(loc,(uint32_t)diff);
                 break;
             case 25/*R_RISCV_PCREL_LO12_S*/:
-DBG("25");
                 writeItype(loc,(uint32_t)gLO);
                 //writeStype(loc,(uint32_t)diff);
                 break;
@@ -3717,18 +3904,6 @@ Symbol *NewSymbol(char* name)
     return symbol;
 }
 
-void SetInputSection(Symbol *s,InputSection* isec)
-{
-    s->inputSection = isec;
-    s->sectionFragment = NULL;
-}
-
-void SetSectionFragment(Symbol* s,SectionFragment* frag)
-{
-    s->sectionFragment = frag;
-    s->inputSection = NULL;
-}
-
 Symbol *GetSymbolByName(Context* ctx,char* name)
 {
     //如果symbolMap中已存，直接拿
@@ -3750,9 +3925,9 @@ Symbol *GetSymbolByName(Context* ctx,char* name)
 }
 
 //返回这个symbol对应的一个Elf32_Sym条目
-Sym *ElfSym_(Symbol* s)
+ElfSym *GetElfSymbol(Symbol* s)
 {
-    assert(s->symIdx < s->file->inputFile->symNum);
+    assert(s->symIdx < s->file->inputFile->ElfSymNum);
     return &s->file->inputFile->ElfSyms[s->symIdx];
 }
 
@@ -5734,20 +5909,20 @@ int GetSize(const ArHdr* a)
 }
 
 //返回判断这一个符号是不是绝对符号,即值确定，不需要重定向, 不指向任何section
-bool IsAbs(const Sym* s) 
+bool IsAbs(const ElfSym* s) 
 {
     return s->Shndx == 65521; // Assuming elf.SHN_ABS is defined as 0
 }
 
 //未定义符号，需要链接器来找
-bool IsUndef(const Sym* s) 
+bool IsUndef(const ElfSym* s) 
 {
     return s->Shndx == 0; // Assuming elf.SHN_UNDEF is defined as 65521
 }
 
 //比如a.o和b.o中都声明或定义了一个全局变量，在a.o中进行定义，在b.o中进行声明，那么这个符号在b.o中就是common symbol
 // 链接器最终处理时，只会加入a.o中的common symbol
-bool IsCommon(const Sym* s) 
+bool IsCommon(const ElfSym* s) 
 {
     return s->Shndx == 65522; // Assuming elf.SHN_COMMON is defined as 65522
 }

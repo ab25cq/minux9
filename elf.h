@@ -49,6 +49,7 @@
 #endif
 
 // Section indices
+#define SHN_UNDEF   0
 #ifndef SHN_LORESERVE
 #define SHN_LORESERVE 0xFF00
 #endif

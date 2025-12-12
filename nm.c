@@ -92,6 +92,7 @@ typedef struct {
     const char* name;
     uint64_t value;
     char type;
+    uint16_t shndx;
 } NmEntry;
 
 static int check_magic(const Elf64_Ehdr* eh) {
@@ -341,6 +342,7 @@ static int process_file(const char* path, int print_header) {
         entries[count].name = name;
         entries[count].value = sym->st_value;
         entries[count].type = kind;
+        entries[count].shndx = sym->st_shndx;
         count++;
     }
 
@@ -353,12 +355,14 @@ static int process_file(const char* path, int print_header) {
     for (size_t i = 0; i < count; i++) {
         NmEntry* ent = &entries[i];
         if (!is_value_shown(ent->type)) {
-            printf("                 %c %s\n", ent->type, ent->name ? ent->name : "");
+            printf("                 %c %s section header index %x\n", ent->type, ent->name ? ent->name : "", ent->shndx);
         } else {
-            printf("%016llx %c %s\n",
+            printf("%016llx %c %s section header index %x\n",
                    (unsigned long long)ent->value,
                    ent->type,
-                   ent->name ? ent->name : "");
+                   ent->name ? ent->name : "",
+                   ent->shndx
+                   );
         }
     }
 
