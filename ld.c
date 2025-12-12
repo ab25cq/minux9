@@ -2032,10 +2032,13 @@ puts("2\n");
         Symbol *sym = &o->inputFile->Symbols[i];
         
         sym->name  = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
+puts(sym->name);
+puts("\n");
         
         sym->file = o;
         sym->value = esym->Val;
         sym->symIdx = i;
+printf("esym shndx %d\n", esym->Shndx);
         
         if (!HashMapPut(ctx->SymbolMap,sym->name, sym)) {
             fatal("XXX: HashMapPut failed for %s", sym->name ? sym->name : "<null>");
@@ -2057,16 +2060,35 @@ puts("\n");
         o->inputFile->LocalSymbols[i] = &o->inputFile->Symbols[i];
     }
 puts("4\n");
+/*
     for(int i=o->inputFile->FirstGlobal; i<o->inputFile->ElfSymNum; i++) {
         ElfSym* esym = &o->inputFile->ElfSyms[i];
+        Symbol *sym = &o->inputFile->Symbols[i];
+        
+        
+        sym->name  = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
+        sym->file = o;
+        sym->value = esym->Val;
+        sym->symIdx = i;
+        HashMapRemove(ctx->SymbolMap, sym->name);
+        if (!HashMapPut(ctx->SymbolMap,sym->name, sym)) {
+            fatal("XXX: HashMapPut failed for %s", sym->name ? sym->name : "<null>");
+        }
+    }
+    */
+    for(int i=o->inputFile->FirstGlobal; i<o->inputFile->ElfSymNum; i++) {
+        ElfSym* esym = &o->inputFile->ElfSyms[i];
+        Symbol *sym = &o->inputFile->Symbols[i];
+        
         char* name = ElfGetName(o->inputFile->SymbolStrtab,esym->Name);
-puts(name);
-puts("\n");
-//printf("name %s index %d value %x Shndx %x\n", esym->Name, i, esym->Val, esym->Shndx);
-printf("ctx->SymbolMap %p\n", ctx->SymbolMap);
-printf("Global esym->Shndx %p\n", esym->Shndx);
-        if (!HashMapPut(ctx->SymbolMap,name, GetSymbolByName(ctx,name))) {
-            fatal("XXX: HashMapPut failed for %s", name ? name : "<null>");
+        sym->name = name;
+        sym->file = o; 
+printf("name %p file %p\n", name, sym->file);
+        sym->symIdx = i; 
+        sym->inputSection = o->Sections[GetShndx(o,esym,i)];
+        HashMapRemove(ctx->SymbolMap, name);
+        if (!HashMapPut(ctx->SymbolMap,sym->name, sym)) {
+            fatal("XXX: HashMapPut failed for %s", sym->name ? sym->name : "<null>");
         }
     }
     o->inputFile->numSymbols = o->inputFile->ElfSymNum;
@@ -2258,43 +2280,23 @@ void ResolveSymbols(ObjectFile* o)
     for(int i=o->inputFile->FirstGlobal; i<o->inputFile->numSymbols; i++) {
         ElfSym* esym = &o->inputFile->ElfSyms[i];
         Symbol *sym = &o->inputFile->Symbols[i];
-puts(sym->name);
-puts("\n");
         if (sym == NULL) {
-puts("SYM == NULL\n");
             continue;
         }
 
-/*
         if(IsUndef(esym)){
-puts("IS UNDEF\n");
             continue;
         }
-*/
 
         InputSection *isec = NULL;
         if(!IsAbs(esym)){
-puts("!IS ABS\n");
             isec = GetSection(o,esym,i);
             if(isec == NULL) {
-puts("CONTINUE");
                 continue;
             }
         }
         
-/*
-        // 既存の定義が弱い/未解決なら新しい定義で上書きする                                                             
-        ElfSym *curEsym = (sym->file != NULL && sym->symIdx >= 0) ? GetElfSymbol(sym) : NULL;                                    
-        bool curIsWeak = curEsym && ELF64_ST_BIND(curEsym->Info) == STB_WEAK;                                            
-        bool newIsWeak = ELF64_ST_BIND(esym->Info) == STB_WEAK;                                                          
-        bool shouldReplace = (sym->file == NULL) || curIsWeak; 
-*/
-        ElfSym *curEsym = (sym->file != NULL && sym->symIdx >= 0) ? GetElfSymbol(sym) : NULL;                                    
-        
-/*
-        if(shouldReplace) {
-puts("REPLACE\n");
-puts("\n");
+        if(sym->file == NULL){
             sym->file = o;
             sym->inputSection = isec;
             sym->sectionFragment = NULL;
@@ -2305,21 +2307,6 @@ puts("\n");
                 sym->file && sym->file->inputFile ? sym->file->inputFile->file->Name : "<none>",
                 (unsigned long)sym->value);
         }
-        //读到不同文件时，会将每一个global符号应该在的文件赋到对应的file
-        else if(sym->file == NULL){
-puts("FILE == NULL\n");
-puts("\n");
-            sym->file = o;
-            sym->inputSection = isec;
-            sym->sectionFragment = NULL;
-            sym->value = esym->Val;
-            sym->symIdx = i;
-            DBG("ResolveSymbols: set %s file=%s val=0x%lx\n",
-                sym->name ? sym->name : "<noname>",
-                sym->file && sym->file->inputFile ? sym->file->inputFile->file->Name : "<none>",
-                (unsigned long)sym->value);
-        }
-*/
     }
     DBG("ResolveSymbols: %s done\n", o->inputFile->file->Name);
 }
@@ -2931,6 +2918,7 @@ void BuildOutputSymtab(Context* ctx)
     tab->localCount = 1;
 
     // Collect local symbols from each object file
+puts("local symbols\n");
     for (int i = 0; i < ctx->ObjsCount; i++) {
         ObjectFile *obj = ctx->Objs[i];
         InputFile *in = obj->inputFile;
@@ -2947,6 +2935,8 @@ void BuildOutputSymtab(Context* ctx)
             if (bind != STB_LOCAL)
                 continue;
             Symbol *sym = &in->Symbols[idx];
+puts(sym->name);
+puts("\n");
             if (sym == NULL || sym->file != obj)
                 continue;
 
@@ -2974,18 +2964,31 @@ void BuildOutputSymtab(Context* ctx)
 
   // Collect global/weak symbols from symbol map
   HashMapFirst(ctx->SymbolMap);
+puts("global/weak symbols\n");
   for (Pair* p = HashMapNext(ctx->SymbolMap); p != NULL; p = HashMapNext(ctx->SymbolMap)) {
     Symbol* sym = (Symbol*)p->value;
-    if (sym == NULL || sym->file == NULL || sym->symIdx < 0)
+puts(sym->name);
+puts("\n");
+    if (sym == NULL || sym->file == NULL || sym->symIdx < 0) {
+puts("CONTINUE1\n");
+printf("sym %p, sym->file %p, sym->SymIdx %d\n", sym, sym->file, sym->symIdx);
         continue;
+    }
     ElfSym* esym = &sym->file->inputFile->ElfSyms[sym->symIdx];
-    if (IsUndef(esym) || IsCommon(esym))
+    if (IsUndef(esym) || IsCommon(esym)) {
+puts("CONTINUE2\n");
+printf("IsUndef %d IsCommon %d\n", IsUndef(esym), IsCommon(esym));
         continue;
+    }
     uint8_t bind = ELF64_ST_BIND(esym->Info);
-    if (bind == STB_LOCAL)
+    if (bind == STB_LOCAL) {
+puts("CONTINUE3\n");
         continue;
-    if (sym->flags & SYMBOL_FLAG_SYMTAB)
+    }
+    if (sym->flags & SYMBOL_FLAG_SYMTAB) {
+puts("CONTINUE4\n");
         continue;
+    }
 
     SymtabEntry* rec = SymtabAddEntry(tab);
     rec->sym = sym;
@@ -3006,6 +3009,7 @@ void BuildOutputSymtab(Context* ctx)
 
   // Fallback: walk all objects to ensure every defined global/weak symbol is emitted,
   // even if the symbol map missed it for some reason.
+puts("Fallback\n");
   for (int i = 0; i < ctx->ObjsCount; i++) {
     ObjectFile *obj = ctx->Objs[i];
     InputFile *in = obj->inputFile;
@@ -3020,15 +3024,10 @@ void BuildOutputSymtab(Context* ctx)
         if (bind == STB_LOCAL)
             continue;
         Symbol *sym = in->LocalSymbols ? in->LocalSymbols[idx] : NULL;
-puts("Fallback sym\n");
-puts(sym->name);
-puts("\n");
         if (sym == NULL || sym->file == NULL || sym->symIdx < 0) {
-puts("GUHI");
             continue;
         }
         if (sym->flags & SYMBOL_FLAG_SYMTAB) {
-puts("UHI");
             continue;
         }
 
@@ -3047,7 +3046,7 @@ puts("UHI");
             rec->shndx = 0;
         }
         sym->flags |= SYMBOL_FLAG_SYMTAB;
-    }
+     }
   }
 
   if (tab->localCount > tab->count)
