@@ -50,6 +50,17 @@ struct context_t {
     uint64_t mepc;
 };
 
+struct sKernelState
+{
+    struct context_t gYieldContext;
+    struct context_t gYieldReturnContext;
+    char* gYieldStack;
+
+    uint64_t gYieldUserSatp;
+    uint64_t gYieldUserSP;
+    uint64_t gYieldUserActiveProc;
+};
+
 struct file;
 
 struct process_pages
@@ -193,6 +204,19 @@ void file_system_init();
 extern struct proc* gProc[PROC_MAX];
 
 extern int gActiveProc;
+void neoc_proc_list_init(void);
+void neoc_proc_list_add(struct proc* p);
+void neoc_proc_list_remove(struct proc* p);
+void neoc_proc_list_replace(struct proc* oldp, struct proc* newp);
+struct proc* neoc_proc_find_zombie_in_pgrp(uint16_t pgrp);
+bool neoc_proc_is_file_open(uint32_t inum);
+void neoc_kernel_state_init(void);
+void neoc_kernel_state_clear(void);
+void neoc_kernel_state_add(struct sKernelState* state);
+struct sKernelState* neoc_kernel_state_find(int active_proc);
+struct sKernelState* neoc_kernel_state_take(int active_proc);
+struct sKernelState* neoc_kernel_state_take_first(void);
+int proc_find_pid(struct proc* p);
 
 #ifndef O_RDONLY
 #define O_RDONLY 0

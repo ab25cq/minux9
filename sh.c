@@ -55,9 +55,7 @@ struct sCommand
     int redirect_append;
 };
 
-int shell_pgrp;
-
-int run_command(int n, struct sCommand* commands, int num_commands, int debug_)
+int run_command(int n, struct sCommand* commands, int num_commands, int debug_, int shell_pgrp)
 {
     int pipes[2] = { 0, 0 };
     
@@ -129,7 +127,7 @@ int run_command(int n, struct sCommand* commands, int num_commands, int debug_)
             close(pipes[1]);
             dup2(pipes[0], 0);
             close(pipes[0]);
-            run_command(n+1, commands, num_commands, debug_);
+            run_command(n+1, commands, num_commands, debug_, shell_pgrp);
         }
         else {
             tcsetpgrp(0, shell_pgrp);
@@ -180,6 +178,7 @@ int run_command(int n, struct sCommand* commands, int num_commands, int debug_)
 
 int main(int argc, char** argv) {
     char buf[BUF_SIZE];
+    char linebuf[BUF_SIZE];
     
     long n;
     char buf2[2];
@@ -196,6 +195,8 @@ int main(int argc, char** argv) {
     buf[0] = '\0';
     
     int run_once = 0;
+    const char* script_path = NULL;
+    FILE* script_fp = NULL;
     int debug_ = 0;
     for(i=1; i<argc; i++) {
         if(strcmp(argv[i], "-c") == 0) {
@@ -205,12 +206,28 @@ int main(int argc, char** argv) {
             strncat(buf, argv[i], BUF_SIZE);
             strncat(buf, " ", BUF_SIZE);
         }
+        else if(script_path == NULL) {
+            script_path = argv[i];
+        }
+    }
+    
+    if(script_path) {
+        script_fp = fopen(script_path, "r");
+        if(script_fp == NULL) {
+            printf("sh: can't open %s\r\n", script_path);
+            exit(1);
+        }
     }
     
     for (;;) {
         char* cmdline = NULL;
-        if(run_once == 0) {
+        debug_ = 0;
+        
+        if(run_once == 0 && script_fp == NULL) {
             cmdline = readline("$ ");
+            if(cmdline == NULL) {
+                exit(0);
+            }
             
             if(cmdline[0] == '!') {
                 debug_ = 1;
@@ -220,11 +237,38 @@ int main(int argc, char** argv) {
                 strncpy(buf, cmdline, BUF_SIZE);
             }
         }
+        else if(script_fp != NULL) {
+            if(fgets(linebuf, sizeof(linebuf), script_fp) == NULL) {
+                fclose(script_fp);
+                exit(0);
+            }
+            
+            strncpy(buf, linebuf, BUF_SIZE);
+            
+            int len = strlen(buf);
+            while(len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r')) {
+                buf[--len] = '\0';
+            }
+            
+            char* head = buf;
+            while(*head == ' ' || *head == '\t') {
+                head++;
+            }
+            if(*head == '#') {
+                buf[0] = '\0';
+            }
+            else if(head != buf) {
+                memmove(buf, head, strlen(head) + 1);
+            }
+        }
         
         // save whole command line into global for MINUX_CMDLINE
         int gi = 0; while (buf[gi] && gi < BUF_SIZE-1) { g_cmdline[gi] = buf[gi]; gi++; } g_cmdline[gi] = '\0';
         
         if(buf[0] == '\0') {
+            if(cmdline) {
+                free(cmdline);
+            }
             continue;
         }
         
@@ -382,14 +426,14 @@ int main(int argc, char** argv) {
             continue;
         }
         
-        shell_pgrp = getpid();
+        int shell_pgrp = getpid();
         tcsetpgrp(0, shell_pgrp);
 
         pid = fork();
         
         if(pid == 0) {
             tcsetpgrp(0, shell_pgrp);
-            run_command(0, commands, num_commands, debug_);
+            run_command(0, commands, num_commands, debug_, shell_pgrp);
         }
         else {
             for(int k=0; k<num_commands; k++) {

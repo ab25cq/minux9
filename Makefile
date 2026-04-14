@@ -18,7 +18,7 @@ minux.o: minux.c
 minux9.o: minux9.c
 	$(CCPREFIX)gcc $(CFLAGS2) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux9.o minux9.c
 
-kernel.elf: minux.o minux9.o crt0.o cc
+kernel.elf: minux.o minux9.o crt0.o cc minux_neoc_sys.o echo_neoc.c pwd_neoc.c uname_neoc.c sleep_neoc.c cat_neoc.c mkdir_neoc.c rmdir_neoc.c touch_neoc.c ls_neoc.c pipeline_neoc.c kernel_proc_list_neoc.c
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o entry.o entry.S
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o trap.o trap.S
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o userret.o userret.S
@@ -31,12 +31,13 @@ kernel.elf: minux.o minux9.o crt0.o cc
 	# build minimal userland crt0 that calls exit(main())
 	$(CCPREFIX)gcc $(CFLAGS) -c -o crt0.o crt0.S
 
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cat -g cat.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o sleep -g sleep.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cat -g cat_neoc.c minux_neoc_sys.o -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o sleep -g sleep_neoc.c minux_neoc_sys.o -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o sleep crt0.o sleep_neoc.c minux_neoc_sys.o $(CHILD_CFLAGS)
 #	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o neo-c  crt0.o neo-c.c.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer 
 	$(CCPREFIX)gcc $(CFLAGS) -ffreestanding -fno-stack-protector -fno-builtin -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cpp  crt0.o cpp.c $(CHILD_CFLAGS) -lgcc -fno-omit-frame-pointer 
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o uname -g uname.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cat crt0.o cat.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o uname -g uname_neoc.c minux_neoc_sys.o -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cat crt0.o cat_neoc.c minux_neoc_sys.o $(CHILD_CFLAGS)
 #	$(CCPREFIX)gcc -S $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o b.s b.c
 
 #	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cc -g cc.c -mcmodel=medany $(CHILD_CFLAGS)
@@ -45,8 +46,8 @@ kernel.elf: minux.o minux9.o crt0.o cc
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o hello -g hello.c -mcmodel=medany $(CHILD_CFLAGS)
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o hello crt0.o hello.c $(CHILD_CFLAGS)
 
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o echo -g echo.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o echo crt0.o echo.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o echo -g echo_neoc.c minux_neoc_sys.o -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o echo crt0.o echo_neoc.c minux_neoc_sys.o $(CHILD_CFLAGS)
 
 #	comelang -S -bare grep.c
 #	$(CCPREFIX)gcc -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o grep grep.c.c $(CHILD_CFLAGS)
@@ -64,23 +65,26 @@ kernel.elf: minux.o minux9.o crt0.o cc
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o hello4.elf crt0.o hello4.c $(CHILD_CFLAGS)
 
 
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o ls -g ls.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o ls crt0.o ls.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o ls -g ls_neoc.c minux_neoc_sys.o -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o ls crt0.o ls_neoc.c minux_neoc_sys.o $(CHILD_CFLAGS)
+
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o pipeline -g pipeline_neoc.c minux_neoc_sys.o -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o pipeline crt0.o pipeline_neoc.c minux_neoc_sys.o $(CHILD_CFLAGS)
 
 	# mkdir user program
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o mkdir -g mkdir.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o mkdir crt0.o mkdir.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o mkdir -g mkdir_neoc.c minux_neoc_sys.o -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o mkdir crt0.o mkdir_neoc.c minux_neoc_sys.o $(CHILD_CFLAGS)
 
 	# rmdir user program
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o rmdir -g rmdir.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o rmdir crt0.o rmdir.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o rmdir -g rmdir_neoc.c minux_neoc_sys.o -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o rmdir crt0.o rmdir_neoc.c minux_neoc_sys.o $(CHILD_CFLAGS)
 
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o pwd -g pwd.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o pwd crt0.o pwd.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o pwd -g pwd_neoc.c minux_neoc_sys.o -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o pwd crt0.o pwd_neoc.c minux_neoc_sys.o $(CHILD_CFLAGS)
 
 	# touch user program
-	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o touch -g touch.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o touch crt0.o touch.c $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o touch -g touch_neoc.c minux_neoc_sys.o -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o touch crt0.o touch_neoc.c minux_neoc_sys.o $(CHILD_CFLAGS)
 
 	# more user program
 	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o more -g more.c -mcmodel=medany $(CHILD_CFLAGS)
@@ -120,7 +124,9 @@ kernel.elf: minux.o minux9.o crt0.o cc
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o main.o main.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o libc.o libc.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o syscall.o syscall.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -g -O0 -T kernel.ld -Wl,-Map=map.txt -mcmodel=medany -o kernel.elf entry.o start.o userret.o trap.o fs.o plic.o trap_c.o main.o libc.o syscall.o
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o kernel_proc_list_neoc.o kernel_proc_list_neoc.c
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o kernel_neoc_runtime.o kernel_neoc_runtime.c
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -g -O0 -T kernel.ld -Wl,-Map=map.txt -mcmodel=medany -o kernel.elf entry.o start.o userret.o trap.o fs.o plic.o trap_c.o main.o libc.o syscall.o kernel_proc_list_neoc.o kernel_neoc_runtime.o
 
 	$(CCPREFIX)objcopy -O binary kernel.elf kernel.bin
 
@@ -144,7 +150,7 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log minux.o minux2.o readelf objdump hexdump nm neo-c cpp sh test uname ld2 
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log minux.o minux2.o readelf objdump hexdump nm neo-c cpp sh test uname ld2 pipeline echo_neoc.c pwd_neoc.c uname_neoc.c sleep_neoc.c cat_neoc.c mkdir_neoc.c rmdir_neoc.c touch_neoc.c ls_neoc.c pipeline_neoc.c kernel_proc_list_neoc.c *.nc.i *.c.error
 
 # Always (re)build the filesystem image so updated userland like pwd is included
 
@@ -154,3 +160,39 @@ cc: crt0.o
 #	cc-codegen.c cc-parse.c cc-preprocess.c \
 #		cc-tokenize.c cc-type.c cc-hashmap.c cc-string.c \
 #		cc-unicode.c 
+
+echo_neoc.c: echo_neoc.nc minux_neoc.h
+	ncc -I/usr/local/include -I. -c echo_neoc.nc
+
+pwd_neoc.c: pwd_neoc.nc minux_neoc.h
+	ncc -I/usr/local/include -I. -c pwd_neoc.nc
+
+uname_neoc.c: uname_neoc.nc minux_neoc.h
+	ncc -I/usr/local/include -I. -c uname_neoc.nc
+
+sleep_neoc.c: sleep_neoc.nc minux_neoc.h
+	ncc -I/usr/local/include -I. -c sleep_neoc.nc
+
+minux_neoc_sys.o: minux_neoc_sys.c minux_neoc.h minux.h
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux_neoc_sys.o minux_neoc_sys.c
+
+cat_neoc.c: cat_neoc.nc minux_neoc.h
+	ncc -I/usr/local/include -I. -c cat_neoc.nc
+
+mkdir_neoc.c: mkdir_neoc.nc minux_neoc.h
+	ncc -I/usr/local/include -I. -c mkdir_neoc.nc
+
+rmdir_neoc.c: rmdir_neoc.nc minux_neoc.h
+	ncc -I/usr/local/include -I. -c rmdir_neoc.nc
+
+touch_neoc.c: touch_neoc.nc minux_neoc.h
+	ncc -I/usr/local/include -I. -c touch_neoc.nc
+
+ls_neoc.c: ls_neoc.nc minux_neoc.h
+	ncc -I/usr/local/include -I. -c ls_neoc.nc
+
+pipeline_neoc.c: pipeline_neoc.nc minux_neoc.h
+	ncc -I/usr/local/include -I. -c pipeline_neoc.nc
+
+kernel_proc_list_neoc.c: kernel_proc_list_neoc.nc kernel_proc_list_neoc.h
+	ncc -I/usr/local/include -I. -c kernel_proc_list_neoc.nc

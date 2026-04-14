@@ -109,6 +109,21 @@ struct proc* gProc[PROC_MAX];
 int gNumProc;
 int gActiveProc;
 
+int proc_find_pid(struct proc* p)
+{
+    if(p == NULL) {
+        return -1;
+    }
+
+    for(int i=0; i<PROC_MAX; i++) {
+        if(gProc[i] == p) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 struct run {
     struct run *next;
 };
@@ -916,6 +931,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
 //puts("alloc_prog4 exec_flag\n");
 //printf("mepc %x\n", result->context.mepc);
         struct proc *parent = gProc[gActiveProc]; // Get the current process
+        neoc_proc_list_replace(parent, result);
         free_proc(parent);
         gProc[gActiveProc] = result;
         user_satp = MAKE_SATP(result->pagetable);
@@ -931,6 +947,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             for(int i=0; i<PROC_MAX; i++) {
                 if(gProc[i] == NULL) {
                     gProc[i] = result;
+                    neoc_proc_list_add(result);
                     *child_proc_index = i;
                     found = 1;
                     break;
@@ -944,6 +961,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         }
         else {
             gProc[gNumProc++] = result;
+            neoc_proc_list_add(result);
             *child_proc_index = gNumProc -1;
         }
     }
@@ -1021,63 +1039,66 @@ void timer_reset() {
     w_stimecmp(next);
 }
 
-#define MAX_KERNEL 8
-
 uint64_t kernel_sp __attribute__((section(".common")));
 uint64_t user_sp __attribute__((section(".common")));
 uint64_t kernel_satp __attribute__((section(".common")));    // Referenced from trap.S
 uint64_t user_satp __attribute__((section(".common")));
 char yield_stack[STACK_MAX] __attribute__((section(".common")));
 
-struct sKernelState
-{
-    struct context_t gYieldContext;
-    struct context_t gYieldReturnContext;
-    char* gYieldStack;
-
-    uint64_t gYieldUserSatp;
-    uint64_t gYieldUserSP;
-    uint64_t gYieldUserActiveProc;
-};
-
-struct sKernelState gKernelState[MAX_KERNEL] __attribute__((section(".common")));
-int gNumKernelState __attribute__((section(".common")));
-
 void remove_kernel_state(int active_proc) {
-    int index = -1;
-    for(int i=0; i<gNumKernelState; i++) {
-        if(gKernelState[i].gYieldUserActiveProc == active_proc) {
-            index = i;
-            break;
-        }
-    }
-    
-    if(index == -1) {
+    struct sKernelState* state = neoc_kernel_state_take(active_proc);
+
+    if(state == NULL) {
         return;
     }
 
-    for (int i = index; i < gNumKernelState - 1; i++) {
-        gKernelState[i] = gKernelState[i+1];
+    if(state->gYieldStack) {
+        free(state->gYieldStack);
+    }
+    free(state);
+}
+
+static void clear_all_kernel_state(void)
+{
+    struct sKernelState* state;
+
+    while((state = neoc_kernel_state_take_first()) != NULL) {
+        if(state->gYieldStack) {
+            free(state->gYieldStack);
+        }
+        free(state);
     }
 
-    gNumKernelState--;
+    neoc_kernel_state_clear();
 }
 
 void kernel_yield() {
-    gKernelState[gNumKernelState].gYieldReturnContext = *(struct context_t*)TRAPFRAME;
-    gKernelState[gNumKernelState].gYieldUserSatp = user_satp;
-    gKernelState[gNumKernelState].gYieldUserSP = user_sp;
-    gKernelState[gNumKernelState].gYieldUserActiveProc = gActiveProc;
-    gKernelState[gNumKernelState].gYieldContext = *(struct context_t*)TRAPFRAME2;
-    gKernelState[gNumKernelState].gYieldStack = calloc(1, STACK_MAX);
-    memmove(gKernelState[gNumKernelState].gYieldStack, yield_stack, STACK_MAX);
-    
-    gNumKernelState++;
-    
-    if(gNumKernelState >= MAX_KERNEL) {
-        puts("MAX KERNEL");
-        while(1);
+    struct sKernelState* state = neoc_kernel_state_find(gActiveProc);
+
+    if(state == NULL) {
+        state = calloc(1, sizeof(struct sKernelState));
+
+        if(state == NULL) {
+            panic("kernel_yield state");
+        }
+
+        state->gYieldStack = calloc(1, STACK_MAX);
+
+        if(state->gYieldStack == NULL) {
+            free(state);
+            panic("kernel_yield stack");
+        }
+
+        neoc_kernel_state_add(state);
     }
+
+    state->gYieldReturnContext = *(struct context_t*)TRAPFRAME;
+    state->gYieldUserSatp = user_satp;
+    state->gYieldUserSP = user_sp;
+    state->gYieldUserActiveProc = gActiveProc;
+    state->gYieldContext = *(struct context_t*)TRAPFRAME2;
+
+    memmove(state->gYieldStack, yield_stack, STACK_MAX);
     
     enable_timer_interrupts();
 }
@@ -1085,31 +1106,24 @@ void kernel_yield() {
 void yield_return();
 
 void kernel_yield_return() {
-    int index = -1;
-    for(int i=0; i<gNumKernelState; i++) {
-        if(gKernelState[i].gYieldUserActiveProc == gActiveProc) {
-            index = i;
-            break;
-        }
-    }
+    struct sKernelState* state = neoc_kernel_state_take(gActiveProc);
     
-    if(index != -1) {
-        user_satp = gKernelState[index].gYieldUserSatp;
-        user_sp = gKernelState[index].gYieldUserSP;
+    if(state != NULL) {
+        user_satp = state->gYieldUserSatp;
+        user_sp = state->gYieldUserSP;
         
-        gActiveProc = gKernelState[index].gYieldUserActiveProc;
+        gActiveProc = state->gYieldUserActiveProc;
         
         struct context_t* trapframe = (struct context_t*)TRAPFRAME2;
         
-        *trapframe = gKernelState[index].gYieldContext;
+        *trapframe = state->gYieldContext;
         
         trapframe = (struct context_t*)TRAPFRAME;
-        *trapframe = gKernelState[index].gYieldReturnContext;
+        *trapframe = state->gYieldReturnContext;
         
-        memmove(yield_stack, gKernelState[index].gYieldStack, STACK_MAX);
-        free(gKernelState[index].gYieldStack);
-        
-        remove_kernel_state(gActiveProc);
+        memmove(yield_stack, state->gYieldStack, STACK_MAX);
+        free(state->gYieldStack);
+        free(state);
         
         yield_return();
     }
@@ -1139,15 +1153,7 @@ void timer_handler() {
         gActiveProc = 0;
     }
     
-    int index = -1;
-    for(int i=0; i<gNumKernelState; i++) {
-        if(gKernelState[i].gYieldUserActiveProc == gActiveProc) {
-            index = i;
-            break;
-        }
-    }
-    
-    if(index != -1) {
+    if(neoc_kernel_state_find(gActiveProc) != NULL) {
         kernel_yield_return();
         return;
     }
@@ -1409,8 +1415,7 @@ uintptr_t syscall_handler()
         case SYS_clear: {
             gNumProc = 1;
             gActiveProc = 0;
-            memset(gKernelState, 0, sizeof(struct sKernelState)*MAX_KERNEL);
-            gNumKernelState = 0;
+            clear_all_kernel_state();
 
             result = 0;
             }
@@ -1502,9 +1507,9 @@ struct proc* get_current_proc()
 void global_init()
 {
     memset(gProc, 0, sizeof(struct proc*)*PROC_MAX);
+    neoc_proc_list_init();
     gNumProc = 0;
-    gNumKernelState = 0;
-    memset(gKernelState, 0, sizeof(struct sKernelState)*MAX_KERNEL);
+    clear_all_kernel_state();
     gActiveProc = 0;
 }
 
@@ -1585,4 +1590,3 @@ int main()
     // should not return; stay idle if it does
     while (1) { }
 }
-

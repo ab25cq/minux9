@@ -146,7 +146,6 @@ int Sys_exit()
     uintptr_t arg_syscall_no = trapframe->a7;
     
     struct proc *p = gProc[gActiveProc]; // Get the current process
-    
     fs_exit(p->file_table);
     
     p->xstatus = arg0;
@@ -184,11 +183,11 @@ int Sys_tcsetpgrp()
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
 
     int fildes = (int)trapframe->a0;
-    if (fildes <= 0) {
+    if (fildes < 0) {
         return 0;
     }
     int pgid_id = (int)trapframe->a1;
-    if (pgid_id <= 0) {
+    if (pgid_id < 0) {
         return 0;
     }
     
@@ -222,29 +221,18 @@ int Sys_wait()
     int* status_va = (int*)arg0;
     
     struct proc* active_proc = gProc[gActiveProc];
-    
     int exit_status = 0;
     pid_t child_pid = -1;
     while(1) { // Keep searching until a zombie is found and handled
-        struct proc* zombie_proc = NULL;
-        for (int n=0; n<gNumProc; n++) {
-            struct proc* it = gProc[n];
-            
-            if(it == NULL) {
-            }
-            else if(it->zombie && it->pgrp == active_proc->pgrp) {
-                zombie_proc = it;
-                child_pid = n; // This is problematic if gProc is not an array-like list
-                break;
-            }
-        }
+        struct proc* zombie_proc = neoc_proc_find_zombie_in_pgrp(active_proc->pgrp);
+        child_pid = proc_find_pid(zombie_proc);
 
         if(zombie_proc) {
             exit_status = zombie_proc->xstatus;
             free_fs_table(zombie_proc->file_table);
+            neoc_proc_list_remove(zombie_proc);
             free_proc(zombie_proc);
             remove_kernel_state(child_pid);
-            //gProc.remove_by_pointer(zombie_proc);
             gProc[child_pid] = NULL;
             break; // Exit the while(1) loop
         }

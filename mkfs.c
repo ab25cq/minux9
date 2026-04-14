@@ -547,8 +547,8 @@ void write_file_to_file_system(char* elfpath, uint32_t new_inum)
 int
 main(int argc, char *argv[])
 {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <output-image-file>\n", argv[0]);
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <output-image-file> [extra-files...]\n", argv[0]);
         exit(1);
     }
 
@@ -610,8 +610,14 @@ main(int argc, char *argv[])
     write_file_to_file_system("crt0.o", 33);
     write_file_to_file_system("stdarg.h", 34);
     write_file_to_file_system("user-minux9.ld", 35);
+    write_file_to_file_system("pipeline", 36);
 //    write_file_to_file_system("neo-c.h", 34);
 //    write_file_to_file_system("neo-c", 35);
+
+    uint32_t next_inum = 37;
+    for (int i = 2; i < argc; i++) {
+        write_file_to_file_system(argv[i], next_inum++);
+    }
 
     // 5) Finally write the entire img[] out to the real file
     int outfd = open(argv[1], O_CREAT | O_RDWR, 0666);

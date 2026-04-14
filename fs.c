@@ -1531,14 +1531,8 @@ int fs_unlink(const char *path)
     if (di.type != T_FILE) return -1; // refuse to unlink non-regular
 
     // deny unlink if any process holds it open
-    for (int pi = 0; pi < PROC_MAX; pi++) {
-        if (!gProc[pi]) continue;
-        struct file** ft = gProc[pi]->file_table;
-        for (int i = 0; i < MAX_OPEN_FILES; i++) {
-            if (ft[i] && ft[i]->kind == FK_FILE && ft[i]->inum == inum) {
-                return -1; // busy
-            }
-        }
+    if (neoc_proc_is_file_open(inum)) {
+        return -1; // busy
     }
 
     uint32_t parent; char leaf[DIRSIZ+1]; for(int i=0;i<DIRSIZ+1;i++) leaf[i]=0;
