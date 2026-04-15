@@ -20,6 +20,16 @@ int minux_close(int fd)
     return close(fd);
 }
 
+int minux_chdir(const char* path)
+{
+    return chdir(path);
+}
+
+int minux_tcsetpgrp(int fildes, int pgid)
+{
+    return tcsetpgrp(fildes, pgid);
+}
+
 void minux_exit(int status)
 {
     _exit(status);
@@ -28,6 +38,16 @@ void minux_exit(int status)
 int minux_execv(const char* path, char** argv)
 {
     return execv(path, argv);
+}
+
+int minux_execve(const char* path, char* argv[], char* envp[])
+{
+    return execve(path, argv, envp);
+}
+
+int minux_execved(const char* path, char* argv[], char* envp[])
+{
+    return execved(path, argv, envp);
 }
 
 int minux_wait(int* status_ptr)

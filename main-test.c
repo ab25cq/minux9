@@ -1,4 +1,520 @@
-unsigned char sh_elf[] = {
+/// c_include definition ///
+/// typedef definition ///
+typedef __builtin_va_list  __gnuc_va_list  ;
+
+typedef __builtin_va_list  va_list  ;
+
+typedef char int8_t;
+
+typedef short int int16_t;
+
+typedef int int32_t;
+
+typedef long  int int64_t;
+
+typedef unsigned char uint8_t;
+
+typedef unsigned short int uint16_t;
+
+typedef unsigned int uint32_t;
+
+typedef unsigned long  int uint64_t;
+
+typedef char int_least8_t;
+
+typedef short int int_least16_t;
+
+typedef int int_least32_t;
+
+typedef long  int int_least64_t;
+
+typedef unsigned char uint_least8_t;
+
+typedef unsigned short int uint_least16_t;
+
+typedef unsigned int uint_least32_t;
+
+typedef unsigned long  int uint_least64_t;
+
+typedef int int_fast8_t;
+
+typedef int int_fast16_t;
+
+typedef int int_fast32_t;
+
+typedef long  int int_fast64_t;
+
+typedef unsigned int uint_fast8_t;
+
+typedef unsigned int uint_fast16_t;
+
+typedef unsigned int uint_fast32_t;
+
+typedef unsigned long  int uint_fast64_t;
+
+typedef long  int intptr_t;
+
+typedef unsigned long  int uintptr_t;
+
+typedef long  int intmax_t;
+
+typedef unsigned long  int uintmax_t;
+
+typedef long ptrdiff_t;
+
+typedef unsigned long  int size_t;
+
+typedef int wchar_t;
+
+typedef struct anonymous_typeX1 max_align_t;
+
+typedef int  ssize_t  ;
+
+typedef long time_t;
+
+typedef long suseconds_t;
+
+typedef struct __minux_FILE  FILE  ;
+
+typedef struct anonymous_typeX2 glob_t;
+
+typedef int pid_t;
+
+typedef struct minux_window  WINDOW  ;
+
+typedef struct anonymous_typeX3 Elf64_Sym;
+
+typedef unsigned long  int  pte_t  ;
+
+typedef unsigned long  int  pde_t  ;
+
+typedef unsigned long  int*  pagetable_t  ;
+
+/// previous struct definition ///
+struct __minux_FILE;
+
+struct file;
+
+struct proc;
+
+/// struct definition ///
+struct anonymous_typeX1
+{
+    long long __attribute__((__aligned__(__alignof__(long long)))) __max_align_ll __attribute__((__aligned__(__alignof__(long long))));
+    long  double __attribute__((__aligned__(__alignof__(long double)))) __max_align_ld __attribute__((__aligned__(__alignof__(long double))));
+};
+
+struct superblock
+{
+    unsigned int  size  ;
+    unsigned int  nblocks  ;
+    unsigned int  ninodes  ;
+    unsigned int  nlog  ;
+    unsigned int  logstart  ;
+    unsigned int  inodestart  ;
+    unsigned int  bmapstart  ;
+};
+
+struct dinode
+{
+    unsigned short int  type  ;
+    unsigned short int  major  ;
+    unsigned short int  minor  ;
+    unsigned short int  nlink  ;
+    unsigned int  size  ;
+    unsigned int  mode  ;
+    unsigned short int  uid  ;
+    unsigned short int  gid  ;
+    unsigned int  atime  ;
+    unsigned int  mtime  ;
+    unsigned int  ctime  ;
+    unsigned int  addrs[12+2]  ;
+};
+
+struct dirent
+{
+    unsigned short int  inum  ;
+    char name[14];
+};
+
+struct stat
+{
+    unsigned short int  type  ;
+    unsigned short int  nlink  ;
+    unsigned int  size  ;
+    unsigned int  inum  ;
+    unsigned int  mode  ;
+    unsigned short int  uid  ;
+    unsigned short int  gid  ;
+    unsigned int  atime  ;
+    unsigned int  mtime  ;
+    unsigned int  ctime  ;
+};
+
+enum { SEEK_SET 
+,SEEK_END 
+,SEEK_CUR 
+};
+
+struct timeval
+{
+    long  tv_sec  ;
+    long  tv_usec  ;
+};
+
+struct tm
+{
+    int tm_sec;
+    int tm_min;
+    int tm_hour;
+    int tm_mday;
+    int tm_mon;
+    int tm_year;
+    int tm_wday;
+    int tm_yday;
+    int tm_isdst;
+};
+
+struct __minux_FILE
+{
+    int fd;
+    int flags;
+    long pos;
+    int eof;
+    int err;
+    int have_push;
+    unsigned char push_ch;
+    int is_mem;
+    char** ms_bufp;
+    unsigned long  int*  ms_sizep  ;
+    char* ms_buf;
+    unsigned long  int  ms_cap  ;
+    unsigned long  int  ms_len  ;
+};
+
+struct anonymous_typeX2
+{
+    unsigned long  int  gl_pathc  ;
+    char** gl_pathv;
+};
+
+struct minux_window
+{
+    int rows;
+    int cols;
+    int beg_y;
+    int beg_x;
+    int cur_y;
+    int cur_x;
+    struct minux_window*  parent  ;
+    int is_subwin;
+    int is_static;
+};
+
+enum  arg_kind { ARG_KIND_LIT=(1),
+ARG_KIND_FILE=(2),
+ARG_KIND_END=(3)
+};
+
+struct arg_hdr
+{
+    enum arg_kind  kind  ;
+    const char* shortopts;
+    const char* longopts;
+    const char* datatype;
+    const char* glossary;
+    int mincount;
+    int maxcount;
+};
+
+struct arg_lit
+{
+    struct arg_hdr  hdr  ;
+    int count;
+};
+
+struct arg_file
+{
+    struct arg_hdr  hdr  ;
+    int count;
+    const char** filename;
+};
+
+struct arg_error
+{
+    const char* msg;
+    const char* argval;
+    const struct arg_hdr*  hdr  ;
+};
+
+struct arg_end
+{
+    struct arg_hdr  hdr  ;
+    int count;
+    int maxerrors;
+    struct arg_error*  errors  ;
+};
+
+struct elfhdr
+{
+    unsigned int  magic  ;
+    unsigned char  elf[12]  ;
+    unsigned short int  type  ;
+    unsigned short int  machine  ;
+    unsigned int  version  ;
+    unsigned long  int  entry  ;
+    unsigned long  int  phoff  ;
+    unsigned long  int  shoff  ;
+    unsigned int  flags  ;
+    unsigned short int  ehsize  ;
+    unsigned short int  phentsize  ;
+    unsigned short int  phnum  ;
+    unsigned short int  shentsize  ;
+    unsigned short int  shnum  ;
+    unsigned short int  shstrndx  ;
+};
+
+struct proghdr
+{
+    unsigned int  type  ;
+    unsigned int  flags  ;
+    unsigned long  int  off  ;
+    unsigned long  int  vaddr  ;
+    unsigned long  int  paddr  ;
+    unsigned long  int  filesz  ;
+    unsigned long  int  memsz  ;
+    unsigned long  int  align  ;
+};
+
+struct elfshdr
+{
+    unsigned int  name  ;
+    unsigned int  type  ;
+    unsigned long  int  flags  ;
+    unsigned long  int  addr  ;
+    unsigned long  int  offset  ;
+    unsigned long  int  size  ;
+    unsigned int  link  ;
+    unsigned int  info  ;
+    unsigned long  int  addralign  ;
+    unsigned long  int  entsize  ;
+};
+
+struct elfsym
+{
+    unsigned int  name  ;
+    unsigned char  info  ;
+    unsigned char  other  ;
+    unsigned short int  shndx  ;
+    unsigned long  int  value  ;
+    unsigned long  int  size  ;
+};
+
+struct anonymous_typeX3
+{
+    unsigned int  st_name  ;
+    unsigned char  st_info  ;
+    unsigned char  st_other  ;
+    unsigned short int  st_shndx  ;
+    unsigned long  int  st_value  ;
+    unsigned long  int  st_size  ;
+};
+
+struct context_t
+{
+    unsigned long  int  ra  ;
+    unsigned long  int  sp  ;
+    unsigned long  int  gp  ;
+    unsigned long  int  tp  ;
+    unsigned long  int  t0  ;
+    unsigned long  int  t1  ;
+    unsigned long  int  t2  ;
+    unsigned long  int  t3  ;
+    unsigned long  int  t4  ;
+    unsigned long  int  t5  ;
+    unsigned long  int  t6  ;
+    unsigned long  int  a0  ;
+    unsigned long  int  a1  ;
+    unsigned long  int  a2  ;
+    unsigned long  int  a3  ;
+    unsigned long  int  a4  ;
+    unsigned long  int  a5  ;
+    unsigned long  int  a6  ;
+    unsigned long  int  a7  ;
+    unsigned long  int  s0  ;
+    unsigned long  int  s1  ;
+    unsigned long  int  s2  ;
+    unsigned long  int  s3  ;
+    unsigned long  int  s4  ;
+    unsigned long  int  s5  ;
+    unsigned long  int  s6  ;
+    unsigned long  int  s7  ;
+    unsigned long  int  s8  ;
+    unsigned long  int  s9  ;
+    unsigned long  int  s10  ;
+    unsigned long  int  s11  ;
+    unsigned long  int  mepc  ;
+};
+
+struct sKernelState
+{
+    struct context_t  gYieldContext  ;
+    struct context_t  gYieldReturnContext  ;
+    char* gYieldStack;
+    unsigned long  int  gYieldUserSatp  ;
+    unsigned long  int  gYieldUserSP  ;
+    unsigned long  int  gYieldUserActiveProc  ;
+};
+
+struct process_pages
+{
+    char** process_kalloc_address;
+    int num_process_kalloc_address;
+};
+
+struct proc
+{
+    struct context_t  trapframe  ;
+    struct context_t  context  ;
+    struct proc*  parent  ;
+    int parent_pid;
+    char* stack_top;
+    unsigned long  int  vaddr  ;
+    unsigned long  int  memsz  ;
+    unsigned long  int  sz  ;
+    int zombie;
+    unsigned long  int*  pagetable  ;
+    char* program;
+    int program_size;
+    int xstatus;
+    struct file*  file_table[32]  ;
+    struct process_pages**  process_pages  ;
+    int num_process_pages;
+    int debug_;
+    int deleted;
+    struct proc*  next  ;
+    char cwd[128];
+    unsigned short int umask;
+    unsigned short int  uid  ;
+    unsigned short int  gid  ;
+    unsigned short int  pgrp  ;
+    unsigned short int  supp_gids[8]  ;
+    int nsupp;
+    char username[32];
+};
+
+struct spipe
+{
+    char data[512];
+    unsigned int  nread  ;
+    unsigned int  nwrite  ;
+    int read_open;
+    int write_open;
+    int nreader;
+    int nwriter;
+    int used;
+    struct file*  linked_file[32]  ;
+    int num_linked_file;
+    void* linked_file_list;
+    struct spipe*  free_next  ;
+};
+
+enum  anonymous_typeY4 { FK_STDIN 
+,FK_STDOUT 
+,FK_STDERR 
+,FK_FILE 
+,FK_PIPE 
+,FK_TTY 
+};
+
+struct file
+{
+    enum anonymous_typeY4 kind;
+    unsigned int  inum  ;
+    struct dinode  din  ;
+    unsigned int  off  ;
+    int used;
+    struct spipe*  pipe  ;
+    int pipe_used;
+    int read_pipe;
+    int write_pipe;
+    int oflags;
+    struct file*  free_next  ;
+    struct proc*  owner_processes[64]  ;
+    int num_owner_process;
+    void* owner_process_list;
+};
+
+struct cpu
+{
+    struct proc*  proc  ;
+    struct context_t  context  ;
+    int noff;
+    int intena;
+};
+
+struct run
+{
+    struct run*  next  ;
+};
+
+struct spinlock
+{
+    unsigned int  locked  ;
+    char* name;
+    struct cpu*  cpu  ;
+};
+
+struct anonymous_typeX5
+{
+    struct spinlock  lock  ;
+    struct run*  freelist  ;
+};
+
+struct anonymous_typeX6
+{
+    struct spinlock  lock  ;
+    struct run*  freelist  ;
+};
+
+struct anonymous_typeX7
+{
+    struct spinlock  lock  ;
+    struct run*  freelist  ;
+};
+
+struct anonymous_typeX8
+{
+    struct spinlock  lock  ;
+    struct run*  freelist  ;
+};
+
+struct anonymous_typeX9
+{
+    struct spinlock  lock  ;
+    struct run*  freelist  ;
+};
+
+struct userrec
+{
+    const char* name;
+    const char* pass;
+    unsigned short int  uid  ;
+    unsigned short int  gid  ;
+};
+
+/// variable definition ///
+extern struct __minux_FILE*  stdin  ;
+extern struct __minux_FILE*  stdout  ;
+extern struct __minux_FILE*  stderr  ;
+extern int errno;
+extern unsigned long  int  linenumber  ;
+extern struct minux_window*  stdscr  ;
+extern char TRAPFRAME[];
+extern char TRAPFRAME2[];
+extern char TRAMPOLINE[];
+extern char COMMON[];
+unsigned char sh_elf[]={
   0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0xf3, 0x00, 0x01, 0x00, 0x00, 0x00,
   0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00,
@@ -10731,4 +11247,2870 @@ unsigned char sh_elf[] = {
   0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
-unsigned int sh_elf_len = 128768;
+unsigned int sh_elf_len=128768;
+extern char _end[];
+extern char heap_limit[];
+extern char _end3[];
+extern char PHYSTOP[];
+static char* heap_end=0;
+unsigned long  int*  kernel_pagetable  ;
+struct cpu  gCPU  ;
+struct proc*  gProc[64]  ;
+int gNumProc;
+int gActiveProc;
+struct anonymous_typeX9 kmem;
+volatile char last_key=0;
+unsigned long  int  kernel_sp  __attribute__((section(".common")));
+unsigned long  int  user_sp  __attribute__((section(".common")));
+unsigned long  int  kernel_satp  __attribute__((section(".common")));
+unsigned long  int  user_satp  __attribute__((section(".common")));
+char yield_stack[(4096*64)] __attribute__((section(".common")));
+struct userrec  gUsers[4]  ={
+    {"root", "root", 0, 0},
+    {"user", "user", 1000, 100},
+};
+unsigned int  g_time_offset  =0;
+// source head
+
+// header function
+void read_block(unsigned int  blockno  , void* buf);
+void read_superblock();
+void read_inode(unsigned int  inum  , struct dinode*  dest  );
+void read_data(struct dinode*  inode  , unsigned int  offset  , unsigned char*  buf  , unsigned int  size  );
+unsigned int  path_lookup(const char* path);
+unsigned int  dir_lookup(struct dinode*  parent  , const char* name);
+void dump_inode(unsigned int  inum  );
+void virtio_blk_init();
+void bcache_init();
+int fs_fstat_fd(int fd, struct stat*  st  );
+long fs_lseek(int fd, long offset, int whence);
+int fflush(struct __minux_FILE*  fp  );
+struct __minux_FILE*  open_memstream(char** bufp, unsigned long  int*  sizep  );
+int fscanf(struct __minux_FILE*  fp  , const char* fmt, ...);
+int fprintf(struct __minux_FILE*  fp  , const char* fmt, ...);
+int vfprintf(struct __minux_FILE*  fp  , const char* fmt, __builtin_va_list  ap  );
+int fputs(const char* s, struct __minux_FILE*  fp  );
+unsigned long  int  fwrite(const void* ptr, unsigned long  int  size  , unsigned long  int  nmemb  , struct __minux_FILE*  fp  );
+unsigned long  int  fread(void* ptr, unsigned long  int  size  , unsigned long  int  nmemb  , struct __minux_FILE*  fp  );
+char* fgets(char* s, int size, struct __minux_FILE*  fp  );
+int ungetc(int c, struct __minux_FILE*  fp  );
+int fgetc(struct __minux_FILE*  fp  );
+int fseek(struct __minux_FILE*  fp  , long offset, int whence);
+long ftell(struct __minux_FILE*  fp  );
+unsigned int sleep(unsigned int seconds);
+void rewind(struct __minux_FILE*  fp  );
+int fclose(struct __minux_FILE*  fp  );
+struct __minux_FILE*  fopen(const char* path, const char* mode);
+struct __minux_FILE*  tmpfile();
+int vsnprintf(char* out, unsigned long  int out_size, const char* fmt, __builtin_va_list  ap  );
+int isalnum(int c);
+int isdigit(int c);
+int isalpha(int c);
+int isspace(int c);
+int isprint(int c);
+void globfree(struct anonymous_typeX2*  pglob  );
+int glob(const char* pattern, int flags, void* errfunc, struct anonymous_typeX2*  pglob  );
+int mkstemp(char* template);
+char* strndup(const char* s, unsigned long  int  n  );
+char* strrchr(const char* s, int c);
+void* realloc(void* ptr, unsigned long  int  size  );
+int fputc(int c, struct __minux_FILE*  fp  );
+double strtod(const char* nptr, char** endptr);
+unsigned long  int strtoul(const char* nptr, char** endptr, int base);
+long strtol(const char* nptr, char** endptr, int base);
+long long strtoll(const char* nptr, char** endptr, int base);
+long atol(const char* nptr);
+int atoi(const char* nptr);
+int strncasecmp(const char* a, const char* b, unsigned long  int  n  );
+long  time(long*  tloc  );
+struct tm*  localtime(const long*  timep  );
+char* ctime_r(const long*  timep  , char* buf);
+char* strerror(int errnum);
+int ispunct(int c);
+int isxdigit(int c);
+char* readline(const char* prompt);
+struct minux_window*  initscr();
+int endwin();
+int refresh();
+int wrefresh(struct minux_window*  win  );
+int wmove(struct minux_window*  win  , int y, int x);
+int mvwprintf(struct minux_window*  win  , int y, int x, const char* fmt, ...);
+int mvprintw(int y, int x, const char* fmt, ...);
+struct minux_window*  newwin(int nlines, int ncols, int begin_y, int begin_x);
+struct minux_window*  subwin(struct minux_window*  win  , int nlines, int ncols, int begin_y, int begin_x);
+int delwin(struct minux_window*  win  );
+struct arg_lit*  arg_litn(const char* shortopts, const char* longopts, int mincount, int maxcount, const char* glossary);
+struct arg_file*  arg_filen(const char* shortopts, const char* longopts, const char* datatype, int mincount, int maxcount, const char* glossary);
+struct arg_end*  arg_end(int maxerrors);
+int arg_parse(int argc, char** argv, void** argtable);
+void arg_print_syntax(struct __minux_FILE*  fp  , void** argtable, const char* suffix);
+void arg_print_glossary(struct __minux_FILE*  fp  , void** argtable, const char* format);
+void arg_print_errors(struct __minux_FILE*  fp  , struct arg_end*  end  , const char* progname);
+void arg_freetable(void** argtable, unsigned long  int  n  );
+int sscanf(const char* str, const char* fmt, ...);
+char* realpath(const char* path, char* resolved_path);
+char* dirname(const char* path);
+int fileno(struct __minux_FILE*  fp  );
+int system(const char* command);
+char* getenv(const char* str);
+void* memchr(const void* s, int c, unsigned long  int  n  );
+int vprintf(const char* fmt, __builtin_va_list  ap  );
+char* strcpy(char* dest, const char* src);
+char* strcat(char* dest, const char* src);
+int sprintf(char* out, const char* fmt, ...);
+int fs_open(const char* path);
+int fs_open2(const char* path, int flags, int mode);
+int  fs_read(int fd, void* buf, unsigned long  int  count  );
+int  fs_write(int fd, const void* buf, unsigned long  int  count  );
+int fs_close(long fd, int massive);
+int fs_mkdir(const char* path, int mode);
+int fs_rmdir(const char* path);
+int fs_unlink(const char* path);
+int fs_link(const char* oldpath, const char* newpath);
+int fs_symlink(const char* target, const char* linkpath);
+int fs_stat(const char* path, struct stat*  st  );
+int fs_readlink(const char* path, char* buf, int bufsz);
+int fs_lstat(const char* path, struct stat*  st  );
+int fs_chmod(const char* path, unsigned int  mode  );
+int fs_chown(const char* path, unsigned short int  uid  , unsigned short int  gid  );
+int fs_realpath(const char* path, char* out, int outsz);
+void neoc_file_owner_clear(struct file*  f  );
+void neoc_file_owner_add(struct file*  f  , struct proc*  owner  );
+void neoc_file_owner_remove(struct file*  f  , struct proc*  owner  );
+void neoc_pipe_linked_file_clear(struct spipe*  p  );
+void neoc_pipe_linked_file_add(struct spipe*  p  , struct file*  f  );
+void neoc_pipe_linked_file_remove(struct spipe*  p  , struct file*  f  );
+void neoc_pipe_linked_file_clear_pipe_refs(struct spipe*  p  );
+int fs_rename(const char* oldpath, const char* newpath);
+int fs_utimes(const char* path, unsigned int  atime  , unsigned int  mtime  );
+int is_pipe(int fd);
+int is_stdin(int fd);
+int is_stdout(int fd);
+int is_tty(int fd);
+void pipe_open(int* fd1, int* fd2);
+int piperead(int fd, char* addr, int n);
+int pipewrite(int fd, char* addr, int n);
+void fs_dup2(int oldfd, int newfd);
+void fs_init(struct file**  file_table  );
+void fs_dup_table(struct proc*  owner  , struct file**  result  , struct file**  orig  );
+int  fs_size(int fd);
+void fs_exit(struct file**  file_table  );
+void free_fs_table(struct file**  file_table  );
+void file_system_init();
+void neoc_proc_list_init();
+void neoc_proc_list_add(struct proc*  p  );
+void neoc_proc_list_remove(struct proc*  p  );
+void neoc_proc_list_replace(struct proc*  oldp  , struct proc*  newp  );
+struct proc*  neoc_proc_find_zombie_in_pgrp(unsigned short int  pgrp  );
+_Bool neoc_proc_is_file_open(unsigned int  inum  );
+void neoc_kernel_state_init();
+void neoc_kernel_state_clear();
+void neoc_kernel_state_add(struct sKernelState*  state  );
+struct sKernelState*  neoc_kernel_state_find(int active_proc);
+struct sKernelState*  neoc_kernel_state_take(int active_proc);
+struct sKernelState*  neoc_kernel_state_take_first();
+void* malloc(unsigned long  int  size  );
+void free(void* ptr);
+void* calloc(unsigned long  int  nmemb  , unsigned long  int  size  );
+char* strdup(const char* s);
+int strcmp(const char* s1, const char* s2);
+char* strstr(const char* haystack, const char* needle);
+void* memset(void* dst, int c, unsigned int n);
+int memcmp(const void* v1, const void* v2, unsigned int n);
+void* memmove(void* dst, const void* src, unsigned int n);
+void* memcpy(void* dst, const void* src, unsigned int n);
+int strncmp(const char* p, const char* q, unsigned int n);
+char* strncpy(char* s, const char* t, int n);
+int strlen(const char* s);
+void puts(const char* s);
+char* strncat(char* dest, const char* src, unsigned long  int  n  );
+char* strchr(const char* s, int c);
+char* strtok(char* s, const char* delim);
+void exit(int n);
+char* itoa(char* buf, unsigned long  int val_, int base, int is_signed);
+int vasprintf(char** out, const char* fmt, __builtin_va_list  ap  );
+int snprintf(char* out, unsigned long  int out_size, const char* fmt, ...);
+void printint(int val_, int base, int sign);
+void printlong(unsigned long  int val_, int base, int sign);
+void printlonglong(unsigned long  long val_, int base, int sign);
+int printf(const char* fmt, ...);
+int Sys_execve();
+int Sys_execved();
+int Sys_getpid();
+int Sys_tcsetpgrp();
+int Sys_fstat();
+int Sys_lseek();
+int Sys_execv();
+int Sys_fork();
+int Sys_closedir();
+int Sys_readdir();
+int Sys_realpath();
+int Sys_setgid();
+int Sys_setuid();
+int Sys_getuid();
+int Sys_getgid();
+int Sys_gettimeofday();
+int Sys_umask();
+int Sys_utimes();
+int Sys_settimeofday();
+int Sys_chmod();
+int Sys_lstat();
+int Sys_readlink();
+int Sys_write();
+int Sys_exit();
+int Sys_wait();
+int Sys_isatty();
+int Sys_open();
+int Sys_opendir();
+int Sys_getcwd();
+int Sys_chdir();
+int Sys_mkdir();
+int Sys_rmdir();
+int Sys_unlink();
+int Sys_rename();
+int Sys_link();
+int Sys_symlink();
+int Sys_stat();
+int Sys_chown();
+int Sys_read();
+int Sys_dup2();
+int Sys_pipe();
+int Sys_brk();
+int Sys_sleep();
+void yield();
+void* sbrk(long  incr  );
+void perror(char* str);
+void panic(char* str);
+struct cpu*  mycpu();
+void free_pagetable(unsigned long  int*  pagetable  , int level);
+int proc_find_pid(struct proc*  p  );
+void push_off();
+void pop_off();
+void kinit();
+void freerange(void* pa_start, void* pa_end);
+void kfree(void* pa);
+void* kalloc();
+unsigned long  int*  walk(unsigned long  int*  pagetable  , unsigned long  int  va  , int alloc);
+int mappages(unsigned long  int*  pagetable  , unsigned long  int  va  , unsigned long  int  size  , unsigned long  int  pa  , int perm);
+void dump_physical_memory(unsigned long  int  pa  , int count);
+void vmprint_rec(unsigned long  int*  pagetable  , unsigned long  int  va  , int level);
+void vmprint(unsigned long  int*  pagetable  );
+void enable_mmu(unsigned long  int*  kernel_pagetable  );
+void uart_rx_handler();
+void uart_init();
+void putc(char c);
+void putchar(char c);
+void mmu_init();
+void* walkaddr(unsigned long  int*  pagetable  , unsigned long  int  va  );
+int copyout(unsigned long  int*  pagetable  , unsigned long  int  dstva  , void* src, unsigned long  int  len  );
+int copyin(unsigned long  int*  pagetable  , char* dst, unsigned long  int  srcva  , unsigned long  int  len  );
+int copyinstr(unsigned long  int*  pagetable  , char* dst, unsigned long  int  srcva  , unsigned long  int  max  );
+void setting_user_pagetable(struct proc*  proc  , unsigned long  int*  pagetable  );
+static unsigned short int  u16le(const void* p);
+static unsigned int  u32le(const void* p);
+static unsigned long  int  u64le(const void* p);
+static int find_gp_from_file(char* elfbuf, const struct elfhdr*  eh  , unsigned long  int*  out_gp  );
+void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index, int debug_);
+void free_proc(struct proc*  p  );
+struct file**  get_current_file_table();
+void plic_init();
+void trap_init();
+void uart_rx_init();
+void plic_enable(int irq);
+void trapvec();
+void enable_timer_interrupts();
+void disable_timer_interrupts();
+void timer_reset();
+void remove_kernel_state(int active_proc);
+static void clear_all_kernel_state();
+void kernel_yield();
+void yield_return();
+void kernel_yield_return();
+void swtch(struct context_t*  new_  );
+void swtch_debug(struct context_t*  new_  );
+void timer_handler();
+void uvmunmap(unsigned long  int*  pagetable  , unsigned long  int  va  , unsigned long  int  npages  , int do_free);
+int uvm_alloc(struct proc*  p  , unsigned long  int*  pagetable  , unsigned long  int  old_sz  , unsigned long  int  new_sz  );
+void uvm_dealloc(unsigned long  int*  pagetable  , unsigned long  int  old_sz  , unsigned long  int  new_sz  );
+unsigned long  int  syscall_handler();
+void enter_user(unsigned long  int    , unsigned long  int    , unsigned long  int    , unsigned long  int    , unsigned long  int    );
+void timerinit();
+struct proc*  get_current_proc();
+void global_init();
+static int parse_uint(const char* s, unsigned int*  out  );
+int main();
+// uniq global variable
+// inline function
+static inline unsigned long  int  r_time()
+{
+    unsigned long  int  x  ;
+    memset(&x, 0, sizeof(x));
+    # 353 "/home/ab25cq/minux9/common.h"
+    # 354 "/home/ab25cq/minux9/common.h"
+     __asm volatile (
+        "csrr %0, time"
+        :        "=r"
+(x)    );
+    # 355 "/home/ab25cq/minux9/common.h"
+        return x;
+}
+static inline void w_stimecmp(unsigned long  int  x  )
+{
+    # 360 "/home/ab25cq/minux9/common.h"
+     __asm volatile (
+        "csrw 0x14d, %0"
+        :        :        "r"
+(x)    );
+}
+static inline void w_sie(unsigned long  int  x  )
+{
+    # 364 "/home/ab25cq/minux9/common.h"
+     __asm volatile (
+        "csrw sie, %0"
+        :        :        "r"
+(x)    );
+}
+static inline unsigned long  int  r_sie()
+{
+    unsigned long  int  x  ;
+    memset(&x, 0, sizeof(x));
+    # 368 "/home/ab25cq/minux9/common.h"
+    # 369 "/home/ab25cq/minux9/common.h"
+     __asm volatile (
+        "csrr %0, sie"
+        :        "=r"
+(x)    );
+    # 370 "/home/ab25cq/minux9/common.h"
+        return x;
+}
+static inline unsigned long  int  r_sstatus()
+{
+    unsigned long  int  x  ;
+    memset(&x, 0, sizeof(x));
+    # 374 "/home/ab25cq/minux9/common.h"
+    # 375 "/home/ab25cq/minux9/common.h"
+     __asm volatile (
+        "csrr %0, sstatus"
+        :        "=r"
+(x)    );
+    # 376 "/home/ab25cq/minux9/common.h"
+        return x;
+}
+static inline void w_sstatus(unsigned long  int  x  )
+{
+    # 380 "/home/ab25cq/minux9/common.h"
+     __asm volatile (
+        "csrw sstatus, %0"
+        :        :        "r"
+(x)    );
+}
+static inline void intr_on()
+{
+    unsigned long  int x;
+    memset(&x, 0, sizeof(x));
+    # 149 "/tmp/main-test.nc"
+    x=r_sstatus();
+    # 150 "/tmp/main-test.nc"
+    x|=(1L<<1);
+    # 151 "/tmp/main-test.nc"
+    w_sstatus(x);
+}
+static inline void intr_off()
+{
+    # 156 "/tmp/main-test.nc"
+    w_sstatus(r_sstatus()&~(1L<<1));
+}
+static inline int intr_get()
+{
+    unsigned long  int  x  ;
+    memset(&x, 0, sizeof(x));
+    # 162 "/tmp/main-test.nc"
+    x=r_sstatus();
+    # 163 "/tmp/main-test.nc"
+        return (x&(1L<<1))!=0;
+}
+static inline void sfence_vma()
+{
+    # 1474 "/tmp/main-test.nc"
+     __asm volatile (
+        "sfence.vma zero, zero"
+    );
+}
+static inline void w_satp(unsigned long  int  x  )
+{
+    # 1479 "/tmp/main-test.nc"
+     __asm volatile (
+        "csrw satp, %0"
+        :        :        "r"
+(x)    );
+}
+static inline void w_sepc(unsigned long  int  x  )
+{
+    # 1484 "/tmp/main-test.nc"
+     __asm volatile (
+        "csrw sepc, %0"
+        :        :        "r"
+(x)    );
+}
+static inline void w_stvec(unsigned long  int  x  )
+{
+    # 1488 "/tmp/main-test.nc"
+     __asm volatile (
+        "csrw stvec, %0"
+        :        :        "r"
+(x)    );
+}
+
+// body function
+void* sbrk(long  incr  )
+{
+    void* prev;
+    memset(&prev, 0, sizeof(prev));
+    # 28 "/tmp/main-test.nc"
+    if(heap_end==0) {
+        # 26 "/tmp/main-test.nc"
+        heap_end=(char*)&_end;
+    }
+    # 32 "/tmp/main-test.nc"
+    if(heap_end+incr>=heap_limit) {
+        # 29 "/tmp/main-test.nc"
+                return (void*)-1;
+    }
+    # 32 "/tmp/main-test.nc"
+    prev=heap_end;
+    # 33 "/tmp/main-test.nc"
+    heap_end+=incr;
+    # 34 "/tmp/main-test.nc"
+        return prev;
+}
+
+void perror(char* str)
+{
+    # 43 "/tmp/main-test.nc"
+    puts(str);
+}
+
+void panic(char* str)
+{
+    # 48 "/tmp/main-test.nc"
+    puts(str);
+    # 49 "/tmp/main-test.nc"
+    puts("panic!");
+}
+
+struct cpu*  mycpu()
+{
+    # 62 "/tmp/main-test.nc"
+        return &gCPU;
+}
+
+void free_pagetable(unsigned long  int*  pagetable  , int level)
+{
+    int i;
+    unsigned long  int  pte  ;
+    unsigned long  int  pa  ;
+    unsigned long  int*  child  ;
+    memset(&i, 0, sizeof(i));
+    memset(&pte, 0, sizeof(pte));
+    memset(&pa, 0, sizeof(pa));
+    memset(&child, 0, sizeof(child));
+    # 106 "/tmp/main-test.nc"
+    for(i=0    ;i<512;i++){
+        # 90 "/tmp/main-test.nc"
+        pte=pagetable[i];
+        # 93 "/tmp/main-test.nc"
+        if(!(pte&(1L<<0))) {
+            # 92 "/tmp/main-test.nc"
+            continue;
+        }
+        # 93 "/tmp/main-test.nc"
+        pa=(((pte)>>10)<<12);
+        # 105 "/tmp/main-test.nc"
+        if(pte&((1L<<1)|(1L<<2)|(1L<<3))) {
+            # 99 "/tmp/main-test.nc"
+            if(level>0) {
+                # 97 "/tmp/main-test.nc"
+                kfree((void*)pa);
+            }
+        }
+        else if(level>0) {
+            # 101 "/tmp/main-test.nc"
+            child=(unsigned long  int* )pa;
+            # 102 "/tmp/main-test.nc"
+            free_pagetable(child,level-1);
+            # 103 "/tmp/main-test.nc"
+            kfree(child);
+        }
+    }
+}
+
+int proc_find_pid(struct proc*  p  )
+{
+    int i;
+    memset(&i, 0, sizeof(i));
+    # 118 "/tmp/main-test.nc"
+    if(p==((void*)0)) {
+        # 115 "/tmp/main-test.nc"
+                return -1;
+    }
+    # 124 "/tmp/main-test.nc"
+    for(i=0    ;i<64;i++){
+        # 122 "/tmp/main-test.nc"
+        if(gProc[i]==p) {
+            # 120 "/tmp/main-test.nc"
+                        return i;
+        }
+    }
+    # 124 "/tmp/main-test.nc"
+        return -1;
+}
+
+void push_off()
+{
+    int old;
+    memset(&old, 0, sizeof(old));
+    # 168 "/tmp/main-test.nc"
+    old=intr_get();
+    # 170 "/tmp/main-test.nc"
+    intr_off();
+    # 173 "/tmp/main-test.nc"
+    if(mycpu()->noff==0) {
+        # 172 "/tmp/main-test.nc"
+        mycpu()->intena=old;
+    }
+    # 173 "/tmp/main-test.nc"
+    mycpu()->noff+=1;
+}
+
+void pop_off()
+{
+    struct cpu*  c  ;
+    memset(&c, 0, sizeof(c));
+    # 178 "/tmp/main-test.nc"
+    c=mycpu();
+    # 181 "/tmp/main-test.nc"
+    if(intr_get()) {
+        # 180 "/tmp/main-test.nc"
+        panic("pop_off - interruptible");
+    }
+    # 183 "/tmp/main-test.nc"
+    if(c->noff<1) {
+        # 182 "/tmp/main-test.nc"
+        panic("pop_off");
+    }
+    # 183 "/tmp/main-test.nc"
+    c->noff-=1;
+    # 186 "/tmp/main-test.nc"
+    if(c->noff==0&&c->intena) {
+        # 185 "/tmp/main-test.nc"
+        intr_on();
+    }
+}
+
+void kinit()
+{
+    # 199 "/tmp/main-test.nc"
+    freerange(_end3,(void*)PHYSTOP);
+}
+
+void freerange(void* pa_start, void* pa_end)
+{
+    char* p;
+    memset(&p, 0, sizeof(p));
+    # 203 "/tmp/main-test.nc"
+    # 204 "/tmp/main-test.nc"
+    p=(char*)((((unsigned long  int )pa_start)+4096-1)&~(4096-1));
+    # 207 "/tmp/main-test.nc"
+    for(;p+4096<=(char*)pa_end;p+=4096){
+        # 206 "/tmp/main-test.nc"
+        kfree(p);
+    }
+}
+
+void kfree(void* pa)
+{
+    struct run*  r  ;
+    memset(&r, 0, sizeof(r));
+    # 214 "/tmp/main-test.nc"
+    # 224 "/tmp/main-test.nc"
+    if(((unsigned long  int )pa%4096)!=0||(char*)pa<_end3||(unsigned long  int )pa>=PHYSTOP) {
+        # 217 "/tmp/main-test.nc"
+        puts("kfree panic");
+        # 219 "/tmp/main-test.nc"
+        while(1) {
+            # 219 "/tmp/main-test.nc"
+            ;
+        }
+    }
+    # 224 "/tmp/main-test.nc"
+    r=(struct run* )kmem.freelist;
+    # 237 "/tmp/main-test.nc"
+    r=(struct run* )pa;
+    # 239 "/tmp/main-test.nc"
+    r->next=kmem.freelist;
+    # 240 "/tmp/main-test.nc"
+    kmem.freelist=r;
+}
+
+void* kalloc()
+{
+    struct run*  r  ;
+    memset(&r, 0, sizeof(r));
+    # 244 "/tmp/main-test.nc"
+    # 246 "/tmp/main-test.nc"
+    r=kmem.freelist;
+    # 250 "/tmp/main-test.nc"
+    if(r) {
+        # 248 "/tmp/main-test.nc"
+        kmem.freelist=r->next;
+    }
+    # 254 "/tmp/main-test.nc"
+    if(r) {
+        # 251 "/tmp/main-test.nc"
+        memset((char*)r,0,4096);
+    }
+    # 254 "/tmp/main-test.nc"
+        return (void*)r;
+}
+
+unsigned long  int*  walk(unsigned long  int*  pagetable  , unsigned long  int  va  , int alloc)
+{
+    int level;
+    unsigned long  int*  pte  ;
+    memset(&level, 0, sizeof(level));
+    memset(&pte, 0, sizeof(pte));
+    # 270 "/tmp/main-test.nc"
+    for(level=2    ;level>0;level--){
+        # 259 "/tmp/main-test.nc"
+        pte=(unsigned long  int* )&pagetable[((((unsigned long  int )(va))>>(12+(9*(level))))&0x1FF)];
+        # 269 "/tmp/main-test.nc"
+        if(*pte&(1L<<0)) {
+            # 261 "/tmp/main-test.nc"
+            pagetable=(unsigned long  int* )(((*pte)>>10)<<12);
+        }
+        else {
+            # 266 "/tmp/main-test.nc"
+            if(!alloc||(pagetable=(unsigned long  int* )kalloc())==0) {
+                # 264 "/tmp/main-test.nc"
+                                return (void*)0;
+            }
+            # 266 "/tmp/main-test.nc"
+            memset(pagetable,0,4096);
+            # 267 "/tmp/main-test.nc"
+            *pte=((((unsigned long  int )pagetable)>>12)<<10)|(1L<<0);
+        }
+    }
+    # 270 "/tmp/main-test.nc"
+        return (unsigned long  int* )&pagetable[((((unsigned long  int )(va))>>(12+(9*(0))))&0x1FF)];
+}
+
+int mappages(unsigned long  int*  pagetable  , unsigned long  int  va  , unsigned long  int  size  , unsigned long  int  pa  , int perm)
+{
+    unsigned long  int*  pte  ;
+    memset(&pte, 0, sizeof(pte));
+    # 274 "/tmp/main-test.nc"
+    unsigned long  int   a  ,  last  ;
+    memset(&last, 0, sizeof(last));
+;
+    # 275 "/tmp/main-test.nc"
+    # 286 "/tmp/main-test.nc"
+    a=va;
+    # 287 "/tmp/main-test.nc"
+    last=va+size-4096;
+    # 302 "/tmp/main-test.nc"
+    for(;;){
+        # 292 "/tmp/main-test.nc"
+        if((pte=walk(pagetable,a,1))==0) {
+            # 290 "/tmp/main-test.nc"
+                        return -1;
+        }
+        # 296 "/tmp/main-test.nc"
+        if(*pte&(1L<<0)) {
+        }
+        # 296 "/tmp/main-test.nc"
+        *pte=((((unsigned long  int )pa)>>12)<<10)|perm|(1L<<0);
+        # 299 "/tmp/main-test.nc"
+        if(a==last) {
+            # 298 "/tmp/main-test.nc"
+            break;
+        }
+        # 299 "/tmp/main-test.nc"
+        a+=4096;
+        # 300 "/tmp/main-test.nc"
+        pa+=4096;
+    }
+    # 302 "/tmp/main-test.nc"
+        return 0;
+}
+
+void dump_physical_memory(unsigned long  int  pa  , int count)
+{
+    volatile unsigned int*  ptr  ;
+    int i;
+    memset(&ptr, 0, sizeof(ptr));
+    memset(&i, 0, sizeof(i));
+    # 306 "/tmp/main-test.nc"
+    ptr=(volatile unsigned int* )pa;
+    # 318 "/tmp/main-test.nc"
+    for(i=0    ;i<count;i++){
+        # 312 "/tmp/main-test.nc"
+        if(i%4==0) {
+            # 310 "/tmp/main-test.nc"
+            printf("%p: ",(unsigned long  int )(ptr+i));
+        }
+        # 312 "/tmp/main-test.nc"
+        printf("%p ",ptr[i]);
+        # 316 "/tmp/main-test.nc"
+        if(i%4==3) {
+            # 315 "/tmp/main-test.nc"
+            puts("");
+        }
+    }
+    # 320 "/tmp/main-test.nc"
+    if(count%4!=0) {
+        # 319 "/tmp/main-test.nc"
+        puts("");
+    }
+}
+
+void vmprint_rec(unsigned long  int*  pagetable  , unsigned long  int  va  , int level)
+{
+    int i;
+    unsigned long  int  pte  ;
+    unsigned long  int  pa  ;
+    unsigned long  int  child_va  ;
+    int j;
+    memset(&i, 0, sizeof(i));
+    memset(&pte, 0, sizeof(pte));
+    memset(&pa, 0, sizeof(pa));
+    memset(&child_va, 0, sizeof(child_va));
+    memset(&j, 0, sizeof(j));
+    # 350 "/tmp/main-test.nc"
+    for(i=0    ;i<512;i++){
+        # 324 "/tmp/main-test.nc"
+        pte=pagetable[i];
+        # 349 "/tmp/main-test.nc"
+        if(pte&(1L<<0)) {
+            # 326 "/tmp/main-test.nc"
+            pa=(((pte)>>10)<<12);
+            # 327 "/tmp/main-test.nc"
+            child_va=va|((unsigned long  int )i<<(12+9*(2-level)));
+            # 331 "/tmp/main-test.nc"
+            for(j=0            ;j<level;j++){
+                # 330 "/tmp/main-test.nc"
+                puts("\n.. ");
+            }
+            # 331 "/tmp/main-test.nc"
+            printf("VA %p -> PA %p  (pte[%d]) (level %d)\n",child_va,pa,i,level);
+            # 337 "/tmp/main-test.nc"
+            if((pte&((1L<<1)|(1L<<2)|(1L<<3)))!=0) {
+                # 334 "/tmp/main-test.nc"
+                printf(" [leaf]");
+            }
+            # 337 "/tmp/main-test.nc"
+            printf(" flags: ");
+            # 339 "/tmp/main-test.nc"
+            if(pte&(1L<<1)) {
+                # 338 "/tmp/main-test.nc"
+                printf(" R");
+            }
+            # 340 "/tmp/main-test.nc"
+            if(pte&(1L<<2)) {
+                # 339 "/tmp/main-test.nc"
+                printf(" W");
+            }
+            # 341 "/tmp/main-test.nc"
+            if(pte&(1L<<3)) {
+                # 340 "/tmp/main-test.nc"
+                printf(" X");
+            }
+            # 342 "/tmp/main-test.nc"
+            if(pte&(1L<<4)) {
+                # 341 "/tmp/main-test.nc"
+                printf(" U");
+            }
+            # 343 "/tmp/main-test.nc"
+            if(pte&(1L<<0)) {
+                # 342 "/tmp/main-test.nc"
+                printf(" V");
+            }
+            # 343 "/tmp/main-test.nc"
+            puts("");
+            # 348 "/tmp/main-test.nc"
+            if((pte&((1L<<1)|(1L<<2)|(1L<<3)))==0) {
+                # 346 "/tmp/main-test.nc"
+                vmprint_rec((unsigned long  int* )pa,child_va,level+1);
+            }
+        }
+    }
+}
+
+void vmprint(unsigned long  int*  pagetable  )
+{
+    # 353 "/tmp/main-test.nc"
+    puts("page table:\n");
+    # 354 "/tmp/main-test.nc"
+    vmprint_rec(pagetable,0,0);
+}
+
+void enable_mmu(unsigned long  int*  kernel_pagetable  )
+{
+    unsigned long  int  satp  ;
+    memset(&satp, 0, sizeof(satp));
+    # 362 "/tmp/main-test.nc"
+    satp=((8L<<60)|(((unsigned long  int )kernel_pagetable)>>12));
+    # 364 "/tmp/main-test.nc"
+     __asm volatile (
+        "csrw satp, %0"
+        :        :        "r"
+(satp)    );
+    # 366 "/tmp/main-test.nc"
+     __asm volatile (
+        "sfence.vma zero, zero"
+    );
+}
+
+void uart_rx_handler()
+{
+    # 401 "/tmp/main-test.nc"
+    last_key=*(((volatile unsigned int* )(0x10000000UL+0x00)));
+}
+
+void uart_init()
+{
+    # 407 "/tmp/main-test.nc"
+    *((volatile unsigned char* )(0x10000000UL+0x01))|=0x01;
+    # 410 "/tmp/main-test.nc"
+    plic_enable(10);
+    # 413 "/tmp/main-test.nc"
+     __asm volatile (
+        "csrs sie, %0"
+        :        :        "r"
+((1UL<<9))    );
+    # 416 "/tmp/main-test.nc"
+     __asm volatile (
+        "csrs sstatus, %0"
+        :        :        "r"
+((1L<<1))    );
+}
+
+void putc(char c)
+{
+    # 423 "/tmp/main-test.nc"
+    while(!(*((volatile unsigned char* )(0x10000000UL+0x05))&0x20)) {
+        # 422 "/tmp/main-test.nc"
+         __asm volatile (
+            "wfi"
+        );
+    }
+    # 424 "/tmp/main-test.nc"
+    *((volatile unsigned char* )(0x10000000UL+0x00))=c;
+}
+
+void putchar(char c)
+{
+    # 428 "/tmp/main-test.nc"
+    putc(c);
+}
+
+void mmu_init()
+{
+    unsigned long  int  addr  ;
+    int i;
+    unsigned long  int  va  ;
+    unsigned long  int  pa  ;
+    memset(&addr, 0, sizeof(addr));
+    memset(&i, 0, sizeof(i));
+    memset(&va, 0, sizeof(va));
+    memset(&pa, 0, sizeof(pa));
+    # 432 "/tmp/main-test.nc"
+    kernel_pagetable=(unsigned long  int* )kalloc();
+    # 433 "/tmp/main-test.nc"
+    memset(kernel_pagetable,0,4096);
+    # 441 "/tmp/main-test.nc"
+    for(addr=0x80000000UL    ;addr<PHYSTOP;addr+=4096){
+        # 437 "/tmp/main-test.nc"
+        mappages(kernel_pagetable,addr,4096,addr,(1L<<1)|(1L<<2)|(1L<<3)|(1L<<0));
+    }
+    # 441 "/tmp/main-test.nc"
+    mappages(kernel_pagetable,0x10000000,4096,0x10000000,(1L<<1)|(1L<<2)|(1L<<0));
+    # 442 "/tmp/main-test.nc"
+    mappages(kernel_pagetable,0x10001000L,4096,0x10001000L,(1L<<1)|(1L<<2)|(1L<<0));
+    # 445 "/tmp/main-test.nc"
+    mappages(kernel_pagetable,0x02000000,0x00020000,0x02000000,(1L<<0)|(1L<<1)|(1L<<2));
+    # 447 "/tmp/main-test.nc"
+    mappages(kernel_pagetable,0x0C000000,0x00400000,0x0C000000,(1L<<0)|(1L<<1)|(1L<<2));
+    # 456 "/tmp/main-test.nc"
+    for(i=0    ;i<8;i++){
+        # 451 "/tmp/main-test.nc"
+        va=0x10001000UL+i*0x00001000UL;
+        # 452 "/tmp/main-test.nc"
+        pa=va;
+        # 454 "/tmp/main-test.nc"
+        mappages(kernel_pagetable,va,0x00001000UL,pa,(1L<<0)|(1L<<1)|(1L<<2));
+    }
+    # 456 "/tmp/main-test.nc"
+    mappages(kernel_pagetable,0x0200BFF8UL,4096,0x0200BFF8UL,(1L<<1)|(1L<<2)|(1L<<0));
+    # 457 "/tmp/main-test.nc"
+    mappages(kernel_pagetable,0x02004000UL,4096,0x02004000UL,(1L<<1)|(1L<<2)|(1L<<0));
+    # 459 "/tmp/main-test.nc"
+     __asm volatile (
+        "sfence.vma zero, zero"
+    );
+    # 461 "/tmp/main-test.nc"
+    kernel_satp=((8L<<60)|(((unsigned long  int )kernel_pagetable)>>12));
+    # 463 "/tmp/main-test.nc"
+    enable_mmu(kernel_pagetable);
+}
+
+void* walkaddr(unsigned long  int*  pagetable  , unsigned long  int  va  )
+{
+    unsigned long  int*  pte  ;
+    unsigned long  int  pa  ;
+    memset(&pte, 0, sizeof(pte));
+    memset(&pa, 0, sizeof(pa));
+    # 467 "/tmp/main-test.nc"
+    pte=walk(pagetable,va,0);
+    # 470 "/tmp/main-test.nc"
+    if(pte==0) {
+        # 469 "/tmp/main-test.nc"
+                return (void*)0;
+    }
+    # 472 "/tmp/main-test.nc"
+    if((*pte&(1L<<0))==0) {
+        # 471 "/tmp/main-test.nc"
+                return (void*)0;
+    }
+    # 474 "/tmp/main-test.nc"
+    if((*pte&(1L<<4))==0) {
+        # 473 "/tmp/main-test.nc"
+                return (void*)0;
+    }
+    # 474 "/tmp/main-test.nc"
+    pa=(((*pte)>>10)<<12);
+    # 475 "/tmp/main-test.nc"
+        return (void*)(pa+(va&(4096-1)));
+}
+
+int copyout(unsigned long  int*  pagetable  , unsigned long  int  dstva  , void* src, unsigned long  int  len  )
+{
+    unsigned long  int  va0  ;
+    unsigned long  int  off  ;
+    char* pa;
+    unsigned long  int  n  ;
+    memset(&va0, 0, sizeof(va0));
+    memset(&off, 0, sizeof(off));
+    memset(&pa, 0, sizeof(pa));
+    memset(&n, 0, sizeof(n));
+    # 479 "/tmp/main-test.nc"
+    va0=(((dstva))&~(4096-1));
+    # 480 "/tmp/main-test.nc"
+    off=dstva-va0;
+    # 481 "/tmp/main-test.nc"
+    # 495 "/tmp/main-test.nc"
+    while(len>0) {
+        # 486 "/tmp/main-test.nc"
+        if((pa=walkaddr(pagetable,va0))==0) {
+            # 485 "/tmp/main-test.nc"
+                        return -1;
+        }
+        # 486 "/tmp/main-test.nc"
+        n=4096-off;
+        # 489 "/tmp/main-test.nc"
+        if(n>len) {
+            # 487 "/tmp/main-test.nc"
+            n=len;
+        }
+        # 489 "/tmp/main-test.nc"
+        memcpy(pa+off,src,n);
+        # 490 "/tmp/main-test.nc"
+        len-=n;
+        # 491 "/tmp/main-test.nc"
+        src+=n;
+        # 492 "/tmp/main-test.nc"
+        va0+=4096;
+        # 493 "/tmp/main-test.nc"
+        off=0;
+    }
+    # 495 "/tmp/main-test.nc"
+        return 0;
+}
+
+int copyin(unsigned long  int*  pagetable  , char* dst, unsigned long  int  srcva  , unsigned long  int  len  )
+{
+    # 500 "/tmp/main-test.nc"
+    unsigned long  int   n  ,  va0  ,  pa0  ;
+    memset(&pa0, 0, sizeof(pa0));
+;
+    # 516 "/tmp/main-test.nc"
+    while(len>0) {
+        # 503 "/tmp/main-test.nc"
+        va0=(((srcva))&~(4096-1));
+        # 504 "/tmp/main-test.nc"
+        pa0=(unsigned long  int )walkaddr(pagetable,va0);
+        # 507 "/tmp/main-test.nc"
+        if(pa0==0) {
+            # 506 "/tmp/main-test.nc"
+                        return -1;
+        }
+        # 507 "/tmp/main-test.nc"
+        n=4096-(srcva-va0);
+        # 510 "/tmp/main-test.nc"
+        if(n>len) {
+            # 509 "/tmp/main-test.nc"
+            n=len;
+        }
+        # 510 "/tmp/main-test.nc"
+        memmove(dst,(void*)(pa0+(srcva-va0)),n);
+        # 512 "/tmp/main-test.nc"
+        len-=n;
+        # 513 "/tmp/main-test.nc"
+        dst+=n;
+        # 514 "/tmp/main-test.nc"
+        srcva=va0+4096;
+    }
+    # 516 "/tmp/main-test.nc"
+        return 0;
+}
+
+int copyinstr(unsigned long  int*  pagetable  , char* dst, unsigned long  int  srcva  , unsigned long  int  max  )
+{
+    int found_null;
+    unsigned long  int  copied  ;
+    char* dst2;
+    char* p;
+    memset(&found_null, 0, sizeof(found_null));
+    memset(&copied, 0, sizeof(copied));
+    memset(&dst2, 0, sizeof(dst2));
+    memset(&p, 0, sizeof(p));
+    # 525 "/tmp/main-test.nc"
+    unsigned long  int   n  ,  va0  ,  pa0  ;
+    memset(&pa0, 0, sizeof(pa0));
+;
+    # 526 "/tmp/main-test.nc"
+    found_null=0;
+    # 527 "/tmp/main-test.nc"
+    copied=0;
+    # 529 "/tmp/main-test.nc"
+    dst2=dst;
+    # 559 "/tmp/main-test.nc"
+    while(!found_null&&max>0) {
+        # 532 "/tmp/main-test.nc"
+        va0=(((srcva))&~(4096-1));
+        # 533 "/tmp/main-test.nc"
+        pa0=(unsigned long  int )walkaddr(pagetable,va0);
+        # 536 "/tmp/main-test.nc"
+        if(pa0==0) {
+            # 535 "/tmp/main-test.nc"
+                        return -1;
+        }
+        # 536 "/tmp/main-test.nc"
+        n=4096-(srcva-va0);
+        # 540 "/tmp/main-test.nc"
+        if(n>max) {
+            # 538 "/tmp/main-test.nc"
+            n=max;
+        }
+        # 540 "/tmp/main-test.nc"
+        p=(char*)(pa0+(srcva-va0));
+        # 556 "/tmp/main-test.nc"
+        while(n>0) {
+            # 552 "/tmp/main-test.nc"
+            if(*p==0) {
+                # 543 "/tmp/main-test.nc"
+                *dst2=0;
+                # 544 "/tmp/main-test.nc"
+                found_null=1;
+                # 545 "/tmp/main-test.nc"
+                break;
+            }
+            else {
+                # 547 "/tmp/main-test.nc"
+                *dst2=*p;
+                # 548 "/tmp/main-test.nc"
+                dst2++;
+                # 549 "/tmp/main-test.nc"
+                p++;
+                # 550 "/tmp/main-test.nc"
+                copied++;
+            }
+            # 552 "/tmp/main-test.nc"
+            --n;
+            # 553 "/tmp/main-test.nc"
+            --max;
+        }
+        # 556 "/tmp/main-test.nc"
+        srcva=va0+4096;
+    }
+    # 564 "/tmp/main-test.nc"
+    if(found_null) {
+        # 560 "/tmp/main-test.nc"
+                return (int)copied;
+    }
+    else {
+        # 562 "/tmp/main-test.nc"
+                return -1;
+    }
+}
+
+void setting_user_pagetable(struct proc*  proc  , unsigned long  int*  pagetable  )
+{
+    int i;
+    memset(&i, 0, sizeof(i));
+    # 568 "/tmp/main-test.nc"
+    mappages(pagetable,(unsigned long  int )TRAMPOLINE,4096,(unsigned long  int )TRAMPOLINE,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<3));
+    # 569 "/tmp/main-test.nc"
+    mappages(pagetable,(unsigned long  int )TRAPFRAME,4096,(unsigned long  int )TRAPFRAME,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<4)|(1L<<3));
+    # 570 "/tmp/main-test.nc"
+    mappages(pagetable,(unsigned long  int )TRAPFRAME2,4096,(unsigned long  int )TRAPFRAME2,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<4)|(1L<<3));
+    # 576 "/tmp/main-test.nc"
+    for(i=0    ;i<64*2;i++){
+        # 572 "/tmp/main-test.nc"
+        mappages(pagetable,(unsigned long  int )COMMON+i*4096,4096,(unsigned long  int )COMMON+i*4096,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<3)|(1L<<4));
+    }
+    # 576 "/tmp/main-test.nc"
+    mappages(pagetable,0x10000000,4096,0x10000000,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<4));
+    # 577 "/tmp/main-test.nc"
+    mappages(pagetable,0x10001000L,4096,0x10001000L,(1L<<1)|(1L<<2)|(1L<<0)|(1L<<4));
+    # 579 "/tmp/main-test.nc"
+     __asm volatile (
+        "sfence.vma zero, zero"
+    );
+}
+
+static unsigned short int  u16le(const void* p)
+{
+    # 582 "/tmp/main-test.nc"
+    const unsigned char* q=p;
+    # 582 "/tmp/main-test.nc"
+        return (unsigned short int )(q[0]|(q[1]<<8));
+}
+
+static unsigned int  u32le(const void* p)
+{
+    # 583 "/tmp/main-test.nc"
+    const unsigned char* q=p;
+    # 583 "/tmp/main-test.nc"
+        return (unsigned int )q[0]|((unsigned int )q[1]<<8)|((unsigned int )q[2]<<16)|((unsigned int )q[3]<<24);
+}
+
+static unsigned long  int  u64le(const void* p)
+{
+    # 584 "/tmp/main-test.nc"
+    const unsigned char* q=p;
+    # 585 "/tmp/main-test.nc"
+        return (unsigned long  int )q[0]|((unsigned long  int )q[1]<<8)|((unsigned long  int )q[2]<<16)|((unsigned long  int )q[3]<<24)|((unsigned long  int )q[4]<<32)|((unsigned long  int )q[5]<<40)|((unsigned long  int )q[6]<<48)|((unsigned long  int )q[7]<<56);
+}
+
+static int find_gp_from_file(char* elfbuf, const struct elfhdr*  eh  , unsigned long  int*  out_gp  )
+{
+    int idx_sym;
+    unsigned short int  i  ;
+    unsigned int  sh_type  ;
+    unsigned long  int  sym_off  ;
+    unsigned long  int  sym_size  ;
+    unsigned int  sym_link  ;
+    unsigned long  int  sym_entsz  ;
+    unsigned long  int  n  ;
+    int idx_str;
+    unsigned short int  i_1  ;
+    unsigned long  int  str_off  ;
+    unsigned long  int  str_sz  ;
+    unsigned long  int  i_3  ;
+    unsigned int  st_name  ;
+    unsigned long  int  st_value  ;
+    memset(&idx_sym, 0, sizeof(idx_sym));
+    memset(&i, 0, sizeof(i));
+    memset(&sh_type, 0, sizeof(sh_type));
+    memset(&sym_off, 0, sizeof(sym_off));
+    memset(&sym_size, 0, sizeof(sym_size));
+    memset(&sym_link, 0, sizeof(sym_link));
+    memset(&sym_entsz, 0, sizeof(sym_entsz));
+    memset(&n, 0, sizeof(n));
+    memset(&idx_str, 0, sizeof(idx_str));
+    memset(&i_1, 0, sizeof(i_1));
+    memset(&str_off, 0, sizeof(str_off));
+    memset(&str_sz, 0, sizeof(str_sz));
+    memset(&i_3, 0, sizeof(i_3));
+    memset(&st_name, 0, sizeof(st_name));
+    memset(&st_value, 0, sizeof(st_value));
+    # 592 "/tmp/main-test.nc"
+    if(!elfbuf||!eh||!out_gp) {
+        # 589 "/tmp/main-test.nc"
+                return -1;
+    }
+    # 593 "/tmp/main-test.nc"
+    if(eh->shoff==0||eh->shnum==0||eh->shentsize==0) {
+        # 592 "/tmp/main-test.nc"
+                return -1;
+    }
+    # 593 "/tmp/main-test.nc"
+    const char* sh_base=elfbuf+eh->shoff;
+    # 596 "/tmp/main-test.nc"
+    idx_sym=-1;
+    # 602 "/tmp/main-test.nc"
+    for(i=0    ;i<eh->shnum;i++){
+        # 598 "/tmp/main-test.nc"
+        const char* sh=sh_base+(unsigned long  int )i*eh->shentsize;
+        # 599 "/tmp/main-test.nc"
+        sh_type=u32le(sh+4);
+        # 601 "/tmp/main-test.nc"
+        if(sh_type==2) {
+            # 600 "/tmp/main-test.nc"
+            idx_sym=(int)i;
+            # 600 "/tmp/main-test.nc"
+            break;
+        }
+    }
+    # 605 "/tmp/main-test.nc"
+    if(idx_sym<0) {
+        # 602 "/tmp/main-test.nc"
+                return -1;
+    }
+    # 605 "/tmp/main-test.nc"
+    const char* sh_sym=sh_base+(unsigned long  int )idx_sym*eh->shentsize;
+    # 606 "/tmp/main-test.nc"
+    sym_off=u64le(sh_sym+0x18);
+    # 607 "/tmp/main-test.nc"
+    sym_size=u64le(sh_sym+0x20);
+    # 608 "/tmp/main-test.nc"
+    sym_link=u32le(sh_sym+0x28);
+    # 609 "/tmp/main-test.nc"
+    sym_entsz=u64le(sh_sym+0x38);
+    # 612 "/tmp/main-test.nc"
+    if(sym_off==0||sym_size==0||sym_entsz==0) {
+        # 611 "/tmp/main-test.nc"
+                return -1;
+    }
+    # 612 "/tmp/main-test.nc"
+    n=sym_size/sym_entsz;
+    # 616 "/tmp/main-test.nc"
+    if(sym_link>=eh->shnum) {
+        # 615 "/tmp/main-test.nc"
+                return -1;
+    }
+    # 616 "/tmp/main-test.nc"
+    const char* sh_str=sh_base+(unsigned long  int )sym_link*eh->shentsize;
+    # 628 "/tmp/main-test.nc"
+    if(u32le(sh_str+4)!=3) {
+        # 619 "/tmp/main-test.nc"
+        idx_str=-1;
+        # 625 "/tmp/main-test.nc"
+        for(i_1=0        ;i_1<eh->shnum;i_1++){
+            # 622 "/tmp/main-test.nc"
+            if(i_1==eh->shstrndx) {
+                # 621 "/tmp/main-test.nc"
+                continue;
+            }
+            # 622 "/tmp/main-test.nc"
+            const char* sh_2=sh_base+(unsigned long  int )i_1*eh->shentsize;
+            # 624 "/tmp/main-test.nc"
+            if(u32le(sh_2+4)==3) {
+                # 623 "/tmp/main-test.nc"
+                idx_str=i_1;
+                # 623 "/tmp/main-test.nc"
+                break;
+            }
+        }
+        # 626 "/tmp/main-test.nc"
+        if(idx_str<0) {
+            # 625 "/tmp/main-test.nc"
+                        return -1;
+        }
+        # 626 "/tmp/main-test.nc"
+        sh_str=sh_base+(unsigned long  int )idx_str*eh->shentsize;
+    }
+    # 628 "/tmp/main-test.nc"
+    str_off=u64le(sh_str+0x18);
+    # 629 "/tmp/main-test.nc"
+    str_sz=u64le(sh_str+0x20);
+    # 630 "/tmp/main-test.nc"
+    const char* strtab=(((str_sz)?((elfbuf+str_off)):("")));
+    # 633 "/tmp/main-test.nc"
+    const char* syms=elfbuf+sym_off;
+    # 634 "/tmp/main-test.nc"
+    const char target[]="__global_pointer$";
+    # 655 "/tmp/main-test.nc"
+    for(i_3=0    ;i_3<n;i_3++){
+        # 636 "/tmp/main-test.nc"
+        const char* s=syms+i_3*sym_entsz;
+        # 639 "/tmp/main-test.nc"
+        st_name=u32le(s+0);
+        # 643 "/tmp/main-test.nc"
+        st_value=u64le(s+8);
+        # 645 "/tmp/main-test.nc"
+        const char* name=(((st_name<str_sz))?((strtab+st_name)):(((void*)0)));
+        # 648 "/tmp/main-test.nc"
+        if(!name) {
+            # 646 "/tmp/main-test.nc"
+            continue;
+        }
+        # 653 "/tmp/main-test.nc"
+        if(name[0]==95&&name[1]==95&&strcmp(name,target)==0) {
+            # 649 "/tmp/main-test.nc"
+            *out_gp=st_value;
+            # 651 "/tmp/main-test.nc"
+                        return 0;
+        }
+    }
+    # 655 "/tmp/main-test.nc"
+        return -1;
+}
+
+void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index, int debug_)
+{
+    struct proc*  result  ;
+    char* prog_copy;
+    unsigned long  int*  pagetable  ;
+    struct elfhdr*  eh  ;
+    struct proghdr*  ph  ;
+    unsigned long  int  va  ;
+    unsigned long  int  max_va_end  ;
+    int i;
+    unsigned long  int  seg_start  ;
+    unsigned long  int  seg_end  ;
+    unsigned long  int  existing_pa  ;
+    void* pa;
+    struct process_pages*  page  ;
+    unsigned long  int  pos  ;
+    unsigned long  int  end  ;
+    unsigned long  int  n  ;
+    struct elfshdr*  sh  ;
+    int i_5;
+    unsigned long  int  pos_6  ;
+    unsigned long  int  end_7  ;
+    unsigned long  int  pos_8  ;
+    unsigned long  int  end_9  ;
+    unsigned long  int  va_10  ;
+    void* pa_11;
+    unsigned long  int  n_12  ;
+    unsigned long  int  gp  ;
+    struct elfsym*  symtab  ;
+    int symtab_size;
+    int i_13;
+    int i_14;
+    int i_15;
+    struct proc*  parent  ;
+    int i_16;
+    unsigned long  int  parent_current  ;
+    unsigned long  int  parent_stack_top  ;
+    unsigned long  int  stack_base  ;
+    int i_17;
+    char* pa_18;
+    char* src;
+    unsigned long  int  stack_base_19  ;
+    int i_20;
+    char* pa_21;
+    struct proc*  parent_22  ;
+    int i_23;
+    struct proc*  parent_24  ;
+    int found;
+    int i_25;
+    memset(&result, 0, sizeof(result));
+    memset(&prog_copy, 0, sizeof(prog_copy));
+    memset(&pagetable, 0, sizeof(pagetable));
+    memset(&eh, 0, sizeof(eh));
+    memset(&ph, 0, sizeof(ph));
+    memset(&va, 0, sizeof(va));
+    memset(&max_va_end, 0, sizeof(max_va_end));
+    memset(&i, 0, sizeof(i));
+    memset(&seg_start, 0, sizeof(seg_start));
+    memset(&seg_end, 0, sizeof(seg_end));
+    memset(&existing_pa, 0, sizeof(existing_pa));
+    memset(&pa, 0, sizeof(pa));
+    memset(&page, 0, sizeof(page));
+    memset(&pos, 0, sizeof(pos));
+    memset(&end, 0, sizeof(end));
+    memset(&n, 0, sizeof(n));
+    memset(&sh, 0, sizeof(sh));
+    memset(&i_5, 0, sizeof(i_5));
+    memset(&pos_6, 0, sizeof(pos_6));
+    memset(&end_7, 0, sizeof(end_7));
+    memset(&pos_8, 0, sizeof(pos_8));
+    memset(&end_9, 0, sizeof(end_9));
+    memset(&va_10, 0, sizeof(va_10));
+    memset(&pa_11, 0, sizeof(pa_11));
+    memset(&n_12, 0, sizeof(n_12));
+    memset(&gp, 0, sizeof(gp));
+    memset(&symtab, 0, sizeof(symtab));
+    memset(&symtab_size, 0, sizeof(symtab_size));
+    memset(&i_13, 0, sizeof(i_13));
+    memset(&i_14, 0, sizeof(i_14));
+    memset(&i_15, 0, sizeof(i_15));
+    memset(&parent, 0, sizeof(parent));
+    memset(&i_16, 0, sizeof(i_16));
+    memset(&parent_current, 0, sizeof(parent_current));
+    memset(&parent_stack_top, 0, sizeof(parent_stack_top));
+    memset(&stack_base, 0, sizeof(stack_base));
+    memset(&i_17, 0, sizeof(i_17));
+    memset(&pa_18, 0, sizeof(pa_18));
+    memset(&src, 0, sizeof(src));
+    memset(&stack_base_19, 0, sizeof(stack_base_19));
+    memset(&i_20, 0, sizeof(i_20));
+    memset(&pa_21, 0, sizeof(pa_21));
+    memset(&parent_22, 0, sizeof(parent_22));
+    memset(&i_23, 0, sizeof(i_23));
+    memset(&parent_24, 0, sizeof(parent_24));
+    memset(&found, 0, sizeof(found));
+    memset(&i_25, 0, sizeof(i_25));
+    # 659 "/tmp/main-test.nc"
+    result=kalloc();
+    # 661 "/tmp/main-test.nc"
+    result->process_pages=kalloc();
+    # 662 "/tmp/main-test.nc"
+    result->process_pages[0]=kalloc();
+    # 664 "/tmp/main-test.nc"
+    result->process_pages[0]->process_kalloc_address=kalloc();
+    # 665 "/tmp/main-test.nc"
+    result->process_pages[0]->num_process_kalloc_address=0;
+    # 667 "/tmp/main-test.nc"
+    result->num_process_pages=1;
+    # 669 "/tmp/main-test.nc"
+    result->program_size=elf_buf_size;
+    # 670 "/tmp/main-test.nc"
+    prog_copy=malloc(elf_buf_size);
+    # 674 "/tmp/main-test.nc"
+    if(!prog_copy) {
+        # 672 "/tmp/main-test.nc"
+        panic("alloc_prog: program malloc");
+    }
+    # 674 "/tmp/main-test.nc"
+    memcpy(prog_copy,elf_buf,elf_buf_size);
+    # 675 "/tmp/main-test.nc"
+    result->program=prog_copy;
+    # 678 "/tmp/main-test.nc"
+    result->cwd[0]=47;
+    # 679 "/tmp/main-test.nc"
+    result->cwd[1]=0;
+    # 680 "/tmp/main-test.nc"
+    result->umask=0022;
+    # 681 "/tmp/main-test.nc"
+    result->uid=0;
+    # 682 "/tmp/main-test.nc"
+    result->gid=0;
+    # 684 "/tmp/main-test.nc"
+    pagetable=(unsigned long  int* )kalloc();
+    # 685 "/tmp/main-test.nc"
+    memset(pagetable,0,4096);
+    # 687 "/tmp/main-test.nc"
+    setting_user_pagetable(result,pagetable);
+    # 689 "/tmp/main-test.nc"
+    result->pagetable=pagetable;
+    # 691 "/tmp/main-test.nc"
+    eh=(struct elfhdr* )elf_buf;
+    # 697 "/tmp/main-test.nc"
+    if(eh->magic!=0x464C457FU) {
+        # 695 "/tmp/main-test.nc"
+        while(1) {
+            # 694 "/tmp/main-test.nc"
+            puts("panic: not elf");
+        }
+    }
+    # 697 "/tmp/main-test.nc"
+    ph=(struct proghdr* )(elf_buf+eh->phoff);
+    # 700 "/tmp/main-test.nc"
+    va=0;
+    # 701 "/tmp/main-test.nc"
+    max_va_end=0;
+    # 758 "/tmp/main-test.nc"
+    for(i=0    ;i<eh->phnum;i++,ph++){
+        # 710 "/tmp/main-test.nc"
+        if(ph->type!=1) {
+            # 706 "/tmp/main-test.nc"
+            continue;
+        }
+        # 710 "/tmp/main-test.nc"
+        seg_start=(((ph->vaddr))&~(4096-1));
+        # 711 "/tmp/main-test.nc"
+        seg_end=(((ph->vaddr+ph->memsz)+4096-1)&~(4096-1));
+        # 733 "/tmp/main-test.nc"
+        for(va=seg_start        ;va<seg_end;va+=4096){
+            # 713 "/tmp/main-test.nc"
+            existing_pa=(unsigned long  int )walkaddr(result->pagetable,va);
+            # 718 "/tmp/main-test.nc"
+            if(existing_pa!=0) {
+                # 715 "/tmp/main-test.nc"
+                continue;
+            }
+            # 718 "/tmp/main-test.nc"
+            pa=kalloc();
+            # 719 "/tmp/main-test.nc"
+            page=result->process_pages[result->num_process_pages-1];
+            # 722 "/tmp/main-test.nc"
+            if(!pa) {
+                # 721 "/tmp/main-test.nc"
+                panic("kalloc");
+            }
+            # 722 "/tmp/main-test.nc"
+            memset(pa,0,4096);
+            # 724 "/tmp/main-test.nc"
+            page->process_kalloc_address[page->num_process_kalloc_address++]=pa;
+            # 729 "/tmp/main-test.nc"
+            if(page->num_process_kalloc_address>=512) {
+                # 726 "/tmp/main-test.nc"
+                result->process_pages[++result->num_process_pages]=kalloc();
+            }
+            # 730 "/tmp/main-test.nc"
+            mappages(result->pagetable,va,4096,(unsigned long  int )pa,(1L<<4)|(1L<<1)|(1L<<2)|(1L<<3)|(1L<<0));
+        }
+        # 739 "/tmp/main-test.nc"
+        if(seg_end>max_va_end) {
+            # 734 "/tmp/main-test.nc"
+            max_va_end=seg_end;
+        }
+        # 743 "/tmp/main-test.nc"
+        if(copyout(result->pagetable,ph->vaddr,elf_buf+ph->off,ph->filesz)<0) {
+            # 740 "/tmp/main-test.nc"
+            panic("copyout");
+        }
+        # 755 "/tmp/main-test.nc"
+        if(ph->memsz>ph->filesz) {
+            # 744 "/tmp/main-test.nc"
+            static const char zpg[4096]={0};
+            # 745 "/tmp/main-test.nc"
+            pos=ph->vaddr+ph->filesz;
+            # 746 "/tmp/main-test.nc"
+            end=ph->vaddr+ph->memsz;
+            # 754 "/tmp/main-test.nc"
+            while(pos<end) {
+                # 748 "/tmp/main-test.nc"
+                n=end-pos;
+                # 750 "/tmp/main-test.nc"
+                if(n>4096) {
+                    # 749 "/tmp/main-test.nc"
+                    n=4096;
+                }
+                # 752 "/tmp/main-test.nc"
+                if(copyout(result->pagetable,pos,(void*)zpg,n)<0) {
+                    # 751 "/tmp/main-test.nc"
+                    panic("bss zero");
+                }
+                # 752 "/tmp/main-test.nc"
+                pos+=n;
+            }
+        }
+    }
+    # 758 "/tmp/main-test.nc"
+    sh=(struct elfshdr* )(elf_buf+eh->shoff);
+    # 759 "/tmp/main-test.nc"
+    const char* shstrtab=elf_buf+sh[eh->shstrndx].offset;
+    # 760 "/tmp/main-test.nc"
+    static const char zpg_4[4096]={0};
+    # 796 "/tmp/main-test.nc"
+    for(i_5=0    ;i_5<eh->shnum;i_5++){
+        # 764 "/tmp/main-test.nc"
+        pos_6=sh[i_5].addr;
+        # 765 "/tmp/main-test.nc"
+        end_7=sh[i_5].addr+sh[i_5].size;
+        # 793 "/tmp/main-test.nc"
+        if(sh[i_5].type==8&&(sh[i_5].flags&0x2)&&sh[i_5].size) {
+            # 767 "/tmp/main-test.nc"
+            pos_8=sh[i_5].addr;
+            # 768 "/tmp/main-test.nc"
+            end_9=sh[i_5].addr+sh[i_5].size;
+            # 784 "/tmp/main-test.nc"
+            for(va_10=(((pos_8))&~(4096-1))            ;va_10<end_9;va_10+=4096){
+                # 782 "/tmp/main-test.nc"
+                if(walkaddr(result->pagetable,va_10)==0) {
+                    # 772 "/tmp/main-test.nc"
+                    pa_11=kalloc();
+                    # 774 "/tmp/main-test.nc"
+                    if(!pa_11) {
+                        # 773 "/tmp/main-test.nc"
+                        panic("bss kalloc");
+                    }
+                    # 774 "/tmp/main-test.nc"
+                    memset(pa_11,0,4096);
+                    # 776 "/tmp/main-test.nc"
+                    mappages(result->pagetable,va_10,4096,(unsigned long  int )pa_11,(1L<<4)|(1L<<1)|(1L<<2)|(1L<<0));
+                    # 781 "/tmp/main-test.nc"
+                    if(va_10+4096>max_va_end) {
+                        # 779 "/tmp/main-test.nc"
+                        max_va_end=va_10+4096;
+                    }
+                }
+            }
+            # 792 "/tmp/main-test.nc"
+            while(pos_8<end_9) {
+                # 785 "/tmp/main-test.nc"
+                n_12=end_9-pos_8;
+                # 786 "/tmp/main-test.nc"
+                if(n_12>4096) {
+                    # 785 "/tmp/main-test.nc"
+                    n_12=4096;
+                }
+                # 787 "/tmp/main-test.nc"
+                if(copyout(result->pagetable,pos_8,(void*)zpg_4,n_12)<0) {
+                    # 786 "/tmp/main-test.nc"
+                    panic("bss zero");
+                }
+                # 787 "/tmp/main-test.nc"
+                pos_8+=n_12;
+            }
+        }
+    }
+    # 796 "/tmp/main-test.nc"
+    result->vaddr=ph->vaddr;
+    # 797 "/tmp/main-test.nc"
+    result->memsz=ph->memsz;
+    # 802 "/tmp/main-test.nc"
+    gp=0;
+    # 803 "/tmp/main-test.nc"
+    symtab=(void*)0;
+    # 804 "/tmp/main-test.nc"
+    const char* strtab=(void*)0;
+    # 805 "/tmp/main-test.nc"
+    symtab_size=0;
+    # 817 "/tmp/main-test.nc"
+    for(i_13=0    ;i_13<eh->shnum;i_13++){
+        # 812 "/tmp/main-test.nc"
+        if(strcmp(shstrtab+sh[i_13].name,".symtab")==0) {
+            # 809 "/tmp/main-test.nc"
+            symtab=(struct elfsym* )(elf_buf+sh[i_13].offset);
+            # 810 "/tmp/main-test.nc"
+            symtab_size=sh[i_13].size;
+        }
+        # 815 "/tmp/main-test.nc"
+        if(strcmp(shstrtab+sh[i_13].name,".strtab")==0) {
+            # 813 "/tmp/main-test.nc"
+            strtab=elf_buf+sh[i_13].offset;
+        }
+    }
+    # 832 "/tmp/main-test.nc"
+    if(symtab&&strtab) {
+        # 824 "/tmp/main-test.nc"
+        for(i_14=0        ;i_14<symtab_size/sizeof(struct elfsym );i_14++){
+            # 823 "/tmp/main-test.nc"
+            if(strcmp(strtab+symtab[i_14].name,"__global_pointer$")==0) {
+                # 820 "/tmp/main-test.nc"
+                gp=symtab[i_14].value;
+                # 821 "/tmp/main-test.nc"
+                break;
+            }
+        }
+        # 830 "/tmp/main-test.nc"
+        for(i_15=0        ;i_15<symtab_size/sizeof(struct elfsym );i_15++){
+            # 829 "/tmp/main-test.nc"
+            if(strcmp(strtab+symtab[i_15].name,"_end")==0) {
+                # 826 "/tmp/main-test.nc"
+                max_va_end=symtab[i_15].value;
+                # 827 "/tmp/main-test.nc"
+                break;
+            }
+        }
+    }
+    # 832 "/tmp/main-test.nc"
+    result->sz=(((max_va_end)+4096-1)&~(4096-1));
+    # 837 "/tmp/main-test.nc"
+    if(find_gp_from_file(elf_buf,eh,&gp)<0) {
+    }
+    # 843 "/tmp/main-test.nc"
+    if(gp==0) {
+    }
+    # 927 "/tmp/main-test.nc"
+    if(fork_flag) {
+        # 844 "/tmp/main-test.nc"
+        parent=gProc[gActiveProc];
+        # 849 "/tmp/main-test.nc"
+        i_16=0;
+        # 850 "/tmp/main-test.nc"
+        while(parent->cwd[i_16]&&i_16<(int)sizeof(result->cwd)-1) {
+            # 849 "/tmp/main-test.nc"
+            result->cwd[i_16]=parent->cwd[i_16];
+            # 849 "/tmp/main-test.nc"
+            i_16++;
+        }
+        # 850 "/tmp/main-test.nc"
+        result->cwd[i_16]=0;
+        # 851 "/tmp/main-test.nc"
+        result->umask=parent->umask;
+        # 852 "/tmp/main-test.nc"
+        result->uid=parent->uid;
+        # 853 "/tmp/main-test.nc"
+        result->gid=parent->gid;
+        # 855 "/tmp/main-test.nc"
+        result->parent=parent;
+        # 856 "/tmp/main-test.nc"
+        result->parent_pid=gActiveProc;
+        # 858 "/tmp/main-test.nc"
+        parent_current=parent->context.sp;
+        # 859 "/tmp/main-test.nc"
+        parent_stack_top=(unsigned long  int )parent->stack_top;
+        # 861 "/tmp/main-test.nc"
+        stack_base=0x40000000UL-64*4096;
+        # 876 "/tmp/main-test.nc"
+        for(i_17=0        ;i_17<64;i_17++){
+            # 863 "/tmp/main-test.nc"
+            pa_18=kalloc();
+            # 865 "/tmp/main-test.nc"
+            src=walkaddr(parent->pagetable,parent_stack_top+i_17*4096);
+            # 870 "/tmp/main-test.nc"
+            if(src) {
+                # 867 "/tmp/main-test.nc"
+                memmove(pa_18,(void*)src,4096);
+            }
+            # 874 "/tmp/main-test.nc"
+            mappages(result->pagetable,stack_base+i_17*4096,4096,(unsigned long  int )pa_18,(1L<<4)|(1L<<1)|(1L<<2)|(1L<<0));
+        }
+        # 876 "/tmp/main-test.nc"
+         __asm volatile (
+            "sfence.vma zero, zero"
+        );
+        # 878 "/tmp/main-test.nc"
+        result->stack_top=(char*)stack_base;
+        # 879 "/tmp/main-test.nc"
+        result->context.sp=stack_base+64*4096;
+        # 880 "/tmp/main-test.nc"
+        result->context.gp=parent->context.gp;
+        # 882 "/tmp/main-test.nc"
+        fs_dup_table(result,result->file_table,parent->file_table);
+    }
+    else {
+        # 888 "/tmp/main-test.nc"
+        stack_base_19=0x40000000UL-64*4096;
+        # 898 "/tmp/main-test.nc"
+        for(i_20=0        ;i_20<64;i_20++){
+            # 890 "/tmp/main-test.nc"
+            pa_21=kalloc();
+            # 896 "/tmp/main-test.nc"
+            mappages(result->pagetable,stack_base_19+i_20*4096,4096,(unsigned long  int )pa_21,(1L<<4)|(1L<<1)|(1L<<2)|(1L<<0));
+        }
+        # 898 "/tmp/main-test.nc"
+         __asm volatile (
+            "sfence.vma zero, zero"
+        );
+        # 900 "/tmp/main-test.nc"
+        result->stack_top=(char*)stack_base_19;
+        # 901 "/tmp/main-test.nc"
+        result->context.sp=stack_base_19+64*4096;
+        # 902 "/tmp/main-test.nc"
+        result->context.gp=gp;
+        # 904 "/tmp/main-test.nc"
+         __asm volatile (
+            "sfence.vma zero, zero"
+        );
+        # 924 "/tmp/main-test.nc"
+        if(exec_flag) {
+            # 907 "/tmp/main-test.nc"
+            parent_22=gProc[gActiveProc];
+            # 909 "/tmp/main-test.nc"
+            result->parent=parent_22->parent;
+            # 910 "/tmp/main-test.nc"
+            result->parent_pid=parent_22->parent_pid;
+            # 913 "/tmp/main-test.nc"
+            memcpy(result->file_table,parent_22->file_table,sizeof(struct file* )*32);
+            # 914 "/tmp/main-test.nc"
+            result->umask=parent_22->umask;
+            # 915 "/tmp/main-test.nc"
+            result->uid=parent_22->uid;
+            # 916 "/tmp/main-test.nc"
+            result->gid=parent_22->gid;
+            # 917 "/tmp/main-test.nc"
+            result->pgrp=parent_22->pgrp;
+            # 918 "/tmp/main-test.nc"
+            i_23=0;
+            # 919 "/tmp/main-test.nc"
+            while(parent_22->cwd[i_23]&&i_23<(int)sizeof(result->cwd)-1) {
+                # 918 "/tmp/main-test.nc"
+                result->cwd[i_23]=parent_22->cwd[i_23];
+                # 918 "/tmp/main-test.nc"
+                i_23++;
+            }
+            # 919 "/tmp/main-test.nc"
+            result->cwd[i_23]=0;
+        }
+        else {
+            # 922 "/tmp/main-test.nc"
+            fs_init(result->file_table);
+        }
+    }
+    # 927 "/tmp/main-test.nc"
+    result->context.mepc=eh->entry;
+    # 967 "/tmp/main-test.nc"
+    if(exec_flag) {
+        # 932 "/tmp/main-test.nc"
+        parent_24=gProc[gActiveProc];
+        # 933 "/tmp/main-test.nc"
+        neoc_proc_list_replace(parent_24,result);
+        # 934 "/tmp/main-test.nc"
+        free_proc(parent_24);
+        # 935 "/tmp/main-test.nc"
+        gProc[gActiveProc]=result;
+        # 936 "/tmp/main-test.nc"
+        user_satp=((8L<<60)|(((unsigned long  int )result->pagetable)>>12));
+        # 937 "/tmp/main-test.nc"
+        user_sp=result->context.sp;
+        # 939 "/tmp/main-test.nc"
+        result->debug_=debug_;
+        # 941 "/tmp/main-test.nc"
+        *child_proc_index=gActiveProc;
+    }
+    else {
+        # 966 "/tmp/main-test.nc"
+        if(gNumProc>=64) {
+            # 945 "/tmp/main-test.nc"
+            found=0;
+            # 956 "/tmp/main-test.nc"
+            for(i_25=0            ;i_25<64;i_25++){
+                # 954 "/tmp/main-test.nc"
+                if(gProc[i_25]==((void*)0)) {
+                    # 948 "/tmp/main-test.nc"
+                    gProc[i_25]=result;
+                    # 949 "/tmp/main-test.nc"
+                    neoc_proc_list_add(result);
+                    # 950 "/tmp/main-test.nc"
+                    *child_proc_index=i_25;
+                    # 951 "/tmp/main-test.nc"
+                    found=1;
+                    # 952 "/tmp/main-test.nc"
+                    break;
+                }
+            }
+            # 960 "/tmp/main-test.nc"
+            if(found==0) {
+                # 957 "/tmp/main-test.nc"
+                puts("proc max");
+                # 959 "/tmp/main-test.nc"
+                while(1) {
+                    # 959 "/tmp/main-test.nc"
+                    ;
+                }
+            }
+        }
+        else {
+            # 962 "/tmp/main-test.nc"
+            gProc[gNumProc++]=result;
+            # 963 "/tmp/main-test.nc"
+            neoc_proc_list_add(result);
+            # 964 "/tmp/main-test.nc"
+            *child_proc_index=gNumProc-1;
+        }
+    }
+}
+
+void free_proc(struct proc*  p  )
+{
+    unsigned long  int  stack_base  ;
+    int i;
+    char* pa;
+    int i_26;
+    struct process_pages*  page  ;
+    int j;
+    memset(&stack_base, 0, sizeof(stack_base));
+    memset(&i, 0, sizeof(i));
+    memset(&pa, 0, sizeof(pa));
+    memset(&i_26, 0, sizeof(i_26));
+    memset(&page, 0, sizeof(page));
+    memset(&j, 0, sizeof(j));
+    # 970 "/tmp/main-test.nc"
+    stack_base=0x40000000UL-64*4096;
+    # 976 "/tmp/main-test.nc"
+    for(i=0    ;i<64;i++){
+        # 972 "/tmp/main-test.nc"
+        pa=walkaddr(p->pagetable,stack_base+i*4096);
+        # 974 "/tmp/main-test.nc"
+        kfree(pa);
+    }
+    # 985 "/tmp/main-test.nc"
+    for(i_26=0    ;i_26<p->num_process_pages;i_26++){
+        # 977 "/tmp/main-test.nc"
+        page=p->process_pages[i_26];
+        # 983 "/tmp/main-test.nc"
+        for(j=0        ;j<page->num_process_kalloc_address;j++){
+            # 980 "/tmp/main-test.nc"
+            kfree(page->process_kalloc_address[j]);
+        }
+        # 983 "/tmp/main-test.nc"
+        kfree(page);
+    }
+    # 985 "/tmp/main-test.nc"
+    kfree(p->process_pages);
+    # 991 "/tmp/main-test.nc"
+    if(p->program) {
+        # 988 "/tmp/main-test.nc"
+        free(p->program);
+        # 989 "/tmp/main-test.nc"
+        p->program=((void*)0);
+    }
+    # 991 "/tmp/main-test.nc"
+    p->program_size=0;
+    # 993 "/tmp/main-test.nc"
+    free_pagetable(p->pagetable,2);
+    # 994 "/tmp/main-test.nc"
+    kfree(p->pagetable);
+    # 995 "/tmp/main-test.nc"
+    kfree(p);
+}
+
+struct file**  get_current_file_table()
+{
+    # 1000 "/tmp/main-test.nc"
+        return gProc[gActiveProc]->file_table;
+}
+
+void enable_timer_interrupts()
+{
+    unsigned long  int x;
+    memset(&x, 0, sizeof(x));
+    # 1017 "/tmp/main-test.nc"
+    # 1020 "/tmp/main-test.nc"
+    x=r_sie();
+    # 1021 "/tmp/main-test.nc"
+    x|=(1UL<<5);
+    # 1022 "/tmp/main-test.nc"
+    w_sie(x);
+    # 1025 "/tmp/main-test.nc"
+    x=r_sstatus();
+    # 1026 "/tmp/main-test.nc"
+    x|=(1L<<1);
+    # 1027 "/tmp/main-test.nc"
+    w_sstatus(x);
+}
+
+void disable_timer_interrupts()
+{
+    # 1031 "/tmp/main-test.nc"
+    w_sstatus(r_sstatus()&~(1L<<1));
+    # 1032 "/tmp/main-test.nc"
+    w_sie(r_sie()&~(1UL<<5));
+}
+
+void timer_reset()
+{
+    unsigned long  int  next  ;
+    memset(&next, 0, sizeof(next));
+    # 1036 "/tmp/main-test.nc"
+    next=r_time()+10000UL;
+    # 1037 "/tmp/main-test.nc"
+    w_stimecmp(next);
+}
+
+void remove_kernel_state(int active_proc)
+{
+    struct sKernelState*  state  ;
+    memset(&state, 0, sizeof(state));
+    # 1047 "/tmp/main-test.nc"
+    state=neoc_kernel_state_take(active_proc);
+    # 1053 "/tmp/main-test.nc"
+    if(state==((void*)0)) {
+        # 1050 "/tmp/main-test.nc"
+                return;
+    }
+    # 1056 "/tmp/main-test.nc"
+    if(state->gYieldStack) {
+        # 1054 "/tmp/main-test.nc"
+        free(state->gYieldStack);
+    }
+    # 1056 "/tmp/main-test.nc"
+    free(state);
+}
+
+static void clear_all_kernel_state()
+{
+    struct sKernelState*  state  ;
+    memset(&state, 0, sizeof(state));
+    # 1061 "/tmp/main-test.nc"
+    # 1070 "/tmp/main-test.nc"
+    while((state=neoc_kernel_state_take_first())!=((void*)0)) {
+        # 1067 "/tmp/main-test.nc"
+        if(state->gYieldStack) {
+            # 1065 "/tmp/main-test.nc"
+            free(state->gYieldStack);
+        }
+        # 1067 "/tmp/main-test.nc"
+        free(state);
+    }
+    # 1070 "/tmp/main-test.nc"
+    neoc_kernel_state_clear();
+}
+
+void kernel_yield()
+{
+    struct sKernelState*  state  ;
+    memset(&state, 0, sizeof(state));
+    # 1074 "/tmp/main-test.nc"
+    state=neoc_kernel_state_find(gActiveProc);
+    # 1093 "/tmp/main-test.nc"
+    if(state==((void*)0)) {
+        # 1077 "/tmp/main-test.nc"
+        state=calloc(1,sizeof(struct sKernelState ));
+        # 1083 "/tmp/main-test.nc"
+        if(state==((void*)0)) {
+            # 1080 "/tmp/main-test.nc"
+            panic("kernel_yield state");
+        }
+        # 1083 "/tmp/main-test.nc"
+        state->gYieldStack=calloc(1,(4096*64));
+        # 1090 "/tmp/main-test.nc"
+        if(state->gYieldStack==((void*)0)) {
+            # 1086 "/tmp/main-test.nc"
+            free(state);
+            # 1087 "/tmp/main-test.nc"
+            panic("kernel_yield stack");
+        }
+        # 1090 "/tmp/main-test.nc"
+        neoc_kernel_state_add(state);
+    }
+    # 1093 "/tmp/main-test.nc"
+    state->gYieldReturnContext=*(struct context_t* )TRAPFRAME;
+    # 1094 "/tmp/main-test.nc"
+    state->gYieldUserSatp=user_satp;
+    # 1095 "/tmp/main-test.nc"
+    state->gYieldUserSP=user_sp;
+    # 1096 "/tmp/main-test.nc"
+    state->gYieldUserActiveProc=gActiveProc;
+    # 1097 "/tmp/main-test.nc"
+    state->gYieldContext=*(struct context_t* )TRAPFRAME2;
+    # 1099 "/tmp/main-test.nc"
+    memmove(state->gYieldStack,yield_stack,(4096*64));
+    # 1101 "/tmp/main-test.nc"
+    enable_timer_interrupts();
+}
+
+void kernel_yield_return()
+{
+    struct sKernelState*  state  ;
+    struct context_t*  trapframe  ;
+    memset(&state, 0, sizeof(state));
+    memset(&trapframe, 0, sizeof(trapframe));
+    # 1107 "/tmp/main-test.nc"
+    state=neoc_kernel_state_take(gActiveProc);
+    # 1128 "/tmp/main-test.nc"
+    if(state!=((void*)0)) {
+        # 1110 "/tmp/main-test.nc"
+        user_satp=state->gYieldUserSatp;
+        # 1111 "/tmp/main-test.nc"
+        user_sp=state->gYieldUserSP;
+        # 1113 "/tmp/main-test.nc"
+        gActiveProc=state->gYieldUserActiveProc;
+        # 1115 "/tmp/main-test.nc"
+        trapframe=(struct context_t* )TRAPFRAME2;
+        # 1117 "/tmp/main-test.nc"
+        *trapframe=state->gYieldContext;
+        # 1119 "/tmp/main-test.nc"
+        trapframe=(struct context_t* )TRAPFRAME;
+        # 1120 "/tmp/main-test.nc"
+        *trapframe=state->gYieldReturnContext;
+        # 1122 "/tmp/main-test.nc"
+        memmove(yield_stack,state->gYieldStack,(4096*64));
+        # 1123 "/tmp/main-test.nc"
+        free(state->gYieldStack);
+        # 1124 "/tmp/main-test.nc"
+        free(state);
+        # 1126 "/tmp/main-test.nc"
+        yield_return();
+    }
+}
+
+void timer_handler()
+{
+    struct proc*  p  ;
+    struct context_t*  tf  ;
+    int old_active_proc;
+    struct proc*  old  ;
+    struct proc*  new_  ;
+    unsigned long  int  a0  ;
+    memset(&p, 0, sizeof(p));
+    memset(&tf, 0, sizeof(tf));
+    memset(&old_active_proc, 0, sizeof(old_active_proc));
+    memset(&old, 0, sizeof(old));
+    memset(&new_, 0, sizeof(new_));
+    memset(&a0, 0, sizeof(a0));
+    # 1134 "/tmp/main-test.nc"
+    disable_timer_interrupts();
+    # 1135 "/tmp/main-test.nc"
+    p=gProc[gActiveProc];
+    # 1137 "/tmp/main-test.nc"
+    tf=(struct context_t* )TRAPFRAME;
+    # 1138 "/tmp/main-test.nc"
+    p->context=*tf;
+    # 1140 "/tmp/main-test.nc"
+    timer_reset();
+    # 1142 "/tmp/main-test.nc"
+    old_active_proc=gActiveProc;
+    # 1143 "/tmp/main-test.nc"
+    old=gProc[gActiveProc];
+    # 1144 "/tmp/main-test.nc"
+    gActiveProc++;
+    # 1150 "/tmp/main-test.nc"
+    while(gActiveProc<gNumProc&&gProc[gActiveProc]==((void*)0)) {
+        # 1147 "/tmp/main-test.nc"
+        gActiveProc++;
+    }
+    # 1154 "/tmp/main-test.nc"
+    if(gActiveProc>=gNumProc) {
+        # 1151 "/tmp/main-test.nc"
+        gActiveProc=0;
+    }
+    # 1159 "/tmp/main-test.nc"
+    if(neoc_kernel_state_find(gActiveProc)!=((void*)0)) {
+        # 1155 "/tmp/main-test.nc"
+        kernel_yield_return();
+        # 1156 "/tmp/main-test.nc"
+                return;
+    }
+    # 1159 "/tmp/main-test.nc"
+    new_=gProc[gActiveProc];
+    # 1178 "/tmp/main-test.nc"
+    if(new_!=old&&new_->zombie==0) {
+        # 1162 "/tmp/main-test.nc"
+        user_sp=new_->context.sp;
+        # 1163 "/tmp/main-test.nc"
+        user_satp=((8L<<60)|(((unsigned long  int )new_->pagetable)>>12));
+        # 1164 "/tmp/main-test.nc"
+        old->context=*(struct context_t* )TRAPFRAME;
+        # 1166 "/tmp/main-test.nc"
+        a0=new_->context.a0;
+        # 1167 "/tmp/main-test.nc"
+         __asm volatile (
+            "csrw sscratch, %0"
+            :            "=r"
+(a0)        );
+        # 1174 "/tmp/main-test.nc"
+        if(new_->debug_) {
+            # 1169 "/tmp/main-test.nc"
+            swtch_debug(&new_->context);
+        }
+        else {
+            # 1172 "/tmp/main-test.nc"
+            swtch(&new_->context);
+        }
+    }
+    else {
+        # 1176 "/tmp/main-test.nc"
+        gActiveProc=old_active_proc;
+    }
+}
+
+void uvmunmap(unsigned long  int*  pagetable  , unsigned long  int  va  , unsigned long  int  npages  , int do_free)
+{
+    unsigned long  int  a  ;
+    unsigned long  int*  pte  ;
+    unsigned long  int  pa  ;
+    memset(&a, 0, sizeof(a));
+    memset(&pte, 0, sizeof(pte));
+    memset(&pa, 0, sizeof(pa));
+    # 1184 "/tmp/main-test.nc"
+    if((va%4096)!=0) {
+        # 1182 "/tmp/main-test.nc"
+        panic("uvmunmap: not aligned");
+    }
+    # 1195 "/tmp/main-test.nc"
+    for(a=va    ;a<va+npages*4096;a+=4096){
+        # 1185 "/tmp/main-test.nc"
+        pte=walk(pagetable,a,0);
+        # 1189 "/tmp/main-test.nc"
+        if(pte==0||(*pte&(1L<<0))==0) {
+            # 1187 "/tmp/main-test.nc"
+            continue;
+        }
+        # 1193 "/tmp/main-test.nc"
+        if(do_free) {
+            # 1190 "/tmp/main-test.nc"
+            pa=(((*pte)>>10)<<12);
+            # 1191 "/tmp/main-test.nc"
+            kfree((void*)pa);
+        }
+        # 1193 "/tmp/main-test.nc"
+        *pte=0;
+    }
+}
+
+int uvm_alloc(struct proc*  p  , unsigned long  int*  pagetable  , unsigned long  int  old_sz  , unsigned long  int  new_sz  )
+{
+    unsigned long  int  va  ;
+    char* mem;
+    struct process_pages*  page  ;
+    memset(&va, 0, sizeof(va));
+    memset(&mem, 0, sizeof(mem));
+    memset(&page, 0, sizeof(page));
+    # 1200 "/tmp/main-test.nc"
+    if(new_sz<=old_sz) {
+        # 1198 "/tmp/main-test.nc"
+                return 0;
+    }
+    # 1200 "/tmp/main-test.nc"
+    va=(((old_sz)+4096-1)&~(4096-1));
+    # 1225 "/tmp/main-test.nc"
+    for(;va<new_sz;va+=4096){
+        # 1202 "/tmp/main-test.nc"
+        mem=kalloc();
+        # 1204 "/tmp/main-test.nc"
+        page=p->process_pages[p->num_process_pages-1];
+        # 1206 "/tmp/main-test.nc"
+        page->process_kalloc_address[page->num_process_kalloc_address++]=mem;
+        # 1212 "/tmp/main-test.nc"
+        if(page->num_process_kalloc_address>=512) {
+            # 1209 "/tmp/main-test.nc"
+            p->process_pages[++p->num_process_pages]=kalloc();
+        }
+        # 1216 "/tmp/main-test.nc"
+        if(mem==0) {
+            # 1213 "/tmp/main-test.nc"
+            uvm_dealloc(pagetable,va,old_sz);
+            # 1214 "/tmp/main-test.nc"
+                        return -1;
+        }
+        # 1216 "/tmp/main-test.nc"
+        memset(mem,0,4096);
+        # 1222 "/tmp/main-test.nc"
+        if(mappages(pagetable,va,4096,(unsigned long  int )mem,(1L<<2)|(1L<<1)|(1L<<4)|(1L<<0))<0) {
+            # 1218 "/tmp/main-test.nc"
+            kfree(mem);
+            # 1219 "/tmp/main-test.nc"
+            uvm_dealloc(pagetable,va,old_sz);
+            # 1220 "/tmp/main-test.nc"
+                        return -1;
+        }
+    }
+    # 1225 "/tmp/main-test.nc"
+     __asm volatile (
+        "sfence.vma zero, zero"
+    );
+    # 1227 "/tmp/main-test.nc"
+        return 0;
+}
+
+void uvm_dealloc(unsigned long  int*  pagetable  , unsigned long  int  old_sz  , unsigned long  int  new_sz  )
+{
+    # 1232 "/tmp/main-test.nc"
+    if(new_sz>=old_sz) {
+        # 1231 "/tmp/main-test.nc"
+                return;
+    }
+    # 1232 "/tmp/main-test.nc"
+    uvmunmap(pagetable,(((new_sz)+4096-1)&~(4096-1)),((((old_sz)+4096-1)&~(4096-1))-(((new_sz)+4096-1)&~(4096-1)))/4096,1);
+}
+
+unsigned long  int  syscall_handler()
+{
+    struct context_t*  trapframe  ;
+    unsigned long  int  arg0  ;
+    unsigned long  int  arg1  ;
+    unsigned long  int  arg2  ;
+    unsigned long  int  arg3  ;
+    unsigned long  int  arg4  ;
+    unsigned long  int  arg5  ;
+    unsigned long  int  arg6  ;
+    unsigned long  int  arg_syscall_no  ;
+    unsigned long  int  result  ;
+    long fd;
+    int ret;
+    unsigned long  int  mepc  ;
+    memset(&trapframe, 0, sizeof(trapframe));
+    memset(&arg0, 0, sizeof(arg0));
+    memset(&arg1, 0, sizeof(arg1));
+    memset(&arg2, 0, sizeof(arg2));
+    memset(&arg3, 0, sizeof(arg3));
+    memset(&arg4, 0, sizeof(arg4));
+    memset(&arg5, 0, sizeof(arg5));
+    memset(&arg6, 0, sizeof(arg6));
+    memset(&arg_syscall_no, 0, sizeof(arg_syscall_no));
+    memset(&result, 0, sizeof(result));
+    memset(&fd, 0, sizeof(fd));
+    memset(&ret, 0, sizeof(ret));
+    memset(&mepc, 0, sizeof(mepc));
+    # 1237 "/tmp/main-test.nc"
+    disable_timer_interrupts();
+    # 1239 "/tmp/main-test.nc"
+    trapframe=(struct context_t* )TRAPFRAME;
+    # 1241 "/tmp/main-test.nc"
+    arg0=trapframe->a0;
+    # 1242 "/tmp/main-test.nc"
+    arg1=trapframe->a1;
+    # 1243 "/tmp/main-test.nc"
+    arg2=trapframe->a2;
+    # 1244 "/tmp/main-test.nc"
+    arg3=trapframe->a3;
+    # 1245 "/tmp/main-test.nc"
+    arg4=trapframe->a4;
+    # 1246 "/tmp/main-test.nc"
+    arg5=trapframe->a5;
+    # 1247 "/tmp/main-test.nc"
+    arg6=trapframe->a6;
+    # 1248 "/tmp/main-test.nc"
+    arg_syscall_no=trapframe->a7;
+    # 1250 "/tmp/main-test.nc"
+    result=0;
+    # 1465 "/tmp/main-test.nc"
+    switch (    arg_syscall_no) {
+        # 1255 "/tmp/main-test.nc"
+        case 64:
+        # 1258 "/tmp/main-test.nc"
+        {
+            # 1256 "/tmp/main-test.nc"
+            result=Sys_write();
+        }
+        # 1258 "/tmp/main-test.nc"
+        break;
+        # 1260 "/tmp/main-test.nc"
+        case 73:
+        # 1263 "/tmp/main-test.nc"
+        {
+            # 1261 "/tmp/main-test.nc"
+            result=Sys_pipe();
+        }
+        # 1263 "/tmp/main-test.nc"
+        break;
+        # 1265 "/tmp/main-test.nc"
+        case 72:
+        # 1268 "/tmp/main-test.nc"
+        {
+            # 1266 "/tmp/main-test.nc"
+            result=Sys_dup2();
+        }
+        # 1268 "/tmp/main-test.nc"
+        break;
+        # 1270 "/tmp/main-test.nc"
+        case 70:
+        # 1273 "/tmp/main-test.nc"
+        {
+            # 1271 "/tmp/main-test.nc"
+            result=Sys_exit();
+        }
+        # 1273 "/tmp/main-test.nc"
+        break;
+        # 1275 "/tmp/main-test.nc"
+        case 71:
+        # 1278 "/tmp/main-test.nc"
+        {
+            # 1276 "/tmp/main-test.nc"
+            result=Sys_wait();
+        }
+        # 1278 "/tmp/main-test.nc"
+        break;
+        # 1280 "/tmp/main-test.nc"
+        case 66:
+        # 1283 "/tmp/main-test.nc"
+        {
+            # 1281 "/tmp/main-test.nc"
+            result=Sys_open();
+        }
+        # 1283 "/tmp/main-test.nc"
+        break;
+        # 1284 "/tmp/main-test.nc"
+        case 76:
+        # 1287 "/tmp/main-test.nc"
+        {
+            # 1285 "/tmp/main-test.nc"
+            result=Sys_opendir();
+        }
+        # 1287 "/tmp/main-test.nc"
+        break;
+        # 1288 "/tmp/main-test.nc"
+        case 77:
+        # 1291 "/tmp/main-test.nc"
+        {
+            # 1289 "/tmp/main-test.nc"
+            result=Sys_readdir();
+        }
+        # 1291 "/tmp/main-test.nc"
+        break;
+        # 1292 "/tmp/main-test.nc"
+        case 78:
+        # 1295 "/tmp/main-test.nc"
+        {
+            # 1293 "/tmp/main-test.nc"
+            result=Sys_closedir();
+        }
+        # 1295 "/tmp/main-test.nc"
+        break;
+        # 1296 "/tmp/main-test.nc"
+        case 79:
+        # 1299 "/tmp/main-test.nc"
+        {
+            # 1297 "/tmp/main-test.nc"
+            result=Sys_getcwd();
+        }
+        # 1299 "/tmp/main-test.nc"
+        break;
+        # 1300 "/tmp/main-test.nc"
+        case 80:
+        # 1303 "/tmp/main-test.nc"
+        {
+            # 1301 "/tmp/main-test.nc"
+            result=Sys_chdir();
+        }
+        # 1303 "/tmp/main-test.nc"
+        break;
+        # 1304 "/tmp/main-test.nc"
+        case 81:
+        # 1307 "/tmp/main-test.nc"
+        {
+            # 1305 "/tmp/main-test.nc"
+            result=Sys_mkdir();
+        }
+        # 1307 "/tmp/main-test.nc"
+        break;
+        # 1308 "/tmp/main-test.nc"
+        case 82:
+        # 1311 "/tmp/main-test.nc"
+        {
+            # 1309 "/tmp/main-test.nc"
+            result=Sys_rmdir();
+        }
+        # 1311 "/tmp/main-test.nc"
+        break;
+        # 1312 "/tmp/main-test.nc"
+        case 83:
+        # 1315 "/tmp/main-test.nc"
+        {
+            # 1313 "/tmp/main-test.nc"
+            result=Sys_unlink();
+        }
+        # 1315 "/tmp/main-test.nc"
+        break;
+        # 1316 "/tmp/main-test.nc"
+        case 84:
+        # 1319 "/tmp/main-test.nc"
+        {
+            # 1317 "/tmp/main-test.nc"
+            result=Sys_rename();
+        }
+        # 1319 "/tmp/main-test.nc"
+        break;
+        # 1320 "/tmp/main-test.nc"
+        case 85:
+        # 1323 "/tmp/main-test.nc"
+        {
+            # 1321 "/tmp/main-test.nc"
+            result=Sys_link();
+        }
+        # 1323 "/tmp/main-test.nc"
+        break;
+        # 1324 "/tmp/main-test.nc"
+        case 86:
+        # 1327 "/tmp/main-test.nc"
+        {
+            # 1325 "/tmp/main-test.nc"
+            result=Sys_symlink();
+        }
+        # 1327 "/tmp/main-test.nc"
+        break;
+        # 1328 "/tmp/main-test.nc"
+        case 87:
+        # 1331 "/tmp/main-test.nc"
+        {
+            # 1329 "/tmp/main-test.nc"
+            result=Sys_stat();
+        }
+        # 1331 "/tmp/main-test.nc"
+        break;
+        # 1332 "/tmp/main-test.nc"
+        case 88:
+        # 1335 "/tmp/main-test.nc"
+        {
+            # 1333 "/tmp/main-test.nc"
+            result=Sys_readlink();
+        }
+        # 1335 "/tmp/main-test.nc"
+        break;
+        # 1336 "/tmp/main-test.nc"
+        case 89:
+        # 1339 "/tmp/main-test.nc"
+        {
+            # 1337 "/tmp/main-test.nc"
+            result=Sys_lstat();
+        }
+        # 1339 "/tmp/main-test.nc"
+        break;
+        # 1340 "/tmp/main-test.nc"
+        case 90:
+        # 1343 "/tmp/main-test.nc"
+        {
+            # 1341 "/tmp/main-test.nc"
+            result=Sys_chmod();
+        }
+        # 1343 "/tmp/main-test.nc"
+        break;
+        # 1344 "/tmp/main-test.nc"
+        case 91:
+        # 1347 "/tmp/main-test.nc"
+        {
+            # 1345 "/tmp/main-test.nc"
+            result=Sys_chown();
+        }
+        # 1347 "/tmp/main-test.nc"
+        break;
+        # 1348 "/tmp/main-test.nc"
+        case 92:
+        # 1351 "/tmp/main-test.nc"
+        {
+            # 1349 "/tmp/main-test.nc"
+            result=Sys_settimeofday();
+        }
+        # 1351 "/tmp/main-test.nc"
+        break;
+        # 1352 "/tmp/main-test.nc"
+        case 93:
+        # 1355 "/tmp/main-test.nc"
+        {
+            # 1353 "/tmp/main-test.nc"
+            result=Sys_utimes();
+        }
+        # 1355 "/tmp/main-test.nc"
+        break;
+        # 1356 "/tmp/main-test.nc"
+        case 94:
+        # 1359 "/tmp/main-test.nc"
+        {
+            # 1357 "/tmp/main-test.nc"
+            result=Sys_umask();
+        }
+        # 1359 "/tmp/main-test.nc"
+        break;
+        # 1360 "/tmp/main-test.nc"
+        case 95:
+        # 1363 "/tmp/main-test.nc"
+        {
+            # 1361 "/tmp/main-test.nc"
+            result=Sys_gettimeofday();
+        }
+        # 1363 "/tmp/main-test.nc"
+        break;
+        # 1364 "/tmp/main-test.nc"
+        case 96:
+        # 1367 "/tmp/main-test.nc"
+        {
+            # 1365 "/tmp/main-test.nc"
+            result=Sys_getuid();
+        }
+        # 1367 "/tmp/main-test.nc"
+        break;
+        # 1368 "/tmp/main-test.nc"
+        case 97:
+        # 1371 "/tmp/main-test.nc"
+        {
+            # 1369 "/tmp/main-test.nc"
+            result=Sys_getgid();
+        }
+        # 1371 "/tmp/main-test.nc"
+        break;
+        # 1372 "/tmp/main-test.nc"
+        case 98:
+        # 1375 "/tmp/main-test.nc"
+        {
+            # 1373 "/tmp/main-test.nc"
+            result=Sys_setuid();
+        }
+        # 1375 "/tmp/main-test.nc"
+        break;
+        # 1376 "/tmp/main-test.nc"
+        case 99:
+        # 1379 "/tmp/main-test.nc"
+        {
+            # 1377 "/tmp/main-test.nc"
+            result=Sys_setgid();
+        }
+        # 1379 "/tmp/main-test.nc"
+        break;
+        # 1380 "/tmp/main-test.nc"
+        case 101:
+        # 1383 "/tmp/main-test.nc"
+        {
+            # 1381 "/tmp/main-test.nc"
+            result=Sys_realpath();
+        }
+        # 1383 "/tmp/main-test.nc"
+        break;
+        # 1384 "/tmp/main-test.nc"
+        case 210:
+        # 1387 "/tmp/main-test.nc"
+        {
+            # 1385 "/tmp/main-test.nc"
+            result=Sys_fstat();
+        }
+        # 1387 "/tmp/main-test.nc"
+        break;
+        # 1389 "/tmp/main-test.nc"
+        case 192:
+        # 1392 "/tmp/main-test.nc"
+        {
+            # 1390 "/tmp/main-test.nc"
+            result=Sys_lseek();
+        }
+        # 1392 "/tmp/main-test.nc"
+        break;
+        # 1394 "/tmp/main-test.nc"
+        case 65:
+        # 1397 "/tmp/main-test.nc"
+        {
+            # 1395 "/tmp/main-test.nc"
+            result=Sys_read();
+        }
+        # 1397 "/tmp/main-test.nc"
+        break;
+        # 1399 "/tmp/main-test.nc"
+        case 67:
+        # 1406 "/tmp/main-test.nc"
+        {
+            # 1400 "/tmp/main-test.nc"
+            fd=arg0;
+            # 1402 "/tmp/main-test.nc"
+            ret=fs_close(fd,0);
+            # 1404 "/tmp/main-test.nc"
+            result=ret;
+        }
+        # 1406 "/tmp/main-test.nc"
+        break;
+        # 1408 "/tmp/main-test.nc"
+        case 68:
+        # 1411 "/tmp/main-test.nc"
+        {
+            # 1409 "/tmp/main-test.nc"
+            result=Sys_fork();
+        }
+        # 1411 "/tmp/main-test.nc"
+        break;
+        # 1413 "/tmp/main-test.nc"
+        case 75:
+        # 1420 "/tmp/main-test.nc"
+        {
+            # 1414 "/tmp/main-test.nc"
+            gNumProc=1;
+            # 1415 "/tmp/main-test.nc"
+            gActiveProc=0;
+            # 1416 "/tmp/main-test.nc"
+            clear_all_kernel_state();
+            # 1418 "/tmp/main-test.nc"
+            result=0;
+        }
+        # 1420 "/tmp/main-test.nc"
+        break;
+        # 1422 "/tmp/main-test.nc"
+        case 69:
+        # 1425 "/tmp/main-test.nc"
+        {
+            # 1423 "/tmp/main-test.nc"
+            result=Sys_execv();
+        }
+        # 1425 "/tmp/main-test.nc"
+        break;
+        # 1426 "/tmp/main-test.nc"
+        case 100:
+        # 1429 "/tmp/main-test.nc"
+        {
+            # 1427 "/tmp/main-test.nc"
+            result=Sys_execve();
+        }
+        # 1429 "/tmp/main-test.nc"
+        break;
+        # 1430 "/tmp/main-test.nc"
+        case 199:
+        # 1433 "/tmp/main-test.nc"
+        {
+            # 1431 "/tmp/main-test.nc"
+            result=Sys_execved();
+        }
+        # 1433 "/tmp/main-test.nc"
+        break;
+        # 1434 "/tmp/main-test.nc"
+        case 104:
+        # 1437 "/tmp/main-test.nc"
+        {
+            # 1435 "/tmp/main-test.nc"
+            result=Sys_isatty();
+        }
+        # 1437 "/tmp/main-test.nc"
+        break;
+        # 1439 "/tmp/main-test.nc"
+        case 74:
+        # 1442 "/tmp/main-test.nc"
+        {
+            # 1440 "/tmp/main-test.nc"
+            result=Sys_brk();
+        }
+        # 1442 "/tmp/main-test.nc"
+        break;
+        # 1444 "/tmp/main-test.nc"
+        case 102:
+        # 1447 "/tmp/main-test.nc"
+        {
+            # 1445 "/tmp/main-test.nc"
+            result=Sys_sleep();
+        }
+        # 1447 "/tmp/main-test.nc"
+        break;
+        # 1449 "/tmp/main-test.nc"
+        case 103:
+        # 1453 "/tmp/main-test.nc"
+        {
+            # 1450 "/tmp/main-test.nc"
+            result=Sys_tcsetpgrp();
+        }
+        # 1453 "/tmp/main-test.nc"
+        case 105:
+        # 1456 "/tmp/main-test.nc"
+        {
+            # 1454 "/tmp/main-test.nc"
+            result=Sys_getpid();
+        }
+        # 1456 "/tmp/main-test.nc"
+        break;
+        # 1458 "/tmp/main-test.nc"
+        default:
+        # 1463 "/tmp/main-test.nc"
+        {
+            # 1459 "/tmp/main-test.nc"
+            mepc=trapframe->mepc;
+            # 1460 "/tmp/main-test.nc"
+            printf("invalid syscall. syscall number %d mepc %p",arg_syscall_no,mepc);
+            # 1462 "/tmp/main-test.nc"
+            while(1) {
+                # 1462 "/tmp/main-test.nc"
+                ;
+            }
+        }
+    }
+    # 1465 "/tmp/main-test.nc"
+    trapframe->a0=result;
+    # 1467 "/tmp/main-test.nc"
+        return result;
+}
+
+void timerinit()
+{
+    # 1493 "/tmp/main-test.nc"
+    w_stvec((unsigned long  int )trapvec&~0x03);
+    # 1494 "/tmp/main-test.nc"
+    w_stimecmp(r_time()+10000000);
+    # 1496 "/tmp/main-test.nc"
+    w_sstatus(r_sstatus()|(1L<<1));
+    # 1497 "/tmp/main-test.nc"
+    w_sie(r_sie()|(1UL<<5));
+}
+
+struct proc*  get_current_proc()
+{
+    # 1502 "/tmp/main-test.nc"
+        return gProc[gActiveProc];
+}
+
+void global_init()
+{
+    # 1507 "/tmp/main-test.nc"
+    memset(gProc,0,sizeof(struct proc* )*64);
+    # 1508 "/tmp/main-test.nc"
+    neoc_proc_list_init();
+    # 1509 "/tmp/main-test.nc"
+    gNumProc=0;
+    # 1510 "/tmp/main-test.nc"
+    clear_all_kernel_state();
+    # 1511 "/tmp/main-test.nc"
+    gActiveProc=0;
+}
+
+static int parse_uint(const char* s, unsigned int*  out  )
+{
+    unsigned int  v  ;
+    memset(&v, 0, sizeof(v));
+    # 1525 "/tmp/main-test.nc"
+    v=0;
+    # 1525 "/tmp/main-test.nc"
+    if(!s||!*s) {
+        # 1525 "/tmp/main-test.nc"
+                return -1;
+    }
+    # 1525 "/tmp/main-test.nc"
+    while(*s) {
+        # 1525 "/tmp/main-test.nc"
+        if(*s<48||*s>57) {
+            # 1525 "/tmp/main-test.nc"
+                        return -1;
+        }
+        # 1525 "/tmp/main-test.nc"
+        v=v*10+(*s-48);
+        # 1525 "/tmp/main-test.nc"
+        s++;
+    }
+    # 1525 "/tmp/main-test.nc"
+    *out=v;
+    # 1525 "/tmp/main-test.nc"
+        return 0;
+}
+
+int main()
+{
+    int fork_flag;
+    int child_proc_index;
+    struct proc*  p  ;
+    int gp;
+    unsigned long  int  usersp  ;
+    unsigned long  int  usersatp  ;
+    unsigned long  int  entry  ;
+    memset(&fork_flag, 0, sizeof(fork_flag));
+    memset(&child_proc_index, 0, sizeof(child_proc_index));
+    memset(&p, 0, sizeof(p));
+    memset(&gp, 0, sizeof(gp));
+    memset(&usersp, 0, sizeof(usersp));
+    memset(&usersatp, 0, sizeof(usersatp));
+    memset(&entry, 0, sizeof(entry));
+    # 1537 "/tmp/main-test.nc"
+     __asm volatile (
+        "mv %0, sp\n"
+        :        "=r"
+(kernel_sp)    );
+    # 1539 "/tmp/main-test.nc"
+    timerinit();
+    # 1540 "/tmp/main-test.nc"
+    trap_init();
+    # 1541 "/tmp/main-test.nc"
+    plic_init();
+    # 1542 "/tmp/main-test.nc"
+    plic_enable(10);
+    # 1544 "/tmp/main-test.nc"
+    w_stimecmp(r_time()+10000000);
+    # 1546 "/tmp/main-test.nc"
+    uart_init();
+    # 1547 "/tmp/main-test.nc"
+    kinit();
+    # 1549 "/tmp/main-test.nc"
+    mmu_init();
+    # 1550 "/tmp/main-test.nc"
+    virtio_blk_init();
+    # 1551 "/tmp/main-test.nc"
+    read_superblock();
+    # 1552 "/tmp/main-test.nc"
+    file_system_init();
+    # 1554 "/tmp/main-test.nc"
+    global_init();
+    # 1556 "/tmp/main-test.nc"
+    w_stimecmp(r_time()+10000000);
+    # 1558 "/tmp/main-test.nc"
+    # 1559 "/tmp/main-test.nc"
+    child_proc_index=0;
+    # 1560 "/tmp/main-test.nc"
+    alloc_prog((char*)sh_elf,sizeof(sh_elf),fork_flag=0,0,&child_proc_index,0);
+    # 1563 "/tmp/main-test.nc"
+     __asm volatile (
+        "csrs sstatus, %0"
+        :        :        "r"
+((1UL<<18))    );
+    # 1566 "/tmp/main-test.nc"
+    w_stimecmp(r_time()+10000000);
+    # 1568 "/tmp/main-test.nc"
+    p=gProc[0];
+    # 1570 "/tmp/main-test.nc"
+    gp=p->context.gp;
+    # 1572 "/tmp/main-test.nc"
+    usersp=(unsigned long  int )(p->context.sp);
+    # 1573 "/tmp/main-test.nc"
+    usersatp=((8L<<60)|(((unsigned long  int )p->pagetable)>>12));
+    # 1574 "/tmp/main-test.nc"
+    entry=p->context.mepc;
+    # 1576 "/tmp/main-test.nc"
+    w_stimecmp(r_time()+100000);
+    # 1578 "/tmp/main-test.nc"
+    gCPU.proc=p;
+    # 1585 "/tmp/main-test.nc"
+     __asm volatile (
+        "mv %0, sp\n"
+        :        "=r"
+(kernel_sp)        :        :    );
+    # 1586 "/tmp/main-test.nc"
+    enter_user(entry,usersp,usersatp,10000UL,gp);
+    # 1590 "/tmp/main-test.nc"
+    while(1) {
+    }
+}
+

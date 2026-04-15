@@ -67,6 +67,7 @@ struct process_pages
 {
     char** process_kalloc_address;
     int num_process_kalloc_address;
+    void* process_kalloc_address_list;
 };
 
 struct proc {
@@ -93,6 +94,7 @@ struct proc {
     
     struct process_pages** process_pages;
     int num_process_pages;
+    void* process_pages_list;
     
     int debug_;
     
@@ -108,15 +110,13 @@ struct proc {
     uint16_t uid;
     uint16_t gid;
     uint16_t pgrp;
-    uint16_t supp_gids[8];
     int nsupp;
+    void* supp_gid_list;
     char username[32];
 };
 
 // ── Pipe core ─────────────────────────────────────────────────────────
 #define PIPE_SIZE 512
-
-#define PIPE_LINKED_MAX 32
 
 struct file;
 
@@ -129,11 +129,8 @@ struct spipe {
     int nreader;
     int nwriter;
     int used;
-    
-    struct file* linked_file[PIPE_LINKED_MAX];
     int num_linked_file;
-    
-    struct spipe* free_next;
+    void* linked_file_list;
 };
 
 // File table entry
@@ -154,11 +151,8 @@ struct file {
     
     // open() flags (subset) for this file; used for behavior like O_TRUNC
     int oflags;
-    
-    struct file* free_next;
-    
-    struct proc* owner_processes[PROC_MAX];
     int num_owner_process;
+    void* owner_process_list;
 };
 
 int fs_open(const char *path);
@@ -178,6 +172,38 @@ int fs_lstat(const char *path, struct stat *st);
 int fs_chmod(const char *path, uint32_t mode);
 int fs_chown(const char *path, uint16_t uid, uint16_t gid);
 int fs_realpath(const char *path, char *out, int outsz);
+
+void neoc_file_owner_clear(struct file* f);
+void neoc_file_owner_add(struct file* f, struct proc* owner);
+void neoc_file_owner_remove(struct file* f, struct proc* owner);
+
+void neoc_pipe_linked_file_clear(struct spipe* p);
+void neoc_pipe_linked_file_add(struct spipe* p, struct file* f);
+void neoc_pipe_linked_file_remove(struct spipe* p, struct file* f);
+void neoc_pipe_linked_file_clear_pipe_refs(struct spipe* p);
+
+void neoc_proc_process_pages_clear(struct proc* p);
+void neoc_proc_process_pages_add(struct proc* p, struct process_pages* page);
+struct process_pages* neoc_proc_process_pages_get(struct proc* p, int index);
+struct process_pages* neoc_proc_process_pages_last(struct proc* p);
+
+void neoc_process_page_kalloc_clear(struct process_pages* page);
+void neoc_process_page_kalloc_add(struct process_pages* page, char* addr);
+char* neoc_process_page_kalloc_get(struct process_pages* page, int index);
+
+void neoc_proc_supp_gid_clear(struct proc* p);
+void neoc_proc_supp_gid_add(struct proc* p, uint16_t gid);
+void neoc_proc_copy_supp_gids(struct proc* dest, struct proc* src);
+int neoc_proc_has_supp_gid(struct proc* p, uint16_t gid);
+
+void neoc_fs_pool_init(void);
+struct spipe* neoc_fs_pop_free_pipe(void);
+void neoc_fs_push_free_pipe(struct spipe* p);
+struct file* neoc_fs_pop_free_file(void);
+void neoc_fs_push_free_file(struct file* f);
+int neoc_exec_load_user_string_vector(pagetable_t pagetable, uint64_t user_vec, int max_items, int max_len, int allow_null_vec, char*** out_items, int* out_count);
+void neoc_exec_free_string_vector(char** items, int count);
+int neoc_exec_push_string_vector(pagetable_t pagetable, char** items, int count, uint64_t* sp_io, uint64_t* vec_base_out);
 int fs_rename(const char *oldpath, const char *newpath);
 int fs_utimes(const char *path, uint32_t atime, uint32_t mtime);
 

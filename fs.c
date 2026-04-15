@@ -75,6 +75,7 @@ static void build_abs_normalized(char *out, size_t outsz, const char *path);
 #define R_Q_USED_HIGH      0x0A4
 
 #define R_Q_NUM_MAX        0x034
+#undef R_Q_NUM
 #define R_Q_NUM            0x038
 
 #define S_ACK        1
@@ -409,9 +410,7 @@ static int check_perm(struct dinode *ip, int want)
     if (p->uid == ip->uid) shift = 6;
     else if (p->gid == ip->gid) shift = 3;
     else {
-        int member = 0;
-        for (int i=0;i<p->nsupp;i++) if (p->supp_gids[i] == ip->gid) { member=1; break; }
-        shift = member ? 3 : 0;
+        shift = neoc_proc_has_supp_gid(p, ip->gid) ? 3 : 0;
     }
     int perms = (mode >> shift) & 7;
     // if want includes write, require write bit; if exec required, require x; if read required, require r
@@ -788,7 +787,8 @@ int fs_realpath(const char *path, char *out, int outsz)
     if (strcmp(abs, "/") == 0) { if (outsz >= 2){ out[0]='/'; out[1]='\0'; return 0;} return -1; }
     struct dinode dir; read_inode(ROOTINO, &dir);
     char buf[256]; strncpy(buf, abs, sizeof(buf)-1); buf[sizeof(buf)-1]='\0';
-    char *rest = buf, *tok;
+    char *rest = buf;
+    char *tok = NULL;
     int depth=8; int first=1; int n=0; out[n++]='/'; out[1]='\0';
     while ((tok = strtok(rest, "/")) != NULL) {
         rest = NULL;
@@ -845,91 +845,72 @@ void dump_inode(uint32_t inum) {
 // Add near the top of the file
 // Insert near the top of fs.c
 static int owner_cap(struct file *f) {
-    return (int)(sizeof(f->owner_processes) / sizeof(f->owner_processes[0]));
+    (void)f;
+    return PROC_MAX;
 }
 static void owner_add(struct file *f, struct proc *o) {
-    int cap = owner_cap(f);
-    // Disallow duplicates
-    for (int i = 0; i < cap; i++) if (f->owner_processes[i] == o) return;
-    // Use an empty slot
-    for (int i = 0; i < cap; i++) {
-        if (f->owner_processes[i] == NULL) {
-            f->owner_processes[i] = o;
-            if (f->num_owner_process < cap) f->num_owner_process++;
-            return;
-        }
-    }
-    // If full, ignore (safer)
+    if (!f || !o) return;
+    neoc_file_owner_add(f, o);
 }
 static void owner_remove(struct file *f, struct proc *o) {
-    int cap = owner_cap(f), c = 0;
-    for (int i = 0; i < cap; i++) {
-        if (f->owner_processes[i] == o) f->owner_processes[i] = NULL;
-        if (f->owner_processes[i]) c++;
-    }
-    f->num_owner_process = c;
+    if (!f || !o) return;
+    neoc_file_owner_remove(f, o);
 }
 
 #define FD_OFFSET 3
 
-
-
-struct spipe gPipes[MAX_OPEN_FILES];
-struct file gFiles[MAX_OPEN_FILES];
-
-struct spipe* gFreePipes;
-struct file* gFreeFiles;
-
 void file_system_init()
 {
-    memset(gPipes, 0, sizeof(struct spipe)*MAX_OPEN_FILES);
-    memset(gFiles, 0, sizeof(struct file)*MAX_OPEN_FILES);
-    
-    for(int i=0; i<MAX_OPEN_FILES; i++)  {
-        struct spipe* p = &gPipes[i];
-        
-        p->free_next = gFreePipes;
-        gFreePipes = p;
-    }
-    
-    for(int i=0; i<MAX_OPEN_FILES; i++)  {
-        struct file* p = &gFiles[i];
-        
-        p->free_next = gFreeFiles;
-        gFreeFiles = p;
-    }
+    neoc_fs_pool_init();
 }
 
 struct spipe* alloc_pipe()
 {
-    struct spipe* p = gFreePipes;
-    
-    gFreePipes = gFreePipes->free_next;
-    
+    struct spipe* p = neoc_fs_pop_free_pipe();
+    void* linked_file_list = p ? p->linked_file_list : NULL;
+
+    if(p == NULL) {
+        p = (struct spipe*)kalloc();
+        if(p == NULL) {
+            return NULL;
+        }
+        linked_file_list = NULL;
+    }
+
     memset(p, 0, sizeof(struct spipe));
-    
+    p->linked_file_list = linked_file_list;
+
     return p;
 }
 
 void free_pipe(struct spipe* p)
 {
-    p->free_next = gFreePipes;
-    gFreePipes = p;
+    if(p == NULL) return;
+    neoc_pipe_linked_file_clear(p);
+    neoc_fs_push_free_pipe(p);
 }
 
 struct file* alloc_file() {
-    if (!gFreeFiles) return NULL;  // or panic("no free file");
-    struct file* p = gFreeFiles;
-    gFreeFiles = gFreeFiles->free_next;
+    struct file* p = neoc_fs_pop_free_file();
+    void* owner_process_list = p ? p->owner_process_list : NULL;
+
+    if (p == NULL) {
+        p = (struct file*)kalloc();
+        if (p == NULL) return NULL;
+        owner_process_list = NULL;
+    }
+
     memset(p, 0, sizeof(*p));
+    p->owner_process_list = owner_process_list;
     return p;
 }
 
 
 void free_file(struct file* p)
 {
-    p->free_next = gFreeFiles;
-    gFreeFiles = p;
+    if(p == NULL) return;
+    neoc_file_owner_clear(p);
+    neoc_fs_push_free_file(p);
 }
 
 // ── pipealloc ──────────────────────────────────────────────────────────
@@ -938,8 +919,6 @@ void free_file(struct file* p)
 struct spipe* pipealloc(void)
 {
     struct spipe *p = (struct spipe*)alloc_pipe(); //1, sizeof(struct spipe));
-    
-    memset(p, 0, sizeof(struct spipe));
     if (p == 0)
         return 0;
     p->nread     = 0;
@@ -948,6 +927,7 @@ struct spipe* pipealloc(void)
     p->write_open = 1;
     p->used = 0;
     p->num_linked_file = 0;
+    neoc_pipe_linked_file_clear(p);
     
     void* user_va = p;
     void* pa = p;
@@ -962,7 +942,7 @@ struct file* new_file_table()
     struct file* result = (struct file*)alloc_file(); //1, sizeof(struct file));
     if (!result) return NULL;  // Check for allocation failure
 //printf("kalloc file table %p\n", result);
-    memset(result, 0, sizeof(struct file));
+    neoc_file_owner_clear(result);
 
     owner_add(result, gProc[gActiveProc]);
 
@@ -1063,13 +1043,8 @@ void pipe_open(int* fd1, int* fd2) {
             *fd1 = i;
             
             pip->used++;
-            pip->linked_file[pip->num_linked_file++] = file_table[i];
+            neoc_pipe_linked_file_add(pip, file_table[i]);
             pip->nreader++;
-            
-            if(pip->num_linked_file >= PIPE_LINKED_MAX) {
-                puts("PIPE LINKED MAX");
-                while(1);
-            }
             
 //printf("pip->used %d\n", pip->used);
             break;
@@ -1090,13 +1065,8 @@ void pipe_open(int* fd1, int* fd2) {
             *fd2 = i;  // <- returns 3,4,5…
             
             pip->used++;
-            pip->linked_file[pip->num_linked_file++] = file_table[i];
+            neoc_pipe_linked_file_add(pip, file_table[i]);
             pip->nwriter++;
-            
-            if(pip->num_linked_file >= PIPE_LINKED_MAX) {
-                puts("PIPE LINKED MAX");
-                while(1);
-            }
             
 //printf("pip->used %d\n", pip->used);
             break;
@@ -2008,11 +1978,10 @@ int fs_close(long fd, int massive) {
         if (f->read_pipe  && p->nreader > 0) { if (--p->nreader == 0) p->read_open  = 0; }
         if (f->write_pipe && p->nwriter > 0) { if (--p->nwriter == 0) p->write_open = 0; }
         if (p->used > 0) p->used--;
+        neoc_pipe_linked_file_remove(p, f);
         if (p->used == 0) {
             // Drop reverse references before free_pipe to avoid UAF
-            for (int i = 0; i < p->num_linked_file; i++) {
-                if (p->linked_file[i]) p->linked_file[i]->pipe = NULL;
-            }
+            neoc_pipe_linked_file_clear_pipe_refs(p);
             free_pipe(p);
         }
     }

@@ -725,27 +725,12 @@ int Sys_execv()
     char* path = kernel_buf;
     
     /// argv ////
-    char argv_storage[32][32];
-    char* kargv[32];
-    uint64_t user_argv = arg1;
+    char** kargv = NULL;
     int argc = 0;
-
-    for (argc = 0; argc < 32; argc++) {
-        uintptr_t uargp;
-        if (copyin(p->pagetable, (char*)&uargp, user_argv + argc * sizeof(uintptr_t), sizeof(uintptr_t)) < 0) {
-            trapframe->a0 = -1;
-            return -1;
-        }
-    
-        if (uargp == 0) break; // End of argv
-    
-        if (copyinstr(p->pagetable, argv_storage[argc], uargp, sizeof(argv_storage[0])) < 0) {
-            trapframe->a0 = -1;
-            return -1;
-        }
-        kargv[argc] = argv_storage[argc];
+    if (neoc_exec_load_user_string_vector(p->pagetable, arg1, 128, 256, 0, &kargv, &argc) < 0) {
+        trapframe->a0 = -1;
+        return -1;
     }
-    kargv[argc] = NULL;
 
     // Read ELF file
 
@@ -760,6 +745,7 @@ int Sys_execv()
     }
     int fd = fs_open2(path, 0, 0);
     if(fd < 0) {
+        neoc_exec_free_string_vector(kargv, argc);
         trapframe->a0 = -1;
         return -1;
     }
@@ -769,6 +755,8 @@ int Sys_execv()
     int ret = fs_read(fd, elf_buf, size);
     fs_close(fd, 0 /* massive */);
     if (ret <= 0) {
+        free(elf_buf);
+        neoc_exec_free_string_vector(kargv, argc);
         trapframe->a0 = -1;
         return -1;
     }
@@ -800,36 +788,12 @@ int Sys_execv()
 
     // Set up the user stack
     uint64_t sp = new_p->context.sp; // Initial top of stack
-    uint64_t str_addrs[32];
-
-    // Copy strings to stack
-    for (int i = argc - 1; i >= 0; i--) {
-        size_t len = strlen(kargv[i]) + 1;
-        sp -= len;
-        // sp &= ~7; // Align strings to 8 bytes for simplicity/safety
-        if (copyout(new_p->pagetable, sp, kargv[i], len) < 0) {
-            panic("execv: copyout string failed");
-        }
-        str_addrs[i] = sp;
+    uint64_t argv_base = 0;
+    if (neoc_exec_push_string_vector(new_p->pagetable, kargv, argc, &sp, &argv_base) < 0) {
+        neoc_exec_free_string_vector(kargv, argc);
+        panic("execv: push argv failed");
     }
-    
-    // Align stack for argv array
-    sp -= (argc + 1) * sizeof(uint64_t);
-    sp &= ~7; 
-    uint64_t argv_base = sp;
-
-    // Copy argv pointers to stack
-    for (int i = 0; i < argc; i++) {
-        uint64_t ptr = str_addrs[i];
-        if (copyout(new_p->pagetable, argv_base + i * sizeof(uint64_t), &ptr, sizeof(uint64_t)) < 0) {
-            panic("execv: copyout ptr failed");
-        }
-    }
-    // Null terminate argv
-    uint64_t nullp = 0;
-    if (copyout(new_p->pagetable, argv_base + argc * sizeof(uint64_t), &nullp, sizeof(uint64_t)) < 0) {
-        panic("execv: copyout nullp failed");
-    }
+    neoc_exec_free_string_vector(kargv, argc);
 
     // Update the trap frame for the new program
     // The assembly code will restore registers from this frame
@@ -869,52 +833,30 @@ int Sys_execve()
     char* path = kernel_buf;
 
     // argv
-    char argv_storage[32][32];
-    char* kargv[32];
-    uint64_t user_argv = arg1;
+    char** kargv = NULL;
     int argc = 0;
-    for (argc = 0; argc < 32; argc++) {
-        uintptr_t uargp;
-        if (copyin(p->pagetable, (char*)&uargp, user_argv + argc * sizeof(uintptr_t), sizeof(uintptr_t)) < 0) {
-            trapframe->a0 = -1;
-            return -1;
-        }
-        if (uargp == 0) break;
-        if (copyinstr(p->pagetable, argv_storage[argc], uargp, sizeof(argv_storage[0])) < 0) {
-            trapframe->a0 = -1;
-            return -1;
-        }
-        kargv[argc] = argv_storage[argc];
+    if (neoc_exec_load_user_string_vector(p->pagetable, arg1, 128, 256, 0, &kargv, &argc) < 0) {
+        trapframe->a0 = -1;
+        return -1;
     }
-    kargv[argc] = NULL;
 
     // envp
-    char env_storage[16][128];
-    char* kenv[16];
-    uint64_t user_envp = arg2;
+    char** kenv = NULL;
     int envc = 0;
-    for (envc = 0; envc < 16; envc++) {
-        uintptr_t uenvp;
-        if (copyin(p->pagetable, (char*)&uenvp, user_envp + envc * sizeof(uintptr_t), sizeof(uintptr_t)) < 0) {
-            trapframe->a0 = -1;
-            return -1;
-        }
-        if (uenvp == 0) break;
-        if (copyinstr(p->pagetable, env_storage[envc], uenvp, sizeof(env_storage[0])) < 0) {
-            trapframe->a0 = -1;
-            return -1;
-        }
-        kenv[envc] = env_storage[envc];
+    if (neoc_exec_load_user_string_vector(p->pagetable, arg2, 64, 256, 1, &kenv, &envc) < 0) {
+        neoc_exec_free_string_vector(kargv, argc);
+        trapframe->a0 = -1;
+        return -1;
     }
 
     // open and load program
     int fd = fs_open2(path, 0, 0);
-    if(fd < 0) { trapframe->a0 = -1; return -1; }
+    if(fd < 0) { neoc_exec_free_string_vector(kargv, argc); neoc_exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
     ssize_t size = fs_size(fd);
     char* elf_buf = calloc(1, size+32);
     int ret = fs_read(fd, elf_buf, size);
     fs_close(fd, 0);
-    if (ret <= 0) { trapframe->a0 = -1; return -1; }
+    if (ret <= 0) { free(elf_buf); neoc_exec_free_string_vector(kargv, argc); neoc_exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
 
     // setuid/gid checks
     struct stat stx; int has_stat = (fs_stat(path, &stx) == 0);
@@ -933,51 +875,22 @@ int Sys_execve()
 
     // Setup user stack with argv strings
     uint64_t sp = new_p->context.sp;
-    uint64_t str_addrs[32];
-    for (int i = argc - 1; i >= 0; i--) {
-        size_t len = strlen(kargv[i]) + 1;
-        sp -= len;
-        if (copyout(new_p->pagetable, sp, kargv[i], len) < 0) {
-            panic("execve: copyout argv string failed");
-        }
-        str_addrs[i] = sp;
-    }
-    sp -= (argc + 1) * sizeof(uint64_t);
-    sp &= ~7ULL;
-    uint64_t argv_base = sp;
-    for (int i = 0; i < argc; i++) {
-        uint64_t ptr = str_addrs[i];
-        if (copyout(new_p->pagetable, argv_base + i * sizeof(uint64_t), &ptr, sizeof(uint64_t)) < 0) {
-            panic("execve: copyout argv ptr failed");
-        }
-    }
-    uint64_t nullp = 0;
-    if (copyout(new_p->pagetable, argv_base + argc * sizeof(uint64_t), &nullp, sizeof(uint64_t)) < 0) {
-        panic("execve: copyout argv null failed");
+    uint64_t argv_base = 0;
+    if (neoc_exec_push_string_vector(new_p->pagetable, kargv, argc, &sp, &argv_base) < 0) {
+        neoc_exec_free_string_vector(kargv, argc);
+        neoc_exec_free_string_vector(kenv, envc);
+        panic("execve: push argv failed");
     }
 
     // Setup env strings and envp
-    uint64_t env_addrs[16];
-    for (int i = envc - 1; i >= 0; i--) {
-        size_t len = strlen(kenv[i]) + 1;
-        sp -= len;
-        if (copyout(new_p->pagetable, sp, kenv[i], len) < 0) {
-            panic("execve: copyout env string failed");
-        }
-        env_addrs[i] = sp;
+    uint64_t envp_base = 0;
+    if (neoc_exec_push_string_vector(new_p->pagetable, kenv, envc, &sp, &envp_base) < 0) {
+        neoc_exec_free_string_vector(kargv, argc);
+        neoc_exec_free_string_vector(kenv, envc);
+        panic("execve: push env failed");
     }
-    sp -= (envc + 1) * sizeof(uint64_t);
-    sp &= ~7ULL;
-    uint64_t envp_base = sp;
-    for (int i = 0; i < envc; i++) {
-        uint64_t ptr = env_addrs[i];
-        if (copyout(new_p->pagetable, envp_base + i * sizeof(uint64_t), &ptr, sizeof(uint64_t)) < 0) {
-            panic("execve: copyout env ptr failed");
-        }
-    }
-    if (copyout(new_p->pagetable, envp_base + envc * sizeof(uint64_t), &nullp, sizeof(uint64_t)) < 0) {
-        panic("execve: copyout env null failed");
-    }
+    neoc_exec_free_string_vector(kargv, argc);
+    neoc_exec_free_string_vector(kenv, envc);
 
     // Set registers for new program
     trapframe->a0 = argc;
@@ -1009,52 +922,30 @@ int Sys_execved()
     char* path = kernel_buf;
 
     // argv
-    char argv_storage[32][32];
-    char* kargv[32];
-    uint64_t user_argv = arg1;
+    char** kargv = NULL;
     int argc = 0;
-    for (argc = 0; argc < 32; argc++) {
-        uintptr_t uargp;
-        if (copyin(p->pagetable, (char*)&uargp, user_argv + argc * sizeof(uintptr_t), sizeof(uintptr_t)) < 0) {
-            trapframe->a0 = -1;
-            return -1;
-        }
-        if (uargp == 0) break;
-        if (copyinstr(p->pagetable, argv_storage[argc], uargp, sizeof(argv_storage[0])) < 0) {
-            trapframe->a0 = -1;
-            return -1;
-        }
-        kargv[argc] = argv_storage[argc];
+    if (neoc_exec_load_user_string_vector(p->pagetable, arg1, 128, 256, 0, &kargv, &argc) < 0) {
+        trapframe->a0 = -1;
+        return -1;
     }
-    kargv[argc] = NULL;
 
     // envp
-    char env_storage[16][128];
-    char* kenv[16];
-    uint64_t user_envp = arg2;
+    char** kenv = NULL;
     int envc = 0;
-    for (envc = 0; envc < 16; envc++) {
-        uintptr_t uenvp;
-        if (copyin(p->pagetable, (char*)&uenvp, user_envp + envc * sizeof(uintptr_t), sizeof(uintptr_t)) < 0) {
-            trapframe->a0 = -1;
-            return -1;
-        }
-        if (uenvp == 0) break;
-        if (copyinstr(p->pagetable, env_storage[envc], uenvp, sizeof(env_storage[0])) < 0) {
-            trapframe->a0 = -1;
-            return -1;
-        }
-        kenv[envc] = env_storage[envc];
+    if (neoc_exec_load_user_string_vector(p->pagetable, arg2, 64, 256, 1, &kenv, &envc) < 0) {
+        neoc_exec_free_string_vector(kargv, argc);
+        trapframe->a0 = -1;
+        return -1;
     }
 
     // open and load program
     int fd = fs_open2(path, 0, 0);
-    if(fd < 0) { trapframe->a0 = -1; return -1; }
+    if(fd < 0) { neoc_exec_free_string_vector(kargv, argc); neoc_exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
     ssize_t size = fs_size(fd);
     char* elf_buf = calloc(1, size+32);
     int ret = fs_read(fd, elf_buf, size);
     fs_close(fd, 0);
-    if (ret <= 0) { trapframe->a0 = -1; return -1; }
+    if (ret <= 0) { free(elf_buf); neoc_exec_free_string_vector(kargv, argc); neoc_exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
 
     // setuid/gid checks
     struct stat stx; int has_stat = (fs_stat(path, &stx) == 0);
@@ -1073,51 +964,22 @@ int Sys_execved()
 
     // Setup user stack with argv strings
     uint64_t sp = new_p->context.sp;
-    uint64_t str_addrs[32];
-    for (int i = argc - 1; i >= 0; i--) {
-        size_t len = strlen(kargv[i]) + 1;
-        sp -= len;
-        if (copyout(new_p->pagetable, sp, kargv[i], len) < 0) {
-            panic("execve: copyout argv string failed");
-        }
-        str_addrs[i] = sp;
-    }
-    sp -= (argc + 1) * sizeof(uint64_t);
-    sp &= ~7ULL;
-    uint64_t argv_base = sp;
-    for (int i = 0; i < argc; i++) {
-        uint64_t ptr = str_addrs[i];
-        if (copyout(new_p->pagetable, argv_base + i * sizeof(uint64_t), &ptr, sizeof(uint64_t)) < 0) {
-            panic("execve: copyout argv ptr failed");
-        }
-    }
-    uint64_t nullp = 0;
-    if (copyout(new_p->pagetable, argv_base + argc * sizeof(uint64_t), &nullp, sizeof(uint64_t)) < 0) {
-        panic("execve: copyout argv null failed");
+    uint64_t argv_base = 0;
+    if (neoc_exec_push_string_vector(new_p->pagetable, kargv, argc, &sp, &argv_base) < 0) {
+        neoc_exec_free_string_vector(kargv, argc);
+        neoc_exec_free_string_vector(kenv, envc);
+        panic("execve: push argv failed");
     }
 
     // Setup env strings and envp
-    uint64_t env_addrs[16];
-    for (int i = envc - 1; i >= 0; i--) {
-        size_t len = strlen(kenv[i]) + 1;
-        sp -= len;
-        if (copyout(new_p->pagetable, sp, kenv[i], len) < 0) {
-            panic("execve: copyout env string failed");
-        }
-        env_addrs[i] = sp;
+    uint64_t envp_base = 0;
+    if (neoc_exec_push_string_vector(new_p->pagetable, kenv, envc, &sp, &envp_base) < 0) {
+        neoc_exec_free_string_vector(kargv, argc);
+        neoc_exec_free_string_vector(kenv, envc);
+        panic("execve: push env failed");
     }
-    sp -= (envc + 1) * sizeof(uint64_t);
-    sp &= ~7ULL;
-    uint64_t envp_base = sp;
-    for (int i = 0; i < envc; i++) {
-        uint64_t ptr = env_addrs[i];
-        if (copyout(new_p->pagetable, envp_base + i * sizeof(uint64_t), &ptr, sizeof(uint64_t)) < 0) {
-            panic("execve: copyout env ptr failed");
-        }
-    }
-    if (copyout(new_p->pagetable, envp_base + envc * sizeof(uint64_t), &nullp, sizeof(uint64_t)) < 0) {
-        panic("execve: copyout env null failed");
-    }
+    neoc_exec_free_string_vector(kargv, argc);
+    neoc_exec_free_string_vector(kenv, envc);
 
     // Set registers for new program
     trapframe->a0 = argc;

@@ -18,13 +18,13 @@ minux.o: minux.c
 minux9.o: minux9.c
 	$(CCPREFIX)gcc $(CFLAGS2) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux9.o minux9.c
 
-kernel.elf: minux.o minux9.o crt0.o cc minux_neoc_sys.o echo_neoc.c pwd_neoc.c uname_neoc.c sleep_neoc.c cat_neoc.c mkdir_neoc.c rmdir_neoc.c touch_neoc.c ls_neoc.c pipeline_neoc.c kernel_proc_list_neoc.c
+kernel.elf: minux.o minux9.o crt0.o cc minux_neoc_sys.o echo_neoc.c pwd_neoc.c uname_neoc.c sleep_neoc.c cat_neoc.c mkdir_neoc.c rmdir_neoc.c touch_neoc.c ls_neoc.c pipeline_neoc.c kernel_proc_list_neoc.c main_neoc.c fs_neoc.c
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o entry.o entry.S
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o trap.o trap.S
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o userret.o userret.S
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o start.o start.c
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs.o fs.c
-	$(CCPREFIX)gcc $(CFLAGS) -S -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs.S fs.c
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs.o fs_neoc.c
+	$(CCPREFIX)gcc $(CFLAGS) -S -nostdlib -c -g -ffreestanding -mcmodel=medany -o fs.S fs_neoc.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o trap_c.o trap.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -g -ffreestanding -mcmodel=medany -o plic.o plic.c
 
@@ -121,7 +121,7 @@ kernel.elf: minux.o minux9.o crt0.o cc minux_neoc_sys.o echo_neoc.c pwd_neoc.c u
 	gcc -o mkfs mkfs.c
 	./mkfs fs.img
 
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o main.o main.c
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o main.o main_neoc.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o libc.o libc.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o syscall.o syscall.c
 	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -c -O0 -g -ffreestanding -mcmodel=medany -std=gnu11 -o kernel_proc_list_neoc.o kernel_proc_list_neoc.c
@@ -150,7 +150,7 @@ debug-mac: kernel.elf
 	pkill -f qemu
 
 clean:
-	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log minux.o minux2.o readelf objdump hexdump nm neo-c cpp sh test uname ld2 pipeline echo_neoc.c pwd_neoc.c uname_neoc.c sleep_neoc.c cat_neoc.c mkdir_neoc.c rmdir_neoc.c touch_neoc.c ls_neoc.c pipeline_neoc.c kernel_proc_list_neoc.c *.nc.i *.c.error
+	rm -rf kernel.bin kernel.elf core riscv-gnu-toolchain main.o start.o timervec.o trampoline.o trampolin2.s aaa aa aaaa xpack-riscv-none-elf-gcc-13.2.0-1 *.o qemu.log *.elf mkfs mkfs riscv-isa-sim/ riscv-pk fs.img *.bin cat grep echo login pwd ls mkdir rmdir more vi toycc toyvm cc hello as ld qemu-run.log minux.o minux2.o readelf objdump hexdump nm neo-c cpp sh test uname ld2 pipeline echo_neoc.c pwd_neoc.c uname_neoc.c sleep_neoc.c cat_neoc.c mkdir_neoc.c rmdir_neoc.c touch_neoc.c ls_neoc.c pipeline_neoc.c kernel_proc_list_neoc.c main_neoc.c fs_neoc.c sh_neoc.c *.nc.i *.c.error
 
 # Always (re)build the filesystem image so updated userland like pwd is included
 
@@ -196,3 +196,11 @@ pipeline_neoc.c: pipeline_neoc.nc minux_neoc.h
 
 kernel_proc_list_neoc.c: kernel_proc_list_neoc.nc kernel_proc_list_neoc.h
 	ncc -I/usr/local/include -I. -c kernel_proc_list_neoc.nc
+
+main_neoc.c: main.nc common.h sh.h
+	cd /tmp && ncc -I/usr/local/include -I$(CURDIR) -c $(CURDIR)/main.nc
+	mv /tmp/main.c $(CURDIR)/main_neoc.c
+
+fs_neoc.c: fs.nc fs.c common.h
+	cd /tmp && ncc -I/usr/local/include -I$(CURDIR) -c $(CURDIR)/fs.nc
+	mv /tmp/fs.c $(CURDIR)/fs_neoc.c

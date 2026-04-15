@@ -6,6 +6,8 @@ unix like operating system on riscv.
 
 VI, SHELL AND CC AND AS WORKS. ALSO NEO-C CPP LD.
 
+This system is developed with neo-c too. Kernel and userland parts are built from neo-c sources and transpiled C sources.
+
 sh fast_build.sh 
 
 1.2.4 worked on almost all linux distribution. and mac os.

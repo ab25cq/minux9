@@ -7,6 +7,7 @@ int main(int argc, char** argv) {
     char* head;
     char* tail;
     int size;
+    int matched = 0;
     char buf[32] = { 0 };
     if(argc <= 1) {
         exit(1);
@@ -31,6 +32,7 @@ int main(int argc, char** argv) {
                 }
                 write(1, head, tail -head);
                 write(1, "\r\n", 2);
+                matched = 1;
             }
             else {
                 p++;
@@ -60,7 +62,5 @@ int main(int argc, char** argv) {
         }
     }
     */
-
-    exit(0);
+    exit(matched ? 0 : 1);
 }
-
