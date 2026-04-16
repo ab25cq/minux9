@@ -4,6 +4,133 @@ char uart_getc();
 size_t uart_readline(char *buf, size_t maxlen);
 size_t uart_readn(char *buf, size_t len) ;
 
+static int proc_is_descendant_of_pid(struct proc* target_proc, int root_pid)
+{
+    int curpid;
+    int guard = 0;
+    struct proc* curproc;
+
+    if(target_proc == NULL || root_pid < 0) {
+        return 0;
+    }
+
+    curpid = target_proc->parent_pid;
+    curproc = target_proc;
+    while(curpid >= 0 && guard < PROC_MAX) {
+        struct proc* ancestor = proc_slot_get(curpid);
+
+        if(curpid == root_pid) {
+            return 1;
+        }
+        if(ancestor == NULL || ancestor == curproc) {
+            break;
+        }
+
+        curproc = ancestor;
+        curpid = curproc->parent_pid;
+        guard++;
+    }
+
+    return 0;
+}
+
+static struct proc* find_zombie_descendant_of_pid(int root_pid)
+{
+    int limit = gNumProc;
+
+    if(limit > PROC_MAX) {
+        limit = PROC_MAX;
+    }
+
+    for(int pid = 0; pid < limit; pid++) {
+        struct proc* proc = proc_slot_get(pid);
+        int has_descendant = 0;
+
+        if(proc != NULL
+            && proc->zombie
+            && proc_is_descendant_of_pid(proc, root_pid))
+        {
+            for(int other_pid = 0; other_pid < limit; other_pid++) {
+                struct proc* other = proc_slot_get(other_pid);
+
+                if(other != NULL
+                    && other != proc
+                    && proc_is_descendant_of_pid(other, pid))
+                {
+                    has_descendant = 1;
+                    break;
+                }
+            }
+
+            if(!has_descendant) {
+                return proc;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+static struct proc* find_zombie_direct_child_of_pid(int root_pid)
+{
+    int limit = gNumProc;
+
+    if(limit > PROC_MAX) {
+        limit = PROC_MAX;
+    }
+
+    for(int pid = 0; pid < limit; pid++) {
+        struct proc* proc = proc_slot_get(pid);
+
+        if(proc != NULL
+            && proc->zombie
+            && proc->parent_pid == root_pid)
+        {
+            return proc;
+        }
+    }
+
+    return NULL;
+}
+
+static int has_direct_child_of_pid(int root_pid)
+{
+    int limit = gNumProc;
+
+    if(limit > PROC_MAX) {
+        limit = PROC_MAX;
+    }
+
+    for(int pid = 0; pid < limit; pid++) {
+        struct proc* proc = proc_slot_get(pid);
+
+        if(proc != NULL && proc->parent_pid == root_pid) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static int has_descendant_of_pid(int root_pid)
+{
+    int limit = gNumProc;
+
+    if(limit > PROC_MAX) {
+        limit = PROC_MAX;
+    }
+
+    for(int pid = 0; pid < limit; pid++) {
+        struct proc* proc = proc_slot_get(pid);
+
+        if(proc != NULL && proc_is_descendant_of_pid(proc, root_pid)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 int Sys_write() {
 //*(char*)0x10000000UL = 'Y';
     struct context_t* tf = (struct context_t*)TRAPFRAME;
@@ -12,7 +139,7 @@ int Sys_write() {
     int len = (int)tf->a2;
 
     char kbuf[256];
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     int left = len, total = 0;
 
     while (left > 0) {
@@ -98,7 +225,7 @@ int Sys_write()
     
     memset(kernel_buf, 0, 256);
     
-    struct proc *p = gProc[gActiveProc]; // Get the current process
+    struct proc *p = proc_slot_get(gActiveProc); // Get the current process
 
     int ret = copyin(p->pagetable, kernel_buf, user_va, len);
     
@@ -145,7 +272,7 @@ int Sys_exit()
     uintptr_t arg6 = trapframe->a6;
     uintptr_t arg_syscall_no = trapframe->a7;
     
-    struct proc *p = gProc[gActiveProc]; // Get the current process
+    struct proc *p = proc_slot_get(gActiveProc); // Get the current process
     fs_exit(p->file_table);
     
     p->xstatus = arg0;
@@ -191,7 +318,7 @@ int Sys_tcsetpgrp()
         return 0;
     }
     
-    struct proc* p = gProc[gActiveProc];
+    struct proc* p = proc_slot_get(gActiveProc);
     
     p->pgrp = pgid_id;
 
@@ -220,11 +347,13 @@ int Sys_wait()
     
     int* status_va = (int*)arg0;
     
-    struct proc* active_proc = gProc[gActiveProc];
+    int caller_pid = gActiveProc;
+    struct proc* active_proc = proc_slot_get(caller_pid);
+    pagetable_t caller_pagetable = active_proc->pagetable;
     int exit_status = 0;
     pid_t child_pid = -1;
     while(1) { // Keep searching until a zombie is found and handled
-        struct proc* zombie_proc = neoc_proc_find_zombie_in_pgrp(active_proc->pgrp);
+        struct proc* zombie_proc = find_zombie_descendant_of_pid(caller_pid);
         child_pid = proc_find_pid(zombie_proc);
 
         if(zombie_proc) {
@@ -233,19 +362,59 @@ int Sys_wait()
             neoc_proc_list_remove(zombie_proc);
             free_proc(zombie_proc);
             remove_kernel_state(child_pid);
-            gProc[child_pid] = NULL;
+            proc_slot_set(child_pid, NULL);
             break; // Exit the while(1) loop
         }
+        else if(has_descendant_of_pid(caller_pid)) {
+            yield();
+        }
         else {
-            yield(); // No zombie found, yield and try again
+            return -1;
         }
     }
     
-    struct proc *p = gProc[gActiveProc]; // Get the current process
-    if (copyout(p->pagetable, (uint64_t)status_va, (void*)&exit_status, sizeof(int)) < 0) {
+    if (copyout(caller_pagetable, (uint64_t)status_va, (void*)&exit_status, sizeof(int)) < 0) {
         panic("wait: copyout failed");
     }
     
+    return child_pid;
+}
+
+int Sys_waitdirect()
+{
+    struct context_t* trapframe = (struct context_t*)TRAPFRAME;
+    int* status_va = (int*)trapframe->a0;
+    int caller_pid = gActiveProc;
+    struct proc* active_proc = proc_slot_get(caller_pid);
+    pagetable_t caller_pagetable = active_proc->pagetable;
+    int exit_status = 0;
+    pid_t child_pid = -1;
+
+    while(1) {
+        struct proc* zombie_proc = find_zombie_direct_child_of_pid(caller_pid);
+        child_pid = proc_find_pid(zombie_proc);
+
+        if(zombie_proc) {
+            exit_status = zombie_proc->xstatus;
+            free_fs_table(zombie_proc->file_table);
+            neoc_proc_list_remove(zombie_proc);
+            free_proc(zombie_proc);
+            remove_kernel_state(child_pid);
+            proc_slot_set(child_pid, NULL);
+            break;
+        }
+        else if(has_direct_child_of_pid(caller_pid)) {
+            yield();
+        }
+        else {
+            return -1;
+        }
+    }
+
+    if(copyout(caller_pagetable, (uint64_t)status_va, (void*)&exit_status, sizeof(int)) < 0) {
+        panic("waitdirect: copyout failed");
+    }
+
     return child_pid;
 }
 
@@ -278,9 +447,9 @@ int Sys_open()
     char kernel_buf[256];
     uint64_t user_va = arg0;
     
-    struct proc *p = gProc[gActiveProc]; // Get the current process
+    struct proc *p = proc_slot_get(gActiveProc); // Get the current process
     copyinstr(p->pagetable, kernel_buf, user_va, 256);
-            
+
     int result = fs_open2(kernel_buf, (int)arg1, (int)arg2);
     
     return result;
@@ -296,7 +465,7 @@ int Sys_opendir()
     char kernel_buf[256];
     uint64_t user_va = arg0;
 
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kernel_buf, user_va, sizeof(kernel_buf)) < 0) {
         return -1;
     }
@@ -329,7 +498,7 @@ int Sys_getcwd()
     int      maxlen = (int)trapframe->a1;
     if (maxlen <= 0) return -1;
 
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     const char *cwd = p->cwd ? p->cwd : "/";
 
     int src_len  = (int)strlen(cwd);
@@ -359,7 +528,7 @@ int Sys_getcwd()
     int maxlen = arg1;
     if (maxlen <= 0) return -1;
     
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     
     int len = strlen(p->cwd);
     // Defensive: ensure cwd is never empty when reported
@@ -383,7 +552,7 @@ int Sys_chdir()
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint64_t user_path = trapframe->a0;
     char kpath[256];
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, user_path, sizeof(kpath)) < 0) return -1;
 
     // If empty or ".", no-op success
@@ -421,7 +590,7 @@ int Sys_mkdir()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint64_t user_path = trapframe->a0; int mode = (int)trapframe->a1;
-    char kpath[256]; struct proc *p = gProc[gActiveProc];
+    char kpath[256]; struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, user_path, sizeof(kpath)) < 0) return -1;
     return fs_mkdir(kpath, mode);
 }
@@ -431,7 +600,7 @@ int Sys_rmdir()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint64_t user_path = trapframe->a0; char kpath[256];
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, user_path, sizeof(kpath)) < 0) return -1;
     return fs_rmdir(kpath);
 }
@@ -442,7 +611,7 @@ int Sys_unlink()
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint64_t user_path = trapframe->a0;
     char kpath[256];
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, user_path, sizeof(kpath)) < 0) return -1;
     return fs_unlink(kpath);
 }
@@ -454,7 +623,7 @@ int Sys_rename()
     uint64_t u_old = trapframe->a0;
     uint64_t u_new = trapframe->a1;
     char kold[256], knew[256];
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kold, u_old, sizeof(kold)) < 0) return -1;
     if (copyinstr(p->pagetable, knew, u_new, sizeof(knew)) < 0) return -1;
     return fs_rename(kold, knew);
@@ -467,7 +636,7 @@ int Sys_link()
     uint64_t u_old = trapframe->a0;
     uint64_t u_new = trapframe->a1;
     char kold[256], knew[256];
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kold, u_old, sizeof(kold)) < 0) return -1;
     if (copyinstr(p->pagetable, knew, u_new, sizeof(knew)) < 0) return -1;
     return fs_link(kold, knew);
@@ -479,7 +648,7 @@ int Sys_symlink()
     uint64_t u_tgt = trapframe->a0;
     uint64_t u_lnk = trapframe->a1;
     char ktgt[256], klnk[256];
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, ktgt, u_tgt, sizeof(ktgt)) < 0) return -1;
     if (copyinstr(p->pagetable, klnk, u_lnk, sizeof(klnk)) < 0) return -1;
     return fs_symlink(ktgt, klnk);
@@ -492,7 +661,7 @@ int Sys_stat()
     uint64_t u_st   = trapframe->a1;
     char kpath[256];
     struct stat kst;
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
     if (fs_stat(kpath, &kst) < 0) return -1;
     if (copyout(p->pagetable, u_st, &kst, sizeof(kst)) < 0) return -1;
@@ -507,7 +676,7 @@ int Sys_readlink()
     int      sz     = (int)trapframe->a2;
     char kpath[256];
     char kbuf[256]; if (sz > (int)sizeof(kbuf)) sz = sizeof(kbuf);
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
     int n = fs_readlink(kpath, kbuf, sz);
     if (n < 0) return -1;
@@ -522,7 +691,7 @@ int Sys_lstat()
     uint64_t u_st   = trapframe->a1;
     char kpath[256];
     struct stat kst;
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
     if (fs_lstat(kpath, &kst) < 0) return -1;
     if (copyout(p->pagetable, u_st, &kst, sizeof(kst)) < 0) return -1;
@@ -533,7 +702,7 @@ int Sys_chmod()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint64_t u_path = trapframe->a0; uint32_t mode = (uint32_t)trapframe->a1;
-    char kpath[256]; struct proc *p = gProc[gActiveProc];
+    char kpath[256]; struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
     return fs_chmod(kpath, mode);
 }
@@ -542,7 +711,7 @@ int Sys_chown()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint64_t u_path = trapframe->a0; uint16_t uid = (uint16_t)trapframe->a1; uint16_t gid = (uint16_t)trapframe->a2;
-    char kpath[256]; struct proc *p = gProc[gActiveProc];
+    char kpath[256]; struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
     return fs_chown(kpath, uid, gid);
 }
@@ -562,7 +731,7 @@ int Sys_utimes()
     uint32_t at = (uint32_t)trapframe->a1;
     uint32_t mt = (uint32_t)trapframe->a2;
     char kpath[256];
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
     return fs_utimes(kpath, at, mt);
 }
@@ -571,7 +740,7 @@ int Sys_umask()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint32_t newmask = (uint32_t)trapframe->a0;
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     uint32_t old = p->umask;
     if (newmask != (uint32_t)-1) p->umask = (uint16_t)(newmask & 0777);
     return old;
@@ -586,15 +755,15 @@ int Sys_gettimeofday()
     return sec;
 }
 
-int Sys_getuid() { return gProc[gActiveProc]->uid; }
-int Sys_getgid() { return gProc[gActiveProc]->gid; }
+int Sys_getuid() { return proc_slot_get(gActiveProc)->uid; }
+int Sys_getgid() { return proc_slot_get(gActiveProc)->gid; }
 
 int Sys_setuid()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint16_t uid = (uint16_t)trapframe->a0;
     // Policy: allow root to set; allow self to set to same (no-op)
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (p->uid == 0 || uid == p->uid) { p->uid = uid; return 0; }
     return -1;
 }
@@ -603,7 +772,7 @@ int Sys_setgid()
 {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint16_t gid = (uint16_t)trapframe->a0;
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (p->uid == 0 || gid == p->gid) { p->gid = gid; return 0; }
     return -1;
 }
@@ -615,7 +784,7 @@ int Sys_realpath()
     uint64_t u_out  = trapframe->a1;
     int outsz       = (int)trapframe->a2;
     char kpath[256]; char kout[256];
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyinstr(p->pagetable, kpath, u_path, sizeof(kpath)) < 0) return -1;
     if (fs_realpath(kpath, kout, sizeof(kout)) < 0) return -1;
     int n = strlen(kout)+1; if (n>outsz) n=outsz;
@@ -642,7 +811,7 @@ int Sys_readdir()
     if (max_entries <= 0) return -1;
 
     int outcnt = 0;
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     while (outcnt < max_entries && f->off < f->din.size) {
         struct dirent de;
         read_data(&f->din, f->off, (uint8_t*)&de, sizeof(struct dirent));
@@ -686,12 +855,12 @@ int Sys_fork()
     uintptr_t arg6 = trapframe->a6;
     uintptr_t arg_syscall_no = trapframe->a7;
     
-    struct proc *p = gProc[gActiveProc]; // Get the current process
+    struct proc *p = proc_slot_get(gActiveProc); // Get the current process
     
     int fork_flag;
     int child_proc_index = -1;
     alloc_prog((char*)p->program, p->program_size, fork_flag=1, 0, &child_proc_index, 0/* debug_*/);
-    struct proc* child_proc = gProc[child_proc_index];
+    struct proc* child_proc = proc_slot_get(child_proc_index);
     
     uint64_t sp = child_proc->context.sp;
     
@@ -716,7 +885,7 @@ int Sys_execv()
     char kernel_buf[256];
     uint64_t user_va = arg0;
     
-    struct proc *p = gProc[gActiveProc]; // Get the current process
+    struct proc *p = proc_slot_get(gActiveProc); // Get the current process
     if(copyinstr(p->pagetable, kernel_buf, user_va, 256) < 0) {
         trapframe->a0 = -1;
         return -1;
@@ -738,7 +907,7 @@ int Sys_execv()
     // Although alloc_prog(exec_flag=1) copies it, keep a backup to be safe.
     char cwd_backup[128];
     {
-        struct proc *par = gProc[gActiveProc];
+        struct proc *par = proc_slot_get(gActiveProc);
         int i = 0; while (par->cwd[i] && i < (int)sizeof(cwd_backup)-1) { cwd_backup[i] = par->cwd[i]; i++; }
         cwd_backup[i] = '\0';
         if (i == 0) { cwd_backup[0] = '/'; cwd_backup[1] = '\0'; }
@@ -763,8 +932,8 @@ int Sys_execv()
     
     // Check setuid/setgid on target
     struct stat stx; int has_stat = (fs_stat(path, &stx) == 0);
-    uint16_t new_uid = gProc[gActiveProc]->uid;
-    uint16_t new_gid = gProc[gActiveProc]->gid;
+    uint16_t new_uid = proc_slot_get(gActiveProc)->uid;
+    uint16_t new_gid = proc_slot_get(gActiveProc)->gid;
     if (has_stat && (stx.mode & S_ISUID)) new_uid = stx.uid;
     if (has_stat && (stx.mode & S_ISGID)) new_gid = stx.gid;
 
@@ -775,7 +944,7 @@ int Sys_execv()
     // elf_buf is no longer needed after alloc_prog; free it now.
     free(elf_buf);
     
-    struct proc* new_p = gProc[gActiveProc]; // gProc[gActiveProc] now points to the new process data
+    struct proc* new_p = proc_slot_get(gActiveProc); // proc slot now points to the new process data
     // Apply setuid/setgid semantics
     new_p->uid = new_uid;
     new_p->gid = new_gid;
@@ -825,7 +994,7 @@ int Sys_execve()
     char kernel_buf[256];
     uint64_t user_va = arg0;
     
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if(copyinstr(p->pagetable, kernel_buf, user_va, 256) < 0) {
         trapframe->a0 = -1;
         return -1;
@@ -860,8 +1029,8 @@ int Sys_execve()
 
     // setuid/gid checks
     struct stat stx; int has_stat = (fs_stat(path, &stx) == 0);
-    uint16_t new_uid = gProc[gActiveProc]->uid;
-    uint16_t new_gid = gProc[gActiveProc]->gid;
+    uint16_t new_uid = proc_slot_get(gActiveProc)->uid;
+    uint16_t new_gid = proc_slot_get(gActiveProc)->gid;
     if (has_stat && (stx.mode & S_ISUID)) new_uid = stx.uid;
     if (has_stat && (stx.mode & S_ISGID)) new_gid = stx.gid;
 
@@ -869,7 +1038,7 @@ int Sys_execve()
     alloc_prog(elf_buf, size + 32, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index, 0 /* debug */);
     free(elf_buf);
 
-    struct proc* new_p = gProc[gActiveProc];
+    struct proc* new_p = proc_slot_get(gActiveProc);
     new_p->uid = new_uid;
     new_p->gid = new_gid;
 
@@ -914,7 +1083,7 @@ int Sys_execved()
     char kernel_buf[256];
     uint64_t user_va = arg0;
     
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if(copyinstr(p->pagetable, kernel_buf, user_va, 256) < 0) {
         trapframe->a0 = -1;
         return -1;
@@ -949,8 +1118,8 @@ int Sys_execved()
 
     // setuid/gid checks
     struct stat stx; int has_stat = (fs_stat(path, &stx) == 0);
-    uint16_t new_uid = gProc[gActiveProc]->uid;
-    uint16_t new_gid = gProc[gActiveProc]->gid;
+    uint16_t new_uid = proc_slot_get(gActiveProc)->uid;
+    uint16_t new_gid = proc_slot_get(gActiveProc)->gid;
     if (has_stat && (stx.mode & S_ISUID)) new_uid = stx.uid;
     if (has_stat && (stx.mode & S_ISGID)) new_gid = stx.gid;
 
@@ -958,7 +1127,7 @@ int Sys_execved()
     alloc_prog(elf_buf, size + 32, /*fork_flag=*/0, /*exec_flag=*/1, &child_proc_index, 1 /* debug */);
     free(elf_buf);
 
-    struct proc* new_p = gProc[gActiveProc];
+    struct proc* new_p = proc_slot_get(gActiveProc);
     new_p->uid = new_uid;
     new_p->gid = new_gid;
 
@@ -999,7 +1168,7 @@ static uintptr_t heap_end;    // Current brk
 int Sys_brk(void) {
     struct context_t* tf = (struct context_t*)TRAPFRAME;
     uintptr_t req = (uintptr_t)tf->a0;   // User's a0
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
 
     // Query: brk(0) → return the current brk
     if (req == 0) {
@@ -1035,7 +1204,7 @@ int Sys_brk(void) {
 int Sys_brk() {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint64_t addr = trapframe->a0;
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     uint64_t old_sz = p->sz;
 
     if (addr == 0) {
@@ -1058,7 +1227,7 @@ int Sys_brk() {
 int Sys_brk() {
     struct context_t* trapframe = (struct context_t*)TRAPFRAME;
     uint64_t addr = trapframe->a0;
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     uint64_t old_sz = p->sz;
 
     if (addr == 0) {
@@ -1120,7 +1289,7 @@ int Sys_pipe(void)
     
     pipe_open(&fd[0], &fd[1]);
     
-    struct proc *p = gProc[gActiveProc]; // Get the current process
+    struct proc *p = proc_slot_get(gActiveProc); // Get the current process
     
     if(copyout(p->pagetable, (uint64_t)user_va, (char*)fd, sizeof(int)*2) < 0)
     {
@@ -1151,8 +1320,6 @@ int Sys_read()
     char kernel_buf[4096];
     int ret;
     
-    struct file** file_table = get_current_file_table();
-    
     if(n > 4096) {
         panic("read: size is overflow");
     }
@@ -1176,7 +1343,7 @@ int Sys_read()
         if (ret < (int)sizeof(kernel_buf)) kernel_buf[ret] = '\0';
     }
     
-    struct proc *p = gProc[gActiveProc]; // Get the current process
+    struct proc *p = proc_slot_get(gActiveProc); // Get the current process
 
     /* Copy everything at once using copyout */
     if (copyout(p->pagetable, destva, kernel_buf, ret) < 0) {
@@ -1197,7 +1364,7 @@ int Sys_fstat()
     struct stat kst;
     if (fs_fstat_fd(fd, &kst) < 0) return -1;
 
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (copyout(p->pagetable, u_st, &kst, sizeof(kst)) < 0) return -1;
 
     return 0;

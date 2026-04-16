@@ -143,7 +143,10 @@ struct file {
     void* owner_process_list;
 };
 
-extern struct proc* gProc[PROC_MAX];
+extern void* gProc;
+struct proc* proc_slot_get(int pid);
+void proc_slot_set(int pid, struct proc* p);
+void proc_slot_reset(void);
 int proc_find_pid(struct proc* p);
 void* malloc(unsigned int size);
 void free(void* ptr);

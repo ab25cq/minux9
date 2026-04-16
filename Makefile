@@ -18,7 +18,7 @@ minux.o: minux.c
 minux9.o: minux9.c
 	$(CCPREFIX)gcc $(CFLAGS2) -nostdlib -c -g -ffreestanding -mcmodel=medany -o minux9.o minux9.c
 
-kernel.elf: minux.o minux9.o crt0.o cc minux_neoc_sys.o echo_neoc.c pwd_neoc.c uname_neoc.c sleep_neoc.c cat_neoc.c mkdir_neoc.c rmdir_neoc.c touch_neoc.c ls_neoc.c pipeline_neoc.c kernel_proc_list_neoc.c main_neoc.c fs_neoc.c
+kernel.elf: minux.o minux9.o crt0.o cc minux_neoc_sys.o echo_neoc.c pwd_neoc.c uname_neoc.c sleep_neoc.c cat_neoc.c mkdir_neoc.c rmdir_neoc.c touch_neoc.c ls_neoc.c pipeline_neoc.c kernel_proc_list_neoc.c main_neoc.c fs_neoc.c sh
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o entry.o entry.S
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o trap.o trap.S
 	$(CCPREFIX)as -g $(CFLAGS_AS) -o userret.o userret.S
@@ -103,13 +103,6 @@ kernel.elf: minux.o minux9.o crt0.o cc minux_neoc_sys.o echo_neoc.c pwd_neoc.c u
 #	$(CCPREFIX)gcc $(CFLAGS) -O0 -nostdlib -static -o cc -g cc.c -mcmodel=medany $(CHILD_CFLAGS)
 #	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o cc crt0.o cc.c $(CHILD_CFLAGS)
 
-
-	$(CCPREFIX)gcc $(CFLAGS) -I. -nostdlib -S -O0 -static -o sh.S -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -I. -nostdlib -O0 -static -o sh.elf -I. -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
-	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o sh.elf crt0.o sh.c $(CHILD_CFLAGS)
-	cp sh.elf sh
-	xxd -i sh.elf > sh.h  
-
 	gcc -o mkfs mkfs.c
 	./mkfs fs.img
 
@@ -160,6 +153,17 @@ cc: crt0.o
 #	cc-codegen.c cc-parse.c cc-preprocess.c \
 #		cc-tokenize.c cc-type.c cc-hashmap.c cc-string.c \
 #		cc-unicode.c 
+
+sh.elf: sh.c crt0.o minux.o
+	$(CCPREFIX)gcc $(CFLAGS) -I. -nostdlib -S -O0 -static -o sh.S -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -I. -nostdlib -O0 -static -o sh.elf -I. -g sh.c -mcmodel=medany $(CHILD_CFLAGS)
+	$(CCPREFIX)gcc $(CFLAGS) -nostdlib -mcmodel=medany -static -nostartfiles -Wl,-e,_start -o sh.elf crt0.o sh.c $(CHILD_CFLAGS)
+
+sh: sh.elf
+	cp sh.elf sh
+
+sh.h: sh.elf
+	xxd -i sh.elf > sh.h
 
 echo_neoc.c: echo_neoc.nc minux_neoc.h
 	ncc -I/usr/local/include -I. -c echo_neoc.nc

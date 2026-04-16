@@ -227,7 +227,10 @@ void free_fs_table(struct file** file_table);
 
 void file_system_init();
 
-extern struct proc* gProc[PROC_MAX];
+extern void* gProc;
+struct proc* proc_slot_get(int pid);
+void proc_slot_set(int pid, struct proc* p);
+void proc_slot_reset(void);
 
 extern int gActiveProc;
 void neoc_proc_list_init(void);
@@ -235,6 +238,8 @@ void neoc_proc_list_add(struct proc* p);
 void neoc_proc_list_remove(struct proc* p);
 void neoc_proc_list_replace(struct proc* oldp, struct proc* newp);
 struct proc* neoc_proc_find_zombie_in_pgrp(uint16_t pgrp);
+struct proc* neoc_proc_find_zombie_child(int parent_pid);
+bool neoc_proc_has_child(int parent_pid);
 bool neoc_proc_is_file_open(uint32_t inum);
 void neoc_kernel_state_init(void);
 void neoc_kernel_state_clear(void);
@@ -317,6 +322,7 @@ int Sys_readlink();
 int Sys_write();
 int Sys_exit();
 int Sys_wait();
+int Sys_waitdirect();
 int Sys_isatty();
 int Sys_open();
 int Sys_opendir();

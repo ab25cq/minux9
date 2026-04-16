@@ -5,6 +5,47 @@ static list<long>* g_kernel_state_list = null;
 static list<struct spipe*>* g_free_pipe_list = null;
 static list<struct file*>* g_free_file_list = null;
 
+static list<struct proc*>* get_proc_slot_list()
+{
+    if(gProc == null) {
+        gProc = borrow new list<struct proc*>();
+    }
+
+    return (list<struct proc*>*)gProc;
+}
+
+struct proc* proc_slot_get(int pid)
+{
+    list<struct proc*>* proc_list = get_proc_slot_list();
+
+    if(pid < 0 || pid >= proc_list.length()) {
+        return null;
+    }
+
+    return proc_list[pid];
+}
+
+void proc_slot_set(int pid, struct proc* p)
+{
+    if(pid < 0 || pid >= PROC_MAX) {
+        return;
+    }
+
+    list<struct proc*>* proc_list = get_proc_slot_list();
+
+    while(proc_list.length() <= pid) {
+        proc_list.add(null);
+    }
+
+    proc_list.replace(pid, p);
+}
+
+void proc_slot_reset(void)
+{
+    list<struct proc*>* proc_list = get_proc_slot_list();
+    proc_list.reset();
+}
+
 static list<int>* get_proc_supp_gid_list(struct proc* p)
 {
     if(p == null) {
@@ -201,6 +242,41 @@ struct proc* neoc_proc_find_zombie_in_pgrp(uint16_t pgrp)
     }
 
     return (struct proc*)0;
+}
+
+struct proc* neoc_proc_find_zombie_child(int parent_pid)
+{
+    if(g_proc_list == null) {
+        return (struct proc*)0;
+    }
+
+    foreach(proc, g_proc_list) {
+        if(proc != null
+            && proc->zombie
+            && proc->parent_pid == parent_pid)
+        {
+            return proc;
+        }
+    }
+
+    return (struct proc*)0;
+}
+
+bool neoc_proc_has_child(int parent_pid)
+{
+    if(g_proc_list == null) {
+        return false;
+    }
+
+    foreach(proc, g_proc_list) {
+        if(proc != null
+            && proc->parent_pid == parent_pid)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool neoc_proc_is_file_open(uint32_t inum)

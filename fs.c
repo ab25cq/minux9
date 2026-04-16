@@ -404,7 +404,7 @@ static inline uint32_t fs_now(void) { uint64_t x; asm volatile("csrr %0, time" :
 
 static int check_perm(struct dinode *ip, int want)
 {
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     uint32_t mode = ip->mode & 0777;
     int shift = 6; // owner by default
     if (p->uid == ip->uid) shift = 6;
@@ -944,7 +944,7 @@ struct file* new_file_table()
 //printf("kalloc file table %p\n", result);
     neoc_file_owner_clear(result);
 
-    owner_add(result, gProc[gActiveProc]);
+    owner_add(result, proc_slot_get(gActiveProc));
 
     return result;
 }
@@ -1343,7 +1343,7 @@ static int remove_dirent(uint32_t parent_inum, const char *name)
 // Normalize a path using "." and ".." components, starting from cwd if path is relative
 static void build_abs_normalized(char *out, size_t outsz, const char *path)
 {
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     char merged[256];
     if (path && path[0] == '/') {
         strncpy(merged, path, sizeof(merged)-1);
@@ -1435,10 +1435,10 @@ int fs_mkdir(const char *path, int mode)
     struct dinode newi; memset(&newi, 0, sizeof(newi));
     newi.type = T_DIR; newi.nlink = 1; newi.size = 0; newi.mtime = fs_now(); newi.ctime = newi.mtime;
     // apply umask and SGID inheritance
-    unsigned short um = gProc[gActiveProc]->umask;
+    unsigned short um = proc_slot_get(gActiveProc)->umask;
     struct dinode pdi_inh; read_inode(parent, &pdi_inh);
-    newi.atime = newi.mtime; newi.uid = gProc[gActiveProc]->uid;
-    newi.gid = (pdi_inh.mode & S_ISGID) ? pdi_inh.gid : gProc[gActiveProc]->gid;
+    newi.atime = newi.mtime; newi.uid = proc_slot_get(gActiveProc)->uid;
+    newi.gid = (pdi_inh.mode & S_ISGID) ? pdi_inh.gid : proc_slot_get(gActiveProc)->gid;
     newi.mode = ((mode ? (mode & 0777) : 0755) & ~um);
     if (pdi_inh.mode & S_ISGID) newi.mode |= S_ISGID; // propagate SGID on directories
     write_inode(inum, &newi);
@@ -1513,7 +1513,7 @@ int fs_unlink(const char *path)
     // sticky bit on parent dir: only root, file owner, or dir owner can remove
     struct dinode pdir; read_inode(parent, &pdir);
     if (pdir.mode & S_ISVTX) {
-        struct proc *pr = gProc[gActiveProc];
+        struct proc *pr = proc_slot_get(gActiveProc);
         if (!(pr->uid == 0 || pr->uid == di.uid || pr->uid == pdir.uid)) return -1;
     }
     if (remove_dirent(parent, leaf) != 0) return -1;
@@ -1602,7 +1602,7 @@ int fs_rename(const char *oldpath, const char *newpath)
     struct dinode oldpd; read_inode(op, &oldpd);
     struct dinode filedi; read_inode(inum, &filedi);
     if (oldpd.mode & S_ISVTX) {
-        struct proc *pr = gProc[gActiveProc];
+        struct proc *pr = proc_slot_get(gActiveProc);
         if (!(pr->uid == 0 || pr->uid == filedi.uid || pr->uid == oldpd.uid)) return -1;
     }
     if (add_dirent(np, nname, inum) != 0) return -1;
@@ -1690,7 +1690,7 @@ int fs_chmod(const char *path, uint32_t mode)
     if (!inum) return -1;
     struct dinode di; read_inode(inum, &di);
     // only owner or root can chmod
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
     if (!(p->uid == 0 || p->uid == di.uid)) return -1;
     di.mode = mode & 07777; di.ctime = fs_now();
     write_inode(inum, &di);
@@ -1704,7 +1704,7 @@ int fs_chown(const char *path, uint16_t uid, uint16_t gid)
     if (!inum) return -1;
     struct dinode di; read_inode(inum, &di);
     // only root can chown
-    if (gProc[gActiveProc]->uid != 0) return -1;
+    if (proc_slot_get(gActiveProc)->uid != 0) return -1;
     di.uid = uid; di.gid = gid; di.ctime = fs_now();
     write_inode(inum, &di);
     return 0;
@@ -1733,7 +1733,7 @@ int fs_open2(const char *path, int flags, int mode) {
     struct file** file_table = get_current_file_table();
     char path2[128];  // Final absolute path (normalized)
     if (!path || path[0] == '\0' || (path[0]=='.' && path[1]=='\0')) {
-        struct proc *p = gProc[gActiveProc];
+        struct proc *p = proc_slot_get(gActiveProc);
         build_abs_normalized(path2, sizeof(path2), p->cwd);
     } else {
         build_abs_normalized(path2, sizeof(path2), path);
@@ -1779,15 +1779,15 @@ int fs_open2(const char *path, int flags, int mode) {
             // Set ownership/mode for newly created files immediately
             // so that subsequent permission checks are evaluated against
             // the creating user rather than default uid=0,mode=0644.
-            unsigned short um = gProc[gActiveProc]->umask;
+            unsigned short um = proc_slot_get(gActiveProc)->umask;
             // inherit gid from parent if SGID set
             uint32_t pinum; char leafx[DIRSIZ+1]; for(int ii=0;ii<DIRSIZ+1;ii++) leafx[ii]=0;
-            uint16_t gid = gProc[gActiveProc]->gid;
+            uint16_t gid = proc_slot_get(gActiveProc)->gid;
             if (path_parent_lookup_abs(path2, &pinum, leafx)) {
                 struct dinode pdi_inh; read_inode(pinum, &pdi_inh);
                 if (pdi_inh.mode & S_ISGID) gid = pdi_inh.gid;
             }
-            di.uid = gProc[gActiveProc]->uid;
+            di.uid = proc_slot_get(gActiveProc)->uid;
             di.gid = gid;
             di.mode = ((mode & 0777) ? (mode & 0777) : 0644) & ~um;
             di.atime = di.mtime = di.ctime = fs_now();
@@ -1964,7 +1964,7 @@ int fs_close(long fd, int massive) {
     ft[fd] = NULL;
 
     // (B) If massive is set, remove only this process's ownership entry
-    if (massive) owner_remove(f, gProc[gActiveProc]);
+    if (massive) owner_remove(f, proc_slot_get(gActiveProc));
 
     // (C) Decrease the open file's reference count
     if (f->used > 0) f->used--;

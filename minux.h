@@ -131,7 +131,9 @@ long fs_lseek(int fd, long offset, int whence);
 
 enum { SEEK_SET, SEEK_END, SEEK_CUR };
 
+#ifndef assert
 #define assert
+#endif
 
 typedef long time_t;
 typedef long suseconds_t;
@@ -189,6 +191,7 @@ typedef int pid_t;
 #define SEEK_END 2
 #endif
 #define SYS_fstat   210
+#define SYS_waitdirect 211
 #define SYS_write 64
 #define SYS_read 65
 #define SYS_open 66
@@ -580,6 +583,16 @@ void exit(int status);
                  : "r"(_a7)                                    \
                  : "memory");                                 \
     (int)_a0;                                                   \
+})
+
+#define waitdirect(status_ptr) ({                              \
+    register long _a0 asm("a0") = (long)(status_ptr);          \
+    register long _a7 asm("a7") = SYS_waitdirect;              \
+    asm volatile("ecall"                                       \
+                 : "+r"(_a0)                                   \
+                 : "r"(_a7)                                    \
+                 : "memory");                                  \
+    (int)_a0;                                                  \
 })
 
 

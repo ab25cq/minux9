@@ -105,7 +105,7 @@ void free_pagetable(pagetable_t pagetable, int level) {
     }
 }
 
-struct proc* gProc[PROC_MAX];
+void* gProc;
 int gNumProc;
 int gActiveProc;
 
@@ -115,8 +115,8 @@ int proc_find_pid(struct proc* p)
         return -1;
     }
 
-    for(int i=0; i<PROC_MAX; i++) {
-        if(gProc[i] == p) {
+    for(int i=0; i<gNumProc; i++) {
+        if(proc_slot_get(i) == p) {
             return i;
         }
     }
@@ -852,7 +852,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     }
 
     if(fork_flag) {
-        struct proc *parent = gProc[gActiveProc]; // Get the current process
+        struct proc *parent = proc_slot_get(gActiveProc); // Get the current process
 #ifdef DEBUG_CWD
         printf("[fork] parent=%d cwd='%s'\n", gActiveProc, parent->cwd);
 #endif
@@ -916,7 +916,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         asm volatile("sfence.vma zero, zero"); 
     
         if(exec_flag) {
-            struct proc *parent = gProc[gActiveProc]; // Get the current process
+            struct proc *parent = proc_slot_get(gActiveProc); // Get the current process
             
             result->parent = parent->parent;
             result->parent_pid = parent->parent_pid;
@@ -942,10 +942,10 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     if(exec_flag) {
 //puts("alloc_prog4 exec_flag\n");
 //printf("mepc %x\n", result->context.mepc);
-        struct proc *parent = gProc[gActiveProc]; // Get the current process
+        struct proc *parent = proc_slot_get(gActiveProc); // Get the current process
         neoc_proc_list_replace(parent, result);
         free_proc(parent);
-        gProc[gActiveProc] = result;
+        proc_slot_set(gActiveProc, result);
         user_satp = MAKE_SATP(result->pagetable);
         user_sp   = result->context.sp;
         
@@ -957,8 +957,8 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         if(gNumProc >= PROC_MAX) {
             int found = 0;
             for(int i=0; i<PROC_MAX; i++) {
-                if(gProc[i] == NULL) {
-                    gProc[i] = result;
+                if(proc_slot_get(i) == NULL) {
+                    proc_slot_set(i, result);
                     neoc_proc_list_add(result);
                     *child_proc_index = i;
                     found = 1;
@@ -972,8 +972,9 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             }
         }
         else {
-            gProc[gNumProc++] = result;
+            proc_slot_set(gNumProc, result);
             neoc_proc_list_add(result);
+            gNumProc++;
             *child_proc_index = gNumProc -1;
         }
     }
@@ -1011,7 +1012,7 @@ void free_proc(struct proc *p) {
 
 struct file** get_current_file_table()
 {
-    return gProc[gActiveProc]->file_table;
+    return proc_slot_get(gActiveProc)->file_table;
 }
 
 void plic_init();
@@ -1058,16 +1059,14 @@ uint64_t user_satp __attribute__((section(".common")));
 char yield_stack[STACK_MAX] __attribute__((section(".common")));
 
 void remove_kernel_state(int active_proc) {
-    struct sKernelState* state = neoc_kernel_state_take(active_proc);
+    struct sKernelState* state;
 
-    if(state == NULL) {
-        return;
+    while((state = neoc_kernel_state_take(active_proc)) != NULL) {
+        if(state->gYieldStack) {
+            free(state->gYieldStack);
+        }
+        free(state);
     }
-
-    if(state->gYieldStack) {
-        free(state->gYieldStack);
-    }
-    free(state);
 }
 
 static void clear_all_kernel_state(void)
@@ -1101,6 +1100,7 @@ void kernel_yield() {
             panic("kernel_yield stack");
         }
 
+        state->gYieldUserActiveProc = gActiveProc;
         neoc_kernel_state_add(state);
     }
 
@@ -1146,7 +1146,7 @@ extern void swtch_debug(struct context_t *new_);
 
 void timer_handler() {
     disable_timer_interrupts();
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
 
     struct context_t *tf = (struct context_t*)TRAPFRAME;
     p->context = *tf;
@@ -1154,25 +1154,41 @@ void timer_handler() {
     timer_reset(); 
 
     int old_active_proc = gActiveProc;
-    struct proc *old = gProc[gActiveProc];
-    gActiveProc++;
-    
-    while(gActiveProc < gNumProc && gProc[gActiveProc] == NULL) {
+    struct proc *old = proc_slot_get(gActiveProc);
+    int found_next = 0;
+
+    for(int searched = 0; searched < gNumProc; searched++) {
         gActiveProc++;
+
+        if(gActiveProc >= gNumProc) {
+            gActiveProc = 0;
+        }
+
+        struct proc* candidate = proc_slot_get(gActiveProc);
+
+        if(candidate != NULL && candidate->zombie == 0) {
+            found_next = 1;
+            break;
+        }
+    }
+
+    if(!found_next) {
+        gActiveProc = old_active_proc;
     }
     
-    if(gActiveProc >= gNumProc) {
-        gActiveProc = 0;
-    }
-    
+    struct proc* new_ = proc_slot_get(gActiveProc);
+
     if(neoc_kernel_state_find(gActiveProc) != NULL) {
-        kernel_yield_return();
-        return;
+        if(new_ == NULL || new_->zombie) {
+            remove_kernel_state(gActiveProc);
+        }
+        else {
+            kernel_yield_return();
+            return;
+        }
     }
     
-    struct proc* new_ = gProc[gActiveProc];
-    
-    if (new_ != old && new_->zombie == 0) {
+    if (new_ != NULL && new_ != old && new_->zombie == 0) {
         user_sp = new_->context.sp;
         user_satp = MAKE_SATP(new_->pagetable);
         old->context = *(struct context_t*)TRAPFRAME;
@@ -1293,6 +1309,11 @@ uintptr_t syscall_handler()
             
         case SYS_wait: {
             result = Sys_wait();
+            }
+            break;
+
+        case SYS_waitdirect: {
+            result = Sys_waitdirect();
             }
             break;
             
@@ -1518,12 +1539,12 @@ void timerinit()
 
 struct proc* get_current_proc()
 {
-    return gProc[gActiveProc];
+    return proc_slot_get(gActiveProc);
 }
 
 void global_init()
 {
-    memset(gProc, 0, sizeof(struct proc*)*PROC_MAX);
+    proc_slot_reset();
     neoc_proc_list_init();
     gNumProc = 0;
     clear_all_kernel_state();
@@ -1584,7 +1605,7 @@ int main()
     /// Drop into the user process
     w_stimecmp(r_time() + 10000000);
     
-    struct proc* p = gProc[0];
+    struct proc* p = proc_slot_get(0);
     
     int gp = p->context.gp;
     
