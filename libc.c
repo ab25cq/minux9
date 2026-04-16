@@ -39,10 +39,23 @@ void *malloc(size_t size) {
 
     while (current != NULL) {
         if (current->size >= size) {
-            if (prev == NULL) {
-                free_list = current->next;
+            if (current->size >= size + sizeof(mem_block_t) + 8) {
+                mem_block_t *remain = (mem_block_t *)((char *)current + size);
+                remain->size = current->size - size;
+                remain->next = current->next;
+
+                if (prev == NULL) {
+                    free_list = remain;
+                } else {
+                    prev->next = remain;
+                }
+                current->size = size;
             } else {
-                prev->next = current->next;
+                if (prev == NULL) {
+                    free_list = current->next;
+                } else {
+                    prev->next = current->next;
+                }
             }
             return (void *)(current + 1); 
         }
@@ -66,9 +79,29 @@ void free(void *ptr) {
     }
 
     mem_block_t *block = (mem_block_t *)ptr - 1;
+    mem_block_t *current;
 
-    block->next = free_list;
-    free_list = block;
+    if (free_list == NULL || block < free_list) {
+        block->next = free_list;
+        free_list = block;
+    } else {
+        current = free_list;
+        while (current->next != NULL && current->next < block) {
+            current = current->next;
+        }
+        block->next = current->next;
+        current->next = block;
+    }
+
+    current = free_list;
+    while (current != NULL && current->next != NULL) {
+        if ((char *)current + current->size == (char *)current->next) {
+            current->size += current->next->size;
+            current->next = current->next->next;
+        } else {
+            current = current->next;
+        }
+    }
 }
 
 

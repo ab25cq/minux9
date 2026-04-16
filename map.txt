@@ -24,7 +24,7 @@ LOAD kernel_neoc_runtime.o
                 0x0000000000040000                STACK_MAX = (0x1000 * STACK_PAGES)
                 0x0000000080000000                . = 0x80000000
 
-.text           0x0000000080000000    0x18614
+.text           0x0000000080000000    0x18746
  *(.text*)
  .text          0x0000000080000000       0x3e entry.o
                 0x0000000080000000                entry
@@ -142,125 +142,125 @@ LOAD kernel_neoc_runtime.o
                 0x000000008000b7e6                get_current_proc
                 0x000000008000b80a                global_init
                 0x000000008000b8f6                main
- .text          0x000000008000baa0     0x1a4c libc.o
+ .text          0x000000008000baa0     0x1b7e libc.o
                 0x000000008000bb70                malloc
-                0x000000008000bc48                free
-                0x000000008000bc8e                calloc
-                0x000000008000bcea                strdup
-                0x000000008000bd44                strcmp
-                0x000000008000bdae                strstr
-                0x000000008000be4c                memset
-                0x000000008000bf7a                memcmp
-                0x000000008000c002                memmove
-                0x000000008000c0e2                memcpy
-                0x000000008000c116                strncmp
-                0x000000008000c1a4                strncpy
-                0x000000008000c22a                strlen
-                0x000000008000c264                puts
-                0x000000008000c29e                strncat
-                0x000000008000c320                strchr
-                0x000000008000c37c                strtok
-                0x000000008000c4e0                exit
-                0x000000008000c704                itoa
-                0x000000008000c846                vasprintf
-                0x000000008000d328                printf
-                0x000000008000d3f2                vsnprintf
-                0x000000008000d48c                snprintf
- .text          0x000000008000d4ec     0x2fcc syscall.o
-                0x000000008000d874                Sys_write
-                0x000000008000da9c                Sys_exit
-                0x000000008000db5c                Sys_sleep
-                0x000000008000dbd2                Sys_tcsetpgrp
-                0x000000008000dc48                Sys_getpid
-                0x000000008000dc70                Sys_wait
-                0x000000008000ddc2                Sys_waitdirect
-                0x000000008000dec6                Sys_isatty
-                0x000000008000df7e                Sys_open
-                0x000000008000e04c                Sys_opendir
-                0x000000008000e124                Sys_getcwd
-                0x000000008000e226                Sys_chdir
-                0x000000008000e6d4                Sys_mkdir
-                0x000000008000e752                Sys_rmdir
-                0x000000008000e7c0                Sys_unlink
-                0x000000008000e82e                Sys_rename
-                0x000000008000e8de                Sys_link
-                0x000000008000e98e                Sys_symlink
-                0x000000008000ea3e                Sys_stat
-                0x000000008000eaec                Sys_readlink
-                0x000000008000ebda                Sys_lstat
-                0x000000008000ec88                Sys_chmod
-                0x000000008000ed06                Sys_chown
-                0x000000008000ed94                Sys_settimeofday
-                0x000000008000edcc                Sys_utimes
-                0x000000008000ee5a                Sys_umask
-                0x000000008000eece                Sys_gettimeofday
-                0x000000008000ef14                Sys_getuid
-                0x000000008000ef3e                Sys_getgid
-                0x000000008000ef68                Sys_setuid
-                0x000000008000efd4                Sys_setgid
-                0x000000008000f040                Sys_realpath
-                0x000000008000f134                Sys_readdir
-                0x000000008000f288                Sys_closedir
-                0x000000008000f2fe                Sys_fork
-                0x000000008000f416                Sys_execv
-                0x000000008000f7fc                Sys_execve
-                0x000000008000fbee                Sys_execved
-                0x000000008000ffe0                Sys_brk
-                0x000000008001009e                Sys_dup2
-                0x000000008001012e                Sys_pipe
-                0x00000000800101fc                Sys_read
-                0x00000000800103d6                Sys_fstat
-                0x000000008001045e                Sys_lseek
- .text          0x00000000800104b8     0x7ff8 kernel_proc_list_neoc.o
-                0x000000008001078c                proc_slot_get
-                0x0000000080010b22                proc_slot_set
-                0x0000000080011224                proc_slot_reset
-                0x00000000800128c0                neoc_proc_list_init
-                0x000000008001298a                neoc_proc_list_add
-                0x0000000080012cb0                neoc_proc_list_remove
-                0x0000000080012ecc                neoc_proc_list_replace
-                0x0000000080013010                neoc_proc_find_zombie_in_pgrp
-                0x0000000080013134                neoc_proc_find_zombie_child
-                0x0000000080013256                neoc_proc_has_child
-                0x0000000080013358                neoc_proc_is_file_open
-                0x00000000800134c2                neoc_proc_supp_gid_clear
-                0x0000000080013664                neoc_proc_supp_gid_add
-                0x0000000080013c4a                neoc_proc_copy_supp_gids
-                0x0000000080013d48                neoc_proc_has_supp_gid
-                0x0000000080013e56                neoc_fs_pool_init
-                0x0000000080013eae                neoc_fs_pop_free_pipe
-                0x0000000080014870                neoc_fs_push_free_pipe
-                0x0000000080014dda                neoc_fs_pop_free_file
-                0x000000008001579c                neoc_fs_push_free_file
-                0x0000000080015d06                neoc_exec_load_user_string_vector
-                0x00000000800162dc                neoc_exec_free_string_vector
-                0x00000000800163a4                neoc_exec_push_string_vector
-                0x00000000800166bc                neoc_proc_process_pages_clear
-                0x000000008001685e                neoc_proc_process_pages_add
-                0x0000000080016bc4                neoc_proc_process_pages_get
-                0x0000000080016f0e                neoc_proc_process_pages_last
-                0x0000000080016fd2                neoc_process_page_kalloc_clear
-                0x0000000080017068                neoc_process_page_kalloc_add
-                0x000000008001711a                neoc_process_page_kalloc_get
-                0x0000000080017202                neoc_file_owner_clear
-                0x0000000080017298                neoc_file_owner_add
-                0x00000000800173d8                neoc_file_owner_remove
-                0x000000008001760c                neoc_pipe_linked_file_clear
-                0x00000000800176a2                neoc_pipe_linked_file_add
-                0x00000000800177e2                neoc_pipe_linked_file_remove
-                0x0000000080017a16                neoc_pipe_linked_file_clear_pipe_refs
-                0x0000000080017b16                neoc_kernel_state_init
-                0x0000000080017be0                neoc_kernel_state_clear
-                0x0000000080017c5e                neoc_kernel_state_add
-                0x0000000080017cec                neoc_kernel_state_find
-                0x0000000080017fee                neoc_kernel_state_take
-                0x0000000080018264                neoc_kernel_state_take_first
- .text          0x00000000800184b0      0x164 kernel_neoc_runtime.o
-                0x00000000800184b0                int_equals
-                0x00000000800184ea                charp_equals
-                0x000000008001853a                come_calloc
-                0x0000000080018576                come_increment_ref_count
-                0x00000000800185a2                come_call_finalizer
+                0x000000008000bcb0                free
+                0x000000008000bdc0                calloc
+                0x000000008000be1c                strdup
+                0x000000008000be76                strcmp
+                0x000000008000bee0                strstr
+                0x000000008000bf7e                memset
+                0x000000008000c0ac                memcmp
+                0x000000008000c134                memmove
+                0x000000008000c214                memcpy
+                0x000000008000c248                strncmp
+                0x000000008000c2d6                strncpy
+                0x000000008000c35c                strlen
+                0x000000008000c396                puts
+                0x000000008000c3d0                strncat
+                0x000000008000c452                strchr
+                0x000000008000c4ae                strtok
+                0x000000008000c612                exit
+                0x000000008000c836                itoa
+                0x000000008000c978                vasprintf
+                0x000000008000d45a                printf
+                0x000000008000d524                vsnprintf
+                0x000000008000d5be                snprintf
+ .text          0x000000008000d61e     0x2fcc syscall.o
+                0x000000008000d9a6                Sys_write
+                0x000000008000dbce                Sys_exit
+                0x000000008000dc8e                Sys_sleep
+                0x000000008000dd04                Sys_tcsetpgrp
+                0x000000008000dd7a                Sys_getpid
+                0x000000008000dda2                Sys_wait
+                0x000000008000def4                Sys_waitdirect
+                0x000000008000dff8                Sys_isatty
+                0x000000008000e0b0                Sys_open
+                0x000000008000e17e                Sys_opendir
+                0x000000008000e256                Sys_getcwd
+                0x000000008000e358                Sys_chdir
+                0x000000008000e806                Sys_mkdir
+                0x000000008000e884                Sys_rmdir
+                0x000000008000e8f2                Sys_unlink
+                0x000000008000e960                Sys_rename
+                0x000000008000ea10                Sys_link
+                0x000000008000eac0                Sys_symlink
+                0x000000008000eb70                Sys_stat
+                0x000000008000ec1e                Sys_readlink
+                0x000000008000ed0c                Sys_lstat
+                0x000000008000edba                Sys_chmod
+                0x000000008000ee38                Sys_chown
+                0x000000008000eec6                Sys_settimeofday
+                0x000000008000eefe                Sys_utimes
+                0x000000008000ef8c                Sys_umask
+                0x000000008000f000                Sys_gettimeofday
+                0x000000008000f046                Sys_getuid
+                0x000000008000f070                Sys_getgid
+                0x000000008000f09a                Sys_setuid
+                0x000000008000f106                Sys_setgid
+                0x000000008000f172                Sys_realpath
+                0x000000008000f266                Sys_readdir
+                0x000000008000f3ba                Sys_closedir
+                0x000000008000f430                Sys_fork
+                0x000000008000f548                Sys_execv
+                0x000000008000f92e                Sys_execve
+                0x000000008000fd20                Sys_execved
+                0x0000000080010112                Sys_brk
+                0x00000000800101d0                Sys_dup2
+                0x0000000080010260                Sys_pipe
+                0x000000008001032e                Sys_read
+                0x0000000080010508                Sys_fstat
+                0x0000000080010590                Sys_lseek
+ .text          0x00000000800105ea     0x7ff8 kernel_proc_list_neoc.o
+                0x00000000800108be                proc_slot_get
+                0x0000000080010c54                proc_slot_set
+                0x0000000080011356                proc_slot_reset
+                0x00000000800129f2                neoc_proc_list_init
+                0x0000000080012abc                neoc_proc_list_add
+                0x0000000080012de2                neoc_proc_list_remove
+                0x0000000080012ffe                neoc_proc_list_replace
+                0x0000000080013142                neoc_proc_find_zombie_in_pgrp
+                0x0000000080013266                neoc_proc_find_zombie_child
+                0x0000000080013388                neoc_proc_has_child
+                0x000000008001348a                neoc_proc_is_file_open
+                0x00000000800135f4                neoc_proc_supp_gid_clear
+                0x0000000080013796                neoc_proc_supp_gid_add
+                0x0000000080013d7c                neoc_proc_copy_supp_gids
+                0x0000000080013e7a                neoc_proc_has_supp_gid
+                0x0000000080013f88                neoc_fs_pool_init
+                0x0000000080013fe0                neoc_fs_pop_free_pipe
+                0x00000000800149a2                neoc_fs_push_free_pipe
+                0x0000000080014f0c                neoc_fs_pop_free_file
+                0x00000000800158ce                neoc_fs_push_free_file
+                0x0000000080015e38                neoc_exec_load_user_string_vector
+                0x000000008001640e                neoc_exec_free_string_vector
+                0x00000000800164d6                neoc_exec_push_string_vector
+                0x00000000800167ee                neoc_proc_process_pages_clear
+                0x0000000080016990                neoc_proc_process_pages_add
+                0x0000000080016cf6                neoc_proc_process_pages_get
+                0x0000000080017040                neoc_proc_process_pages_last
+                0x0000000080017104                neoc_process_page_kalloc_clear
+                0x000000008001719a                neoc_process_page_kalloc_add
+                0x000000008001724c                neoc_process_page_kalloc_get
+                0x0000000080017334                neoc_file_owner_clear
+                0x00000000800173ca                neoc_file_owner_add
+                0x000000008001750a                neoc_file_owner_remove
+                0x000000008001773e                neoc_pipe_linked_file_clear
+                0x00000000800177d4                neoc_pipe_linked_file_add
+                0x0000000080017914                neoc_pipe_linked_file_remove
+                0x0000000080017b48                neoc_pipe_linked_file_clear_pipe_refs
+                0x0000000080017c48                neoc_kernel_state_init
+                0x0000000080017d12                neoc_kernel_state_clear
+                0x0000000080017d90                neoc_kernel_state_add
+                0x0000000080017e1e                neoc_kernel_state_find
+                0x0000000080018120                neoc_kernel_state_take
+                0x0000000080018396                neoc_kernel_state_take_first
+ .text          0x00000000800185e2      0x164 kernel_neoc_runtime.o
+                0x00000000800185e2                int_equals
+                0x000000008001861c                charp_equals
+                0x000000008001866c                come_calloc
+                0x00000000800186a8                come_increment_ref_count
+                0x00000000800186d4                come_call_finalizer
                 0x0000000080019000                . = ALIGN (0x1000)
 
 .rodata         0x0000000080019000     0x32ed
@@ -277,7 +277,7 @@ LOAD kernel_neoc_runtime.o
  .note.gnu.build-id
                 0x000000008001c2f0       0x24 entry.o
 
-.eh_frame       0x000000008001c318     0x3e38
+.eh_frame       0x000000008001c318     0x3e40
  .eh_frame      0x000000008001c318      0x2e8 start.o
  .eh_frame      0x000000008001c600      0xd90 fs.o
                                         0xda0 (size before relaxing)
@@ -287,43 +287,43 @@ LOAD kernel_neoc_runtime.o
                                          0x68 (size before relaxing)
  .eh_frame      0x000000008001d528      0x9e0 main.o
                                         0x9f8 (size before relaxing)
- .eh_frame      0x000000008001df08      0x570 libc.o
-                                        0x580 (size before relaxing)
- .eh_frame      0x000000008001e478      0x840 syscall.o
+ .eh_frame      0x000000008001df08      0x578 libc.o
+                                        0x588 (size before relaxing)
+ .eh_frame      0x000000008001e480      0x840 syscall.o
                                         0x858 (size before relaxing)
- .eh_frame      0x000000008001ecb8     0x13d0 kernel_proc_list_neoc.o
+ .eh_frame      0x000000008001ecc0     0x13d0 kernel_proc_list_neoc.o
                                        0x13e0 (size before relaxing)
- .eh_frame      0x0000000080020088       0xc8 kernel_neoc_runtime.o
+ .eh_frame      0x0000000080020090       0xc8 kernel_neoc_runtime.o
                                          0xe0 (size before relaxing)
 
-.eh_frame_hdr   0x0000000080020150      0xbcc
- .eh_frame_hdr  0x0000000080020150      0xbcc start.o
-                0x0000000080020150                __GNU_EH_FRAME_HDR
+.eh_frame_hdr   0x0000000080020158      0xbcc
+ .eh_frame_hdr  0x0000000080020158      0xbcc start.o
+                0x0000000080020158                __GNU_EH_FRAME_HDR
 
-.data           0x0000000080020d20    0x1fad0
+.data           0x0000000080020d28    0x1fdc0
  *(.data .data.*)
- .data          0x0000000080020d20        0x0 entry.o
- .data          0x0000000080020d20        0x0 start.o
- .data          0x0000000080020d20        0x0 userret.o
- .data          0x0000000080020d20        0x0 trap.o
- .data          0x0000000080020d20        0x0 fs.o
- .data          0x0000000080020d20        0x0 plic.o
- .data          0x0000000080020d20        0x0 trap_c.o
- .data          0x0000000080020d20    0x1f9c8 main.o
-                0x0000000080020d20                sh_elf
-                0x0000000080040680                sh_elf_len
-                0x0000000080040688                gUsers
- .data          0x00000000800406e8      0x108 libc.o
-                0x00000000800406e8                __stdin
-                0x0000000080040738                __stdout
-                0x0000000080040788                __stderr
-                0x00000000800407d8                stdin
-                0x00000000800407e0                stdout
-                0x00000000800407e8                stderr
- .data          0x00000000800407f0        0x0 syscall.o
- .data          0x00000000800407f0        0x0 kernel_proc_list_neoc.o
- .data          0x00000000800407f0        0x0 kernel_neoc_runtime.o
-                0x00000000800407f0                . = ALIGN (0x10)
+ .data          0x0000000080020d28        0x0 entry.o
+ .data          0x0000000080020d28        0x0 start.o
+ .data          0x0000000080020d28        0x0 userret.o
+ .data          0x0000000080020d28        0x0 trap.o
+ .data          0x0000000080020d28        0x0 fs.o
+ .data          0x0000000080020d28        0x0 plic.o
+ .data          0x0000000080020d28        0x0 trap_c.o
+ .data          0x0000000080020d28    0x1fcb8 main.o
+                0x0000000080020d28                sh_elf
+                0x0000000080040978                sh_elf_len
+                0x0000000080040980                gUsers
+ .data          0x00000000800409e0      0x108 libc.o
+                0x00000000800409e0                __stdin
+                0x0000000080040a30                __stdout
+                0x0000000080040a80                __stderr
+                0x0000000080040ad0                stdin
+                0x0000000080040ad8                stdout
+                0x0000000080040ae0                stderr
+ .data          0x0000000080040ae8        0x0 syscall.o
+ .data          0x0000000080040ae8        0x0 kernel_proc_list_neoc.o
+ .data          0x0000000080040ae8        0x0 kernel_neoc_runtime.o
+                0x0000000080040af0                . = ALIGN (0x10)
 
 .sdata
  *(.sdata*)
@@ -476,7 +476,7 @@ LOAD kernel_neoc_runtime.o
  .note.GNU-stack
                 0x0000000000000000        0x0 kernel_neoc_runtime.o
 
-.debug_info     0x0000000000000000     0xee7c
+.debug_info     0x0000000000000000     0xeeb9
  *(.debug_info)
  .debug_info    0x0000000000000000       0x2e entry.o
  .debug_info    0x000000000000002e      0x3a1 start.o
@@ -485,12 +485,12 @@ LOAD kernel_neoc_runtime.o
  .debug_info    0x0000000000003b5f      0x23f plic.o
  .debug_info    0x0000000000003d9e       0xfa trap_c.o
  .debug_info    0x0000000000003e98     0x2a82 main.o
- .debug_info    0x000000000000691a     0x1338 libc.o
- .debug_info    0x0000000000007c52     0x2e13 syscall.o
- .debug_info    0x000000000000aa65     0x40e0 kernel_proc_list_neoc.o
- .debug_info    0x000000000000eb45      0x337 kernel_neoc_runtime.o
+ .debug_info    0x000000000000691a     0x1375 libc.o
+ .debug_info    0x0000000000007c8f     0x2e13 syscall.o
+ .debug_info    0x000000000000aaa2     0x40e0 kernel_proc_list_neoc.o
+ .debug_info    0x000000000000eb82      0x337 kernel_neoc_runtime.o
 
-.debug_abbrev   0x0000000000000000     0x1796
+.debug_abbrev   0x0000000000000000     0x1795
  *(.debug_abbrev)
  .debug_abbrev  0x0000000000000000       0x14 entry.o
  .debug_abbrev  0x0000000000000014      0x153 start.o
@@ -499,12 +499,12 @@ LOAD kernel_neoc_runtime.o
  .debug_abbrev  0x000000000000057a      0x140 plic.o
  .debug_abbrev  0x00000000000006ba       0xdb trap_c.o
  .debug_abbrev  0x0000000000000795      0x4cb main.o
- .debug_abbrev  0x0000000000000c60      0x375 libc.o
- .debug_abbrev  0x0000000000000fd5      0x312 syscall.o
- .debug_abbrev  0x00000000000012e7      0x35f kernel_proc_list_neoc.o
- .debug_abbrev  0x0000000000001646      0x150 kernel_neoc_runtime.o
+ .debug_abbrev  0x0000000000000c60      0x374 libc.o
+ .debug_abbrev  0x0000000000000fd4      0x312 syscall.o
+ .debug_abbrev  0x00000000000012e6      0x35f kernel_proc_list_neoc.o
+ .debug_abbrev  0x0000000000001645      0x150 kernel_neoc_runtime.o
 
-.debug_line     0x0000000000000000    0x179a5
+.debug_line     0x0000000000000000    0x17b1d
  *(.debug_line)
  .debug_line    0x0000000000000000       0x67 entry.o
  .debug_line    0x0000000000000067      0x2fa start.o
@@ -513,10 +513,10 @@ LOAD kernel_neoc_runtime.o
  .debug_line    0x0000000000007989      0x251 plic.o
  .debug_line    0x0000000000007bda       0xa5 trap_c.o
  .debug_line    0x0000000000007c7f     0x3fd4 main.o
- .debug_line    0x000000000000bc53     0x198d libc.o
- .debug_line    0x000000000000d5e0     0x2b20 syscall.o
- .debug_line    0x0000000000010100     0x7779 kernel_proc_list_neoc.o
- .debug_line    0x0000000000017879      0x12c kernel_neoc_runtime.o
+ .debug_line    0x000000000000bc53     0x1b05 libc.o
+ .debug_line    0x000000000000d758     0x2b20 syscall.o
+ .debug_line    0x0000000000010278     0x7779 kernel_proc_list_neoc.o
+ .debug_line    0x00000000000179f1      0x12c kernel_neoc_runtime.o
 
 .debug_str      0x0000000000000000     0x2d00
  *(.debug_str)
@@ -535,7 +535,7 @@ LOAD kernel_neoc_runtime.o
  .debug_str     0x0000000000002d00        0x0 main.o
                                        0x10b2 (size before relaxing)
  .debug_str     0x0000000000002d00        0x0 libc.o
-                                        0x4b3 (size before relaxing)
+                                        0x4ba (size before relaxing)
  .debug_str     0x0000000000002d00        0x0 syscall.o
                                         0xc3a (size before relaxing)
  .debug_str     0x0000000000002d00        0x0 kernel_proc_list_neoc.o
