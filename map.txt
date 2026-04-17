@@ -1,12 +1,12 @@
 
 There are no discarded input sections
 
-Memory Configuration
+メモリ設定
 
-Name             Origin             Length             Attributes
+名前           原点             長さ             属性
 *default*        0x0000000000000000 0xffffffffffffffff
 
-Linker script and memory map
+リンカスクリプトおよびメモリマップ
 
 LOAD entry.o
 LOAD start.o
@@ -280,27 +280,27 @@ LOAD kernel_neoc_runtime.o
 .eh_frame       0x000000008001c318     0x3e40
  .eh_frame      0x000000008001c318      0x2e8 start.o
  .eh_frame      0x000000008001c600      0xd90 fs.o
-                                        0xda0 (size before relaxing)
+                                        0xda0 (緩和前のサイズ)
  .eh_frame      0x000000008001d390      0x148 plic.o
-                                        0x158 (size before relaxing)
+                                        0x158 (緩和前のサイズ)
  .eh_frame      0x000000008001d4d8       0x50 trap_c.o
-                                         0x68 (size before relaxing)
+                                         0x68 (緩和前のサイズ)
  .eh_frame      0x000000008001d528      0x9e0 main.o
-                                        0x9f8 (size before relaxing)
+                                        0x9f8 (緩和前のサイズ)
  .eh_frame      0x000000008001df08      0x578 libc.o
-                                        0x588 (size before relaxing)
+                                        0x588 (緩和前のサイズ)
  .eh_frame      0x000000008001e480      0x840 syscall.o
-                                        0x858 (size before relaxing)
+                                        0x858 (緩和前のサイズ)
  .eh_frame      0x000000008001ecc0     0x13d0 kernel_proc_list_neoc.o
-                                       0x13e0 (size before relaxing)
+                                       0x13e0 (緩和前のサイズ)
  .eh_frame      0x0000000080020090       0xc8 kernel_neoc_runtime.o
-                                         0xe0 (size before relaxing)
+                                         0xe0 (緩和前のサイズ)
 
 .eh_frame_hdr   0x0000000080020158      0xbcc
  .eh_frame_hdr  0x0000000080020158      0xbcc start.o
                 0x0000000080020158                __GNU_EH_FRAME_HDR
 
-.data           0x0000000080020d28    0x1fdc0
+.data           0x0000000080020d28    0x1fd80
  *(.data .data.*)
  .data          0x0000000080020d28        0x0 entry.o
  .data          0x0000000080020d28        0x0 start.o
@@ -309,24 +309,27 @@ LOAD kernel_neoc_runtime.o
  .data          0x0000000080020d28        0x0 fs.o
  .data          0x0000000080020d28        0x0 plic.o
  .data          0x0000000080020d28        0x0 trap_c.o
- .data          0x0000000080020d28    0x1fcb8 main.o
+ .data          0x0000000080020d28    0x1fc90 main.o
                 0x0000000080020d28                sh_elf
-                0x0000000080040978                sh_elf_len
-                0x0000000080040980                gUsers
- .data          0x00000000800409e0      0x108 libc.o
-                0x00000000800409e0                __stdin
-                0x0000000080040a30                __stdout
-                0x0000000080040a80                __stderr
-                0x0000000080040ad0                stdin
-                0x0000000080040ad8                stdout
-                0x0000000080040ae0                stderr
- .data          0x0000000080040ae8        0x0 syscall.o
- .data          0x0000000080040ae8        0x0 kernel_proc_list_neoc.o
- .data          0x0000000080040ae8        0x0 kernel_neoc_runtime.o
-                0x0000000080040af0                . = ALIGN (0x10)
+                0x0000000080040958                gUsers
+ .data          0x00000000800409b8       0xf0 libc.o
+                0x00000000800409b8                __stdin
+                0x0000000080040a08                __stdout
+                0x0000000080040a58                __stderr
+ .data          0x0000000080040aa8        0x0 syscall.o
+ .data          0x0000000080040aa8        0x0 kernel_proc_list_neoc.o
+ .data          0x0000000080040aa8        0x0 kernel_neoc_runtime.o
+                0x0000000080040ab0                . = ALIGN (0x10)
 
-.sdata
+.sdata          0x0000000080040ab0       0x20
  *(.sdata*)
+ .sdata         0x0000000080040ab0        0x4 main.o
+                0x0000000080040ab0                sh_elf_len
+ *fill*         0x0000000080040ab4        0x4 
+ .sdata         0x0000000080040ab8       0x18 libc.o
+                0x0000000080040ab8                stdin
+                0x0000000080040ac0                stdout
+                0x0000000080040ac8                stderr
                 0x0000000080041000                . = ALIGN (0x1000)
                 0x0000000080041000                PROVIDE (_bss_start = .)
 
@@ -339,23 +342,26 @@ LOAD kernel_neoc_runtime.o
  .bss           0x0000000080041000     0x4840 fs.o
  .bss           0x0000000080045840        0x0 plic.o
  .bss           0x0000000080045840        0x0 trap_c.o
- .bss           0x0000000080045840      0x158 main.o
-                0x0000000080045840                kernel_pagetable
-                0x0000000080045848                gCPU
-                0x0000000080045958                gProc
-                0x0000000080045960                gNumProc
-                0x0000000080045964                gActiveProc
-                0x0000000080045968                kmem
-                0x0000000080045988                last_key
-                0x000000008004598c                g_time_offset
- .bss           0x0000000080045998       0x10 libc.o
-                0x0000000080045998                free_list
- .bss           0x00000000800459a8       0x10 syscall.o
- .bss           0x00000000800459b8       0x20 kernel_proc_list_neoc.o
- .bss           0x00000000800459d8        0x8 kernel_neoc_runtime.o
-                0x00000000800459d8                neo_current_frame
+ .bss           0x0000000080045840      0x138 main.o
+                0x0000000080045840                gCPU
+                0x0000000080045950                kmem
+ .bss           0x0000000080045978        0x8 libc.o
+ .bss           0x0000000080045980       0x10 syscall.o
+ .bss           0x0000000080045990       0x20 kernel_proc_list_neoc.o
+ .bss           0x00000000800459b0        0x0 kernel_neoc_runtime.o
  *(.bss.*)
  *(.sbss)
+ .sbss          0x00000000800459b0       0x20 main.o
+                0x00000000800459b0                kernel_pagetable
+                0x00000000800459b8                gProc
+                0x00000000800459c0                gNumProc
+                0x00000000800459c4                gActiveProc
+                0x00000000800459c8                last_key
+                0x00000000800459cc                g_time_offset
+ .sbss          0x00000000800459d0        0x8 libc.o
+                0x00000000800459d0                free_list
+ .sbss          0x00000000800459d8        0x8 kernel_neoc_runtime.o
+                0x00000000800459d8                neo_current_frame
  *(.sbss.*)
                 0x00000000800459e0                PROVIDE (_bss_end = .)
                 [!provide]                        PROVIDE (_code_end = .)
@@ -437,23 +443,23 @@ LOAD kernel_neoc_runtime.o
 
 .comment        0x0000000000000000       0x34
  .comment       0x0000000000000000       0x34 start.o
-                                         0x35 (size before relaxing)
+                                         0x35 (緩和前のサイズ)
  .comment       0x0000000000000034        0x0 fs.o
-                                         0x35 (size before relaxing)
+                                         0x35 (緩和前のサイズ)
  .comment       0x0000000000000034        0x0 plic.o
-                                         0x35 (size before relaxing)
+                                         0x35 (緩和前のサイズ)
  .comment       0x0000000000000034        0x0 trap_c.o
-                                         0x35 (size before relaxing)
+                                         0x35 (緩和前のサイズ)
  .comment       0x0000000000000034        0x0 main.o
-                                         0x35 (size before relaxing)
+                                         0x35 (緩和前のサイズ)
  .comment       0x0000000000000034        0x0 libc.o
-                                         0x35 (size before relaxing)
+                                         0x35 (緩和前のサイズ)
  .comment       0x0000000000000034        0x0 syscall.o
-                                         0x35 (size before relaxing)
+                                         0x35 (緩和前のサイズ)
  .comment       0x0000000000000034        0x0 kernel_proc_list_neoc.o
-                                         0x35 (size before relaxing)
+                                         0x35 (緩和前のサイズ)
  .comment       0x0000000000000034        0x0 kernel_neoc_runtime.o
-                                         0x35 (size before relaxing)
+                                         0x35 (緩和前のサイズ)
 
 .note.GNU-stack
                 0x0000000000000000        0x0
@@ -518,61 +524,61 @@ LOAD kernel_neoc_runtime.o
  .debug_line    0x0000000000010278     0x7779 kernel_proc_list_neoc.o
  .debug_line    0x00000000000179f1      0x12c kernel_neoc_runtime.o
 
-.debug_str      0x0000000000000000     0x2d00
+.debug_str      0x0000000000000000     0x2cbe
  *(.debug_str)
- .debug_str     0x0000000000000000     0x2d00 entry.o
-                                         0x28 (size before relaxing)
- .debug_str     0x0000000000002d00        0x0 start.o
-                                        0x212 (size before relaxing)
- .debug_str     0x0000000000002d00        0x0 trap.o
-                                         0x27 (size before relaxing)
- .debug_str     0x0000000000002d00        0x0 fs.o
-                                        0xe48 (size before relaxing)
- .debug_str     0x0000000000002d00        0x0 plic.o
-                                        0x1da (size before relaxing)
- .debug_str     0x0000000000002d00        0x0 trap_c.o
-                                        0x1ae (size before relaxing)
- .debug_str     0x0000000000002d00        0x0 main.o
-                                       0x10b2 (size before relaxing)
- .debug_str     0x0000000000002d00        0x0 libc.o
-                                        0x4ba (size before relaxing)
- .debug_str     0x0000000000002d00        0x0 syscall.o
-                                        0xc3a (size before relaxing)
- .debug_str     0x0000000000002d00        0x0 kernel_proc_list_neoc.o
-                                       0x15f2 (size before relaxing)
- .debug_str     0x0000000000002d00        0x0 kernel_neoc_runtime.o
-                                        0x28e (size before relaxing)
+ .debug_str     0x0000000000000000     0x2cbe entry.o
+                                         0x28 (緩和前のサイズ)
+ .debug_str     0x0000000000002cbe        0x0 start.o
+                                        0x1f1 (緩和前のサイズ)
+ .debug_str     0x0000000000002cbe        0x0 trap.o
+                                         0x27 (緩和前のサイズ)
+ .debug_str     0x0000000000002cbe        0x0 fs.o
+                                        0xe27 (緩和前のサイズ)
+ .debug_str     0x0000000000002cbe        0x0 plic.o
+                                        0x1b9 (緩和前のサイズ)
+ .debug_str     0x0000000000002cbe        0x0 trap_c.o
+                                        0x18d (緩和前のサイズ)
+ .debug_str     0x0000000000002cbe        0x0 main.o
+                                       0x1091 (緩和前のサイズ)
+ .debug_str     0x0000000000002cbe        0x0 libc.o
+                                        0x499 (緩和前のサイズ)
+ .debug_str     0x0000000000002cbe        0x0 syscall.o
+                                        0xc19 (緩和前のサイズ)
+ .debug_str     0x0000000000002cbe        0x0 kernel_proc_list_neoc.o
+                                       0x15d1 (緩和前のサイズ)
+ .debug_str     0x0000000000002cbe        0x0 kernel_neoc_runtime.o
+                                        0x26d (緩和前のサイズ)
 
 .debug_line_str
                 0x0000000000000000      0x1f2
  *(.debug_line_str)
  .debug_line_str
                 0x0000000000000000      0x1f2 start.o
-                                         0x77 (size before relaxing)
+                                         0x77 (緩和前のサイズ)
  .debug_line_str
                 0x00000000000001f2        0x0 fs.o
-                                         0x54 (size before relaxing)
+                                         0x54 (緩和前のサイズ)
  .debug_line_str
                 0x00000000000001f2        0x0 plic.o
-                                         0x74 (size before relaxing)
+                                         0x74 (緩和前のサイズ)
  .debug_line_str
                 0x00000000000001f2        0x0 trap_c.o
-                                         0x74 (size before relaxing)
+                                         0x74 (緩和前のサイズ)
  .debug_line_str
                 0x00000000000001f2        0x0 main.o
-                                         0x5d (size before relaxing)
+                                         0x5d (緩和前のサイズ)
  .debug_line_str
                 0x00000000000001f2        0x0 libc.o
-                                         0x97 (size before relaxing)
+                                         0x97 (緩和前のサイズ)
  .debug_line_str
                 0x00000000000001f2        0x0 syscall.o
-                                         0x97 (size before relaxing)
+                                         0x97 (緩和前のサイズ)
  .debug_line_str
                 0x00000000000001f2        0x0 kernel_proc_list_neoc.o
-                                        0x17c (size before relaxing)
+                                        0x17c (緩和前のサイズ)
  .debug_line_str
                 0x00000000000001f2        0x0 kernel_neoc_runtime.o
-                                         0xa6 (size before relaxing)
+                                         0xa6 (緩和前のサイズ)
 OUTPUT(kernel.elf elf64-littleriscv)
 
 .debug_aranges  0x0000000000000000      0x210

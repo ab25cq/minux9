@@ -5260,6 +5260,9 @@ main:
 	.string	"isdir"
 .LASF11:
 	.string	"char"
+.LASF71:
+	.ascii	"GNU C23 15.2.1 20250808"
+	.string	" (Red Hat Cross 15.2.1-1) -mcmodel=medany -mcmodel=medany -mno-small-data-limit=0 -mabi=lp64 -misa-spec=20191213 -mtls-dialect=trad -march=rv64imafdc_zicsr_zifencei_zmmul_zaamo_zalrsc_zca_zcd -g -O0 -ffreestanding -fno-stack-protector -fno-builtin -fno-pie"
 .LASF36:
 	.string	"cmdline"
 .LASF37:
@@ -5272,9 +5275,6 @@ main:
 	.string	"memmove"
 .LASF56:
 	.string	"exec_command_argv"
-.LASF71:
-	.ascii	"GNU C23 15.2.1 20250808 (Red Hat Cross 15.2.1-1"
-	.string	") -mno-small-data-limit=0 -mcmodel=medany -mcmodel=medany -mno-small-data-limit=0 -mabi=lp64 -misa-spec=20191213 -mtls-dialect=trad -march=rv64imafdc_zicsr_zifencei_zmmul_zaamo_zalrsc_zca_zcd -g -O0 -ffreestanding -fno-stack-protector -fno-builtin -fno-pie"
 .LASF43:
 	.string	"_ret"
 .LASF30:
