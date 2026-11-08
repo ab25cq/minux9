@@ -1,6 +1,6 @@
 # minux9
 
-version 1.2.4
+version 1.2.5
 
 unix like operating system on riscv.
 
@@ -36,6 +36,24 @@ inheritance and isolation of mutable data and heap memory. `timeout` is needed
 to run the tests. Historical Neo-C compiler experiments are not build inputs.
 
 sh fast_build.sh 
+
+1.2.5 changes:
+
+- Ported the kernel and userland to pure C, retaining RISC-V assembly for
+  low-level boot and context switching.
+- Removed the Neo-C/ncc build dependency, transpilation rules, and obsolete
+  Neo-C kernel and command sources.
+- Replaced Neo-C collections with C implementations for process, file, pipe,
+  memory-page, and saved kernel-state management.
+- Updated the C shell to preserve the latest command parsing and pipeline
+  behavior, and wait for direct children when running a single command.
+- Fixed fork to copy mutable data and heap memory and preserve the child's
+  stack pointer.
+- Simplified the build rules and generate the embedded shell from C at build
+  time. Removed obsolete emulator diagnostics tied to fixed code addresses.
+- Verified a clean build with transpilers disabled and passing regression
+  tests for EOF, basic commands, text processing, multi-stage pipelines,
+  and fork heap inheritance and isolation.
 
 1.2.4 worked on almost all linux distribution. and mac os.
 1.2.3 cpp works.
