@@ -1,26 +1,31 @@
 #include "minux.h"
-
-static int ustrlen(const char* s){ int n=0; if(!s) return 0; while(s[n]) n++; return n; }
-static void prints(const char* s){ write(1, s, ustrlen(s)); }
+#include "user_helpers.h"
 
 int main(int argc, char** argv)
 {
-    if (argc < 2) {
-        prints("usage: touch FILE...\n");
+    if(argc < 2) {
+        minux_println("usage: touch FILE...");
         exit(1);
     }
-    for (int i=1;i<argc;i++) {
+
+    for(int i=1; i<argc; i++) {
         const char* path = argv[i];
-        if (!path || !path[0]) continue;
-        int fd = open(path, O_WRONLY | O_CREAT, 0644);
-        if (fd < 0) {
-            prints("touch: failed: "); prints(path); prints("\n");
+
+        if(minux_string_is_empty(path)) {
             continue;
         }
+
+        int fd = open(path, O_WRONLY | O_CREAT, 0644);
+
+        if(fd < 0) {
+            minux_print("touch: failed: ");
+            minux_println(path);
+            continue;
+        }
+
         close(fd);
-        // update atime/mtime to now
         utimes(path, 0xFFFFFFFFU, 0xFFFFFFFFU);
     }
+
     exit(0);
 }
-

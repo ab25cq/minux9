@@ -1,17 +1,15 @@
 #include "minux.h"
-#include <stdarg.h>
-            
-// hello.c
-int main(int argc, char** argv) {
-    if(argc == 2) {
-        puts(argv[1]);
-        //write(1, argv[1], strlen(argv[1]));
-        write(1, "\r\n", 2);
-    
-        exit(0);
-    }
-    else {
-        exit(0);
-    }
-}
+#include "user_helpers.h"
 
+int main(int argc, char** argv)
+{
+    for(int i=1; i<argc; i++) {
+        if(i > 1) {
+            minux_print(" ");
+        }
+        minux_print(argv[i]);
+    }
+    minux_print("\n");
+
+    exit(0);
+}

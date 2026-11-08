@@ -173,37 +173,37 @@ int fs_chmod(const char *path, uint32_t mode);
 int fs_chown(const char *path, uint16_t uid, uint16_t gid);
 int fs_realpath(const char *path, char *out, int outsz);
 
-void neoc_file_owner_clear(struct file* f);
-void neoc_file_owner_add(struct file* f, struct proc* owner);
-void neoc_file_owner_remove(struct file* f, struct proc* owner);
+void file_owner_clear(struct file* f);
+void file_owner_add(struct file* f, struct proc* owner);
+void file_owner_remove(struct file* f, struct proc* owner);
 
-void neoc_pipe_linked_file_clear(struct spipe* p);
-void neoc_pipe_linked_file_add(struct spipe* p, struct file* f);
-void neoc_pipe_linked_file_remove(struct spipe* p, struct file* f);
-void neoc_pipe_linked_file_clear_pipe_refs(struct spipe* p);
+void pipe_linked_file_clear(struct spipe* p);
+void pipe_linked_file_add(struct spipe* p, struct file* f);
+void pipe_linked_file_remove(struct spipe* p, struct file* f);
+void pipe_linked_file_clear_pipe_refs(struct spipe* p);
 
-void neoc_proc_process_pages_clear(struct proc* p);
-void neoc_proc_process_pages_add(struct proc* p, struct process_pages* page);
-struct process_pages* neoc_proc_process_pages_get(struct proc* p, int index);
-struct process_pages* neoc_proc_process_pages_last(struct proc* p);
+void proc_process_pages_clear(struct proc* p);
+void proc_process_pages_add(struct proc* p, struct process_pages* page);
+struct process_pages* proc_process_pages_get(struct proc* p, int index);
+struct process_pages* proc_process_pages_last(struct proc* p);
 
-void neoc_process_page_kalloc_clear(struct process_pages* page);
-void neoc_process_page_kalloc_add(struct process_pages* page, char* addr);
-char* neoc_process_page_kalloc_get(struct process_pages* page, int index);
+void process_page_kalloc_clear(struct process_pages* page);
+void process_page_kalloc_add(struct process_pages* page, char* addr);
+char* process_page_kalloc_get(struct process_pages* page, int index);
 
-void neoc_proc_supp_gid_clear(struct proc* p);
-void neoc_proc_supp_gid_add(struct proc* p, uint16_t gid);
-void neoc_proc_copy_supp_gids(struct proc* dest, struct proc* src);
-int neoc_proc_has_supp_gid(struct proc* p, uint16_t gid);
+void proc_supp_gid_clear(struct proc* p);
+void proc_supp_gid_add(struct proc* p, uint16_t gid);
+void proc_copy_supp_gids(struct proc* dest, struct proc* src);
+int proc_has_supp_gid(struct proc* p, uint16_t gid);
 
-void neoc_fs_pool_init(void);
-struct spipe* neoc_fs_pop_free_pipe(void);
-void neoc_fs_push_free_pipe(struct spipe* p);
-struct file* neoc_fs_pop_free_file(void);
-void neoc_fs_push_free_file(struct file* f);
-int neoc_exec_load_user_string_vector(pagetable_t pagetable, uint64_t user_vec, int max_items, int max_len, int allow_null_vec, char*** out_items, int* out_count);
-void neoc_exec_free_string_vector(char** items, int count);
-int neoc_exec_push_string_vector(pagetable_t pagetable, char** items, int count, uint64_t* sp_io, uint64_t* vec_base_out);
+void fs_pool_init(void);
+struct spipe* fs_pop_free_pipe(void);
+void fs_push_free_pipe(struct spipe* p);
+struct file* fs_pop_free_file(void);
+void fs_push_free_file(struct file* f);
+int exec_load_user_string_vector(pagetable_t pagetable, uint64_t user_vec, int max_items, int max_len, int allow_null_vec, char*** out_items, int* out_count);
+void exec_free_string_vector(char** items, int count);
+int exec_push_string_vector(pagetable_t pagetable, char** items, int count, uint64_t* sp_io, uint64_t* vec_base_out);
 int fs_rename(const char *oldpath, const char *newpath);
 int fs_utimes(const char *path, uint32_t atime, uint32_t mtime);
 
@@ -233,20 +233,20 @@ void proc_slot_set(int pid, struct proc* p);
 void proc_slot_reset(void);
 
 extern int gActiveProc;
-void neoc_proc_list_init(void);
-void neoc_proc_list_add(struct proc* p);
-void neoc_proc_list_remove(struct proc* p);
-void neoc_proc_list_replace(struct proc* oldp, struct proc* newp);
-struct proc* neoc_proc_find_zombie_in_pgrp(uint16_t pgrp);
-struct proc* neoc_proc_find_zombie_child(int parent_pid);
-bool neoc_proc_has_child(int parent_pid);
-bool neoc_proc_is_file_open(uint32_t inum);
-void neoc_kernel_state_init(void);
-void neoc_kernel_state_clear(void);
-void neoc_kernel_state_add(struct sKernelState* state);
-struct sKernelState* neoc_kernel_state_find(int active_proc);
-struct sKernelState* neoc_kernel_state_take(int active_proc);
-struct sKernelState* neoc_kernel_state_take_first(void);
+void proc_list_init(void);
+void proc_list_add(struct proc* p);
+void proc_list_remove(struct proc* p);
+void proc_list_replace(struct proc* oldp, struct proc* newp);
+struct proc* proc_find_zombie_in_pgrp(uint16_t pgrp);
+struct proc* proc_find_zombie_child(int parent_pid);
+bool proc_has_child(int parent_pid);
+bool proc_is_file_open(uint32_t inum);
+void kernel_state_init(void);
+void kernel_state_clear(void);
+void kernel_state_add(struct sKernelState* state);
+struct sKernelState* kernel_state_find(int active_proc);
+struct sKernelState* kernel_state_take(int active_proc);
+struct sKernelState* kernel_state_take_first(void);
 int proc_find_pid(struct proc* p);
 
 #ifndef O_RDONLY

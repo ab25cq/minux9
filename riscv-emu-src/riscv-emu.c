@@ -2832,17 +2832,6 @@ static void step(cpu_t *cpu, mem_t *mem, devices_t *dev, const run_opts_t *opt) 
         }
     }
 
-    // Track key PCs in main function
-    if (pc == 0x800097d6) {
-        fprintf(stderr, ">>> At timerinit call site\n");
-    } else if (pc == 0x800097da) {
-        fprintf(stderr, ">>> At trap_init call site (returned from timerinit)\n");
-    } else if (pc == 0x80009802) {
-        fprintf(stderr, ">>> At kinit call site (returned from trap_init)\n");
-    } else if (pc == 0x80009826) {
-        fprintf(stderr, ">>> At mmu_init call site (returned from kinit!)\n");
-    }
-
     // Debug: Show fetched instruction for problematic PCs
     if (false && (pc == 0x800000e0 || pc == 0x800002c8 || pc == 0x800002d2 || pc == 0x800002e2 || pc == 0x800002f4 || pc == 0x800002f6 || pc == 0x80000312)) {
         fprintf(stderr, "Fetched instruction: 0x%08x\n", inst);

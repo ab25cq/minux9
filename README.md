@@ -4,18 +4,35 @@ version 1.2.4
 
 unix like operating system on riscv.
 
-VI, SHELL AND CC AND AS WORKS. ALSO NEO-C CPP LD.
+VI, SHELL, CC, AS, CPP AND LD WORK.
 
-This system is developed with neo-c too. Kernel and userland parts are built from neo-c sources and transpiled C sources.
+The kernel and userland are written in C and RISC-V assembly. Building MINUX9
+does not require Neo-C, ncc, or sources from a parent repository.
 
-This repository also includes its own RISC-V emulator. MINUX9 boots on that emulator, and MINUX9 can now run neo-c on MINUX9 itself. The guest /neo-c can transpile a Neo-C hello world program, then the guest cc, as, and ld can build a RISC-V executable, and MINUX9 can run that executable on the emulator.
+Requirements: a RISC-V GCC/binutils toolchain, a host C compiler, make, and xxd.
+The Makefile detects `riscv64-unknown-elf-` or `riscv64-linux-gnu-`; other
+toolchain prefixes can be selected with `CCPREFIX=...`.
+
+```
+make -j4
+make run
+```
+
+This repository includes its own RISC-V emulator. `make run` builds and boots
+that emulator with the kernel and filesystem image. The guest includes its
+own C compiler, assembler, and linker. `build/sh.h` is generated from the C
+shell during the build; no transpilation step is involved.
 
 Regression tests:
 
 ```
 make test
-make test-neoc-hello
+make test-fork-heap
 ```
+
+Tests cover shell EOF, basic commands, text processing, pipelines, and fork
+inheritance and isolation of mutable data and heap memory. `timeout` is needed
+to run the tests. Historical Neo-C compiler experiments are not build inputs.
 
 sh fast_build.sh 
 

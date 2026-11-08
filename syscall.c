@@ -435,7 +435,7 @@ int Sys_wait()
         if(zombie_proc) {
             exit_status = zombie_proc->xstatus;
             free_fs_table(zombie_proc->file_table);
-            neoc_proc_list_remove(zombie_proc);
+            proc_list_remove(zombie_proc);
             free_proc(zombie_proc);
             remove_kernel_state(child_pid);
             proc_slot_set(child_pid, NULL);
@@ -473,7 +473,7 @@ int Sys_waitdirect()
         if(zombie_proc) {
             exit_status = zombie_proc->xstatus;
             free_fs_table(zombie_proc->file_table);
-            neoc_proc_list_remove(zombie_proc);
+            proc_list_remove(zombie_proc);
             free_proc(zombie_proc);
             remove_kernel_state(child_pid);
             proc_slot_set(child_pid, NULL);
@@ -941,7 +941,7 @@ int Sys_fork()
     alloc_prog((char*)p->program, p->program_size, fork_flag=1, 0, &child_proc_index, 0/* debug_*/);
     struct proc* child_proc = proc_slot_get(child_proc_index);
     
-    uint64_t sp = child_proc->context.sp;
+    uint64_t sp = trapframe->sp;
     
     child_proc->context = *trapframe;
     child_proc->context.mepc = child_proc->context.mepc + 4;
@@ -975,7 +975,7 @@ int Sys_execv()
     /// argv ////
     char** kargv = NULL;
     int argc = 0;
-    if (neoc_exec_load_user_string_vector(p->pagetable, arg1, 128, 256, 0, &kargv, &argc) < 0) {
+    if (exec_load_user_string_vector(p->pagetable, arg1, 128, 256, 0, &kargv, &argc) < 0) {
         trapframe->a0 = -1;
         return -1;
     }
@@ -993,7 +993,7 @@ int Sys_execv()
     }
     int fd = fs_open2(path, 0, 0);
     if(fd < 0) {
-        neoc_exec_free_string_vector(kargv, argc);
+        exec_free_string_vector(kargv, argc);
         trapframe->a0 = -1;
         return -1;
     }
@@ -1004,7 +1004,7 @@ int Sys_execv()
     fs_close(fd, 0 /* massive */);
     if (ret <= 0) {
         free(elf_buf);
-        neoc_exec_free_string_vector(kargv, argc);
+        exec_free_string_vector(kargv, argc);
         trapframe->a0 = -1;
         return -1;
     }
@@ -1037,11 +1037,11 @@ int Sys_execv()
     // Set up the user stack
     uint64_t sp = new_p->context.sp; // Initial top of stack
     uint64_t argv_base = 0;
-    if (neoc_exec_push_string_vector(new_p->pagetable, kargv, argc, &sp, &argv_base) < 0) {
-        neoc_exec_free_string_vector(kargv, argc);
+    if (exec_push_string_vector(new_p->pagetable, kargv, argc, &sp, &argv_base) < 0) {
+        exec_free_string_vector(kargv, argc);
         panic("execv: push argv failed");
     }
-    neoc_exec_free_string_vector(kargv, argc);
+    exec_free_string_vector(kargv, argc);
 
     // Update the trap frame for the new program
     // The assembly code will restore registers from this frame
@@ -1083,7 +1083,7 @@ int Sys_execve()
     // argv
     char** kargv = NULL;
     int argc = 0;
-    if (neoc_exec_load_user_string_vector(p->pagetable, arg1, 128, 256, 0, &kargv, &argc) < 0) {
+    if (exec_load_user_string_vector(p->pagetable, arg1, 128, 256, 0, &kargv, &argc) < 0) {
         trapframe->a0 = -1;
         return -1;
     }
@@ -1091,20 +1091,20 @@ int Sys_execve()
     // envp
     char** kenv = NULL;
     int envc = 0;
-    if (neoc_exec_load_user_string_vector(p->pagetable, arg2, 64, 256, 1, &kenv, &envc) < 0) {
-        neoc_exec_free_string_vector(kargv, argc);
+    if (exec_load_user_string_vector(p->pagetable, arg2, 64, 256, 1, &kenv, &envc) < 0) {
+        exec_free_string_vector(kargv, argc);
         trapframe->a0 = -1;
         return -1;
     }
 
     // open and load program
     int fd = fs_open2(path, 0, 0);
-    if(fd < 0) { neoc_exec_free_string_vector(kargv, argc); neoc_exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
+    if(fd < 0) { exec_free_string_vector(kargv, argc); exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
     ssize_t size = fs_size(fd);
     char* elf_buf = calloc(1, size+32);
     int ret = fs_read(fd, elf_buf, size);
     fs_close(fd, 0);
-    if (ret <= 0) { free(elf_buf); neoc_exec_free_string_vector(kargv, argc); neoc_exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
+    if (ret <= 0) { free(elf_buf); exec_free_string_vector(kargv, argc); exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
 
     // setuid/gid checks
     struct stat stx; int has_stat = (fs_stat(path, &stx) == 0);
@@ -1124,21 +1124,21 @@ int Sys_execve()
     // Setup user stack with argv strings
     uint64_t sp = new_p->context.sp;
     uint64_t argv_base = 0;
-    if (neoc_exec_push_string_vector(new_p->pagetable, kargv, argc, &sp, &argv_base) < 0) {
-        neoc_exec_free_string_vector(kargv, argc);
-        neoc_exec_free_string_vector(kenv, envc);
+    if (exec_push_string_vector(new_p->pagetable, kargv, argc, &sp, &argv_base) < 0) {
+        exec_free_string_vector(kargv, argc);
+        exec_free_string_vector(kenv, envc);
         panic("execve: push argv failed");
     }
 
     // Setup env strings and envp
     uint64_t envp_base = 0;
-    if (neoc_exec_push_string_vector(new_p->pagetable, kenv, envc, &sp, &envp_base) < 0) {
-        neoc_exec_free_string_vector(kargv, argc);
-        neoc_exec_free_string_vector(kenv, envc);
+    if (exec_push_string_vector(new_p->pagetable, kenv, envc, &sp, &envp_base) < 0) {
+        exec_free_string_vector(kargv, argc);
+        exec_free_string_vector(kenv, envc);
         panic("execve: push env failed");
     }
-    neoc_exec_free_string_vector(kargv, argc);
-    neoc_exec_free_string_vector(kenv, envc);
+    exec_free_string_vector(kargv, argc);
+    exec_free_string_vector(kenv, envc);
 
     // Set registers for new program
     trapframe->a0 = argc;
@@ -1172,7 +1172,7 @@ int Sys_execved()
     // argv
     char** kargv = NULL;
     int argc = 0;
-    if (neoc_exec_load_user_string_vector(p->pagetable, arg1, 128, 256, 0, &kargv, &argc) < 0) {
+    if (exec_load_user_string_vector(p->pagetable, arg1, 128, 256, 0, &kargv, &argc) < 0) {
         trapframe->a0 = -1;
         return -1;
     }
@@ -1180,20 +1180,20 @@ int Sys_execved()
     // envp
     char** kenv = NULL;
     int envc = 0;
-    if (neoc_exec_load_user_string_vector(p->pagetable, arg2, 64, 256, 1, &kenv, &envc) < 0) {
-        neoc_exec_free_string_vector(kargv, argc);
+    if (exec_load_user_string_vector(p->pagetable, arg2, 64, 256, 1, &kenv, &envc) < 0) {
+        exec_free_string_vector(kargv, argc);
         trapframe->a0 = -1;
         return -1;
     }
 
     // open and load program
     int fd = fs_open2(path, 0, 0);
-    if(fd < 0) { neoc_exec_free_string_vector(kargv, argc); neoc_exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
+    if(fd < 0) { exec_free_string_vector(kargv, argc); exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
     ssize_t size = fs_size(fd);
     char* elf_buf = calloc(1, size+32);
     int ret = fs_read(fd, elf_buf, size);
     fs_close(fd, 0);
-    if (ret <= 0) { free(elf_buf); neoc_exec_free_string_vector(kargv, argc); neoc_exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
+    if (ret <= 0) { free(elf_buf); exec_free_string_vector(kargv, argc); exec_free_string_vector(kenv, envc); trapframe->a0 = -1; return -1; }
 
     // setuid/gid checks
     struct stat stx; int has_stat = (fs_stat(path, &stx) == 0);
@@ -1213,21 +1213,21 @@ int Sys_execved()
     // Setup user stack with argv strings
     uint64_t sp = new_p->context.sp;
     uint64_t argv_base = 0;
-    if (neoc_exec_push_string_vector(new_p->pagetable, kargv, argc, &sp, &argv_base) < 0) {
-        neoc_exec_free_string_vector(kargv, argc);
-        neoc_exec_free_string_vector(kenv, envc);
+    if (exec_push_string_vector(new_p->pagetable, kargv, argc, &sp, &argv_base) < 0) {
+        exec_free_string_vector(kargv, argc);
+        exec_free_string_vector(kenv, envc);
         panic("execve: push argv failed");
     }
 
     // Setup env strings and envp
     uint64_t envp_base = 0;
-    if (neoc_exec_push_string_vector(new_p->pagetable, kenv, envc, &sp, &envp_base) < 0) {
-        neoc_exec_free_string_vector(kargv, argc);
-        neoc_exec_free_string_vector(kenv, envc);
+    if (exec_push_string_vector(new_p->pagetable, kenv, envc, &sp, &envp_base) < 0) {
+        exec_free_string_vector(kargv, argc);
+        exec_free_string_vector(kenv, envc);
         panic("execve: push env failed");
     }
-    neoc_exec_free_string_vector(kargv, argc);
-    neoc_exec_free_string_vector(kenv, envc);
+    exec_free_string_vector(kargv, argc);
+    exec_free_string_vector(kenv, envc);
 
     // Set registers for new program
     trapframe->a0 = argc;

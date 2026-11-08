@@ -1,8 +1,8 @@
 #include "minux.h"
-            
-int main(int argc, char** argv) {
-    puts("Minux");
+#include "user_helpers.h"
 
+int main(int argc, char** argv)
+{
+    minux_println("Minux");
     exit(0);
 }
-

@@ -410,7 +410,7 @@ static int check_perm(struct dinode *ip, int want)
     if (p->uid == ip->uid) shift = 6;
     else if (p->gid == ip->gid) shift = 3;
     else {
-        shift = neoc_proc_has_supp_gid(p, ip->gid) ? 3 : 0;
+        shift = proc_has_supp_gid(p, ip->gid) ? 3 : 0;
     }
     int perms = (mode >> shift) & 7;
     // if want includes write, require write bit; if exec required, require x; if read required, require r
@@ -850,23 +850,23 @@ static int owner_cap(struct file *f) {
 }
 static void owner_add(struct file *f, struct proc *o) {
     if (!f || !o) return;
-    neoc_file_owner_add(f, o);
+    file_owner_add(f, o);
 }
 static void owner_remove(struct file *f, struct proc *o) {
     if (!f || !o) return;
-    neoc_file_owner_remove(f, o);
+    file_owner_remove(f, o);
 }
 
 #define FD_OFFSET 3
 
 void file_system_init()
 {
-    neoc_fs_pool_init();
+    fs_pool_init();
 }
 
 struct spipe* alloc_pipe()
 {
-    struct spipe* p = neoc_fs_pop_free_pipe();
+    struct spipe* p = fs_pop_free_pipe();
     void* linked_file_list = p ? p->linked_file_list : NULL;
 
     if(p == NULL) {
@@ -886,12 +886,12 @@ struct spipe* alloc_pipe()
 void free_pipe(struct spipe* p)
 {
     if(p == NULL) return;
-    neoc_pipe_linked_file_clear(p);
-    neoc_fs_push_free_pipe(p);
+    pipe_linked_file_clear(p);
+    fs_push_free_pipe(p);
 }
 
 struct file* alloc_file() {
-    struct file* p = neoc_fs_pop_free_file();
+    struct file* p = fs_pop_free_file();
     void* owner_process_list = p ? p->owner_process_list : NULL;
 
     if (p == NULL) {
@@ -909,8 +909,8 @@ struct file* alloc_file() {
 void free_file(struct file* p)
 {
     if(p == NULL) return;
-    neoc_file_owner_clear(p);
-    neoc_fs_push_free_file(p);
+    file_owner_clear(p);
+    fs_push_free_file(p);
 }
 
 // ── pipealloc ──────────────────────────────────────────────────────────
@@ -927,7 +927,7 @@ struct spipe* pipealloc(void)
     p->write_open = 1;
     p->used = 0;
     p->num_linked_file = 0;
-    neoc_pipe_linked_file_clear(p);
+    pipe_linked_file_clear(p);
     
     void* user_va = p;
     void* pa = p;
@@ -942,7 +942,7 @@ struct file* new_file_table()
     struct file* result = (struct file*)alloc_file(); //1, sizeof(struct file));
     if (!result) return NULL;  // Check for allocation failure
 //printf("kalloc file table %p\n", result);
-    neoc_file_owner_clear(result);
+    file_owner_clear(result);
 
     owner_add(result, proc_slot_get(gActiveProc));
 
@@ -1043,7 +1043,7 @@ void pipe_open(int* fd1, int* fd2) {
             *fd1 = i;
             
             pip->used++;
-            neoc_pipe_linked_file_add(pip, file_table[i]);
+            pipe_linked_file_add(pip, file_table[i]);
             pip->nreader++;
             
 //printf("pip->used %d\n", pip->used);
@@ -1065,7 +1065,7 @@ void pipe_open(int* fd1, int* fd2) {
             *fd2 = i;  // <- returns 3,4,5…
             
             pip->used++;
-            neoc_pipe_linked_file_add(pip, file_table[i]);
+            pipe_linked_file_add(pip, file_table[i]);
             pip->nwriter++;
             
 //printf("pip->used %d\n", pip->used);
@@ -1501,7 +1501,7 @@ int fs_unlink(const char *path)
     if (di.type != T_FILE) return -1; // refuse to unlink non-regular
 
     // deny unlink if any process holds it open
-    if (neoc_proc_is_file_open(inum)) {
+    if (proc_is_file_open(inum)) {
         return -1; // busy
     }
 
@@ -1978,10 +1978,10 @@ int fs_close(long fd, int massive) {
         if (f->read_pipe  && p->nreader > 0) { if (--p->nreader == 0) p->read_open  = 0; }
         if (f->write_pipe && p->nwriter > 0) { if (--p->nwriter == 0) p->write_open = 0; }
         if (p->used > 0) p->used--;
-        neoc_pipe_linked_file_remove(p, f);
+        pipe_linked_file_remove(p, f);
         if (p->used == 0) {
             // Drop reverse references before free_pipe to avoid UAF
-            neoc_pipe_linked_file_clear_pipe_refs(p);
+            pipe_linked_file_clear_pipe_refs(p);
             free_pipe(p);
         }
     }

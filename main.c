@@ -1,5 +1,5 @@
 #include "common.h"
-#include "sh.h"
+#include "build/sh.h"
 
 _Static_assert(sizeof(struct elfsym) == 24, "Elf64_Sym size must be 24");
 _Static_assert(offsetof(struct elfsym, value) == 8, "st_value must be at +8");
@@ -105,7 +105,7 @@ void free_pagetable(pagetable_t pagetable, int level) {
     }
 }
 
-struct proc* gProc[PROC_MAX];
+void* gProc;
 int gNumProc;
 int gActiveProc;
 
@@ -115,8 +115,8 @@ int proc_find_pid(struct proc* p)
         return -1;
     }
 
-    for(int i=0; i<PROC_MAX; i++) {
-        if(gProc[i] == p) {
+    for(int i=0; i<gNumProc; i++) {
+        if(proc_slot_get(i) == p) {
             return i;
         }
     }
@@ -389,7 +389,6 @@ void enable_mmu(pagetable_t kernel_pagetable) {
 
 // Supervisor-mode CSR bit definitions
 #define SIE_SEIE   (1UL << 9)  // Supervisor External Interrupt Enable
-#define SSTATUS_SIE (1UL << 1) // Sstatus.SIE
 
 // Route the UART IRQ to Supervisor mode via the PLIC
 extern void plic_enable(int irq);
@@ -659,13 +658,17 @@ static int find_gp_from_file(char* elfbuf, const struct elfhdr* eh, uint64_t* ou
 void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, int* child_proc_index, int debug_) {
     struct proc* result = kalloc();
     
-    result->process_pages = kalloc();
-    result->process_pages[0] = kalloc();
-    
-    result->process_pages[0]->process_kalloc_address = kalloc();
-    result->process_pages[0]->num_process_kalloc_address = 0;
-    
-    result->num_process_pages = 1;
+    result->process_pages = NULL;
+    result->num_process_pages = 0;
+    result->process_pages_list = NULL;
+    proc_process_pages_clear(result);
+
+    struct process_pages* first_page = kalloc();
+    first_page->process_kalloc_address = NULL;
+    first_page->num_process_kalloc_address = 0;
+    first_page->process_kalloc_address_list = NULL;
+    process_page_kalloc_clear(first_page);
+    proc_process_pages_add(result, first_page);
     
     result->program_size = elf_buf_size;
     char *prog_copy = malloc(elf_buf_size);
@@ -681,6 +684,8 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     result->umask = 0022;
     result->uid = 0;
     result->gid = 0;
+    result->supp_gid_list = NULL;
+    proc_supp_gid_clear(result);
     
     pagetable_t pagetable = (pagetable_t)kalloc();
     memset(pagetable, 0, PGSIZE);
@@ -717,14 +722,19 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             }
 
             void *pa = kalloc();
-            struct process_pages* page = result->process_pages[result->num_process_pages - 1];
+            struct process_pages* page = proc_process_pages_last(result);
 
             if (!pa) panic("kalloc");
             memset(pa, 0, PGSIZE);
 
-            page->process_kalloc_address[page->num_process_kalloc_address++] = pa;
+            process_page_kalloc_add(page, (char*)pa);
             if (page->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
-                result->process_pages[++result->num_process_pages] = kalloc();
+                struct process_pages* new_page = kalloc();
+                new_page->process_kalloc_address = NULL;
+                new_page->num_process_kalloc_address = 0;
+                new_page->process_kalloc_address_list = NULL;
+                process_page_kalloc_clear(new_page);
+                proc_process_pages_add(result, new_page);
             }
 
             mappages(result->pagetable, va, PGSIZE, (uint64_t)pa,
@@ -842,7 +852,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     }
 
     if(fork_flag) {
-        struct proc *parent = gProc[gActiveProc]; // Get the current process
+        struct proc *parent = proc_slot_get(gActiveProc); // Get the current process
 #ifdef DEBUG_CWD
         printf("[fork] parent=%d cwd='%s'\n", gActiveProc, parent->cwd);
 #endif
@@ -852,12 +862,35 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         result->umask = parent->umask;
         result->uid = parent->uid;
         result->gid = parent->gid;
-        //result->pgrp = parent->pgrp;
+        proc_copy_supp_gids(result, parent);
+        result->pgrp = parent->pgrp;
         result->parent = parent;
         result->parent_pid = gActiveProc;
         
-        uint64_t parent_current    = parent->context.sp;
-        uint64_t parent_stack_top   = (uint64_t)parent->stack_top;
+        /* fork inherits mutable data and heap as well as the stack. */
+        for(uint64_t va = 0; va < PGROUNDUP(parent->sz); va += PGSIZE) {
+            void* src = walkaddr(parent->pagetable, va);
+            if(!src) continue;
+            void* dst = walkaddr(result->pagetable, va);
+            if(!dst) {
+                dst = kalloc();
+                if(!dst) panic("fork heap allocation");
+                struct process_pages* page = proc_process_pages_last(result);
+                process_page_kalloc_add(page, dst);
+                if(page->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
+                    struct process_pages* next = kalloc();
+                    if(!next) panic("fork page tracking");
+                    memset(next, 0, sizeof(*next));
+                    proc_process_pages_add(result, next);
+                }
+                pte_t* parent_pte = walk(parent->pagetable, va, 0);
+                if(mappages(result->pagetable, va, PGSIZE, (uint64_t)dst,
+                            *parent_pte & 0x3ff) < 0) panic("fork heap mapping");
+            }
+            memmove(dst, src, PGSIZE);
+        }
+        result->sz = parent->sz;
+        uint64_t parent_stack_top = (uint64_t)parent->stack_top;
         
         uint64_t stack_base = USER_STACK_TOP - STACK_PAGES*PGSIZE;
         for (int i = 0; i < STACK_PAGES; i++) {
@@ -905,7 +938,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         asm volatile("sfence.vma zero, zero"); 
     
         if(exec_flag) {
-            struct proc *parent = gProc[gActiveProc]; // Get the current process
+            struct proc *parent = proc_slot_get(gActiveProc); // Get the current process
             
             result->parent = parent->parent;
             result->parent_pid = parent->parent_pid;
@@ -915,6 +948,7 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             result->umask = parent->umask;
             result->uid = parent->uid;
             result->gid = parent->gid;
+            proc_copy_supp_gids(result, parent);
             result->pgrp = parent->pgrp;
             int i=0; while (parent->cwd[i] && i < (int)sizeof(result->cwd)-1) { result->cwd[i] = parent->cwd[i]; i++; }
             result->cwd[i] = '\0';
@@ -930,10 +964,10 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
     if(exec_flag) {
 //puts("alloc_prog4 exec_flag\n");
 //printf("mepc %x\n", result->context.mepc);
-        struct proc *parent = gProc[gActiveProc]; // Get the current process
-        neoc_proc_list_replace(parent, result);
+        struct proc *parent = proc_slot_get(gActiveProc); // Get the current process
+        proc_list_replace(parent, result);
         free_proc(parent);
-        gProc[gActiveProc] = result;
+        proc_slot_set(gActiveProc, result);
         user_satp = MAKE_SATP(result->pagetable);
         user_sp   = result->context.sp;
         
@@ -945,9 +979,9 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
         if(gNumProc >= PROC_MAX) {
             int found = 0;
             for(int i=0; i<PROC_MAX; i++) {
-                if(gProc[i] == NULL) {
-                    gProc[i] = result;
-                    neoc_proc_list_add(result);
+                if(proc_slot_get(i) == NULL) {
+                    proc_slot_set(i, result);
+                    proc_list_add(result);
                     *child_proc_index = i;
                     found = 1;
                     break;
@@ -960,8 +994,9 @@ void alloc_prog(char* elf_buf, int elf_buf_size, int fork_flag, int exec_flag, i
             }
         }
         else {
-            gProc[gNumProc++] = result;
-            neoc_proc_list_add(result);
+            proc_slot_set(gNumProc, result);
+            proc_list_add(result);
+            gNumProc++;
             *child_proc_index = gNumProc -1;
         }
     }
@@ -975,15 +1010,17 @@ void free_proc(struct proc *p) {
         kfree(pa);
     }
     for (int i=0; i<p->num_process_pages; i++) {
-        struct process_pages* page = p->process_pages[i];
+        struct process_pages* page = proc_process_pages_get(p, i);
         
         for(int j=0; j<page->num_process_kalloc_address; j++) {
-            kfree(page->process_kalloc_address[j]);
+            kfree(process_page_kalloc_get(page, j));
         }
         
+        process_page_kalloc_clear(page);
         kfree(page);
     }
-    kfree(p->process_pages);
+    proc_process_pages_clear(p);
+    proc_supp_gid_clear(p);
     
     if (p->program) {
         free(p->program);
@@ -998,7 +1035,7 @@ void free_proc(struct proc *p) {
 
 struct file** get_current_file_table()
 {
-    return gProc[gActiveProc]->file_table;
+    return proc_slot_get(gActiveProc)->file_table;
 }
 
 void plic_init();
@@ -1010,7 +1047,6 @@ void uart_rx_init();
 void plic_enable(int irq);
 
 #define TIMER_INTERVAL 10000UL
-#define SSTATUS_SIE (1UL << 1)  // sstatus.SIE bit
 #define SIE_STIE    (1UL << 5)  // sie.STIE bit
 
 extern void trapvec();  
@@ -1046,34 +1082,32 @@ uint64_t user_satp __attribute__((section(".common")));
 char yield_stack[STACK_MAX] __attribute__((section(".common")));
 
 void remove_kernel_state(int active_proc) {
-    struct sKernelState* state = neoc_kernel_state_take(active_proc);
+    struct sKernelState* state;
 
-    if(state == NULL) {
-        return;
+    while((state = kernel_state_take(active_proc)) != NULL) {
+        if(state->gYieldStack) {
+            free(state->gYieldStack);
+        }
+        free(state);
     }
-
-    if(state->gYieldStack) {
-        free(state->gYieldStack);
-    }
-    free(state);
 }
 
 static void clear_all_kernel_state(void)
 {
     struct sKernelState* state;
 
-    while((state = neoc_kernel_state_take_first()) != NULL) {
+    while((state = kernel_state_take_first()) != NULL) {
         if(state->gYieldStack) {
             free(state->gYieldStack);
         }
         free(state);
     }
 
-    neoc_kernel_state_clear();
+    kernel_state_clear();
 }
 
 void kernel_yield() {
-    struct sKernelState* state = neoc_kernel_state_find(gActiveProc);
+    struct sKernelState* state = kernel_state_find(gActiveProc);
 
     if(state == NULL) {
         state = calloc(1, sizeof(struct sKernelState));
@@ -1089,7 +1123,8 @@ void kernel_yield() {
             panic("kernel_yield stack");
         }
 
-        neoc_kernel_state_add(state);
+        state->gYieldUserActiveProc = gActiveProc;
+        kernel_state_add(state);
     }
 
     state->gYieldReturnContext = *(struct context_t*)TRAPFRAME;
@@ -1106,7 +1141,7 @@ void kernel_yield() {
 void yield_return();
 
 void kernel_yield_return() {
-    struct sKernelState* state = neoc_kernel_state_take(gActiveProc);
+    struct sKernelState* state = kernel_state_take(gActiveProc);
     
     if(state != NULL) {
         user_satp = state->gYieldUserSatp;
@@ -1134,7 +1169,7 @@ extern void swtch_debug(struct context_t *new_);
 
 void timer_handler() {
     disable_timer_interrupts();
-    struct proc *p = gProc[gActiveProc];
+    struct proc *p = proc_slot_get(gActiveProc);
 
     struct context_t *tf = (struct context_t*)TRAPFRAME;
     p->context = *tf;
@@ -1142,25 +1177,41 @@ void timer_handler() {
     timer_reset(); 
 
     int old_active_proc = gActiveProc;
-    struct proc *old = gProc[gActiveProc];
-    gActiveProc++;
-    
-    while(gActiveProc < gNumProc && gProc[gActiveProc] == NULL) {
+    struct proc *old = proc_slot_get(gActiveProc);
+    int found_next = 0;
+
+    for(int searched = 0; searched < gNumProc; searched++) {
         gActiveProc++;
+
+        if(gActiveProc >= gNumProc) {
+            gActiveProc = 0;
+        }
+
+        struct proc* candidate = proc_slot_get(gActiveProc);
+
+        if(candidate != NULL && candidate->zombie == 0) {
+            found_next = 1;
+            break;
+        }
+    }
+
+    if(!found_next) {
+        gActiveProc = old_active_proc;
     }
     
-    if(gActiveProc >= gNumProc) {
-        gActiveProc = 0;
+    struct proc* new_ = proc_slot_get(gActiveProc);
+
+    if(kernel_state_find(gActiveProc) != NULL) {
+        if(new_ == NULL || new_->zombie) {
+            remove_kernel_state(gActiveProc);
+        }
+        else {
+            kernel_yield_return();
+            return;
+        }
     }
     
-    if(neoc_kernel_state_find(gActiveProc) != NULL) {
-        kernel_yield_return();
-        return;
-    }
-    
-    struct proc* new_ = gProc[gActiveProc];
-    
-    if (new_ != old && new_->zombie == 0) {
+    if (new_ != NULL && new_ != old && new_->zombie == 0) {
         user_sp = new_->context.sp;
         user_satp = MAKE_SATP(new_->pagetable);
         old->context = *(struct context_t*)TRAPFRAME;
@@ -1203,12 +1254,17 @@ int uvm_alloc(struct proc *p, pagetable_t pagetable, uint64_t old_sz, uint64_t n
     for(; va < new_sz; va += PGSIZE) {
         char *mem = kalloc();
         
-        struct process_pages* page = p->process_pages[p->num_process_pages - 1];
+        struct process_pages* page = proc_process_pages_last(p);
         
-        page->process_kalloc_address[page->num_process_kalloc_address++] = mem;
+        process_page_kalloc_add(page, mem);
         
         if(page->num_process_kalloc_address >= NUM_PROC_VA_MAX) {
-            p->process_pages[++p->num_process_pages] = kalloc();
+            struct process_pages* new_page = kalloc();
+            new_page->process_kalloc_address = NULL;
+            new_page->num_process_kalloc_address = 0;
+            new_page->process_kalloc_address_list = NULL;
+            process_page_kalloc_clear(new_page);
+            proc_process_pages_add(p, new_page);
         }
         
         if(mem == 0){
@@ -1276,6 +1332,11 @@ uintptr_t syscall_handler()
             
         case SYS_wait: {
             result = Sys_wait();
+            }
+            break;
+
+        case SYS_waitdirect: {
+            result = Sys_waitdirect();
             }
             break;
             
@@ -1501,13 +1562,13 @@ void timerinit()
 
 struct proc* get_current_proc()
 {
-    return gProc[gActiveProc];
+    return proc_slot_get(gActiveProc);
 }
 
 void global_init()
 {
-    memset(gProc, 0, sizeof(struct proc*)*PROC_MAX);
-    neoc_proc_list_init();
+    proc_slot_reset();
+    proc_list_init();
     gNumProc = 0;
     clear_all_kernel_state();
     gActiveProc = 0;
@@ -1567,7 +1628,7 @@ int main()
     /// Drop into the user process
     w_stimecmp(r_time() + 10000000);
     
-    struct proc* p = gProc[0];
+    struct proc* p = proc_slot_get(0);
     
     int gp = p->context.gp;
     
