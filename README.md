@@ -6,8 +6,9 @@ unix like operating system on riscv.
 
 VI, SHELL, CC, AS, CPP AND LD WORK.
 
-The kernel and userland are written in C and RISC-V assembly. Building MINUX9
-does not require Neo-C, ncc, or sources from a parent repository.
+The kernel and userland are implemented in pure C, with RISC-V assembly for
+low-level boot and context-switching code. Building MINUX9 does not require
+Neo-C, ncc, or sources from a parent repository.
 
 Requirements: a RISC-V GCC/binutils toolchain, a host C compiler, make, and xxd.
 The Makefile detects `riscv64-unknown-elf-` or `riscv64-linux-gnu-`; other
