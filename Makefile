@@ -29,7 +29,7 @@ QEMU ?= qemu-system-riscv64
 QEMU_OPTION ?= -machine virt -bios none -nographic -m 1024M -kernel kernel.elf -drive file=fs.img,if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -nic none
 
 .DEFAULT_GOAL := all
-.PHONY: all clean run log test test-eof test-basic test-text test-pipes test-fork-heap
+.PHONY: all clean run log test test-eof test-basic test-text test-pipes test-fork-heap test-toolchain
 .DELETE_ON_ERROR:
 
 USER_PROGRAMS := cat sleep cpp uname hostname hello echo grep readelf nm objdump hexdump ls pipeline mkdir rmdir pwd touch more vi as ld cc sh
@@ -49,6 +49,9 @@ minux9.o: minux9.c minux9.h
 
 $(USER_PROGRAMS): %: %.c crt0.o minux.o minux.h user_helpers.h user.ld
 	$(CCPREFIX)gcc $(USER_FLAGS) $(if $(filter cc,$@),-DCC_S_ONLY,) -g -o $@ crt0.o $< minux.o -lgcc -fno-omit-frame-pointer
+
+as: as.h
+cc: cc.h
 
 build/sh.h: sh
 	mkdir -p build
@@ -84,7 +87,7 @@ run: all
 log: all
 	$(RISCV_EMU) $(RISCV_EMU_OPTION) --trace
 
-test: test-eof test-basic test-text test-pipes test-fork-heap
+test: test-eof test-basic test-text test-pipes test-fork-heap test-toolchain
 
 test-eof: kernel.elf fs.img $(RISCV_EMU_TARGET)
 	@out="$(EMU_TEST_EOF_OUT)"; \
@@ -177,7 +180,7 @@ debug-mac: all
 	pkill -f qemu
 
 clean:
-	rm -f $(USER_PROGRAMS) $(KERNEL_OBJECTS) crt0.o minux.o minux9.o kernel.elf kernel.bin fs.img fork_test .emu-test-fork.img mkfs map.txt $(RISCV_EMU_TARGET) build/sh.h .emu-test-*.out
+	rm -f $(USER_PROGRAMS) $(KERNEL_OBJECTS) crt0.o minux.o minux9.o kernel.elf kernel.bin fs.img fork_test .emu-test-fork.img .emu-test-toolchain.img mkfs map.txt $(RISCV_EMU_TARGET) build/sh.h .emu-test-*.out
 
 fork_test: tests/fork_heap.c crt0.o minux.o minux.h user.ld
 	$(CCPREFIX)gcc $(USER_FLAGS) -g -o $@ crt0.o $< minux.o -lgcc
@@ -188,3 +191,7 @@ test-fork-heap: all fork_test
 	status=$$?; \
 	if [ "$$status" -ne 0 ]; then cat .emu-test-fork.out; exit "$$status"; fi; \
 	grep -Fx 'PASS fork heap' .emu-test-fork.out || { cat .emu-test-fork.out; exit 1; }
+
+# Compile, assemble, link and run the fixtures entirely inside the guest OS.
+test-toolchain: all
+	RISCV_EMU="$(RISCV_EMU)" python3 tests/check_toolchain.py

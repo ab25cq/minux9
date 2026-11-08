@@ -222,7 +222,7 @@ enum symbol_types {
 #define SYMBOLMAP_ENTRIES 256
 struct symbolmap {
 	size_t count;
-	struct symbol *data;
+	struct symbol **data;
 };
 extern struct symbolmap symbols[SYMBOLMAP_ENTRIES];
 

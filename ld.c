@@ -1631,7 +1631,7 @@ uint32_t getFlags(Context* ctx)
 
 void Ehdr_CopyBuf(Chunk *c,Context* ctx)
 {
-    Ehdr *ehdr = (Ehdr*) malloc(sizeof (Ehdr));
+    Ehdr *ehdr = (Ehdr*) calloc(1, sizeof(Ehdr));
     WriteMagic(ehdr->Ident);
     ehdr->Ident[EI_CLASS] = ELFCLASS64;
     ehdr->Ident[EI_DATA] = ELFDATA2LSB;
@@ -2039,9 +2039,7 @@ void InitializeSymbols(Context *ctx,ObjectFile* o)
         sym->symIdx = i;
         DBG("esym shndx %d\n", esym->Shndx);
         
-        if (!HashMapPut(ctx->SymbolMap,sym->name, sym)) {
-            fatal("XXX: HashMapPut failed for %s", sym->name ? sym->name : "<null>");
-        }
+        /* Local names belong to this object, not the global symbol map. */
 
         //绝对符号没有对应的inputSection
         if(!IsAbs(esym)) {
@@ -2091,8 +2089,9 @@ void InitializeSymbols(Context *ctx,ObjectFile* o)
         sym->name = name;
         sym->file = o; 
         DBG("global sym name=%p file=%p\n", name, sym->file);
-        sym->symIdx = i; 
-        sym->inputSection = o->Sections[GetShndx(o,esym,i)];
+        sym->symIdx = i;
+        sym->value = esym->Val;
+        sym->inputSection = IsAbs(esym) ? NULL : o->Sections[GetShndx(o,esym,i)];
         HashMapRemove(ctx->SymbolMap, name);
         if (!HashMapPut(ctx->SymbolMap,sym->name, sym)) {
             fatal("XXX: HashMapPut failed for %s", sym->name ? sym->name : "<null>");
@@ -3317,6 +3316,9 @@ void Shdr_UpdateShdr(Chunk* c,Context* ctx)
         fatal(".shstrtab section header not generated");
     }
 
+    /* Names appended after .shstrtab itself also belong to its payload. */
+    c->shdrTable.entries[ctx->ShStrtabIndex].Size = tab->size;
+
     if (idx != c->shdrTable.count) {
         c->shdrTable.count = idx;
     }
@@ -3556,6 +3558,10 @@ static Symbol *ResolveRelocSymbol(Context *ctx, InputSection *isec, uint32_t sym
     Symbol *sym = isec->objectFile->inputFile->LocalSymbols[symIdx];
     if (sym == NULL)
         return NULL;
+
+    ElfSym *esym = &isec->objectFile->inputFile->ElfSyms[symIdx];
+    if(ELF64_ST_BIND(esym->Info) == STB_LOCAL)
+        return sym;
 
     if (ctx != NULL && sym->name != NULL && sym->name[0] != '\0') {
         Symbol *defined = FindDefinedSymbolByName(ctx, sym->name);
@@ -3861,7 +3867,8 @@ void ScanRelocations__(Context* ctx,InputSection* isec)
         Symbol *sym = isec->objectFile->inputFile->LocalSymbols[rel.Sym];
         if (sym == NULL)
             continue;
-        if (ctx && sym->name && sym->name[0] != '\0') {
+        ElfSym *esym = &isec->objectFile->inputFile->ElfSyms[rel.Sym];
+        if (ELF64_ST_BIND(esym->Info) != STB_LOCAL && ctx && sym->name && sym->name[0] != '\0') {
             Symbol *canon = GetSymbolByName(ctx, sym->name);
             if (canon) {
                 DBG("ScanRelocations__: canonical %s file=%s\n",

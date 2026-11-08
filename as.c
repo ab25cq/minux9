@@ -1953,6 +1953,7 @@ struct {
 } section_map[] = {
     { ".text", SECTION_TEXT },
     { ".data", SECTION_DATA },
+    { ".rodata", SECTION_DATA },
 };
 
 static struct directive get_directive(const char *name)
@@ -3064,28 +3065,32 @@ int fill_symtab(void)
     write_sectiondata(&blank, sizeof(blank),
               (struct sectionpos){ .section = SECTION_SYMTAB,
                            .offset = 0 });
-    uint32_t strtab_addr = 1;
     size_t count = 1;
-    for (size_t hash = 0; hash < SYMBOLMAP_ENTRIES; hash++) {
-        for (size_t index = 0; index < symbols[hash].count; index++) {
-            struct symbol *sym = &symbols[hash].data[index];
-            struct elf64sym entry = (struct elf64sym){
-                .name = strtab_addr,
-                .info = sym->binding,
-                .other = 0, /* TODO: add other attributes */
-                .shndx = (uint16_t)sym->section,
-                .value = (uint64_t)sym->value,
-                .size = 0, /* TODO: support for symbol sizes? */
-            };
-            write_sectiondata(
-                &entry, sizeof(entry),
-                (struct sectionpos){ .section = SECTION_SYMTAB,
-                             .offset = count *
-                                   sizeof(entry) });
-            strtab_addr += (uint32_t)sym->name_sz;
-            sym->sym_index = count;
-            count++;
+    /* ELF requires all local symbols before sh_info, followed by globals.
+     * Unresolved names must be global so another object can define them. */
+    for(int pass = 0; pass < 2; pass++) {
+        uint32_t strtab_addr = 1;
+        for(size_t hash = 0; hash < SYMBOLMAP_ENTRIES; hash++) {
+            for(size_t index = 0; index < symbols[hash].count; index++) {
+                struct symbol* sym = symbols[hash].data[index];
+                uint32_t name_offset = strtab_addr;
+                strtab_addr += (uint32_t)sym->name_sz;
+                int global = (sym->binding >> 4) != 0 || sym->section == SECTION_NULL;
+                if(global != pass) continue;
+                struct elf64sym entry = {
+                    .name = name_offset,
+                    .info = sym->section == SECTION_NULL ? 0x10 : sym->binding,
+                    .other = 0,
+                    .shndx = (uint16_t)sym->section,
+                    .value = (uint64_t)sym->value,
+                    .size = 0,
+                };
+                write_sectiondata(&entry, sizeof(entry),
+                    (struct sectionpos){ SECTION_SYMTAB, count * sizeof(entry) });
+                sym->sym_index = count++;
+            }
         }
+        if(pass == 0) sectiondata[SECTION_SYMTAB].info = count;
     }
     return 0;
 }
@@ -3581,8 +3586,8 @@ struct symbol *get_symbol(const char *name)
 {
     const size_t hash = hash_str(name);
     for (size_t i = 0; i < symbols[hash].count; i++) {
-        if (!strcmp(name, symbols[hash].data[i].name)) {
-            return &symbols[hash].data[i];
+        if (!strcmp(name, symbols[hash].data[i]->name)) {
+            return symbols[hash].data[i];
         }
     }
     return NULL;
@@ -3603,7 +3608,7 @@ struct symbol *create_symbol(const char *name, enum symbol_types type)
     const size_t index = symbols[hash].count;
 
     for (size_t i = 0; i < symbols[hash].count; i++) {
-        if (!strcmp(name, symbols[hash].data[i].name)) {
+        if (!strcmp(name, symbols[hash].data[i]->name)) {
             logger(ERROR, error_invalid_syntax,
                    "Duplicate symbol %s encountered");
             return NULL;
@@ -3615,20 +3620,23 @@ struct symbol *create_symbol(const char *name, enum symbol_types type)
         xrealloc(symbols[hash].data,
              symbols[hash].count * sizeof(*symbols[hash].data));
 
+    /* Instructions and relocations retain symbol pointers across insertions. */
+    symbols[hash].data[index] = xcalloc(1, sizeof(struct symbol));
+
     const size_t n_sz = strlen(name) + 1;
     char *n = xmalloc(n_sz);
     memcpy(n, name, n_sz);
-    symbols[hash].data[index].name = n;
-    symbols[hash].data[index].name_sz = n_sz;
-    symbols[hash].data[index].type = type;
-    symbols[hash].data[index].binding = 0;
-    symbols[hash].data[index].section = SECTION_NULL;
-    symbols[hash].data[index].value = 0;
-    symbols[hash].data[index].sym_index = 0;
+    symbols[hash].data[index]->name = n;
+    symbols[hash].data[index]->name_sz = n_sz;
+    symbols[hash].data[index]->type = type;
+    symbols[hash].data[index]->binding = 0;
+    symbols[hash].data[index]->section = SECTION_NULL;
+    symbols[hash].data[index]->value = 0;
+    symbols[hash].data[index]->sym_index = 0;
 
     logger(DEBUG, no_error, "Created symbol named \"%s\"", n);
 
-    return &symbols[hash].data[index];
+    return symbols[hash].data[index];
 }
 
 size_t calc_symtab_str_buf_size(void)
@@ -3636,7 +3644,7 @@ size_t calc_symtab_str_buf_size(void)
     size_t sz = 1;
     for (size_t hash = 0; hash < SYMBOLMAP_ENTRIES; hash++)
         for (size_t index = 0; index < symbols[hash].count; index++)
-            sz += symbols[hash].data[index].name_sz;
+            sz += symbols[hash].data[index]->name_sz;
     return sz;
 }
 
@@ -3648,8 +3656,8 @@ char *create_symtab_str_buf(size_t sz)
     for (size_t hash = 0; hash < SYMBOLMAP_ENTRIES; hash++) {
         for (size_t index = 0; index < symbols[hash].count; index++) {
             const size_t name_sz =
-                symbols[hash].data[index].name_sz;
-            memcpy(buf + offset, symbols[hash].data[index].name,
+                symbols[hash].data[index]->name_sz;
+            memcpy(buf + offset, symbols[hash].data[index]->name,
                    name_sz);
             offset += name_sz;
         }
@@ -3660,8 +3668,10 @@ char *create_symtab_str_buf(size_t sz)
 void free_symbols(void)
 {
     for (size_t hash = 0; hash < SYMBOLMAP_ENTRIES; hash++) {
-        for (size_t index = 0; index < symbols[hash].count; index++)
-            free(symbols[hash].data[index].name);
+        for (size_t index = 0; index < symbols[hash].count; index++) {
+            free(symbols[hash].data[index]->name);
+            free(symbols[hash].data[index]);
+        }
         free(symbols[hash].data);
         symbols[hash].data = NULL;
         symbols[hash].count = 0;

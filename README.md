@@ -1,6 +1,6 @@
 # minux9
 
-version 1.2.5
+version 1.2.6
 
 unix like operating system on riscv.
 
@@ -29,13 +29,37 @@ Regression tests:
 ```
 make test
 make test-fork-heap
+make test-toolchain
 ```
 
 Tests cover shell EOF, basic commands, text processing, pipelines, and fork
-inheritance and isolation of mutable data and heap memory. `timeout` is needed
-to run the tests. Historical Neo-C compiler experiments are not build inputs.
+inheritance and isolation of mutable data and heap memory. `test-toolchain`
+uses the guest cc, as, and ld to build and run assembly and C Hello World
+programs, then checks calls to separate C and assembly modules with both input
+object orders. It checks program output and every guest command's exit status.
+The tests require `timeout` and Python 3. Historical Neo-C compiler experiments
+are not build inputs.
 
 sh fast_build.sh 
+
+1.2.6 changes:
+
+- Fixed assembler symbol references becoming invalid when names collide in
+  the symbol hash table.
+- Corrected ELF symbol ordering and the first-global-symbol index, and emit
+  unresolved symbols as globals so other object files can define them.
+- Added assembler support for `.section .rodata` using the data section.
+- Fixed linker handling of local symbols, defined global symbol values,
+  and absolute symbols. Local names now remain scoped to their object file.
+- Corrected the output ELF section-name string table size and initialized
+  the ELF header padding.
+- Added `make test-toolchain` to the full regression suite. It builds and
+  executes assembly and C Hello World programs entirely inside MINUX9 using
+  the guest cc, as, and ld.
+- Verified calls to separate C and assembly modules with both object input
+  orders, checking output and the exit status of all 16 guest commands.
+- All existing EOF, basic-command, text-processing, pipeline, and fork heap
+  regression tests also pass.
 
 1.2.5 changes:
 
